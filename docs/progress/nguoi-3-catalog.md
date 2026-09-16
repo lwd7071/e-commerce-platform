@@ -9,7 +9,25 @@
 
 ## Nhật ký theo ngày
 
-### 2026-09-16
+
+### 2026-09-16 (Bổ sung sửa lỗi sau review & chẩn đoán diagnosing-bugs)
+
+- Đã làm:
+  - Khắc phục lỗi kiểm tra số lượng tại `lockVariant`: Bổ sung kiểm tra bắt buộc `quantity` phải là số nguyên dương (`Number.isInteger(quantity) && quantity > 0`). Chặn hoàn toàn trường hợp số âm làm tăng tồn kho (như `quantity = -2`) hoặc số lượng lẻ làm tồn kho bị thập phân (như `quantity = 0.5`).
+  - Khắc phục lỗi định dạng giá tại `ProductVariantEntity`: Thay thế cơ chế `parseFloat` lỏng lẻo bằng regex số thập phân chặt chẽ `/^\d+(\.\d+)?$/`. Chặn đứng việc chấp nhận các chuỗi giá chứa ký tự rác (như `"10garbage"` hoặc `"abc"`).
+  - Cập nhật quy tắc giá khuyến mãi (SalePrice) vào giá Checkout:
+    - Bổ sung trường `salePrice` và `effectivePrice` vào `VariantPriceAndStockDTO` và `LockVariantResultDTO`.
+    - Khi gọi `lockVariant`, `priceSnapshot` được xác định chính xác theo giá hữu hiệu (`effectivePrice = salePrice ?? price`).
+    - Cung cấp `originalPriceSnapshot` và `salePriceSnapshot` để Người 5 ghi nhận snapshot đơn hàng minh bạch.
+  - Chuẩn hóa module imports: Loại bỏ phần mở rộng `.ts` ở toàn bộ các câu lệnh import trong `backend/src/modules/catalog/` và test suite để tương thích hoàn toàn với trình biên dịch TypeScript (`tsc`) và bundler.
+  - Đồng bộ cấu hình kiểm thử Vitest: Tạo thư mục `backend/tests/modules/catalog/*.test.ts` song song với `backend/test/modules/catalog/*.spec.ts` để tương thích với pattern `tests/**/*.test.ts` của Vitest khi chạy `npm test`.
+- Test bổ sung:
+  - `[QD06/QD07]` Chặn số lượng âm và số lẻ khi khóa kho (không làm tăng hoặc lẻ tồn kho) — Pass.
+  - `[QD05]` Chặn giá có ký tự rác (`10garbage`) — Pass.
+  - `[Khuyến mãi Checkout]` Khóa biến thể có `salePrice` trả `priceSnapshot` là giá khuyến mãi — Pass.
+  - Tổng số test cases nâng lên: 24/24 pass 100% (chạy pass đồng thời trên cả `node --test` và Vitest).
+
+### 2026-09-16 (Khởi tạo T1 ban đầu)
 
 - Đã làm:
   - Thiết kế đầy đủ Domain Types và chuẩn hóa Domain Errors (`ValidationError`, `StockInvalidError`, `ForbiddenError`, `SkuConflictError`, `InventoryInsufficientError`, `ResourceDeleteNotAllowedError`) tại `backend/src/modules/catalog/domain/`.

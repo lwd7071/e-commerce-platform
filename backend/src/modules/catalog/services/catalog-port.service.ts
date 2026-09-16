@@ -1,7 +1,7 @@
-import type { ICatalogPort, VariantPriceAndStockDTO, LockVariantResultDTO } from '../ports/catalog.port.ts';
-import type { UUID, ShopStatus } from '../domain/types.ts';
-import { ProductVariantEntity } from '../domain/product-variant.ts';
-import { InventoryInsufficientError, ValidationError } from '../domain/errors.ts';
+import type { ICatalogPort, VariantPriceAndStockDTO, LockVariantResultDTO } from '../ports/catalog.port';
+import type { UUID, ShopStatus } from '../domain/types';
+import { ProductVariantEntity } from '../domain/product-variant';
+import { InventoryInsufficientError, ValidationError } from '../domain/errors';
 
 export class CatalogPortService implements ICatalogPort {
   private variantStorage: Map<UUID, ProductVariantEntity> = new Map();
@@ -27,6 +27,8 @@ export class CatalogPortService implements ICatalogPort {
       variantName: variant.variantName,
       variantValue: variant.variantValue,
       price: variant.price,
+      salePrice: variant.salePrice ?? null,
+      effectivePrice: variant.effectivePrice,
       stockQuantity: variant.stockQuantity,
       status: variant.status,
     };
@@ -39,6 +41,13 @@ export class CatalogPortService implements ICatalogPort {
     const variant = this.variantStorage.get(variantId);
     if (!variant) {
       throw new ValidationError(`Biến thể sản phẩm '${variantId}' không tồn tại.`);
+    }
+
+    // Xác thực số lượng: Bắt buộc là số nguyên dương (> 0) (QD06, QD07)
+    if (typeof quantity !== 'number' || !Number.isInteger(quantity) || quantity <= 0) {
+      throw new ValidationError(
+        `Số lượng cần khóa phải là số nguyên dương (> 0), nhận được: ${quantity}.`
+      );
     }
 
     if (variant.status !== 'ACTIVE') {
@@ -62,7 +71,9 @@ export class CatalogPortService implements ICatalogPort {
     return {
       variantId: variant.variantId,
       requestedQuantity: quantity,
-      priceSnapshot: variant.price,
+      priceSnapshot: variant.effectivePrice,
+      originalPriceSnapshot: variant.price,
+      salePriceSnapshot: variant.salePrice ?? null,
       remainingStock: variant.stockQuantity,
     };
   }
