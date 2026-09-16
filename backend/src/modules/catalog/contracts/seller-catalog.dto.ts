@@ -1,4 +1,4 @@
-import type { UUID, DecimalString, ProductStatus, VariantStatus } from '../domain/types.ts';
+import type { UUID, DecimalString, ProductStatus, VariantStatus } from '../domain/types';
 
 export interface CreateProductRequestDTO {
   shopId: UUID;

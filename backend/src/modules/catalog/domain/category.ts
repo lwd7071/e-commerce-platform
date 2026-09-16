@@ -1,5 +1,5 @@
-import type { Category, UUID, CategoryStatus } from './types.ts';
-import { ValidationError } from './errors.ts';
+import type { Category, UUID, CategoryStatus } from './types';
+import { ValidationError } from './errors';
 
 export class CategoryEntity implements Category {
   public readonly categoryId: UUID;

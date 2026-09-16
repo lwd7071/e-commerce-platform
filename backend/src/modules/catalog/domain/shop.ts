@@ -1,5 +1,5 @@
-import type { Shop, UUID, ShopStatus } from './types.ts';
-import { ForbiddenError, SkuConflictError } from './errors.ts';
+import type { Shop, UUID, ShopStatus } from './types';
+import { ForbiddenError, SkuConflictError } from './errors';
 
 export class ShopEntity implements Shop {
   public readonly shopId: UUID;

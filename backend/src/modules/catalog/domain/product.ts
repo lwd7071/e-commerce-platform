@@ -1,5 +1,5 @@
-import type { Product, UUID, ProductStatus } from './types.ts';
-import { ResourceDeleteNotAllowedError } from './errors.ts';
+import type { Product, UUID, ProductStatus } from './types';
+import { ResourceDeleteNotAllowedError } from './errors';
 
 export class ProductEntity implements Product {
   public readonly productId: UUID;
