@@ -1,0 +1,8 @@
+// Prisma ORM 7 contract. Supabase auth.users and storage.* remain externally managed.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
