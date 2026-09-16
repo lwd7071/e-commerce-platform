@@ -97,3 +97,42 @@ Sau khi đạt Bước 7, owner cập nhật đúng nhật ký của mình:
 - [Người 5 — Transaction](../progress/nguoi-5-transaction.md)
 
 Ghi theo [template chuẩn](../progress/README.md): ngày và việc đã làm, quyết định kỹ thuật, contract/port thay đổi hoặc `Không`, blocker, test thực sự đã chạy cùng kết quả và mã QD/RB nếu có. Dẫn tham chiếu phản hồi `Plan Approved` và kết quả diagnose trong mục nhật ký phù hợp. Chỉ đánh dấu checkbox task hoàn thành khi đầu ra và bằng chứng kiểm tra có thật; sau đó mới quay về Bước 0 cho task tiếp theo. Người 1 đồng bộ bảng tổng quan README khi có thay đổi lớn hoặc tại review cuối T.
+
+## Quy tắc commit message
+
+### Format bắt buộc
+
+```text
+<type>(<scope>): <short description in English>
+```
+
+Chỉ bỏ `(<scope>)` khi thay đổi thực sự lan toàn repository, ví dụ cấu hình CI chung: `chore: update repository CI checks`.
+
+- `type` chọn đúng **một** giá trị trong bảng bên dưới.
+- `scope` là domain hoặc phần hệ thống chịu tác động chính, ưu tiên tên thuộc ownership: `identity`, `catalog`, `cart`, `voucher`, `order`, `payment`, `shipment`, `db`, `auth`, `docs`, `progress`, `test`… `db` là **scope**, không phải type; migration có thể dùng `feat(db)` hoặc `fix(db)` tùy bản chất thay đổi.
+- Mô tả viết bằng tiếng Anh, một dòng ngắn, dùng động từ thì hiện tại và nêu rõ việc đã hoàn thành; không chấm cuối câu, không dùng mô tả chung như `fix bugs`.
+
+| Type | Dùng khi |
+|---|---|
+| `feat` | Thêm chức năng hoặc logic nghiệp vụ mới |
+| `fix` | Sửa lỗi hành vi hiện có |
+| `test` | Thêm hoặc sửa test mà không đổi logic sản phẩm |
+| `docs` | Tài liệu, progress log, README hoặc rule |
+| `refactor` | Đổi cấu trúc code nhưng không đổi hành vi |
+| `chore` | Cấu hình, dependency hoặc tooling không ảnh hưởng logic sản phẩm |
+
+### Commit theo từng lượt thực hiện
+
+- Làm trên branch riêng theo mẫu `t<T>-p<người>-<domain>` trong [kế hoạch Backend](backend-work-plan.md); không commit trực tiếp lên nhánh chính.
+- **Hoàn thành phase nào, commit phase đó** theo thứ tự trong plan đã `Plan Approved`. Mỗi commit chứa đầu ra của **một phase** và các test/check liên quan của phase ấy; không dồn nhiều phase vào một commit cuối task, cũng không gộp các phase hoặc task không liên quan.
+- Với phase TDD, chạy test để thấy fail vì hành vi còn thiếu, implement, rồi chạy lại để pass **trước khi commit phase**. Không tạo commit chỉ để ghi nhận test đỏ như thể phase đã xong. Nếu phase chưa qua kiểm tra bắt buộc, giữ thay đổi chưa commit và xử lý theo plan đã duyệt.
+- Khi Bước 7 phát hiện lỗi sau các commit phase, lập plan sửa theo Bước 8. Mỗi phase sửa đã được duyệt có commit riêng sau khi kiểm tra lại; không âm thầm gộp lỗi sửa vào commit của phase trước.
+- Cập nhật progress ở Bước 9 bằng **một commit `docs(progress)` riêng** sau khi diagnose đạt, ví dụ `docs(progress): record person 5 T1 checkout state machine completion`. Commit này là bước ghi nhận kết quả, không phải một phase code.
+- Trước mỗi commit, xem lại file được stage để bảo đảm chỉ có thay đổi của phase hoặc bước progress tương ứng, đúng ownership và không lẫn file của người khác.
+
+### Version, migration và kết quả kiểm tra
+
+- Nếu commit gắn với migration hoặc version có thật, ghi đúng mã đó trong mô tả, ví dụ `feat(db): apply V37 to enable RLS on system tables` **chỉ khi migration V37 thực sự tồn tại trong task này**. Không sao chép số version, số bảng hoặc kết quả từ dự án/ảnh tham khảo. Tuân thủ quy tắc migration trong [db-schema-rules.md](rules/db-schema-rules.md).
+- Khi nội dung commit là test hoặc sửa lỗi sau diagnose, có thể nêu phạm vi đã kiểm tra, ví dụ `test(order): verify checkout idempotency and rollback`. Chỉ ghi số liệu hoặc từ `pass` khi test đã chạy thật và có output đối chiếu được.
+- Message không thay thế bằng chứng ở Bước 7: kết quả lint, typecheck, build và test thực tế phải được ghi trong nhật ký hoặc PR. Không bịa số liệu kiểu `2/2 pass`, không dùng `.skip` để tạo kết quả đẹp.
+- Progress log tiếp tục ghi tiếng Việt theo [template chuẩn](../progress/README.md); chỉ commit message dùng tiếng Anh.
