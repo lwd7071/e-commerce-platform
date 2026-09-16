@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+:root {
+  --background: #FFF9FB;
+  --foreground: #1E1B1D;
+  --card-bg: #FFFFFF;
+  --card-border: #FCE7F0;
+  --primary: #E83D6C;
+  --primary-hover: #CF2453;
+  --primary-surface: #FFF0F5;
+  --nav-primary: #FFFFFF;
+  --nav-secondary: #FFF3F7;
+  --accent-pink: #FDA4AF;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #FFF9FB;
+}
+::-webkit-scrollbar-thumb {
+  background: #FCE7F0;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #F9A8D4;
+}
+
+/* Taste-skill double bezel effect */
+.bezel-card {
+  background: #FFFFFF;
+  border: 1px solid #FCE7F0;
+  box-shadow: 0 4px 16px -4px rgba(232, 61, 108, 0.04), 0 2px 4px -2px rgba(30, 27, 29, 0.02);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.bezel-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px -4px rgba(232, 61, 108, 0.12), 0 4px 8px -2px rgba(232, 61, 108, 0.04);
+  border-color: #F472B6;
+}
