@@ -1,0 +1,13 @@
+node_modules/
+dist/
+coverage/
+
+# Local credentials and machine-specific overrides.
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Local Supabase CLI state, if added later.
+supabase/.temp/
+supabase/.branches/

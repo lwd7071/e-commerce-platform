@@ -140,7 +140,11 @@ Không tạo index theo cảm tính ngoài danh sách trên; index mới phải 
 
 ## 10. Migration
 
-- Migration chỉ tiến về trước và có tên `YYYYMMDDHHMM_<mo_ta_ngan>.sql`.
+- Migration chỉ tiến về trước và do Prisma Migrate 7 quản lý trong
+  `backend/prisma/migrations/<timestamp>_<mo_ta>/migration.sql`.
+- `prisma migrate dev --create-only` được dùng để tạo migration; phải review
+  rồi mới chạy `prisma migrate deploy` bằng `DIRECT_URL`.
+- Không dùng `prisma db push` hoặc tạo song song lịch sử migration bằng Supabase CLI.
 - Không sửa migration đã chạy ở môi trường dùng chung; tạo migration mới để sửa.
 - Migration schema phải đi cùng test constraint/index và CR Approved nếu thay đổi Schema Freeze.
 - Thay đổi phá vỡ compatibility theo thứ tự expand → backfill → switch → contract.
