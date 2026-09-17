@@ -1,5 +1,5 @@
-import type { Shop, UUID, ShopStatus } from './types';
-import { ForbiddenError, SkuConflictError } from './errors';
+import type { Shop, UUID, ShopStatus } from './types.ts';
+import { ForbiddenError, SkuConflictError } from './errors.ts';
 
 export class ShopEntity implements Shop {
   public readonly shopId: UUID;
@@ -13,7 +13,8 @@ export class ShopEntity implements Shop {
   public readonly createdAt: string;
   public updatedAt: string;
 
-  private registeredSkus: Set<string> = new Set();
+  // Giả lập lưu trữ SKU của shop trong phạm vi domain
+  private existingSkus: Set<string> = new Set();
 
   constructor(params: {
     shopId: UUID;
@@ -26,6 +27,7 @@ export class ShopEntity implements Shop {
     status: ShopStatus;
     createdAt: string;
     updatedAt: string;
+    initialSkus?: string[];
   }) {
     this.shopId = params.shopId;
     this.ownerId = params.ownerId;
@@ -37,31 +39,37 @@ export class ShopEntity implements Shop {
     this.status = params.status;
     this.createdAt = params.createdAt;
     this.updatedAt = params.updatedAt;
-  }
 
-  /**
-   * QD04: Seller chỉ được quản lý Shop/sản phẩm thuộc sở hữu của mình.
-   */
-  public assertOwner(requestUserId: UUID): void {
-    if (this.ownerId !== requestUserId) {
-      throw new ForbiddenError('Người dùng không có quyền thao tác trên Shop này (QD04).', {
-        expectedOwnerId: this.ownerId,
-        requestUserId,
-      });
+    if (params.initialSkus) {
+      for (const sku of params.initialSkus) {
+        this.existingSkus.add(sku.toUpperCase());
+      }
     }
   }
 
   /**
-   * RB-LB11: SKU là duy nhất trong phạm vi từng Shop.
+   * QD04: Chỉ Seller sở hữu Shop mới có quyền thao tác trên sản phẩm của Shop đó.
+   */
+  public assertOwnership(requestUserId: UUID): void {
+    if (this.ownerId !== requestUserId) {
+      throw new ForbiddenError(
+        `Người dùng '${requestUserId}' không có quyền quản lý gian hàng '${this.shopId}' (QD04).`,
+        { shopId: this.shopId, ownerId: this.ownerId, requestUserId }
+      );
+    }
+  }
+
+  /**
+   * RB-LB11: Mã SKU là duy nhất trong phạm vi từng Shop.
    */
   public registerSku(sku: string): void {
     const normalizedSku = sku.trim().toUpperCase();
-    if (this.registeredSkus.has(normalizedSku)) {
-      throw new SkuConflictError(`Mã SKU '${sku}' đã tồn tại trong phạm vi gian hàng này (RB-LB11).`, {
-        sku,
-        shopId: this.shopId,
-      });
+    if (this.existingSkus.has(normalizedSku)) {
+      throw new SkuConflictError(
+        `Mã SKU '${normalizedSku}' đã tồn tại trong gian hàng này (RB-LB11). Vui lòng chọn mã SKU khác.`,
+        { shopId: this.shopId, sku: normalizedSku }
+      );
     }
-    this.registeredSkus.add(normalizedSku);
+    this.existingSkus.add(normalizedSku);
   }
 }

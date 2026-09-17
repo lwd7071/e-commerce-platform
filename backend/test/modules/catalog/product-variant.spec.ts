@@ -1,12 +1,12 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { ProductVariantEntity } from '../../../src/modules/catalog/domain/product-variant';
-import { ProductEntity } from '../../../src/modules/catalog/domain/product';
-import { ValidationError, StockInvalidError, ResourceDeleteNotAllowedError } from '../../../src/modules/catalog/domain/errors';
+import { ProductVariantEntity } from '../../../src/modules/catalog/domain/product-variant.ts';
+import { ProductEntity } from '../../../src/modules/catalog/domain/product.ts';
+import { ValidationError, StockInvalidError, ResourceDeleteNotAllowedError } from '../../../src/modules/catalog/domain/errors.ts';
 
 describe('Catalog Domain: ProductVariant & Product Validation', () => {
 
-  describe('ProductVariant Validation (QD05, QD06, RB-LTT09)', () => {
+  describe('ProductVariant Validation (QD05, QD06, Schema Freeze v1)', () => {
     const validParams = {
       variantId: '11111111-1111-4111-8111-111111111111',
       productId: '22222222-2222-4222-8222-222222222222',
@@ -63,25 +63,6 @@ describe('Catalog Domain: ProductVariant & Product Validation', () => {
       assert.throws(
         () => new ProductVariantEntity({ ...validParams, stockQuantity: 0.5 }),
         (err: any) => err instanceof StockInvalidError && err.code === 'STOCK_INVALID'
-      );
-    });
-
-    it('[RB-LTT09] Nếu có SalePrice, SalePrice phải <= Price', () => {
-      // Hợp lệ: giá khuyến mãi thấp hơn giá gốc
-      const validSale = new ProductVariantEntity({ ...validParams, price: '300000.00', salePrice: '250000.00' });
-      assert.equal(validSale.salePrice, '250000.00');
-      assert.equal(validSale.effectivePrice, '250000.00');
-
-      // Không hợp lệ: giá khuyến mãi lớn hơn giá gốc -> ném ValidationError
-      assert.throws(
-        () => new ProductVariantEntity({ ...validParams, price: '200000.00', salePrice: '250000.00' }),
-        (err: any) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
-      );
-
-      // Không hợp lệ: giá khuyến mãi có ký tự rác
-      assert.throws(
-        () => new ProductVariantEntity({ ...validParams, price: '200000.00', salePrice: '150garbage' }),
-        (err: any) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
     });
   });

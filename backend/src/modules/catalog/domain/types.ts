@@ -55,7 +55,6 @@ export interface ProductVariant {
   variantValue: string;
   sku: string;
   price: DecimalString;
-  salePrice?: DecimalString | null;
   stockQuantity: number;
   status: VariantStatus;
   createdAt: string;

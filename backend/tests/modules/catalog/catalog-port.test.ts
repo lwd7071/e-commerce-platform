@@ -1,8 +1,7 @@
-import { describe, it, beforeEach } from 'node:test';
-import assert from 'node:assert/strict';
-import { CatalogPortService } from '../../../src/modules/catalog/services/catalog-port.service';
-import { ProductVariantEntity } from '../../../src/modules/catalog/domain/product-variant';
-import { InventoryInsufficientError, ValidationError } from '../../../src/modules/catalog/domain/errors';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { CatalogPortService } from '../../../src/modules/catalog/services/catalog-port.service.ts';
+import { ProductVariantEntity } from '../../../src/modules/catalog/domain/product-variant.ts';
+import { InventoryInsufficientError, ValidationError } from '../../../src/modules/catalog/domain/errors.ts';
 
 describe('Catalog Port Contract (Bàn giao cho Người 5 - Transaction Core)', () => {
   let catalogService: CatalogPortService;
@@ -10,7 +9,6 @@ describe('Catalog Port Contract (Bàn giao cho Người 5 - Transaction Core)', 
   beforeEach(() => {
     catalogService = new CatalogPortService();
 
-    // Giả lập nạp dữ liệu biến thể vào catalog repository/cache trong bộ nhớ
     catalogService.registerMockVariant(
       new ProductVariantEntity({
         variantId: 'variant-101',
@@ -26,16 +24,14 @@ describe('Catalog Port Contract (Bàn giao cho Người 5 - Transaction Core)', 
       })
     );
 
-    // Biến thể có salePrice để test khuyến mãi
     catalogService.registerMockVariant(
       new ProductVariantEntity({
-        variantId: 'variant-sale-102',
+        variantId: 'variant-102',
         productId: 'prod-002',
         variantName: 'Size',
         variantValue: 'XL',
-        sku: 'AO-SALE-XL',
-        price: '10.00',
-        salePrice: '8.00',
+        sku: 'AO-XL',
+        price: '150000.00',
         stockQuantity: 5,
         status: 'ACTIVE',
         createdAt: '2026-09-16T10:00:00.000Z',
@@ -50,85 +46,52 @@ describe('Catalog Port Contract (Bàn giao cho Người 5 - Transaction Core)', 
   describe('Đọc thông tin giá & tồn kho phục vụ Checkout', () => {
     it('Đọc giá snapshot và tồn kho khả dụng của biến thể hợp lệ', async () => {
       const info = await catalogService.getVariantPriceAndStock('variant-101');
-      assert.equal(info.variantId, 'variant-101');
-      assert.equal(info.price, '199000.00');
-      assert.equal(info.stockQuantity, 10);
-      assert.equal(info.status, 'ACTIVE');
-      assert.equal(info.effectivePrice, '199000.00');
-    });
-
-    it('Đọc giá biến thể có khuyến mãi: trả về cả price, salePrice và effectivePrice', async () => {
-      const info = await catalogService.getVariantPriceAndStock('variant-sale-102');
-      assert.equal(info.price, '10.00');
-      assert.equal(info.salePrice, '8.00');
-      assert.equal(info.effectivePrice, '8.00');
+      expect(info.variantId).toBe('variant-101');
+      expect(info.price).toBe('199000.00');
+      expect(info.stockQuantity).toBe(10);
+      expect(info.status).toBe('ACTIVE');
     });
 
     it('Yêu cầu biến thể không tồn tại phải ném ValidationError (RESOURCE_NOT_FOUND)', async () => {
-      await assert.rejects(
-        async () => await catalogService.getVariantPriceAndStock('variant-non-existent'),
-        (err: any) => err instanceof ValidationError
-      );
+      await expect(catalogService.getVariantPriceAndStock('variant-non-existent')).rejects.toThrow(ValidationError);
     });
   });
 
   describe('Khóa biến thể và kiểm tra tồn kho [QD07]', () => {
     it('[QD07] Đặt số lượng 4 khi kho có 10 -> thành công, kho còn lại 6', async () => {
       const result = await catalogService.lockVariant('variant-101', 4);
-      assert.equal(result.variantId, 'variant-101');
-      assert.equal(result.priceSnapshot, '199000.00');
-      assert.equal(result.remainingStock, 6);
+      expect(result.variantId).toBe('variant-101');
+      expect(result.priceSnapshot).toBe('199000.00');
+      expect(result.remainingStock).toBe(6);
     });
 
     it('[QD07] Đặt số lượng 15 khi kho chỉ có 10 -> ném InventoryInsufficientError (INVENTORY_INSUFFICIENT)', async () => {
-      await assert.rejects(
-        async () => await catalogService.lockVariant('variant-101', 15),
-        (err: any) => err instanceof InventoryInsufficientError && err.code === 'INVENTORY_INSUFFICIENT'
-      );
+      await expect(catalogService.lockVariant('variant-101', 15)).rejects.toThrow(InventoryInsufficientError);
     });
 
     it('[QD07] Đặt số lượng âm (-2) phải bị từ chối với ValidationError và KHÔNG làm tăng tồn kho', async () => {
-      await assert.rejects(
-        async () => await catalogService.lockVariant('variant-sale-102', -2),
-        (err: any) => err instanceof ValidationError
-      );
-      // Kiểm tra tồn kho vẫn là 5, không bị tăng thành 7
-      const info = await catalogService.getVariantPriceAndStock('variant-sale-102');
-      assert.equal(info.stockQuantity, 5);
+      await expect(catalogService.lockVariant('variant-102', -2)).rejects.toThrow(ValidationError);
+      const info = await catalogService.getVariantPriceAndStock('variant-102');
+      expect(info.stockQuantity).toBe(5);
     });
 
     it('[QD07] Đặt số lượng lẻ (0.5) hoặc bằng 0 phải bị từ chối với ValidationError', async () => {
-      await assert.rejects(
-        async () => await catalogService.lockVariant('variant-sale-102', 0.5),
-        (err: any) => err instanceof ValidationError
-      );
-      await assert.rejects(
-        async () => await catalogService.lockVariant('variant-sale-102', 0),
-        (err: any) => err instanceof ValidationError
-      );
-      // Tồn kho không bị lẻ
-      const info = await catalogService.getVariantPriceAndStock('variant-sale-102');
-      assert.equal(info.stockQuantity, 5);
-    });
-
-    it('[Khuyến mãi Checkout] Khóa biến thể có salePrice trả priceSnapshot là giá khuyến mãi', async () => {
-      const result = await catalogService.lockVariant('variant-sale-102', 1);
-      assert.equal(result.priceSnapshot, '8.00');
-      assert.equal(result.originalPriceSnapshot, '10.00');
-      assert.equal(result.salePriceSnapshot, '8.00');
-      assert.equal(result.remainingStock, 4);
+      await expect(catalogService.lockVariant('variant-102', 0.5)).rejects.toThrow(ValidationError);
+      await expect(catalogService.lockVariant('variant-102', 0)).rejects.toThrow(ValidationError);
+      const info = await catalogService.getVariantPriceAndStock('variant-102');
+      expect(info.stockQuantity).toBe(5);
     });
   });
 
   describe('Kiểm tra trạng thái Shop', () => {
     it('Shop ACTIVE -> trả về true', async () => {
       const isActive = await catalogService.checkShopActive('shop-001');
-      assert.equal(isActive, true);
+      expect(isActive).toBe(true);
     });
 
     it('Shop LOCKED hoặc SUSPENDED -> trả về false', async () => {
       const isActive = await catalogService.checkShopActive('shop-locked');
-      assert.equal(isActive, false);
+      expect(isActive).toBe(false);
     });
   });
 

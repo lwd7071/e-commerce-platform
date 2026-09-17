@@ -1,38 +1,22 @@
-import type { UUID, DecimalString, ProductStatus, VariantStatus } from '../domain/types';
+import type { UUID, DecimalString, ProductStatus, VariantStatus } from '../domain/types.ts';
 
-export interface PublicCategoryItemDTO {
-  categoryId: UUID;
-  parentCategoryId: UUID | null;
-  categoryName: string;
-  description: string | null;
-}
-
-export interface PublicVariantSummaryDTO {
-  variantId: UUID;
-  variantName: string;
-  variantValue: string;
-  price: DecimalString;
-  inStock: boolean;
-}
-
-export interface PublicProductDetailDTO {
-  productId: UUID;
-  shopId: UUID;
-  shopName: string;
-  categoryId: UUID;
-  categoryName: string;
-  productName: string;
-  description: string | null;
-  images: string[];
-  variants: PublicVariantSummaryDTO[];
-  status: ProductStatus;
+export interface PublicProductQueryDTO {
+  categoryId?: UUID;
+  keyword?: string;
+  minPrice?: DecimalString;
+  maxPrice?: DecimalString;
+  page?: number;
+  limit?: number;
+  sortBy?: 'price_asc' | 'price_desc' | 'created_at_desc';
 }
 
 export interface PublicProductListItemDTO {
   productId: UUID;
   productName: string;
-  thumbnailUrl: string | null;
+  shopId: UUID;
+  categoryId: UUID;
   minPrice: DecimalString;
   maxPrice: DecimalString;
-  shopName: string;
+  primaryImageUrl: string | null;
+  status: ProductStatus;
 }
