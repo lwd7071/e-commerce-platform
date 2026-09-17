@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { Pool } from 'pg';
 import { withTransaction } from '../../db/transaction.js';
 
 type FakeClient = {
@@ -7,7 +8,8 @@ type FakeClient = {
 };
 
 const fakeClient = (): FakeClient => ({ query: vi.fn().mockResolvedValue({ rows: [] }), release: vi.fn() });
-const fakePool = (client: FakeClient) => ({ connect: vi.fn().mockResolvedValue(client) }) as never;
+const fakePool = (client: FakeClient): Pool =>
+  ({ connect: vi.fn().mockResolvedValue(client) }) as unknown as Pool;
 
 describe('withTransaction', () => {
   it('commits and releases after a successful operation', async () => {
@@ -43,12 +45,12 @@ describe('withTransaction', () => {
   });
 
   it('does not release an undefined client when pool.connect fails', async () => {
-    const pool = { connect: vi.fn().mockRejectedValue(new Error('pool exhausted')) } as never;
+    const pool = { connect: vi.fn().mockRejectedValue(new Error('pool exhausted')) } as unknown as Pool;
     await expect(withTransaction(pool, async () => undefined)).rejects.toThrow('pool exhausted');
   });
 
   it('rejects isolation injection before connecting', async () => {
-    const pool = { connect: vi.fn() } as never;
+    const pool = { connect: vi.fn() } as unknown as Pool;
     await expect(withTransaction(pool, async () => undefined, { isolationLevel: 'SERIALIZABLE; DROP TABLE users' as never }))
       .rejects.toThrow('Unsupported isolation level');
     expect(pool.connect).not.toHaveBeenCalled();

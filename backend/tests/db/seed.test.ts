@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { PoolClient } from 'pg';
 import { seedExistingAuthUser } from '../../db/seed/existing-auth-user.js';
 
 const seed = {
@@ -9,12 +10,14 @@ const seed = {
   fullName: '  Test User  ',
 };
 
-const client = () => ({ query: vi.fn().mockResolvedValue({ rows: [] }) }) as never;
+type FakeClient = { query: ReturnType<typeof vi.fn> };
+
+const client = (): FakeClient => ({ query: vi.fn().mockResolvedValue({ rows: [] }) });
 
 describe('seedExistingAuthUser', () => {
   it('normalizes input and does not update role/status on conflict', async () => {
     const fakeClient = client();
-    await seedExistingAuthUser(fakeClient, seed);
+    await seedExistingAuthUser(fakeClient as unknown as PoolClient, seed);
     expect(fakeClient.query).toHaveBeenCalledTimes(2);
     const [userSql, userParams] = fakeClient.query.mock.calls[0];
     expect(userSql).toContain('ON CONFLICT (user_id) DO UPDATE');
@@ -33,7 +36,7 @@ describe('seedExistingAuthUser', () => {
     ['invalid status', { ...seed, status: 'DISABLED' as never }],
   ])('rejects %s before SQL', async (_caseName, invalidSeed) => {
     const fakeClient = client();
-    await expect(seedExistingAuthUser(fakeClient, invalidSeed)).rejects.toThrow();
+    await expect(seedExistingAuthUser(fakeClient as unknown as PoolClient, invalidSeed)).rejects.toThrow();
     expect(fakeClient.query).not.toHaveBeenCalled();
   });
 
@@ -44,7 +47,7 @@ describe('seedExistingAuthUser', () => {
       constraint: 'uq_app_users__email',
     });
     fakeClient.query.mockRejectedValueOnce(databaseError);
-    await expect(seedExistingAuthUser(fakeClient, seed)).rejects.toBe(databaseError);
+    await expect(seedExistingAuthUser(fakeClient as unknown as PoolClient, seed)).rejects.toBe(databaseError);
   });
 
   it('propagates an email conflict from the second upsert unchanged', async () => {
@@ -54,13 +57,13 @@ describe('seedExistingAuthUser', () => {
       constraint: 'uq_app_users__email',
     });
     fakeClient.query.mockResolvedValueOnce({ rows: [] }).mockRejectedValueOnce(databaseError);
-    await expect(seedExistingAuthUser(fakeClient, seed)).rejects.toBe(databaseError);
+    await expect(seedExistingAuthUser(fakeClient as unknown as PoolClient, seed)).rejects.toBe(databaseError);
     expect(fakeClient.query).toHaveBeenCalledTimes(2);
   });
 
   it('does not control the parent transaction', async () => {
     const fakeClient = client();
-    await seedExistingAuthUser(fakeClient, seed);
+    await seedExistingAuthUser(fakeClient as unknown as PoolClient, seed);
     expect(fakeClient.query.mock.calls.map(([sql]) => sql)).not.toContain('BEGIN');
     expect(fakeClient.query.mock.calls.map(([sql]) => sql)).not.toContain('COMMIT');
     expect(fakeClient.query.mock.calls.map(([sql]) => sql)).not.toContain('ROLLBACK');
