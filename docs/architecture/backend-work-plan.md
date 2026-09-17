@@ -453,3 +453,4 @@ flowchart LR
 - Payload/Node.js, Supabase Auth/PostgreSQL/Storage và 22 bảng Schema Freeze v1 không thay đổi.
 - UI hiện tại không ảnh hưởng thiết kế backend.
 - Người 1 làm integration lead nhưng không tự merge PR của chính mình; PR Người 1 cần Người 2 hoặc Người 5 duyệt.
+- Version và trạng thái cài đặt theo [`tech-stack.md`](tech-stack.md).
