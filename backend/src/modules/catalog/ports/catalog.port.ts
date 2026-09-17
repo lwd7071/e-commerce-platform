@@ -1,4 +1,4 @@
-import type { UUID, DecimalString, VariantStatus } from '../domain/types';
+import type { UUID, DecimalString, VariantStatus } from '../domain/types.ts';
 
 export interface VariantPriceAndStockDTO {
   variantId: UUID;
@@ -7,8 +7,6 @@ export interface VariantPriceAndStockDTO {
   variantName: string;
   variantValue: string;
   price: DecimalString;
-  salePrice?: DecimalString | null;
-  effectivePrice: DecimalString;
   stockQuantity: number;
   status: VariantStatus;
 }
@@ -17,8 +15,6 @@ export interface LockVariantResultDTO {
   variantId: UUID;
   requestedQuantity: number;
   priceSnapshot: DecimalString;
-  originalPriceSnapshot?: DecimalString;
-  salePriceSnapshot?: DecimalString | null;
   remainingStock: number;
 }
 

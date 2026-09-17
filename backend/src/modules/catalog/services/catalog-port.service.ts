@@ -1,8 +1,14 @@
-import type { ICatalogPort, VariantPriceAndStockDTO, LockVariantResultDTO } from '../ports/catalog.port';
-import type { UUID, ShopStatus } from '../domain/types';
-import { ProductVariantEntity } from '../domain/product-variant';
-import { InventoryInsufficientError, ValidationError } from '../domain/errors';
+import type { ICatalogPort, VariantPriceAndStockDTO, LockVariantResultDTO } from '../ports/catalog.port.ts';
+import type { UUID, ShopStatus } from '../domain/types.ts';
+import { ProductVariantEntity } from '../domain/product-variant.ts';
+import { InventoryInsufficientError, ValidationError } from '../domain/errors.ts';
 
+/**
+ * CatalogPortService (T1 In-memory Mock/Stub)
+ * Lưu ý: Trong mốc T1, service này hoạt động ở chế độ in-memory stub nhằm khóa contract
+ * và phục vụ test độc lập. Việc tích hợp DB transaction/row-level lock với PostgreSQL
+ * sẽ được triển khai ở mốc T2 khi Người 2 bàn giao database connection.
+ */
 export class CatalogPortService implements ICatalogPort {
   private variantStorage: Map<UUID, ProductVariantEntity> = new Map();
   private shopStorage: Map<UUID, ShopStatus> = new Map();
@@ -27,8 +33,6 @@ export class CatalogPortService implements ICatalogPort {
       variantName: variant.variantName,
       variantValue: variant.variantValue,
       price: variant.price,
-      salePrice: variant.salePrice ?? null,
-      effectivePrice: variant.effectivePrice,
       stockQuantity: variant.stockQuantity,
       status: variant.status,
     };
@@ -65,15 +69,13 @@ export class CatalogPortService implements ICatalogPort {
       );
     }
 
-    // Cập nhật trừ tồn kho trong phiên
+    // Cập nhật trừ tồn kho trong phiên bộ nhớ (T1 stub)
     variant.stockQuantity -= quantity;
 
     return {
       variantId: variant.variantId,
       requestedQuantity: quantity,
-      priceSnapshot: variant.effectivePrice,
-      originalPriceSnapshot: variant.price,
-      salePriceSnapshot: variant.salePrice ?? null,
+      priceSnapshot: variant.price,
       remainingStock: variant.stockQuantity,
     };
   }
