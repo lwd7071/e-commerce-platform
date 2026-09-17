@@ -1,6 +1,6 @@
 # Quy trình thực hiện Task Backend — áp dụng cho mọi Task T1/T2/T3
 
-Quy trình này áp dụng cho cả 5 thành viên Backend. Phạm vi task và người sở hữu lấy từ [kế hoạch chia việc Backend](backend-work-plan.md); nguồn quy tắc kỹ thuật nằm trong [Architecture Rules](rules/README.md); cách ghi kết quả nằm trong [hướng dẫn nhật ký tiến độ](../progress/README.md). Quy trình này không thay đổi ownership, contract đã khóa hoặc Schema Freeze.
+Quy trình này áp dụng cho cả 5 thành viên Backend. Phạm vi task và người sở hữu lấy từ [kế hoạch chia việc Backend](backend-work-plan.md); nguồn quy tắc kỹ thuật nằm trong [Architecture Rules](rules/README.md); version/runtime/framework/tooling chuẩn lấy từ [đặc tả tech stack](tech-stack.md); cách ghi kết quả nằm trong [hướng dẫn nhật ký tiến độ](../progress/README.md). Quy trình này không thay đổi ownership, contract đã khóa hoặc Schema Freeze.
 
 Người thực hiện chịu trách nhiệm xác nhận từng bước đã xảy ra thật. Không coi AI trong IDE hoặc Claude là đã đọc, đã chạy test hay đã phê duyệt nếu không có phản hồi hoặc kết quả thực tế để đối chiếu. Claude review là bước chuyển giao thủ công qua người thực hiện, không phải tích hợp tự động.
 
@@ -26,7 +26,7 @@ Không làm song song nhiều task chưa có plan được duyệt. Một task �
 
 ## Bước 0 — Đọc docs trước khi lập plan
 
-AI trong IDE phải đọc đầy đủ [architecture-decisions.md](rules/architecture-decisions.md) và [testing-quality-gates.md](rules/testing-quality-gates.md) cho **mọi task**, rồi đọc các rule liên quan trực tiếp:
+AI trong IDE phải đọc đầy đủ [architecture-decisions.md](rules/architecture-decisions.md), [testing-quality-gates.md](rules/testing-quality-gates.md) và [đặc tả tech stack](tech-stack.md) cho **mọi task**. Tech stack là nguồn chuẩn duy nhất cho Node/npm, framework, package manager, test runner và trạng thái công cụ; nếu task cần đổi version hoặc runner thì phải cập nhật tech-stack.md cùng PR. Sau đó đọc các rule liên quan trực tiếp:
 
 | Task liên quan | Rule cần đọc |
 |---|---|
@@ -74,6 +74,7 @@ AI sửa toàn văn plan theo feedback rồi lặp Bước 3–4. Chỉ phản h
 - Làm đủ các phase theo thứ tự test-first đã duyệt; test phải chạy thật, ghi nhận fail/pass thật và không tạo test giả để qua CI.
 - Không bỏ test bằng `.skip`, comment hoặc nới lỏng assertion để né lỗi.
 - Không tự thêm rule, đổi contract, mở rộng ownership hoặc nới validation ngoài plan. Nếu gặp vấn đề ngoài plan hoặc cần quyết định mới, dừng phần bị ảnh hưởng, cập nhật plan và quay lại Bước 3; phần không bị ảnh hưởng chỉ tiếp tục khi vẫn nằm trong plan đã duyệt.
+- Mọi lệnh kiểm tra và xác nhận CI phải dùng runtime/tooling trong [đặc tả tech stack](tech-stack.md). Trước khi chạy, xác nhận Node/npm đúng version; không ghi nhận “pass” nếu chạy bằng runtime khác với chuẩn.
 - Không tự sửa file của owner khác. Thay đổi Schema Freeze hoặc state machine phải qua Change Request `Approved` theo kế hoạch Backend.
 
 ## Bước 7 — Diagnose sau thực thi

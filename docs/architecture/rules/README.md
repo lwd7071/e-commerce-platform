@@ -17,6 +17,8 @@ Code hoặc tài liệu cấp thấp hơn không được tự ý ghi đè quy�
 
 ## Mục lục
 
+Runtime, framework và tooling chuẩn được quy định tại [`../tech-stack.md`](../tech-stack.md).
+
 | Tài liệu | Trạng thái | Phạm vi |
 |---|---|---|
 | [`architecture-decisions.md`](architecture-decisions.md) | Approved | Ranh giới Next.js, Payload và Supabase |
@@ -44,4 +46,3 @@ Code hoặc tài liệu cấp thấp hơn không được tự ý ghi đè quy�
 - Frontend không đọc hoặc ghi trực tiếp bảng nghiệp vụ.
 - Supabase Auth là nguồn định danh; Payload xác minh JWT và tải role/status nghiệp vụ từ database.
 - Schema Freeze v1 gồm 22 bảng và QD01-QD20 là nguồn chuẩn.
-
