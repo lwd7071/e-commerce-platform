@@ -412,7 +412,7 @@ export class PgProductRepository implements IProductRepository {
     `;
 
     const dataRes = await this.pool.query(dataSql, params);
-    const items: PublicProductSummary[] = dataRes.rows.map((row) => ({
+    const items: PublicProductSummary[] = dataRes.rows.map((row: Record<string, any>) => ({
       productId: row.product_id,
       shopId: row.shop_id,
       categoryId: row.category_id,

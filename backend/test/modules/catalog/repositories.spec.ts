@@ -4,7 +4,6 @@ import type {
   IShopRepository,
   ICategoryRepository,
   IProductRepository,
-  IProductVariantRepository,
 } from '../../../src/modules/catalog/domain/repositories.ts';
 import {
   InMemoryShopRepository,
@@ -127,7 +126,7 @@ describe('Catalog Domain Repositories (Node native spec)', () => {
             variantId: 'v-act',
             productId: 'p-act',
             variantName: 'Default',
-            variantValue: null,
+            variantValue: 'Default',
             sku: 'VIS-01',
             price: '150.00',
             stockQuantity: 10,
@@ -154,7 +153,7 @@ describe('Catalog Domain Repositories (Node native spec)', () => {
             variantId: 'v-lock',
             productId: 'p-lock',
             variantName: 'Default',
-            variantValue: null,
+            variantValue: 'Default',
             sku: 'HID-01',
             price: '200.00',
             stockQuantity: 5,
