@@ -7,6 +7,16 @@ export type DatabaseConfig = {
   runRemoteDbTests: boolean;
 };
 
+export const parseRunRemoteDbTests = (env: NodeJS.ProcessEnv): boolean => {
+  const raw = env.RUN_REMOTE_DB_TESTS;
+  if (raw === undefined) return false;
+
+  const normalized = raw.trim().toLowerCase();
+  if (normalized === 'true') return true;
+  if (normalized === 'false') return false;
+  throw new Error('RUN_REMOTE_DB_TESTS must be true or false');
+};
+
 const required = (env: NodeJS.ProcessEnv, name: string): string => {
   const value = env[name]?.trim();
   if (!value) throw new Error(`Missing required environment variable: ${name}`);
@@ -35,9 +45,5 @@ export const loadDatabaseConfig = (env: NodeJS.ProcessEnv): DatabaseConfig => {
   if (!databaseUsers.every((username) => username.endsWith(`.${projectRef}`))) {
     throw new Error('DATABASE_URL and DIRECT_URL must target the SUPABASE_URL project');
   }
-  const runRemoteDbTests = (env.RUN_REMOTE_DB_TESTS ?? 'false').toLowerCase();
-  if (runRemoteDbTests !== 'true' && runRemoteDbTests !== 'false') {
-    throw new Error('RUN_REMOTE_DB_TESTS must be true or false');
-  }
-  return { supabaseUrl, databaseUrl, directUrl, runRemoteDbTests: runRemoteDbTests === 'true' };
+  return { supabaseUrl, databaseUrl, directUrl, runRemoteDbTests: parseRunRemoteDbTests(env) };
 };
