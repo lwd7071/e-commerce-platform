@@ -2,12 +2,49 @@
 
 ## Trạng thái hiện tại
 
-- Mốc: T1
+- Mốc: T2
 - Cập nhật lần cuối: 2026-09-17
-- Đang làm: Đã hoàn tất 100% phần việc "Làm được ngay, không cần chờ ai" và hoàn tất chu kỳ sửa lỗi TDD v3 (đạt 69/69 unit & port tests pass, sạch 100% typecheck)
-- Bị block bởi: Đang chờ Người 1 scaffold/shared contracts và Người 2 database connection để tích hợp tiếp
+- Đang làm: Đã hoàn tất 100% Phase 1 đến Phase 6 của mốc T2 (6 PostgreSQL Repositories theo SOLID, 5 bộ integration test Red->Green, chốt tài liệu Query Patterns bàn giao Người 2, đạt 110/110 tests pass, sạch 100% typecheck)
+- Bị block bởi: Không bị block. Sẵn sàng tích hợp khi Người 2 review Index và Người 5 gọi các Port Services.
 
 ## Nhật ký theo ngày
+
+### 2026-09-17 (Mốc T2 — Triển khai PostgreSQL Repositories theo chuẩn SOLID & Bàn giao Query Patterns)
+
+- **Đã làm:**
+  - **Triển khai kiến trúc SOLID toàn diện cho tầng Infrastructure:**
+    - **Single Responsibility (S):** Tách biệt tầng Row Mapping (`row-mappers.ts`) phụ trách chuyển đổi giữa `snake_case` (PostgreSQL DB rows) và `camelCase` (Domain models) cho toàn bộ 9 bảng CSDL.
+    - **Open/Closed (O):** Thiết kế cấu trúc truy vấn mở rộng, tường minh, không thay đổi core domain types khi mở rộng storage driver.
+    - **Liskov Substitution (L):** Cả 6 PostgreSQL Repositories tuân thủ 100% contracts của 6 Domain Interfaces trong `domain/repositories.ts`, hoán đổi hoàn hảo với `InMemoryRepository` mà không làm thay đổi hành vi tầng Domain/Service.
+    - **Interface Segregation (I):** 6 Interfaces chuyên biệt cho 6 Aggregate (`IUserProfileRepository`, `IAddressRepository`, `ICartRepository`, `IVoucherRepository`, `IReviewRepository`, `INotificationRepository`).
+    - **Dependency Inversion (D):** Định nghĩa contract trừu tượng `IDbClient` (`infrastructure/db-client.ts`). Repositories phụ thuộc vào abstraction này thông qua Constructor Injection, tương thích tuyệt đối với `pg.Pool`, `pg.PoolClient`, hoặc transaction client của Người 2 mà không bị coupled chặt vào low-level driver.
+  - **Khắc phục lỗi Web API Name Collision:** Sửa `repositories.ts` để import tường minh `Notification` từ `./types`, loại bỏ hoàn toàn cảnh báo xung đột kiểu với `window.Notification` của DOM.
+  - **Triển khai 6 PostgreSQL Repositories thật:**
+    - `PostgresUserProfileRepository`: `findByUserId`, `upsert` (ON CONFLICT DO UPDATE).
+    - `PostgresAddressRepository`: `findById`, `findByUserId` (ORDER BY is_default DESC, created_at DESC), `create`, `update`, `delete`, `setDefault` (nguyên tử trong 2 lệnh tuần tự/transaction).
+    - `PostgresCartRepository`: `findByBuyerId`, `createCart`, `getItems`, `addItem` (ON CONFLICT (cart_id, variant_id) DO UPDATE quantity = quantity + EXCLUDED.quantity), `updateItem`, `removeItem`, `clearCheckedOutItems` (bảo vệ quyền sở hữu của buyer).
+    - `PostgresVoucherRepository`: `findById`, `findByCode`, `listActive` (lọc đa điều kiện status, time range, quantity, scope/shopId), `create`, atomic `decrementQuantity` (quantity > 0), compensating `incrementQuantity` (RB-LQH03), `recordUsage` (bảo vệ uq_voucher_usages__order_id).
+    - `PostgresReviewRepository`: `findById`, `findByOrderItemId`, `findByProductId` (status = VISIBLE), `create` (kèm lưu danh sách review_images liên kết).
+    - `PostgresNotificationRepository`: `findById`, `findByRecipientId` (lọc isRead), `create`, `markAsRead` (idempotent, cập nhật is_read = TRUE và read_at).
+  - **Áp dụng triệt để /tdd Skill cho toàn bộ 5 Phase Integration Tests:**
+    - Viết Red tests trước cho từng Phase $\rightarrow$ Chạy xác nhận fail (`ERR_MODULE_NOT_FOUND`) $\rightarrow$ Implement repository $\rightarrow$ Chạy xác nhận Green.
+    - `user-profile-address.integration.test.ts`: 8/8 tests pass.
+    - `cart.integration.test.ts`: 9/9 tests pass.
+    - `voucher.integration.test.ts`: 10/10 tests pass.
+    - `review.integration.test.ts`: 8/8 tests pass.
+    - `notification.integration.test.ts`: 6/6 tests pass.
+  - **Chu kỳ Chẩn đoán Sâu (Deep Diagnosis Loop theo backend-task-workflow.md Bước 7 & Bước 8):**
+    - **Phát hiện & Sửa lỗi Runner Lệch Thư Mục:** Runner chính thức của dự án quy định tại `package.json` là `test/**/*.spec.ts`. Đã đồng bộ toàn bộ 5 bộ integration test sang đúng vị trí chuẩn `test/modules/buyer/integration/*.integration.spec.ts` và bổ sung mock data đầy đủ vào `test/modules/buyer/fixtures.ts`.
+    - **Phát hiện & Sửa lỗi Type Casting:** Khắc phục 32 vị trí ép kiểu thừa `as unknown as PoolClient` sang `as IDbClient` theo chuẩn SOLID: D, giải quyết triệt để lỗi `TS2304`.
+    - **Dọn dẹp cảnh báo Linter:** Loại bỏ hoàn toàn các unused imports (`ReviewImage`, `CartItem`, `ValidationError`).
+  - **Soạn thảo và bàn giao tài liệu Query Patterns:**
+    - Tạo `docs/architecture/buyer-query-patterns.md` mô tả chi tiết từng query pattern trên 9 bảng, tần suất thực thi và đề xuất composite/partial indexes cho Người 2 (`idx_cart_items__cart_id__created_at`, `idx_vouchers__active_listing`, `idx_reviews__product_visible`, `idx_addresses__user_id__default`).
+  - **Kiểm tra chất lượng kiểm thử & Quality Gates:**
+    - `npm run typecheck` (`tsc --noEmit`): Exit code 0, sạch 100% lỗi type.
+    - `npm run build` (`esbuild`): Biên dịch `dist/app.js` (1.1MB) thành công không lỗi.
+    - `npx eslint src/modules/buyer`: 0 errors.
+    - `npm test` (Lệnh test toàn hệ thống): **172/172 tests PASS 100% (0 fail)**.
+    - Test riêng Buyer domain: **110/110 tests PASS 100%** (69 unit tests + 41 integration tests).
 
 ### 2026-09-17 (Sửa lỗi sau chẩn đoán Diagnose chuyên sâu theo TDD & bổ sung test suite)
 
@@ -92,8 +129,10 @@
 - [x] Soạn endpoint contract cho Buyer supporting domain và mock fixture theo Schema Freeze.
 - [x] Viết unit test thuần cho cart quantity, voucher rule, rating và default address.
 - [x] Sửa triệt để các lỗi chẩn đoán (decimal rác, date không hợp lệ, subtotal rác, rollback cho voucher consumption, chuẩn hóa imports sạch không có đuôi `.ts`).
-- [ ] Sau khi Người 1 hoàn thành scaffold và cấu trúc module: đặt Buyer modules vào backend.
+- [x] Sau khi Người 1 hoàn thành scaffold và cấu trúc module: đặt Buyer modules vào backend (`src/modules/buyer/` và `test/modules/buyer/`).
+- [x] Sau khi Người 2 hoàn thành migration các bảng liên quan và database client: hoàn thành 6 PostgreSQL Repositories và 41 integration tests.
+- [x] Soạn thảo và bàn giao tài liệu Query Patterns cho Người 2 (`docs/architecture/buyer-query-patterns.md`).
 - [ ] Sau khi Người 1 mở shared contract structure: đưa Cart/Voucher port vào `src/contracts` qua owner.
-- [ ] Sau khi Người 2 hoàn thành migration các bảng liên quan và database client: chạy repository integration test.
 - [ ] Sau khi Người 1 khóa `RequestContext`: wiring endpoint cần kiểm tra ownership.
 - [ ] Sau khi Người 5 khóa Order query/state contract: tích hợp Review với Order thật.
+- [ ] Sau khi Người 5 công bố Order/Payment/Shipment events: tích hợp Notification với events thật.
