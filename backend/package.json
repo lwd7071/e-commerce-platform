@@ -11,8 +11,8 @@
     "lint": "eslint src test",
     "typecheck": "tsc --noEmit",
     "build": "esbuild src/platform/http/app.ts --bundle --platform=node --format=esm --alias:@=./src --outfile=dist/app.js",
-    "test": "tsx --test \"test/**/*.spec.ts\"",
-    "test:watch": "tsx --test --watch \"test/**/*.spec.ts\""
+    "test": "node scripts/run-tests.js",
+    "test:watch": "node scripts/run-tests.js --watch"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
