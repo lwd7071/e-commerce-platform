@@ -1,4 +1,4 @@
-import type { UUID, CartItem } from '../domain/types';
+import type { UUID } from '../domain/types';
 import type { ICartPort, SelectedCartItemSnapshot } from '../ports/cart.port';
 import type { ICartRepository } from '../domain/repositories';
 

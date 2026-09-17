@@ -1,4 +1,4 @@
-import { UUID, CartItem } from '../domain/types';
+import type { UUID } from '../domain/types';
 
 export interface SelectedCartItemSnapshot {
   cartItemId: UUID;
