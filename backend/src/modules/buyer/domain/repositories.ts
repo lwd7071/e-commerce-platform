@@ -8,6 +8,7 @@ import type {
   VoucherUsage,
   Review,
   ReviewImage,
+  Notification,
 } from './types';
 
 export interface IUserProfileRepository {
