@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   UUID,
   Shop,
   ShopStatus,
@@ -62,9 +62,10 @@ export interface IProductRepository {
 }
 
 export interface IProductVariantRepository {
-  findById(variantId: UUID): Promise<ProductVariant | null>;
+  findById(variantId: UUID, client?: any): Promise<ProductVariant | null>;
   findByProductId(productId: UUID): Promise<ProductVariant[]>;
   findBySku(shopId: UUID, sku: string): Promise<ProductVariant | null>;
-  create(variant: ProductVariant): Promise<ProductVariant>;
-  deductStock(variantId: UUID, quantity: number): Promise<void>;
+  create(variant: ProductVariant, client?: any): Promise<ProductVariant>;
+  lockForUpdate(variantId: UUID, client?: any): Promise<ProductVariant | null>;
+  deductStock(variantId: UUID, quantity: number, client?: any): Promise<void>;
 }

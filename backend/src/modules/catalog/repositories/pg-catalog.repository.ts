@@ -68,7 +68,10 @@ export const mapVariantRow = (row: any): ProductVariant => ({
 });
 
 export class PgShopRepository implements IShopRepository {
-  constructor(private pool: Pool) {}
+  private pool: Pool;
+  constructor(pool: Pool) {
+    this.pool = pool;
+  }
 
   async findById(shopId: UUID): Promise<Shop | null> {
     const res = await this.pool.query('SELECT * FROM shops WHERE shop_id = $1', [shopId]);
@@ -112,7 +115,10 @@ export class PgShopRepository implements IShopRepository {
 }
 
 export class PgCategoryRepository implements ICategoryRepository {
-  constructor(private pool: Pool) {}
+  private pool: Pool;
+  constructor(pool: Pool) {
+    this.pool = pool;
+  }
 
   async findById(categoryId: UUID): Promise<Category | null> {
     const res = await this.pool.query('SELECT * FROM categories WHERE category_id = $1', [categoryId]);
@@ -154,7 +160,10 @@ export class PgCategoryRepository implements ICategoryRepository {
 }
 
 export class PgProductVariantRepository implements IProductVariantRepository {
-  constructor(private pool: Pool) {}
+  private pool: Pool;
+  constructor(pool: Pool) {
+    this.pool = pool;
+  }
 
   async findById(variantId: UUID, client?: PoolClient): Promise<ProductVariant | null> {
     const runner = client ?? this.pool;
@@ -201,8 +210,9 @@ export class PgProductVariantRepository implements IProductVariantRepository {
     return mapVariantRow(res.rows[0]);
   }
 
-  async lockForUpdate(client: PoolClient, variantId: UUID): Promise<ProductVariant | null> {
-    const res = await client.query('SELECT * FROM product_variants WHERE variant_id = $1 FOR UPDATE', [variantId]);
+  async lockForUpdate(variantId: UUID, client?: PoolClient): Promise<ProductVariant | null> {
+    const runner = client ?? this.pool;
+    const res = await runner.query('SELECT * FROM product_variants WHERE variant_id = $1 FOR UPDATE', [variantId]);
     return res.rows[0] ? mapVariantRow(res.rows[0]) : null;
   }
 
@@ -217,7 +227,10 @@ export class PgProductVariantRepository implements IProductVariantRepository {
 }
 
 export class PgProductRepository implements IProductRepository {
-  constructor(private pool: Pool) {}
+  private pool: Pool;
+  constructor(pool: Pool) {
+    this.pool = pool;
+  }
 
   async findById(productId: UUID): Promise<Product | null> {
     const res = await this.pool.query('SELECT * FROM products WHERE product_id = $1', [productId]);
@@ -310,11 +323,6 @@ export class PgProductRepository implements IProductRepository {
   }
 
   async queryPublic(filter: PublicProductFilter): Promise<{ items: PublicProductSummary[]; total: number }> {
-    // Visibility Rules enforced in SQL:
-    // 1. products.status = 'ACTIVE'
-    // 2. shops.status = 'ACTIVE'
-    // 3. categories.status = 'ACTIVE'
-    // 4. product_variants.status = 'ACTIVE'
     const whereConditions: string[] = [
       "p.status = 'ACTIVE'",
       "s.status = 'ACTIVE'",
@@ -354,7 +362,6 @@ export class PgProductRepository implements IProductRepository {
       orderClause = 'ORDER BY p.created_at DESC';
     }
 
-    // Count total query
     const countSql = `
       SELECT COUNT(*) as count FROM (
         SELECT p.product_id
@@ -370,7 +377,6 @@ export class PgProductRepository implements IProductRepository {
     const countRes = await this.pool.query(countSql, params);
     const total = parseInt(countRes.rows[0]?.count ?? '0', 10);
 
-    // Data query
     const limit = filter.limit ?? 20;
     const offset = filter.offset ?? 0;
     params.push(limit);

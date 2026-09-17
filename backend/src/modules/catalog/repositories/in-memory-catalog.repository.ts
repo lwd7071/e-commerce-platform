@@ -90,6 +90,10 @@ export class InMemoryProductVariantRepository implements IProductVariantReposito
     return { ...variant };
   }
 
+  async lockForUpdate(variantId: UUID): Promise<ProductVariant | null> {
+    return this.findById(variantId);
+  }
+
   async deductStock(variantId: UUID, quantity: number): Promise<void> {
     const v = this.variants.get(variantId);
     if (!v) throw new Error(`Variant ${variantId} not found`);
@@ -104,12 +108,19 @@ export class InMemoryProductVariantRepository implements IProductVariantReposito
 export class InMemoryProductRepository implements IProductRepository {
   private products = new Map<UUID, Product>();
   private images = new Map<UUID, ProductImage[]>();
+  private shopRepo: IShopRepository;
+  private categoryRepo: ICategoryRepository;
+  private variantRepo: InMemoryProductVariantRepository;
 
   constructor(
-    private shopRepo: IShopRepository,
-    private categoryRepo: ICategoryRepository,
-    private variantRepo: InMemoryProductVariantRepository
-  ) {}
+    shopRepo: IShopRepository,
+    categoryRepo: ICategoryRepository,
+    variantRepo: InMemoryProductVariantRepository
+  ) {
+    this.shopRepo = shopRepo;
+    this.categoryRepo = categoryRepo;
+    this.variantRepo = variantRepo;
+  }
 
   async findById(productId: UUID): Promise<Product | null> {
     return this.products.get(productId) ?? null;
