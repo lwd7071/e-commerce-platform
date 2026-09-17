@@ -5,6 +5,24 @@ export type DatabaseConfig = {
   databaseUrl: URL;
   directUrl: URL;
   runRemoteDbTests: boolean;
+  pool: DatabasePoolConfig;
+};
+
+export type DatabasePoolConfig = {
+  max: number;
+  connectionTimeoutMillis: number;
+  idleTimeoutMillis: number;
+};
+
+const boundedInteger = (env: NodeJS.ProcessEnv, name: string, fallback: number, min: number, max: number): number => {
+  const raw = env[name];
+  if (raw === undefined) return fallback;
+  if (!/^\d+$/.test(raw.trim())) throw new Error(`${name} must be an integer between ${min} and ${max}`);
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value < min || value > max) {
+    throw new Error(`${name} must be an integer between ${min} and ${max}`);
+  }
+  return value;
 };
 
 export const parseRunRemoteDbTests = (env: NodeJS.ProcessEnv): boolean => {
@@ -45,5 +63,15 @@ export const loadDatabaseConfig = (env: NodeJS.ProcessEnv): DatabaseConfig => {
   if (!databaseUsers.every((username) => username.endsWith(`.${projectRef}`))) {
     throw new Error('DATABASE_URL and DIRECT_URL must target the SUPABASE_URL project');
   }
-  return { supabaseUrl, databaseUrl, directUrl, runRemoteDbTests: parseRunRemoteDbTests(env) };
+  return {
+    supabaseUrl,
+    databaseUrl,
+    directUrl,
+    runRemoteDbTests: parseRunRemoteDbTests(env),
+    pool: {
+      max: boundedInteger(env, 'DB_POOL_MAX', 10, 1, 50),
+      connectionTimeoutMillis: boundedInteger(env, 'DB_CONNECTION_TIMEOUT_MS', 30_000, 1_000, 60_000),
+      idleTimeoutMillis: boundedInteger(env, 'DB_IDLE_TIMEOUT_MS', 30_000, 1_000, 120_000),
+    },
+  };
 };

@@ -44,4 +44,18 @@ describe('loadDatabaseConfig', () => {
     const env = { ...validEnv, RUN_REMOTE_DB_TESTS: 'yes' };
     expect(() => loadDatabaseConfig(env)).toThrow('RUN_REMOTE_DB_TESTS');
   });
+
+  it('uses bounded pool defaults', () => {
+    expect(loadDatabaseConfig(validEnv).pool).toEqual({
+      max: 10,
+      connectionTimeoutMillis: 30_000,
+      idleTimeoutMillis: 30_000,
+    });
+  });
+
+  it('rejects invalid pool bounds before creating a pool', () => {
+    expect(() => loadDatabaseConfig({ ...validEnv, DB_POOL_MAX: '0' })).toThrow('DB_POOL_MAX');
+    expect(() => loadDatabaseConfig({ ...validEnv, DB_CONNECTION_TIMEOUT_MS: '60001' })).toThrow('DB_CONNECTION_TIMEOUT_MS');
+    expect(() => loadDatabaseConfig({ ...validEnv, DB_IDLE_TIMEOUT_MS: 'not-a-number' })).toThrow('DB_IDLE_TIMEOUT_MS');
+  });
 });
