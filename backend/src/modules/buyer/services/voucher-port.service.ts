@@ -1,9 +1,8 @@
-import type { UUID, DecimalString, VoucherUsage } from '../domain/types.ts';
-import type { IVoucherPort, EvaluateVoucherContext, VoucherEvaluationResult } from '../ports/voucher.port.ts';
-import type { IVoucherRepository } from '../domain/repositories.ts';
-import { evaluateVoucher } from '../domain/voucher.ts';
-import { VoucherNotApplicableError, ValidationError } from '../domain/errors.ts';
-import { randomUUID } from 'node:crypto';
+import type { UUID, DecimalString, VoucherUsage } from '../domain/types';
+import type { IVoucherPort, EvaluateVoucherContext, VoucherEvaluationResult } from '../ports/voucher.port';
+import type { IVoucherRepository } from '../domain/repositories';
+import { evaluateVoucher } from '../domain/voucher';
+import { VoucherNotApplicableError, ValidationError } from '../domain/errors';
 
 export class VoucherPortService implements IVoucherPort {
   private voucherRepo: IVoucherRepository;
@@ -56,16 +55,24 @@ export class VoucherPortService implements IVoucherPort {
       throw new VoucherNotApplicableError('Voucher đã hết lượt phát hành không thể áp dụng.');
     }
 
-    // 2. Ghi nhận VoucherUsage
-    const usage: VoucherUsage = {
-      usageId: randomUUID(),
-      voucherId: params.voucherId,
-      orderId: params.orderId,
-      buyerId: params.buyerId,
-      discountAmount: params.discountAmount,
-      usedAt: new Date().toISOString(),
-    };
+    try {
+      // 2. Ghi nhận VoucherUsage
+      const usage: VoucherUsage = {
+        usageId: crypto.randomUUID(),
+        voucherId: params.voucherId,
+        orderId: params.orderId,
+        buyerId: params.buyerId,
+        discountAmount: params.discountAmount,
+        usedAt: new Date().toISOString(),
+      };
 
-    return await this.voucherRepo.recordUsage(usage);
+      return await this.voucherRepo.recordUsage(usage);
+    } catch (error) {
+      // Compensating rollback: Hoàn lại lượt phát hành nếu ghi nhận usage thất bại
+      if (typeof this.voucherRepo.incrementQuantity === 'function') {
+        await this.voucherRepo.incrementQuantity(params.voucherId);
+      }
+      throw error;
+    }
   }
 }

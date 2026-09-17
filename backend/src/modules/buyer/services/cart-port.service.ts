@@ -1,6 +1,6 @@
-import type { UUID, CartItem } from '../domain/types.ts';
-import type { ICartPort, SelectedCartItemSnapshot } from '../ports/cart.port.ts';
-import type { ICartRepository } from '../domain/repositories.ts';
+import type { UUID, CartItem } from '../domain/types';
+import type { ICartPort, SelectedCartItemSnapshot } from '../ports/cart.port';
+import type { ICartRepository } from '../domain/repositories';
 
 export class CartPortService implements ICartPort {
   private cartRepo: ICartRepository;
