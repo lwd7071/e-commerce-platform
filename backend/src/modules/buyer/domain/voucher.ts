@@ -1,5 +1,5 @@
-import { ValidationError, VoucherNotApplicableError } from './errors.ts';
-import type { Voucher, UUID } from './types.ts';
+import { ValidationError, VoucherNotApplicableError } from './errors';
+import type { Voucher, UUID } from './types';
 
 /**
  * [RB-LTT03] start_at < end_at
@@ -21,6 +21,9 @@ export function validateVoucherTime(startAtStr: string, endAtStr: string, nowStr
   // QD09: Kiểm tra thời gian áp dụng hiện tại nếu có nowStr
   if (nowStr !== undefined) {
     const now = new Date(nowStr).getTime();
+    if (isNaN(now)) {
+      throw new ValidationError('Thời điểm kiểm tra voucher không hợp lệ (RB-LTT03, QD09).', { now: nowStr });
+    }
     if (now < startAt) {
       throw new VoucherNotApplicableError('Voucher chưa tới thời gian áp dụng (QD09).');
     }
@@ -30,18 +33,21 @@ export function validateVoucherTime(startAtStr: string, endAtStr: string, nowStr
   }
 }
 
+export const DECIMAL_REGEX = /^\d+(\.\d+)?$/;
+
 /**
  * [RB-LTT04] Nếu DiscountType = 'PERCENT' thì 0 < DiscountValue <= 100
  * [RB-MG09] DiscountValue > 0
  */
 export function validateDiscountRange(discountType: 'PERCENT' | 'FIXED', discountValueStr: string): void {
-  const value = parseFloat(discountValueStr);
-  if (isNaN(value)) {
-    throw new ValidationError('Giá trị giảm giá không hợp lệ.');
+  if (typeof discountValueStr !== 'string' || !DECIMAL_REGEX.test(discountValueStr.trim())) {
+    throw new ValidationError('Giá trị giảm giá không đúng định dạng số hợp lệ (RB-MG09).', {
+      discountValue: discountValueStr,
+    });
   }
 
-  // RB-MG09: DiscountValue > 0
-  if (value <= 0) {
+  const value = parseFloat(discountValueStr);
+  if (isNaN(value) || value <= 0) {
     throw new ValidationError('Giá trị giảm giá phải lớn hơn 0 (RB-MG09).', { discountValue: discountValueStr });
   }
 
@@ -63,8 +69,17 @@ export function calculateDiscountAmount(
   maxDiscountStr: string | null,
   subtotalStr: string
 ): string {
-  const discountVal = parseFloat(discountValueStr);
+  if (typeof subtotalStr !== 'string' || !DECIMAL_REGEX.test(subtotalStr.trim())) {
+    throw new ValidationError('Giá trị đơn hàng (subtotal) không đúng định dạng số hợp lệ (RB-MG09).', {
+      subtotal: subtotalStr,
+    });
+  }
   const subtotal = parseFloat(subtotalStr);
+  if (isNaN(subtotal) || subtotal < 0) {
+    throw new ValidationError('Giá trị đơn hàng không được âm (RB-MG09).', { subtotal: subtotalStr });
+  }
+
+  const discountVal = parseFloat(discountValueStr);
 
   let calculatedDiscount = 0;
   if (discountType === 'PERCENT') {
@@ -110,6 +125,19 @@ export function evaluateVoucher(
   voucher: Voucher,
   context: EvaluateVoucherParams
 ): { isValid: true; voucherId: UUID; discountAmount: string } {
+  // Validate orderSubtotal trước tiên (RB-MG09)
+  if (typeof context.orderSubtotal !== 'string' || !DECIMAL_REGEX.test(context.orderSubtotal.trim())) {
+    throw new ValidationError('Giá trị đơn hàng (orderSubtotal) không đúng định dạng số hợp lệ (RB-MG09).', {
+      orderSubtotal: context.orderSubtotal,
+    });
+  }
+  const subtotal = parseFloat(context.orderSubtotal);
+  if (isNaN(subtotal) || subtotal < 0) {
+    throw new ValidationError('Giá trị đơn hàng không được âm (RB-MG09).', {
+      orderSubtotal: context.orderSubtotal,
+    });
+  }
+
   // 1. RB-LTT05: Kiểm tra scope consistency
   if (voucher.scope === 'PLATFORM' && voucher.shopId !== null) {
     throw new ValidationError('Voucher cấp PLATFORM thì ShopID phải là NULL (RB-LTT05).');
@@ -133,7 +161,6 @@ export function evaluateVoucher(
   }
 
   // 5. QD09: Giá trị đơn tối thiểu
-  const subtotal = parseFloat(context.orderSubtotal);
   const minOrderValue = parseFloat(voucher.minOrderValue);
   if (subtotal < minOrderValue) {
     throw new VoucherNotApplicableError('Đơn hàng chưa đạt giá trị tối thiểu để áp dụng voucher (QD09).', {

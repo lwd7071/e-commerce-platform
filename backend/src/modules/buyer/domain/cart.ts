@@ -1,6 +1,5 @@
-import { ValidationError, CartConflictError } from './errors.ts';
-import type { Cart, CartItem, UUID } from './types.ts';
-import { randomUUID } from 'node:crypto';
+import { ValidationError, CartConflictError } from './errors';
+import type { Cart, CartItem, UUID } from './types';
 
 /**
  * [RB-MG05] CartItem.Quantity >= 1
@@ -43,7 +42,7 @@ export function addItemToCart(existingItems: CartItem[], params: AddItemToCartPa
   // Tạo dòng mới
   const now = new Date().toISOString();
   const newItem: CartItem = {
-    cartItemId: randomUUID(),
+    cartItemId: crypto.randomUUID(),
     cartId: params.cartId,
     variantId: params.variantId,
     quantity: params.quantity,
@@ -65,7 +64,7 @@ export function createBuyerCart(buyerId: UUID, existingCart: Cart | null): Cart 
 
   const now = new Date().toISOString();
   return {
-    cartId: randomUUID(),
+    cartId: crypto.randomUUID(),
     buyerId,
     createdAt: now,
     updatedAt: now,

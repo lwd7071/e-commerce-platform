@@ -1,5 +1,5 @@
-import type { UUID, DecimalString, ISOTimestamp } from '../domain/types.ts';
-import { ValidationError } from '../domain/errors.ts';
+import type { UUID, DecimalString, ISOTimestamp } from '../domain/types';
+import { ValidationError } from '../domain/errors';
 
 // Helper kiểm tra UUID v4 canonical
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;

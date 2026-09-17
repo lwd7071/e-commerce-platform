@@ -8,8 +8,7 @@ import type {
   VoucherUsage,
   Review,
   ReviewImage,
-  Notification,
-} from '../domain/types.ts';
+} from './types';
 
 export interface IUserProfileRepository {
   findByUserId(userId: UUID): Promise<UserProfile | null>;
@@ -41,6 +40,7 @@ export interface IVoucherRepository {
   listActive(scope?: 'PLATFORM' | 'SHOP', shopId?: UUID): Promise<Voucher[]>;
   create(voucher: Voucher): Promise<Voucher>;
   decrementQuantity(voucherId: UUID): Promise<boolean>;
+  incrementQuantity?(voucherId: UUID): Promise<boolean>;
   recordUsage(usage: VoucherUsage): Promise<VoucherUsage>;
 }
 

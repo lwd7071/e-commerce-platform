@@ -1,4 +1,4 @@
-import { UUID, CartItem } from '../domain/types.ts';
+import { UUID, CartItem } from '../domain/types';
 
 export interface SelectedCartItemSnapshot {
   cartItemId: UUID;
