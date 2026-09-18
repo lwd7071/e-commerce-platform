@@ -72,6 +72,18 @@ Chưa có contract nào được xác nhận bàn giao/khóa trong đợt này d
   chưa tự mở `BEGIN/COMMIT` trong repository.
 - TDD: canonical fingerprint permutation test pass; typecheck pass.
 
+### 2026-09-19 — PostgreSQL checkout persistence
+
+- Đã thêm `PgCheckoutService`: checkout chạy trong `withTransaction`, khóa selected cart
+  rows/variant stock, snapshot Address/Product/Variant/price, ghi Order/OrderItem,
+  OrderStatusHistory, Payment, Notification và consume Voucher cùng transaction.
+- Same key/same fingerprint replay trả lại IDs; key khác payload trả `IDEMPOTENCY_KEY_REUSED`;
+  lock bận trả `REQUEST_IN_PROGRESS`; retry đúng SQLSTATE `40001`/`40P01`, tối đa 3 attempts,
+  backoff 25ms/50ms.
+- Đã thêm command handlers HTTP cho cancel/confirm/transition/payment retry, ownership và
+  role được kiểm tra ở handler ngoài middleware.
+- Typecheck/build pass; integration suite PostgreSQL sẽ chạy qua CI service `17.6`.
+
 - [ ] Order snapshot/history — Chưa hoàn thành; chờ Người 3 từ 2026-09-18: productName bắt buộc và được trả về, shopId qua Catalog port, quy tắc mapping VariantSnapshot. Chưa viết test RED, chưa tạo snapshot builder, chưa chạy GREEN.
 - [x] Xây domain service thuần cho ba state machine Order, Payment và Shipment.
 - [x] Viết unit test cho mọi transition hợp lệ, transition bị cấm và terminal state.

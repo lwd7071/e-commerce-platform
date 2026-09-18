@@ -9,6 +9,7 @@ import { PgAuthRepository } from '../../modules/identity/repositories/pg-auth.re
 import { SupabaseJwtVerifier } from './middlewares/supabase-jwt.ts';
 import { createAuthMiddleware } from './middlewares/auth.ts';
 import { PgBuyerHttpService } from '../../modules/buyer/services/pg-buyer-http.service.ts';
+import { PgCheckoutService } from '../../modules/checkout/services/pg-checkout.service.ts';
 
 declare global {
   namespace Express {
@@ -58,7 +59,11 @@ export function createRuntimeApp(environment: NodeJS.ProcessEnv = process.env): 
     audience: environment.SUPABASE_JWT_AUDIENCE ?? 'authenticated',
   });
   return {
-    app: createApp({ auth: createAuthMiddleware(authRepository, verifier), buyer: new PgBuyerHttpService(pool) }),
+    app: createApp({
+      auth: createAuthMiddleware(authRepository, verifier),
+      buyer: new PgBuyerHttpService(pool),
+      orders: new PgCheckoutService(pool),
+    }),
     close: () => closeDatabasePool(pool),
   };
 }
