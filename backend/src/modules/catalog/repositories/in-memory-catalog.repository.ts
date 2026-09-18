@@ -110,12 +110,12 @@ export class InMemoryProductRepository implements IProductRepository {
   private images = new Map<UUID, ProductImage[]>();
   private shopRepo: IShopRepository;
   private categoryRepo: ICategoryRepository;
-  private variantRepo: InMemoryProductVariantRepository;
+  private variantRepo: IProductVariantRepository;
 
   constructor(
     shopRepo: IShopRepository,
     categoryRepo: ICategoryRepository,
-    variantRepo: InMemoryProductVariantRepository
+    variantRepo: IProductVariantRepository
   ) {
     this.shopRepo = shopRepo;
     this.categoryRepo = categoryRepo;

@@ -5,7 +5,7 @@ export class ProductVariantEntity implements ProductVariant {
   public readonly variantId: UUID;
   public readonly productId: UUID;
   public variantName: string;
-  public variantValue: string;
+  public variantValue: string | null;
   public sku: string;
   public price: DecimalString;
   public stockQuantity: number;
@@ -17,7 +17,7 @@ export class ProductVariantEntity implements ProductVariant {
     variantId: UUID;
     productId: UUID;
     variantName: string;
-    variantValue: string;
+    variantValue: string | null;
     sku: string;
     price: DecimalString;
     stockQuantity: number;
