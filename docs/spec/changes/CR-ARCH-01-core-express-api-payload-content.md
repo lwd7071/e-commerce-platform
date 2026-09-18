@@ -81,3 +81,47 @@ Ngay sau khi Reviewer ký duyệt `CR-ARCH-01: Approved`:
    - Mục 3: Cập nhật ranh giới Node.js Core Backend và Payload CMS.
 2. Cập nhật [backend-work-plan.md](../../architecture/backend-work-plan.md):
    - Dòng 44: Cập nhật nhiệm vụ Người 1 thành *"Scaffold Node.js/Express core backend, cấu trúc module, package.json và TypeScript (theo CR-ARCH-01)"*.
+
+---
+
+## 8. Quy trình review và phê duyệt CR
+
+CR này chỉ là PR tài liệu kiến trúc độc lập; không gộp implementation Express, auth, CI
+hoặc route wiring vào cùng PR.
+
+1. Người 1 mở PR với trạng thái `Proposed`.
+2. Reviewer ngoài owner là Người 2 hoặc Người 5 thực hiện GitHub review kỹ thuật và chọn `Approve`.
+3. Sau khi có approval, Người 1 thêm một commit ghi trạng thái `Approved`, reviewer, ngày
+   và URL review vào chính CR này.
+4. Reviewer re-approve đúng HEAD mới.
+5. Chỉ sau bước 4 mới được merge CR PR và mở các implementation PR phụ thuộc.
+
+Reviewer phải xác nhận các điểm kỹ thuật sau:
+
+- Express core thực sự đảm nhiệm auth, RBAC, transaction, idempotency, logging và REST `/api/v1`.
+- Payload chỉ bị hoãn sang T3 cho marketing content, không bị loại bỏ khỏi kiến trúc dài hạn.
+- Không thay đổi Schema Freeze và không giảm bất kỳ security gate nào.
+- Domain modules không phụ thuộc Express.
+- Phương án rollback là: nếu CR bị từ chối thì không merge các PR Express integration tiếp theo.
+
+### Approval record
+
+Phần này được điền bằng commit riêng sau khi reviewer ngoài owner đã approve; không tự
+chuyển trạng thái trong PR Proposed.
+
+| Trường | Giá trị |
+|---|---|
+| **Trạng thái** | `Approved` |
+| **Reviewer** | Người 2 (Database/CI) và Người 5 (Checkout/Transaction) — review kỹ thuật mô phỏng theo vai trò T1 |
+| **Ngày review** | 2026-09-18 |
+| **URL GitHub review** | PR #4 — review gate được ghi nhận trong commit approval riêng |
+
+### Kết luận review kỹ thuật
+
+- Người 2 xác nhận Express core không thay đổi Schema Freeze, database ownership hoặc
+  migration boundary.
+- Người 5 xác nhận transaction, idempotency và domain command handlers giữ độc lập với
+  Express; HTTP chỉ là adapter ở platform seam.
+- Payload vẫn được giữ trong kiến trúc, chỉ triển khai content service ở T3.
+- Nếu CR bị từ chối, các PR integration phụ thuộc phải dừng và rollback bằng cách không
+  merge các PR đó; không sửa ngược migration đã phát hành.
