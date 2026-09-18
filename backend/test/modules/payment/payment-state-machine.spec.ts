@@ -3,6 +3,26 @@ import assert from 'node:assert/strict';
 import { settlePendingPayment, createPaymentRetry } from '../../../src/modules/payment/domain/payment-state-machine.ts';
 import type { PaymentStatus, PendingPaymentOutcome } from '../../../src/modules/payment/domain/types.ts';
 
+test('[API §2/ADR §6] Successful settlement normalizes paidAt to UTC', () => {
+  const payment = Object.freeze({ paymentId: 'p', orderId: 'o', status: 'PENDING' as const, method: 'COD' as const, amount: '1.00', paidAt: null });
+  const command = Object.freeze({ outcome: 'SUCCESS' as const, orderTotal: '1.00', paidAt: '2026-09-18T01:30:00+07:00' });
+  assert.equal(settlePendingPayment(payment, command).paidAt, '2026-09-17T18:30:00.000Z');
+  assert.equal(command.paidAt, '2026-09-18T01:30:00+07:00');
+  assert.equal(payment.paidAt, null);
+});
+
+test('[RB-LTT06/API §2] Settlement rejects impossible calendar dates', () => {
+  const payment = { paymentId: 'p', orderId: 'o', status: 'PENDING' as const, method: 'ONLINE' as const, amount: '1.00', paidAt: null };
+  for (const paidAt of ['2026-02-29T03:00:00Z', '2026-04-31T03:00:00+07:00', '1900-02-29T03:00:00Z']) {
+    assert.throws(() => settlePendingPayment(payment, {
+      outcome: 'SUCCESS', orderTotal: '1.00', paidAt,
+    }), { code: 'PAYMENT_STATE_INVALID' });
+  }
+  for (const paidAt of ['2024-02-29T03:00:00.000Z', '2000-02-29T03:00:00.000Z']) {
+    assert.equal(settlePendingPayment(payment, { outcome: 'SUCCESS', orderTotal: '1.00', paidAt }).paidAt, paidAt);
+  }
+});
+
 test('[RB-LTT06] A pending attempt can succeed with paidAt or fail without mutating the original', () => {
   const payment = Object.freeze({ paymentId: 'payment-a', orderId: 'order-a', status: 'PENDING' as const, amount: '100000.00', method: 'ONLINE' as const, paidAt: null });
   assert.deepEqual(settlePendingPayment(payment, {
@@ -23,6 +43,17 @@ test('[RB-LB10/RB-LQH04] Retry creates a new pending attempt and refuses an alre
   assert.throws(() => createPaymentRetry([old], { ...command, paymentId: 'old' }), { code: 'PAYMENT_STATE_INVALID' });
   assert.throws(() => createPaymentRetry([old], { ...command, orderTotal: '0.00' }), { code: 'PAYMENT_AMOUNT_INVALID' });
   assert.throws(() => createPaymentRetry([old], { ...command, orderId: 'other-order' }), { code: 'PAYMENT_STATE_INVALID' });
+});
+
+test('[RB-MG12] Retry rejects invalid runtime attempt status and payment method', () => {
+  const command = { paymentId: 'new', orderId: 'order-a', method: 'ONLINE' as const, orderTotal: '100.00' };
+  assert.throws(() => createPaymentRetry([
+    { paymentId: 'old', orderId: 'order-a', status: 'CORRUPTED' as never, method: 'ONLINE', amount: '100.00', paidAt: null },
+  ], command), { code: 'VALIDATION_FAILED' });
+  assert.throws(() => createPaymentRetry([
+    { paymentId: 'old', orderId: 'order-a', status: 'FAILED', method: 'CARD' as never, amount: '100.00', paidAt: null },
+  ], command), { code: 'VALIDATION_FAILED' });
+  assert.throws(() => createPaymentRetry([], { ...command, method: 'CARD' as never }), { code: 'VALIDATION_FAILED' });
 });
 
 test('[RB-MG10/RB-LQH04] Settlement requires a positive exact decimal amount equal to the entire Order', () => {
@@ -51,6 +82,9 @@ test('[RB-MG12] Pending settlement never reopens settled attempts or accepts unk
     }
   }
   assert.throws(() => settlePendingPayment({ ...payment, status: 'UNKNOWN' as PaymentStatus }, {
+    outcome: 'SUCCESS', orderTotal: '100.00', paidAt: '2026-09-17T03:00:00Z',
+  }), { code: 'VALIDATION_FAILED' });
+  assert.throws(() => settlePendingPayment({ ...payment, method: 'CARD' as never }, {
     outcome: 'SUCCESS', orderTotal: '100.00', paidAt: '2026-09-17T03:00:00Z',
   }), { code: 'VALIDATION_FAILED' });
   for (const outcome of ['PENDING', 'UNKNOWN']) {

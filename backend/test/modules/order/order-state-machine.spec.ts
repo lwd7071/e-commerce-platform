@@ -3,6 +3,14 @@ import assert from 'node:assert/strict';
 import { transitionOrder } from '../../../src/modules/order/domain/order-state-machine.ts';
 import type { OrderActor, OrderStatus } from '../../../src/modules/order/domain/types.ts';
 
+test('[QD11/QD13] An unknown runtime actor cannot authorize an Order transition', () => {
+  const order = { status: 'PENDING_CONFIRMATION' as const, buyerId: 'buyer-a', shopId: 'shop-a' };
+  assert.throws(() => transitionOrder(order, {
+    to: 'CONFIRMED', actor: { kind: 'UNKNOWN' } as unknown as OrderActor,
+    processingEligible: true,
+  }), { code: 'RESOURCE_FORBIDDEN' });
+});
+
 test('[QD11] Seller confirms an eligible Order without mutating its snapshot', () => {
   const order = Object.freeze({
     status: 'PENDING_CONFIRMATION' as const,

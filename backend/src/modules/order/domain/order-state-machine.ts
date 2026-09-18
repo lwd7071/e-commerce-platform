@@ -37,6 +37,8 @@ export function transitionOrder(
     if (command.to !== 'COMPLETED' && command.to !== 'DELIVERY_FAILED') {
       throw new OrderDomainError('RESOURCE_FORBIDDEN', 'Shipment integration cannot perform this transition.');
     }
+  } else if (actor.kind !== 'ADMIN') {
+    throw new OrderDomainError('RESOURCE_FORBIDDEN', 'Actor cannot perform this transition.');
   }
   if (!transitions[order.status].includes(command.to)) {
     throw new OrderDomainError('ORDER_INVALID_TRANSITION', 'Order transition is not allowed.');
