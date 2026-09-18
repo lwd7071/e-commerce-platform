@@ -87,6 +87,17 @@
 
 ## Việc còn lại trong mốc hiện tại
 
+### 2026-09-18 — PostgreSQL Buyer persistence
+
+- Đã thêm `PgAddressRepository`, `PgCartRepository` và `PgVoucherRepository` với mapper
+  snake_case → domain camelCase, ownership filter cho Address và `ON CONFLICT (cart_id,variant_id)`
+  để cộng dồn CartItem, không tạo duplicate.
+- Cart add chạy trong `PoolClient` transaction; Voucher decrement dùng điều kiện `quantity > 0`
+  để hai transaction tranh lượt cuối chỉ một transaction thành công.
+- Đã thêm `PgBuyerHttpService` cho Address/Cart/Voucher T1 routes; Address update/delete/set-default
+  vẫn ngoài scope T1.
+- Typecheck và lint pass.
+
 - [x] Thiết kế model, DTO, validation và repository interface cho Profile, Address, Cart, Voucher, Review và Notification.
 - [x] Định nghĩa, công bố Cart port và Voucher port cho Người 5.
 - [x] Soạn endpoint contract cho Buyer supporting domain và mock fixture theo Schema Freeze.

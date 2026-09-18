@@ -8,6 +8,7 @@ import { loadDatabaseConfig } from '../../../db/config.ts';
 import { PgAuthRepository } from '../../modules/identity/repositories/pg-auth.repository.ts';
 import { SupabaseJwtVerifier } from './middlewares/supabase-jwt.ts';
 import { createAuthMiddleware } from './middlewares/auth.ts';
+import { PgBuyerHttpService } from '../../modules/buyer/services/pg-buyer-http.service.ts';
 
 declare global {
   namespace Express {
@@ -57,7 +58,7 @@ export function createRuntimeApp(environment: NodeJS.ProcessEnv = process.env): 
     audience: environment.SUPABASE_JWT_AUDIENCE ?? 'authenticated',
   });
   return {
-    app: createApp({ auth: createAuthMiddleware(authRepository, verifier) }),
+    app: createApp({ auth: createAuthMiddleware(authRepository, verifier), buyer: new PgBuyerHttpService(pool) }),
     close: () => closeDatabasePool(pool),
   };
 }
