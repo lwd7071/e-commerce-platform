@@ -118,6 +118,12 @@
 - Đã nâng remote database job còn sót từ checkout/setup-node v4 lên v7.
 - Final review roleplay: Người 2 và Người 5 review CR-ARCH-01; route/auth/CI contract đã được bàn giao cho T1.
 
+## Cập nhật 2026-09-19 — auth smoke closeout
+
+- Auth smoke ban đầu phát hiện controller làm mất receiver context của class application service, khiến protected Address route trả 500 dù JWT đã xác thực thành công.
+- Đã sửa route seam bind method về đúng application receiver và thêm regression test tại `test/platform/t1-route-contracts.spec.ts`.
+- GitHub Actions run `35377697980` đã xanh toàn bộ: Frontend quality, Backend quality với PostgreSQL 17.6, Remote DB quality và Remote Supabase auth smoke.
+
 - [x] Scaffold Payload/Node.js backend, cấu trúc module, `package.json` và TypeScript.
 - [x] Thiết lập test runner, lint, typecheck, build và CI skeleton.
 - [x] Cài API envelope, request ID, error middleware và health endpoint.
