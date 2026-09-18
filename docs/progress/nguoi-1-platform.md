@@ -101,6 +101,8 @@
 - Đã thêm `createRuntimeApp()` tạo một pool, `PgAuthRepository` và `SupabaseJwtVerifier`;
   production composition không dùng stub verifier.
 - TDD route contracts pass: public products, reject `page`, protected buyer address.
+- Runtime now wires `PgCatalogHttpService` and `PgCheckoutService` in addition to Buyer,
+  so all T1 route groups have concrete PostgreSQL-backed application adapters.
 
 ## Cập nhật 2026-09-18 — sửa điều kiện remote DB CI
 

@@ -10,6 +10,7 @@ import { SupabaseJwtVerifier } from './middlewares/supabase-jwt.ts';
 import { createAuthMiddleware } from './middlewares/auth.ts';
 import { PgBuyerHttpService } from '../../modules/buyer/services/pg-buyer-http.service.ts';
 import { PgCheckoutService } from '../../modules/checkout/services/pg-checkout.service.ts';
+import { PgCatalogHttpService } from '../../modules/catalog/services/pg-catalog-http.service.ts';
 
 declare global {
   namespace Express {
@@ -61,6 +62,7 @@ export function createRuntimeApp(environment: NodeJS.ProcessEnv = process.env): 
   return {
     app: createApp({
       auth: createAuthMiddleware(authRepository, verifier),
+      catalog: new PgCatalogHttpService(pool),
       buyer: new PgBuyerHttpService(pool),
       orders: new PgCheckoutService(pool),
     }),
