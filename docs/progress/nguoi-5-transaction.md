@@ -61,6 +61,17 @@ Chưa có contract nào được xác nhận bàn giao/khóa trong đợt này d
 
 ## Việc còn lại trong mốc hiện tại
 
+### 2026-09-18 — idempotency advisory-lock seam
+
+- Đã thêm `PgIdempotencyRepository` transaction-scoped: advisory lock dùng canonical
+  `JSON.stringify(["v1", user_id, endpoint, idempotency_key])`, sau đó lookup composite
+  primary key; hash collision chỉ serialize, không tạo replay sai.
+- Đã bỏ việc tính fingerprint từ raw body ở seam mới: `canonicalCheckoutFingerprint` nhận
+  command đã parse, sort voucher theo `shop_id`/`code`, trim code và SHA-256 lowercase.
+- Retry/persistence orchestration vẫn cần gắn vào checkout transaction handler ở slice kế tiếp;
+  chưa tự mở `BEGIN/COMMIT` trong repository.
+- TDD: canonical fingerprint permutation test pass; typecheck pass.
+
 - [ ] Order snapshot/history — Chưa hoàn thành; chờ Người 3 từ 2026-09-18: productName bắt buộc và được trả về, shopId qua Catalog port, quy tắc mapping VariantSnapshot. Chưa viết test RED, chưa tạo snapshot builder, chưa chạy GREEN.
 - [x] Xây domain service thuần cho ba state machine Order, Payment và Shipment.
 - [x] Viết unit test cho mọi transition hợp lệ, transition bị cấm và terminal state.
