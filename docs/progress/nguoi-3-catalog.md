@@ -100,6 +100,12 @@
   `category_id`, `search`, `min_price`, `max_price`, `sort`, `limit`, `cursor` và từ chối `page/offset`.
 - Typecheck/build và Catalog regression suite pass.
 
+### 2026-09-19 — T1 catalog closeout
+
+- Đã bàn giao route matrix Catalog cho Người 1: public list/detail và Seller create/stock update; HTTP fields dùng snake_case, cursor opaque và reject `page`/`offset`.
+- Đã xác nhận snapshot checkout giữ `variantId`, `productId`, `productName`, `shopId`, `shopOwnerId`, tên variant chuẩn hóa và giá/tồn/status tại transaction seam.
+- Không còn blocker T1; mọi thay đổi Catalog T1 đã được ghi ở file owner này.
+
 - [x] Thiết kế domain model, DTO, validation và repository interface cho Shop, Category, Product, ProductVariant và ProductImage.
 - [x] Soạn endpoint contract cho public catalog và Seller catalog.
 - [x] Định nghĩa, công bố Catalog port cho Người 5: khóa variant, đọc giá, tồn và status.

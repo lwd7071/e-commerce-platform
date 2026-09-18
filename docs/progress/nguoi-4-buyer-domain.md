@@ -98,6 +98,12 @@
   vẫn ngoài scope T1.
 - Typecheck và lint pass.
 
+### 2026-09-19 — T1 buyer closeout
+
+- Đã bàn giao hai route Address tối thiểu (`GET`/`POST /api/v1/addresses`) và Cart/Voucher route handlers cho Người 1 wiring.
+- Đã xác nhận `PoolClient` được truyền xuyên suốt checkout adapter; ownership Address/Cart và điều kiện decrement Voucher được thực thi ở PostgreSQL.
+- Rollback và cạnh tranh lượt Voucher giữ cùng transaction boundary; update/delete/set-default Address tiếp tục ngoài scope T1.
+
 - [x] Thiết kế model, DTO, validation và repository interface cho Profile, Address, Cart, Voucher, Review và Notification.
 - [x] Định nghĩa, công bố Cart port và Voucher port cho Người 5.
 - [x] Soạn endpoint contract cho Buyer supporting domain và mock fixture theo Schema Freeze.

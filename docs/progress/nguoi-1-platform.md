@@ -111,6 +111,13 @@
 - Remote DB suite chạy pass đủ 43/43 test; workflow fail do kiểm tra field `.numSkipped`, trong khi JSON reporter của Vitest dùng `numPendingTests` và không tạo field `numSkipped`.
 - Đã đổi guard CI sang `.numPendingTests // 0` và bổ sung reporter verbose để khi có test fail sẽ hiện tên test/lỗi đã được mask secret.
 
+## Cập nhật 2026-09-19 — T1 final integration
+
+- Đã thêm `backend/scripts/auth-smoke.ts`: tạo Auth user test, seed `app_users`, gọi protected Address route bằng JWT thật, chuyển user sang `LOCKED`, xác nhận `403 USER_LOCKED`, rồi cleanup trong `finally`.
+- Đã thêm job `remote-auth` chỉ chạy trên push `dev/main`, không chạy trên PR và không in token/response nhạy cảm.
+- Đã nâng remote database job còn sót từ checkout/setup-node v4 lên v7.
+- Final review roleplay: Người 2 và Người 5 review CR-ARCH-01; route/auth/CI contract đã được bàn giao cho T1.
+
 - [x] Scaffold Payload/Node.js backend, cấu trúc module, `package.json` và TypeScript.
 - [x] Thiết lập test runner, lint, typecheck, build và CI skeleton.
 - [x] Cài API envelope, request ID, error middleware và health endpoint.

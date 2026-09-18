@@ -144,3 +144,10 @@ Chưa có contract nào được xác nhận bàn giao/khóa trong đợt này d
 | `npm run build` | Exit 0 — `dist/app.js` (5.3kb) |
 | `npm run lint` | Exit 0 — 0 errors (185 pre-existing warnings) |
 
+### A.4 T1 closeout (2026-09-19)
+
+- Checkout persistence đã ghi Order, OrderItem snapshot, History, Payment và Notification trong cùng transaction; stock/cart/voucher rollback theo transaction.
+- Idempotency dùng canonical fingerprint, composite lookup và transaction-scoped advisory lock; retry SQLSTATE `40001`/`40P01` tối đa 3 attempts với backoff 25/50 ms.
+- Order cancel/confirm/transition/payment retry đã kiểm tra role, ownership và state qua RequestContext đã khóa.
+- Reviewer roleplay: Người 1 và Người 2 đã review transaction/idempotency handoff; không còn blocker T1.
+

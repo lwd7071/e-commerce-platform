@@ -16,11 +16,22 @@ Người 1 cập nhật bảng này khi có thay đổi lớn hoặc tại revie
 
 | Người | Domain | Mốc hiện tại | Blocker | Cập nhật cuối |
 |---|---|---|---|---|
-| [Người 1](nguoi-1-platform.md) | Platform/Integration | T1 | Không | Chưa có |
-| [Người 2](nguoi-2-database.md) | Database/Supabase | T1 | Không | Chưa có |
-| [Người 3](nguoi-3-catalog.md) | Catalog/Seller | T1 | Không | Chưa có |
-| [Người 4](nguoi-4-buyer-domain.md) | Buyer domain | T1 | Không | Chưa có |
-| [Người 5](nguoi-5-transaction.md) | Transaction core | T1 | Không | Chưa có |
+| [Người 1](nguoi-1-platform.md) | Platform/Integration | T1 hoàn tất | Không | 2026-09-19 |
+| [Người 2](nguoi-2-database.md) | Database/Supabase | T1 hoàn tất | Không | 2026-09-19 |
+| [Người 3](nguoi-3-catalog.md) | Catalog/Seller | T1 hoàn tất | Không | 2026-09-19 |
+| [Người 4](nguoi-4-buyer-domain.md) | Buyer domain | T1 hoàn tất | Không | 2026-09-19 |
+| [Người 5](nguoi-5-transaction.md) | Transaction core | T1 hoàn tất | Không | 2026-09-19 |
+
+## T1 final review — 2026-09-19
+
+- Người 1: CI local PostgreSQL `17.6`, runtime JWT thật, route matrix và auth smoke workflow.
+- Người 2: Schema Freeze 22 bảng, RLS acceptance và operational idempotency migration đã deploy Supabase.
+- Người 3: Catalog cursor contract, ownership và checkout snapshot đã bàn giao.
+- Người 4: Address/Cart/Voucher PostgreSQL repositories và transaction-scoped adapters đã bàn giao.
+- Người 5: Checkout persistence, advisory idempotency lock, bounded retry và order handlers đã bàn giao.
+- Gate đã kiểm chứng: typecheck, build, lint không lỗi, native/Vitest suites và remote schema suite.
+- Auth smoke thật chạy trên push `dev/main`; yêu cầu các secret `SUPABASE_TEST_*` tương ứng trong repository settings.
+- `.ecommerce-web-git-backup/` được giữ nguyên, không stage và không xóa.
 
 ## Template chuẩn
 

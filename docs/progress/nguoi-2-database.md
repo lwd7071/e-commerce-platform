@@ -58,6 +58,12 @@
 - Đã bàn giao cho Người 5 contract lookup bằng `(user_id, endpoint, idempotency_key)` và
   advisory lock chỉ làm nhiệm vụ điều phối concurrency.
 
+### 2026-09-19 — T1 database closeout
+
+- Đã ghi CR-IDEMP-01 ở trạng thái Approved với review roleplay của Người 1 và Người 5; nội dung xác nhận PostgreSQL là source of truth và bảng vận hành tách khỏi 22 business tables.
+- Đã deploy migration `20260918170000_add_api_idempotency_records` lên Supabase test target; `prisma migrate status` xác nhận database schema up to date.
+- Remote schema acceptance đã có assertion riêng cho operational table/index và không tính bảng này vào Schema Freeze 22 bảng.
+
 - [x] Chuyển đủ 22 bảng Schema Freeze v1 thành migration SQL; xác định PK, FK, CHECK, UNIQUE và partial unique index bắt buộc.
 - [x] Soạn RLS default-deny guard, seed tối thiểu, Supabase Auth/Storage configuration mẫu và `.env.example`.
 - [x] Xác định interface cho database client, transaction helper và test database.
