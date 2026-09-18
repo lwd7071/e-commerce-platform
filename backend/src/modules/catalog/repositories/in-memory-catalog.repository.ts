@@ -152,7 +152,7 @@ export class InMemoryProductRepository implements IProductRepository {
     return { ...p };
   }
 
-  async queryPublic(filter: PublicProductFilter): Promise<{ items: PublicProductSummary[]; total: number }> {
+  async queryPublic(filter: PublicProductFilter): Promise<{ items: PublicProductSummary[]; total: number; nextCursor?: string | null }> {
     const allProducts = Array.from(this.products.values());
     const matchedSummaries: PublicProductSummary[] = [];
 

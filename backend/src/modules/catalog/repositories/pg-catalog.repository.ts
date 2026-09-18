@@ -65,6 +65,9 @@ export const mapVariantRow = (row: any): ProductVariant => ({
   status: row.status,
   createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
   updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
+  productName: row.product_name,
+  shopId: row.shop_id,
+  shopOwnerId: row.shop_owner_id,
 });
 
 export class PgShopRepository implements IShopRepository {
@@ -167,7 +170,14 @@ export class PgProductVariantRepository implements IProductVariantRepository {
 
   async findById(variantId: UUID, client?: PoolClient): Promise<ProductVariant | null> {
     const runner = client ?? this.pool;
-    const res = await runner.query('SELECT * FROM product_variants WHERE variant_id = $1', [variantId]);
+    const res = await runner.query(
+      `SELECT v.*, p.product_name, p.shop_id, s.owner_id AS shop_owner_id
+         FROM product_variants v
+         JOIN products p ON p.product_id = v.product_id
+         JOIN shops s ON s.shop_id = p.shop_id
+        WHERE v.variant_id = $1`,
+      [variantId],
+    );
     return res.rows[0] ? mapVariantRow(res.rows[0]) : null;
   }
 
@@ -322,7 +332,7 @@ export class PgProductRepository implements IProductRepository {
     return mapProductRow(res.rows[0]);
   }
 
-  async queryPublic(filter: PublicProductFilter): Promise<{ items: PublicProductSummary[]; total: number }> {
+  async queryPublic(filter: PublicProductFilter): Promise<{ items: PublicProductSummary[]; total: number; nextCursor?: string | null }> {
     const whereConditions: string[] = [
       "p.status = 'ACTIVE'",
       "s.status = 'ACTIVE'",
@@ -355,11 +365,11 @@ export class PgProductRepository implements IProductRepository {
 
     let orderClause = 'ORDER BY p.created_at DESC';
     if (filter.sortBy === 'price_asc') {
-      orderClause = 'ORDER BY min_price ASC, p.created_at DESC';
+      orderClause = 'ORDER BY min_price ASC, p.product_id ASC';
     } else if (filter.sortBy === 'price_desc') {
-      orderClause = 'ORDER BY max_price DESC, p.created_at DESC';
+      orderClause = 'ORDER BY max_price DESC, p.product_id ASC';
     } else if (filter.sortBy === 'created_at_desc') {
-      orderClause = 'ORDER BY p.created_at DESC';
+      orderClause = 'ORDER BY p.created_at DESC, p.product_id ASC';
     }
 
     const countSql = `
@@ -378,7 +388,7 @@ export class PgProductRepository implements IProductRepository {
     const total = parseInt(countRes.rows[0]?.count ?? '0', 10);
 
     const limit = filter.limit ?? 20;
-    const offset = filter.offset ?? 0;
+    const offset = filter.cursor ? decodeCursor(filter.cursor) : (filter.offset ?? 0);
     params.push(limit);
     const limitParam = params.length;
     params.push(offset);
@@ -425,6 +435,21 @@ export class PgProductRepository implements IProductRepository {
       createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
     }));
 
-    return { items, total };
+    return { items, total, nextCursor: items.length === limit && offset + items.length < total ? encodeCursor(offset + items.length) : null };
+  }
+}
+
+function encodeCursor(offset: number): string {
+  return Buffer.from(JSON.stringify({ v: 1, offset }), 'utf8').toString('base64url');
+}
+
+function decodeCursor(cursor: string): number {
+  try {
+    const value = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as { v?: number; offset?: number };
+    const offset = value.offset;
+    if (value.v !== 1 || typeof offset !== 'number' || !Number.isInteger(offset) || offset < 0) throw new Error('invalid cursor');
+    return offset;
+  } catch {
+    throw new Error('Invalid cursor');
   }
 }

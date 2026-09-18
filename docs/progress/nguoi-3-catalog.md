@@ -90,6 +90,16 @@
 
 ## Việc còn lại trong mốc hiện tại
 
+### 2026-09-18 — T1 checkout snapshot và cursor contract
+
+- Đã bổ sung metadata Catalog snapshot `productName`, `shopId`, `shopOwnerId` cho query
+  variant join `product_variants → products → shops`; dùng được cho ownership và Order snapshot.
+- Đã thêm `formatVariantSnapshot`: null value dùng `variantName`, có value dùng
+  `variantName: variantValue`, trim và giới hạn 255 ký tự.
+- Public query nhận `cursor` opaque, sort có `product_id` tie-breaker; HTTP seam đã khóa
+  `category_id`, `search`, `min_price`, `max_price`, `sort`, `limit`, `cursor` và từ chối `page/offset`.
+- Typecheck/build và Catalog regression suite pass.
+
 - [x] Thiết kế domain model, DTO, validation và repository interface cho Shop, Category, Product, ProductVariant và ProductImage.
 - [x] Soạn endpoint contract cho public catalog và Seller catalog.
 - [x] Định nghĩa, công bố Catalog port cho Người 5: khóa variant, đọc giá, tồn và status.

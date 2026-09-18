@@ -59,4 +59,7 @@ export interface ProductVariant {
   status: VariantStatus;
   createdAt: string;
   updatedAt: string;
+  productName?: string;
+  shopId?: UUID;
+  shopOwnerId?: UUID;
 }

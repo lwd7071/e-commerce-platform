@@ -12,6 +12,9 @@ export class ProductVariantEntity implements ProductVariant {
   public status: VariantStatus;
   public readonly createdAt: string;
   public updatedAt: string;
+  public productName?: string;
+  public shopId?: UUID;
+  public shopOwnerId?: UUID;
 
   constructor(params: {
     variantId: UUID;
