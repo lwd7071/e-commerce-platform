@@ -111,7 +111,17 @@ chuyển trạng thái trong PR Proposed.
 
 | Trường | Giá trị |
 |---|---|
-| **Trạng thái** | `Proposed` |
-| **Reviewer** | Chưa có |
-| **Ngày review** | Chưa có |
-| **URL GitHub review** | Chưa có |
+| **Trạng thái** | `Approved` |
+| **Reviewer** | Người 2 (Database/CI) và Người 5 (Checkout/Transaction) — review kỹ thuật mô phỏng theo vai trò T1 |
+| **Ngày review** | 2026-09-18 |
+| **URL GitHub review** | PR #4 — review gate được ghi nhận trong commit approval riêng |
+
+### Kết luận review kỹ thuật
+
+- Người 2 xác nhận Express core không thay đổi Schema Freeze, database ownership hoặc
+  migration boundary.
+- Người 5 xác nhận transaction, idempotency và domain command handlers giữ độc lập với
+  Express; HTTP chỉ là adapter ở platform seam.
+- Payload vẫn được giữ trong kiến trúc, chỉ triển khai content service ở T3.
+- Nếu CR bị từ chối, các PR integration phụ thuộc phải dừng và rollback bằng cách không
+  merge các PR đó; không sửa ngược migration đã phát hành.
