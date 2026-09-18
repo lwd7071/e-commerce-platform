@@ -53,4 +53,22 @@ describe('T1 HTTP route contracts', () => {
     const response = await request(app).post('/api/v1/addresses').send({ recipient_name: 'A', phone: '1', province: 'P', district: 'D', ward: 'W', detail_address: 'X' }).expect(201);
     assert.equal(response.body.data.recipient_name, 'A');
   });
+
+  it('preserves application receiver context when routing class services', async () => {
+    const buyer = {
+      marker: 'bound',
+      async listAddresses() { return [{ marker: this.marker }]; },
+      async createAddress() { return {}; },
+      async getCart() { return { items: [] }; },
+      async addCartItem() { return {}; },
+      async updateCartItem() { return {}; },
+      async deleteCartItem() {},
+      async applicableVouchers() { return []; },
+      async evaluateVoucher() { return {}; },
+    };
+
+    const response = await request(createApp({ auth: buyerAuth, buyer })).get('/api/v1/addresses').expect(200);
+
+    assert.deepStrictEqual(response.body.data, [{ marker: 'bound' }]);
+  });
 });
