@@ -83,6 +83,14 @@
   `11.12.1`. Không sửa lockfile hoặc secret.
 - Kiểm tra local: `typecheck`, `build`, `git diff --check` pass.
 
+## Cập nhật 2026-09-18 — Supabase JWT seam
+
+- Đã thêm `SupabaseJwtVerifier` dùng `jose@6.2.12`, remote JWKS URL/issuer/audience nhận
+  từ cấu hình server-side; token không được phép tự cung cấp JWKS hoặc issuer.
+- Đã thêm `PgAuthRepository` đọc `app_users` và shop owner theo query tham số hóa, không
+  trả password/secret.
+- TDD: malformed token trả `AUTH_INVALID_TOKEN` 401; typecheck và native test pass.
+
 ## Cập nhật 2026-09-18 — sửa điều kiện remote DB CI
 
 - GitHub Actions nhận đúng ba secret remote DB sau khi ánh xạ từ `backend/.env`:
