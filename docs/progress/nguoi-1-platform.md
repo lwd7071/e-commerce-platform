@@ -91,6 +91,17 @@
   trả password/secret.
 - TDD: malformed token trả `AUTH_INVALID_TOKEN` 401; typecheck và native test pass.
 
+## Cập nhật 2026-09-18 — T1 HTTP composition
+
+- Đã mount đủ route matrix Catalog, Address/Cart/Voucher và Order/Payment dưới
+  `/api/v1`; public Catalog list dùng cursor envelope, protected routes dùng `RequestContext`
+  và role guard.
+- Controller chỉ parse snake_case, dựng envelope và chuyển input qua application interfaces;
+  unknown query/body field trả `VALIDATION_FAILED`.
+- Đã thêm `createRuntimeApp()` tạo một pool, `PgAuthRepository` và `SupabaseJwtVerifier`;
+  production composition không dùng stub verifier.
+- TDD route contracts pass: public products, reject `page`, protected buyer address.
+
 ## Cập nhật 2026-09-18 — sửa điều kiện remote DB CI
 
 - GitHub Actions nhận đúng ba secret remote DB sau khi ánh xạ từ `backend/.env`:
