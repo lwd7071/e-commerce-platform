@@ -98,3 +98,30 @@ test('[RB-MG06/RB-MG07] Each monetary input and quantity reject invalid domains'
     }
   }
 });
+
+test('[Boundary: Penny & Exact Arithmetic] 0.01 unit price, zero discount, exact penny shipping calculations', () => {
+  const result = calculateOrderTotals({
+    lines: [
+      { unit_price: '0.01', quantity: 1 },
+      { unit_price: '0.01', quantity: 99 },
+    ],
+    discount_amount: '0.50',
+    shipping_fee: '15000.00',
+  });
+  // subtotal = 0.01 + 0.99 = 1.00
+  // total = 1.00 - 0.50 + 15000.00 = 15000.50
+  assert.equal(result.subtotal, '1.00');
+  assert.equal(result.discount_amount, '0.50');
+  assert.equal(result.shipping_fee, '15000.00');
+  assert.equal(result.total_amount, '15000.50');
+});
+
+test('[Boundary: Malformed Strings] Multiple dots or trailing spaces reject ORDER_TOTAL_INVALID', () => {
+  const base = { lines: [{ unit_price: '1.00', quantity: 1 }], discount_amount: '0.00', shipping_fee: '0.00' };
+  for (const malformed of ['1.0.0', ' 1.00', '1.00 ', '..01', '.01', '1.']) {
+    assert.throws(() => calculateOrderTotals({ ...base, lines: [{ unit_price: malformed, quantity: 1 }] }), { code: 'ORDER_TOTAL_INVALID' });
+    assert.throws(() => calculateOrderTotals({ ...base, discount_amount: malformed }), { code: 'ORDER_TOTAL_INVALID' });
+    assert.throws(() => calculateOrderTotals({ ...base, shipping_fee: malformed }), { code: 'ORDER_TOTAL_INVALID' });
+  }
+});
+

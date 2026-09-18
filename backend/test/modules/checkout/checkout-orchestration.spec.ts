@@ -449,3 +449,276 @@ test('[Idempotency §6] Replay returns cached result immediately; conflict throw
     (err: any) => err.code === 'REQUEST_IN_PROGRESS',
   );
 });
+
+test('[Negative: Idempotency in_progress] Rejects with REQUEST_IN_PROGRESS and touches no downstream port', async () => {
+  let cartCalled = false;
+  let catalogCalled = false;
+
+  const mockCartPort: ICartPort = {
+    async getSelectedItems() {
+      cartCalled = true;
+      return [];
+    },
+    async clearCheckedOutItems() {},
+  };
+
+  const mockCatalogPort: ICatalogPort = {
+    async getVariantPriceAndStock() {
+      catalogCalled = true;
+      throw new Error('Should not be called');
+    },
+    async lockVariant() {
+      throw new Error('Should not be called');
+    },
+    async checkShopActive() {
+      return true;
+    },
+  };
+
+  const mockIdempotencyPort: IdempotencyPort<CheckoutResult> = {
+    async claim() {
+      return { kind: 'in_progress' };
+    },
+    async complete() {},
+    async release() {},
+  };
+
+  const command: CheckoutCommand = {
+    address_id: ADDRESS_ID,
+    payment_method: 'COD',
+    vouchers: [],
+    idempotency_key: 'idem-key-1234567890abcdef',
+  };
+
+  await assert.rejects(
+    () =>
+      executeCheckout({
+        buyerId: BUYER_ID,
+        command,
+        cartPort: mockCartPort,
+        catalogPort: mockCatalogPort,
+        voucherPort: createMockVoucherPort(),
+        shopResolver: () => SHOP_1,
+        idempotencyPort: mockIdempotencyPort,
+      }),
+    (err: any) => err.code === 'REQUEST_IN_PROGRESS',
+  );
+
+  assert.equal(cartCalled, false, 'CartPort must not be called when idempotency is in_progress');
+  assert.equal(catalogCalled, false, 'CatalogPort must not be called when idempotency is in_progress');
+});
+
+test('[Negative: Voucher rejected] Voucher evaluation failure aborts before inventory lock and cart clearing', async () => {
+  const cartPort = createMockCartPort([
+    { cartItemId: 'item-1', variantId: VARIANT_1, quantity: 1, isSelected: true },
+  ]);
+  const catalogPort = createMockCatalogPort();
+  const voucherPort = createMockVoucherPort({ failEvaluation: true });
+
+  const command: CheckoutCommand = {
+    address_id: ADDRESS_ID,
+    payment_method: 'COD',
+    vouchers: [{ shop_id: SHOP_1, code: 'INVALID_VOUCHER' }],
+    idempotency_key: 'idem-key-1234567890abcdef',
+  };
+
+  await assert.rejects(
+    () =>
+      executeCheckout({
+        buyerId: BUYER_ID,
+        command,
+        cartPort,
+        catalogPort,
+        voucherPort,
+        shopResolver: () => SHOP_1,
+      }),
+    (err: any) => err.code === 'VOUCHER_NOT_APPLICABLE',
+  );
+
+  assert.equal(catalogPort.lockedVariants.length, 0, 'No variant should be locked when voucher fails');
+  assert.equal(voucherPort.consumedVouchers.length, 0, 'No voucher should be consumed');
+  assert.equal(cartPort.clearedCartItemIds.length, 0, 'Cart items must not be cleared');
+});
+
+test('[Negative: Downstream Catalog Error] Catalog error propagates and halts execution without side effects', async () => {
+  const cartPort = createMockCartPort([
+    { cartItemId: 'item-1', variantId: VARIANT_1, quantity: 1, isSelected: true },
+  ]);
+
+  const failingCatalogPort: ICatalogPort = {
+    async getVariantPriceAndStock() {
+      const err = new Error('Database connection failed');
+      (err as any).code = 'DATABASE_ERROR';
+      throw err;
+    },
+    async lockVariant() {
+      throw new Error('Should not reach lockVariant');
+    },
+    async checkShopActive() {
+      return true;
+    },
+  };
+
+  const voucherPort = createMockVoucherPort();
+
+  const command: CheckoutCommand = {
+    address_id: ADDRESS_ID,
+    payment_method: 'COD',
+    vouchers: [],
+    idempotency_key: 'idem-key-1234567890abcdef',
+  };
+
+  await assert.rejects(
+    () =>
+      executeCheckout({
+        buyerId: BUYER_ID,
+        command,
+        cartPort,
+        catalogPort: failingCatalogPort,
+        voucherPort,
+        shopResolver: () => SHOP_1,
+      }),
+    (err: any) => err.code === 'DATABASE_ERROR',
+  );
+
+  assert.equal(cartPort.clearedCartItemIds.length, 0, 'Cart must remain intact on downstream error');
+});
+
+test('[Negative: Lock failure isolation] If lockVariant throws, voucher is not consumed and cart is not cleared', async () => {
+  const cartPort = createMockCartPort([
+    { cartItemId: 'item-1', variantId: VARIANT_1, quantity: 1, isSelected: true },
+  ]);
+
+  const failingLockCatalogPort: ICatalogPort = {
+    async getVariantPriceAndStock(variantId: string) {
+      return {
+        variantId,
+        productId: PRODUCT_1,
+        productName: 'Sản phẩm 1',
+        variantName: 'Màu',
+        variantValue: 'Đỏ',
+        price: '100000.00',
+        stockQuantity: 10,
+        status: 'ACTIVE',
+      };
+    },
+    async lockVariant() {
+      const err = new Error('Lock acquisition timeout');
+      (err as any).code = 'LOCK_TIMEOUT';
+      throw err;
+    },
+    async checkShopActive() {
+      return true;
+    },
+  };
+
+  const voucherPort = createMockVoucherPort({ discountAmount: '10000.00' });
+
+  const command: CheckoutCommand = {
+    address_id: ADDRESS_ID,
+    payment_method: 'COD',
+    vouchers: [{ shop_id: SHOP_1, code: 'TEST10' }],
+    idempotency_key: 'idem-key-1234567890abcdef',
+  };
+
+  await assert.rejects(
+    () =>
+      executeCheckout({
+        buyerId: BUYER_ID,
+        command,
+        cartPort,
+        catalogPort: failingLockCatalogPort,
+        voucherPort,
+        shopResolver: () => SHOP_1,
+      }),
+    (err: any) => err.code === 'LOCK_TIMEOUT',
+  );
+
+  assert.equal(voucherPort.consumedVouchers.length, 0, 'Voucher must NOT be consumed if lockVariant fails');
+  assert.equal(cartPort.clearedCartItemIds.length, 0, 'Cart must NOT be cleared if lockVariant fails');
+});
+
+test('[Idempotency Replay Isolation] Replay returns cached result without invoking Cart, Catalog, or Voucher ports', async () => {
+  let cartCalled = false;
+  let catalogCalled = false;
+  let voucherCalled = false;
+
+  const mockCartPort: ICartPort = {
+    async getSelectedItems() {
+      cartCalled = true;
+      return [];
+    },
+    async clearCheckedOutItems() {
+      cartCalled = true;
+    },
+  };
+
+  const mockCatalogPort: ICatalogPort = {
+    async getVariantPriceAndStock() {
+      catalogCalled = true;
+      throw new Error('Should not be called');
+    },
+    async lockVariant() {
+      catalogCalled = true;
+      throw new Error('Should not be called');
+    },
+    async checkShopActive() {
+      catalogCalled = true;
+      return true;
+    },
+  };
+
+  const mockVoucherPort: IVoucherPort = {
+    async evaluateVoucher() {
+      voucherCalled = true;
+      throw new Error('Should not be called');
+    },
+    async consumeVoucher() {
+      voucherCalled = true;
+      throw new Error('Should not be called');
+    },
+  };
+
+  const cachedResult: CheckoutResult = {
+    orders: [
+      {
+        order_id: 'cached-order-999',
+        shop_id: SHOP_1,
+        status: 'PENDING_CONFIRMATION',
+        total_amount: '100000.00',
+        payment_id: 'cached-payment-999',
+      },
+    ],
+  };
+
+  const mockIdempotencyPort: IdempotencyPort<CheckoutResult> = {
+    async claim() {
+      return { kind: 'replay', result: cachedResult };
+    },
+    async complete() {},
+    async release() {},
+  };
+
+  const command: CheckoutCommand = {
+    address_id: ADDRESS_ID,
+    payment_method: 'COD',
+    vouchers: [{ shop_id: SHOP_1, code: 'ANY' }],
+    idempotency_key: 'idem-key-1234567890abcdef',
+  };
+
+  const result = await executeCheckout({
+    buyerId: BUYER_ID,
+    command,
+    cartPort: mockCartPort,
+    catalogPort: mockCatalogPort,
+    voucherPort: mockVoucherPort,
+    shopResolver: () => SHOP_1,
+    idempotencyPort: mockIdempotencyPort,
+  });
+
+  assert.deepEqual(result, cachedResult);
+  assert.equal(cartCalled, false, 'CartPort must not be called during replay');
+  assert.equal(catalogCalled, false, 'CatalogPort must not be called during replay');
+  assert.equal(voucherCalled, false, 'VoucherPort must not be called during replay');
+});
+

@@ -9,9 +9,12 @@ import type { IdempotencyPort, IdempotencyScope } from '../contracts/idempotency
 import { calculateOrderTotals } from '../../order/domain/order-calculation.ts';
 
 export class CheckoutDomainError extends Error {
-  constructor(public readonly code: string, message: string) {
+  readonly code: string;
+
+  constructor(code: string, message: string) {
     super(message);
     this.name = 'CheckoutDomainError';
+    this.code = code;
   }
 }
 
