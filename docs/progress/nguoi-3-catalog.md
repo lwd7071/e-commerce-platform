@@ -3,11 +3,36 @@
 ## Trạng thái hiện tại
 
 - Mốc: T2
-- Cập nhật lần cuối: 2026-09-17
+- Cập nhật lần cuối: 2026-09-18
 - Đang làm: Đã hoàn thiện Repositories thật với PostgreSQL, CatalogPortService hỗ trợ row-level lock (SELECT ... FOR UPDATE) và withTransaction, hoàn thiện Query/Filter/Sort/Visibility và viết Integration Test với PostgreSQL
 - Bị block bởi: Không (Đã tích hợp xong với DB client và Transaction helper của Người 2)
 
 ## Nhật ký theo ngày
+
+### 2026-09-18 (Diagnose sau merge vào dev — sửa contract Catalog và xác nhận quality gate)
+
+- Đã làm:
+  - Điều tra lỗi `tsc --noEmit` phát hiện sau khi merge Catalog T2 vào `dev`.
+  - Sửa `InMemoryProductRepository` nhận `IProductVariantRepository` thay vì phụ thuộc trực tiếp vào `InMemoryProductVariantRepository`; repository test không còn bị khóa vào một implementation cụ thể.
+  - Đồng bộ `variantValue` thành `string | null` trong `ProductVariant`, `ProductVariantEntity`, `VariantPriceAndStockDTO` và `CreateProductInputDTO`, đúng với cột `product_variants.variant_value` nullable trong Schema Freeze v1.
+  - Giữ nguyên hành vi runtime và không thay đổi migration/schema; đây là sửa lệch type contract giữa domain code, test fixture và database schema.
+- Quyết định kỹ thuật:
+  - Schema Freeze v1 là nguồn chuẩn cho tính nullable của `variant_value`; không ép fixture/test phải dùng chuỗi giả để qua typecheck.
+  - Repository phụ thuộc interface domain để bảo đảm có thể thay implementation in-memory bằng PostgreSQL mà không đổi consumer.
+- Contract/port thay đổi:
+  - `ProductVariant.variantValue`, `VariantPriceAndStockDTO.variantValue`, `CreateProductInputDTO.variants[].variantValue` — đổi thành `string | null` — Trạng thái: Đã khóa điều chỉnh — Ảnh hưởng: Người 1 (routing/catalog DTO), Người 5 (CatalogPort).
+  - `InMemoryProductRepository` — constructor nhận `IProductVariantRepository` — Trạng thái: Đã khóa điều chỉnh — Ảnh hưởng: test/repository Catalog.
+- Blocker phát sinh:
+  - Không.
+- Test đã viết/chạy:
+  - `npm run typecheck` — pass, 0 lỗi.
+  - `npx vitest run tests/modules/catalog` — pass, 5 suites / 35 tests; gồm 5 live PostgreSQL integration tests cho row lock và rollback.
+  - `npx vitest run tests/db` — pass, 9 suites / 43 tests; gồm migration, RLS, transaction và concurrency integration.
+  - Transaction state machine Node tests — pass, 15/15 tests cho Order, Payment, Shipment và Checkout.
+  - `npm test` — pass, Node 203/203 và Vitest 14 suites / 78 tests.
+  - `npm run build` — pass.
+  - `npm run lint` — pass, 0 errors; còn 168 warnings hiện hữu.
+  - `git diff --check` — pass; không có debug instrumentation cần dọn.
 
 ### 2026-09-17 (Mốc T2 — Triển khai PostgreSQL Repositories, Query/Filter/Sort & Transaction Lock)
 
@@ -59,8 +84,9 @@
 
 | Tên | Trạng thái bàn giao | Version/ngày khóa | Người tiêu thụ | Ghi chú |
 |---|---|---|---|---|
-| `ICatalogPort` (lockVariant, getVariantPriceAndStock, checkShopActive) | Đã khóa Contract (In-memory Mock cho T1) | v1 / 2026-09-17 | Người 5 | T2 sẽ gắn DB transaction thật khi có DB client |
-| Public & Seller Catalog DTOs | Đề xuất | v1 / 2026-09-17 | Người 1 | Phục vụ routing |
+| `ICatalogPort` (lockVariant, getVariantPriceAndStock, checkShopActive) | Đã khóa Contract, đã điều chỉnh nullable `variantValue` | v1.1 / 2026-09-18 | Người 5 | Đồng bộ Schema Freeze; T2 dùng DB transaction thật |
+| Public & Seller Catalog DTOs | Đề xuất, đã điều chỉnh nullable `variantValue` | v1.1 / 2026-09-18 | Người 1 | Phục vụ routing; không thay đổi HTTP shape ngoài nullable contract |
+| Catalog repository interfaces | Đã khóa Contract | v1 / 2026-09-18 | Catalog tests và PostgreSQL adapters | In-memory consumer phụ thuộc interface, không phụ thuộc implementation |
 
 ## Việc còn lại trong mốc hiện tại
 
