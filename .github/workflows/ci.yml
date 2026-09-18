@@ -153,5 +153,12 @@ jobs:
 
       - name: Run remote DB suite with zero skipped tests
         run: |
-          npx vitest run tests/db --testTimeout=30000 --hookTimeout=45000 --reporter=json --outputFile=remote-db-results.json
+          set +e
+          npx vitest run tests/db --testTimeout=30000 --hookTimeout=45000 --reporter=verbose --reporter=json --outputFile=remote-db-results.json
+          test_status=$?
+          set -e
+          if [ "$test_status" -ne 0 ]; then
+            jq -r '.testResults[] | select(.assertionResults[]?.status == "failed") | .name as $file | .assertionResults[] | select(.status == "failed") | "FAILED \($file):\(.fullName)\n\(.failureMessages | join("\n"))"' remote-db-results.json || true
+          fi
+          test "$test_status" = "0"
           test "$(jq -r '.numSkipped' remote-db-results.json)" = "0"
