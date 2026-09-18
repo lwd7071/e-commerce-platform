@@ -19,6 +19,7 @@
     "test:cross-platform": "node scripts/run-tests.js",
     "db:ci:bootstrap": "node scripts/ci-bootstrap-auth.mjs",
     "db:ci:migrate": "prisma migrate deploy",
+    "test:auth-smoke": "tsx scripts/auth-smoke.ts",
     "test:watch": "vitest"
   },
   "dependencies": {
