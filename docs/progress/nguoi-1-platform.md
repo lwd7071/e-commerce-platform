@@ -72,6 +72,13 @@
 
 ## Việc còn lại trong mốc hiện tại
 
+## Cập nhật 2026-09-18 — sửa điều kiện remote DB CI
+
+- GitHub Actions nhận đúng ba secret remote DB sau khi ánh xạ từ `backend/.env`:
+  `SUPABASE_TEST_URL`, `SUPABASE_TEST_DATABASE_URL`, `SUPABASE_TEST_DIRECT_URL`.
+- Remote DB suite chạy pass đủ 43/43 test; workflow fail do kiểm tra field `.numSkipped`, trong khi JSON reporter của Vitest dùng `numPendingTests` và không tạo field `numSkipped`.
+- Đã đổi guard CI sang `.numPendingTests // 0` và bổ sung reporter verbose để khi có test fail sẽ hiện tên test/lỗi đã được mask secret.
+
 - [x] Scaffold Payload/Node.js backend, cấu trúc module, `package.json` và TypeScript.
 - [x] Thiết lập test runner, lint, typecheck, build và CI skeleton.
 - [x] Cài API envelope, request ID, error middleware và health endpoint.

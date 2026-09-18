@@ -161,4 +161,4 @@ jobs:
             jq -r '.testResults[] | select(.assertionResults[]?.status == "failed") | .name as $file | .assertionResults[] | select(.status == "failed") | "FAILED \($file):\(.fullName)\n\(.failureMessages | join("\n"))"' remote-db-results.json || true
           fi
           test "$test_status" = "0"
-          test "$(jq -r '.numSkipped' remote-db-results.json)" = "0"
+          test "$(jq -r '.numPendingTests // 0' remote-db-results.json)" = "0"
