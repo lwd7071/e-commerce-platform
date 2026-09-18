@@ -3,11 +3,31 @@
 ## Trạng thái hiện tại
 
 - Mốc: T1
-- Cập nhật lần cuối: 2026-09-17
+- Cập nhật lần cuối: 2026-09-18
 - Đang làm: Hoàn thành Phase 1 - 5 nền tảng T1, chờ Người 2 bàn giao DB app_users và Người 3/4/5 wiring routes
 - Bị block bởi: Không (Phần làm ngay của T1 đã hoàn thành; phần chờ Người 2, 3, 4, 5 sẽ tiến hành khi có bàn giao)
 
 ## Nhật ký theo ngày
+
+### 2026-09-18 (Khắc phục GitHub Actions Backend quality)
+
+- Đã làm:
+  - Điều tra hai commit Transaction mới (`6a8457b`, `0be6b7a`) bị GitHub Actions báo `1/3 checks`.
+  - Xác định Backend quality dừng ngay tại bước `npm ci`, trước lint/typecheck/test, với lỗi `npm error Invalid Version:`.
+  - Tái hiện được lỗi bằng `npm ci --dry-run` trên workspace.
+  - Phân tích `backend/package-lock.json` và phát hiện nhiều optional dependency entries thiếu trường `version`, chủ yếu trong cây `esbuild`, `rollup` và `fsevents`.
+  - Regenerate `backend/package-lock.json` từ `backend/package.json`; lockfile mới không còn entry package thiếu version và `npm ci --dry-run` đã pass.
+- Quyết định kỹ thuật:
+  - Giữ nguyên workflow Node `22.20.0` và npm `11.12.1`; sửa nguồn gây lỗi là lockfile thay vì bỏ qua `npm ci` hoặc nới quality gate.
+  - Không thay đổi dependency trực tiếp hay hành vi runtime; chỉ chuẩn hóa metadata lockfile để Linux CI và local npm cùng resolve được dependency tree.
+- Contract/port thay đổi:
+  - Không.
+- Blocker phát sinh:
+  - Không.
+- Test đã chạy:
+  - `npm ci --dry-run --ignore-scripts --no-audit --no-fund` — pass sau khi regenerate lockfile.
+  - Backend quality trước đó fail tại `Install backend dependencies`; lint/typecheck/build/test bị skip do `npm ci` fail.
+  - Local full backend suite trên cùng commit — Node 229/229 pass, Vitest 14 suites / 78 tests pass, typecheck/build pass.
 
 ### 2026-09-17
 
