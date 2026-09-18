@@ -21,14 +21,30 @@ jobs:
       run:
         working-directory: backend
     env:
-      DIRECT_URL: postgresql://ci:ci@localhost:5432/ci
-      RUN_REMOTE_DB_TESTS: "false"
+      DATABASE_URL: postgresql://postgres.localtest:localtest@localhost:5432/postgres
+      SUPABASE_URL: https://localtest.supabase.co
+      DIRECT_URL: postgresql://postgres.localtest:localtest@localhost:5432/postgres
+      RUN_REMOTE_DB_TESTS: "true"
+    services:
+      postgres:
+        image: postgres:17.6
+        env:
+          POSTGRES_USER: postgres.localtest
+          POSTGRES_PASSWORD: localtest
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres.localtest -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22.20.0
           cache: npm
@@ -50,6 +66,12 @@ jobs:
 
       - name: Prisma validate
         run: npx prisma validate
+
+      - name: Bootstrap local Supabase-compatible auth schema
+        run: npm run db:ci:bootstrap
+
+      - name: Deploy migrations to clean PostgreSQL 17.6
+        run: npm run db:ci:migrate
 
       - name: Lint
         run: npm run lint
@@ -74,10 +96,10 @@ jobs:
         working-directory: ecommerce-web
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22.20.0
           cache: npm

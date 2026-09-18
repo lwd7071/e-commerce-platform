@@ -72,6 +72,17 @@
 
 ## Việc còn lại trong mốc hiện tại
 
+## Cập nhật 2026-09-18 — local PostgreSQL PR gate và CR-ARCH-01
+
+- Đã ghi nhận CR-ARCH-01 `Approved` sau review kỹ thuật mô phỏng của Người 2 và Người 5;
+  CR PR đã merge vào `dev` với merge commit `679fc05`.
+- Đã bổ sung PostgreSQL `17.6` service container cho Backend quality, fixture `auth.users`,
+  role `anon`/`authenticated`, migration deploy trên database trống và bật DB integration
+  tests trong PR không cần remote secret.
+- Đã nâng `actions/checkout` và `actions/setup-node` lên v7, giữ Node `22.20.0` và npm
+  `11.12.1`. Không sửa lockfile hoặc secret.
+- Kiểm tra local: `typecheck`, `build`, `git diff --check` pass.
+
 ## Cập nhật 2026-09-18 — sửa điều kiện remote DB CI
 
 - GitHub Actions nhận đúng ba secret remote DB sau khi ánh xạ từ `backend/.env`:
