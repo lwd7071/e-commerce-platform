@@ -49,6 +49,15 @@
 
 ## Việc còn lại trong mốc hiện tại
 
+### 2026-09-18 — operational idempotency storage handoff
+
+- Đã thêm migration `20260918170000_add_api_idempotency_records` với composite primary key,
+  FK `app_users`, fingerprint SHA-256 lowercase, expiry check và index cleanup.
+- Đã review theo vai Người 2: đây là bảng vận hành thứ 23, không phải bảng nghiệp vụ; không
+  thêm Redis; PostgreSQL là source of truth; migration cũ giữ nguyên checksum.
+- Đã bàn giao cho Người 5 contract lookup bằng `(user_id, endpoint, idempotency_key)` và
+  advisory lock chỉ làm nhiệm vụ điều phối concurrency.
+
 - [x] Chuyển đủ 22 bảng Schema Freeze v1 thành migration SQL; xác định PK, FK, CHECK, UNIQUE và partial unique index bắt buộc.
 - [x] Soạn RLS default-deny guard, seed tối thiểu, Supabase Auth/Storage configuration mẫu và `.env.example`.
 - [x] Xác định interface cho database client, transaction helper và test database.
