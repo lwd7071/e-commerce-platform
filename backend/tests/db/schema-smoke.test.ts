@@ -44,7 +44,7 @@ remoteDescribe('Schema Freeze v1 Supabase smoke checks', () => {
 
   it('connects and exposes exactly the 22 business tables', async () => {
     const result = await requireConnectedClient().query<{ table_name: string }>(
-      "select table_name from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE' and table_name <> '_prisma_migrations' order by table_name",
+      "select table_name from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE' and table_name <> '_prisma_migrations' and table_name <> 'api_idempotency_records' order by table_name",
     );
     expect(result.rows.map((row) => row.table_name).sort()).toEqual([...expectedTables].sort());
   }, 15_000);

@@ -28,9 +28,17 @@ remoteDescribe('Schema Freeze v1 migration acceptance', () => {
   it('has exactly the expected public business tables plus Prisma support', async () => {
     if (!pool) throw new Error('Pool was not initialized');
     const result = await pool.query<{ table_name: string }>(
-      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name",
+      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' AND table_name <> 'api_idempotency_records' ORDER BY table_name",
     );
     expect(result.rows.map((row) => row.table_name).sort()).toEqual([...expectedTables, ...supportTables].sort());
+  }, 15_000);
+
+  it('keeps operational idempotency storage separate from the 22 business tables', async () => {
+    if (!pool) throw new Error('Pool was not initialized');
+    const table = await pool.query<{ table_name: string }>("SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name='api_idempotency_records'");
+    expect(table.rows).toEqual([{ table_name: 'api_idempotency_records' }]);
+    const index = await pool.query<{ indexname: string }>("SELECT indexname FROM pg_indexes WHERE schemaname='public' AND indexname='idx_api_idempotency_records__expires_at'");
+    expect(index.rows).toEqual([{ indexname: 'idx_api_idempotency_records__expires_at' }]);
   }, 15_000);
 
   it('enables RLS and has no direct grants or policies on business tables', async () => {
