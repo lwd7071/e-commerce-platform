@@ -3,3 +3,11 @@ skills-lock.json
 node_modules/
 dist/
 .idea/
+
+# Local credentials and environment files
+.env
+.env.*
+backend/.env
+backend/.env.*
+!.env.example
+!backend/.env.example

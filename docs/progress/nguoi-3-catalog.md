@@ -2,12 +2,30 @@
 
 ## Trạng thái hiện tại
 
-- Mốc: T1
+- Mốc: T2
 - Cập nhật lần cuối: 2026-09-17
-- Đang làm: Đã giải quyết triệt để 5 điểm review của Lead; Khóa Catalog port contract kèm In-memory Mock cho testing; Sẵn sàng bước vào mốc T2 để tích hợp DB transaction thật
-- Bị block bởi: Chờ Người 2 bàn giao DB client/connection để viết repository thật ở T2
+- Đang làm: Đã hoàn thiện Repositories thật với PostgreSQL, CatalogPortService hỗ trợ row-level lock (SELECT ... FOR UPDATE) và withTransaction, hoàn thiện Query/Filter/Sort/Visibility và viết Integration Test với PostgreSQL
+- Bị block bởi: Không (Đã tích hợp xong với DB client và Transaction helper của Người 2)
 
 ## Nhật ký theo ngày
+
+### 2026-09-17 (Mốc T2 — Triển khai PostgreSQL Repositories, Query/Filter/Sort & Transaction Lock)
+
+- Đã làm:
+  - **Tạo Repository Interfaces chuẩn domain:** Thiết kế `IShopRepository`, `ICategoryRepository`, `IProductRepository`, `IProductVariantRepository` tại `src/modules/catalog/domain/repositories.ts`.
+  - **Xây dựng In-memory Repository:** Phục vụ unit test độc lập với 9 unit tests chuyên biệt cho CRUD, query filter, sort và visibility rules.
+  - **Triển khai PostgreSQL Repositories:** Cài đặt `PgShopRepository`, `PgCategoryRepository`, `PgProductRepository`, `PgProductVariantRepository` tại `src/modules/catalog/repositories/pg-catalog.repository.ts`, tương thích 100% với PostgreSQL schema freeze v1 (`migration.sql`).
+  - **Hoàn thiện tính năng Query / Filter / Sort / Visibility:**
+    - Lọc sản phẩm theo danh mục (`categoryId`), từ khóa tìm kiếm (`search`), khoảng giá (`minPrice`, `maxPrice`).
+    - Sắp xếp (`sortBy`: `price_asc`, `price_desc`, `created_at_desc`) và phân trang (`limit`, `offset`).
+    - Quy tắc hiển thị (Visibility Rules): Chỉ hiển thị cho khách/người mua các sản phẩm có trạng thái `ACTIVE` thuộc Shop `ACTIVE` và Danh mục `ACTIVE`.
+  - **Nâng cấp CatalogPortService với Real DB Transaction Lock:** Hỗ trợ kết nối `Pool` và sử dụng `withTransaction` của Người 2; hàm `lockVariant` thực hiện `SELECT ... FOR UPDATE` khóa dòng ở cấp độ database, trừ kho an toàn chống race condition và tự động rollback khi outer transaction thất bại.
+  - **Viết bộ kiểm thử tích hợp (Integration Tests):** Tạo `backend/tests/modules/catalog/catalog-db.integration.test.ts` kiểm thử trực tiếp trên PostgreSQL với đầy đủ các kịch bản: tạo shop/danh mục, tạo sản phẩm, query public, lock variant thành công, reject khi thiếu kho, và rollback khi outer transaction fail.
+  - **An toàn bảo mật:** Cấu hình bỏ qua file `.env` ở cả root và backend `.gitignore`, đảm bảo không bao giờ commit secret lên git.
+- Test đã chạy:
+  - `vitest run tests/modules/catalog/`: 5 suites PASS, 35/35 tests PASS (gồm 30 unit tests + 5 live PostgreSQL integration tests).
+  - `node --test test/modules/catalog/*.spec.ts`: 21/21 tests PASS.
+  - `tsc --noEmit`: 0 lỗi typecheck.
 
 ### 2026-09-17 (Khắc phục phản hồi của Lead & Đồng bộ nhánh dev)
 
@@ -51,4 +69,6 @@
 - [x] Định nghĩa, công bố Catalog port cho Người 5: khóa variant, đọc giá, tồn và status.
 - [x] Viết unit test thuần cho price, stock, SKU và Seller ownership.
 - [x] Đảm bảo 100% test pass trên cả Node native runner (`node --test`) và Vitest (`vitest run`).
-- [ ] Mốc T2: Tích hợp database repository thật khi Người 2 bàn giao database connection.
+- [x] Mốc T2: Tích hợp database repository thật khi Người 2 bàn giao database connection.
+- [x] Mốc T2: Triển khai Query / Filter / Sort / Visibility và Integration tests trên PostgreSQL.
+- [x] Mốc T2: Tích hợp DB transaction lock (SELECT ... FOR UPDATE) cho lockVariant.
