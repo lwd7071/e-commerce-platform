@@ -8,7 +8,7 @@ export interface CreateProductInputDTO {
   status?: ProductStatus;
   variants: Array<{
     variantName: string;
-    variantValue: string;
+    variantValue: string | null;
     sku: string;
     price: DecimalString;
     stockQuantity: number;

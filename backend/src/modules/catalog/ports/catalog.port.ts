@@ -5,7 +5,7 @@ export interface VariantPriceAndStockDTO {
   productId: UUID;
   productName?: string;
   variantName: string;
-  variantValue: string;
+  variantValue: string | null;
   price: DecimalString;
   stockQuantity: number;
   status: VariantStatus;
