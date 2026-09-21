@@ -2,12 +2,35 @@
 
 ## Trạng thái hiện tại
 
-- Mốc: T2
-- Cập nhật lần cuối: 2026-09-18
-- Đang làm: Đã hoàn thiện Repositories thật với PostgreSQL, CatalogPortService hỗ trợ row-level lock (SELECT ... FOR UPDATE) và withTransaction, hoàn thiện Query/Filter/Sort/Visibility và viết Integration Test với PostgreSQL
+- Mốc: T2 (Hoàn thiện chẩn đoán)
+- Cập nhật lần cuối: 2026-09-21
+- Đang làm: Đã xử lý triệt để 2 điểm review của Lead: loại bỏ biến thừa trong integration test và chuẩn hóa Media Domain / Service với quy tắc RB-MG11, khóa cấu trúc Media Storage Path cho Người 2
 - Bị block bởi: Không (Đã tích hợp xong với DB client và Transaction helper của Người 2)
 
 ## Nhật ký theo ngày
+
+### 2026-09-21 (Hoàn thiện theo phản hồi của Lead — Clean Test & Media Storage Path)
+
+- Đã làm:
+  - **Khắc phục biến thừa `cat1`, `cat2` trong `catalog-db.integration.test.ts`:** Bổ sung assertions trực tiếp cho cả 2 category, vừa nâng cao tính chặt chẽ của bài test vừa triệt tiêu 100% warning ESLint.
+  - **Khóa quy chuẩn Media Storage Path cho Catalog:**
+    - Cấu trúc path ảnh sản phẩm: `shops/{shopId}/products/{productId}/{imageId}.{ext}`
+    - Cấu trúc path logo shop: `shops/{shopId}/logo.{ext}`
+    - Cung cấp căn cứ kỹ thuật để Người 2 hoàn thiện Supabase Storage bucket policy và RLS.
+  - **Triển khai Domain Model `ProductImageEntity` (`src/modules/catalog/domain/media.ts`):**
+    - Thực thi quy tắc **RB-MG11**: Bắt buộc `sortOrder` là số nguyên không âm (`sortOrder >= 0`), chặn số âm và quăng `ValidationError` (`VALIDATION_FAILED`).
+    - Cung cấp hàm sinh storage path chuẩn `buildProductImagePath` và `buildShopLogoPath`.
+  - **Triển khai `CatalogMediaService` (`src/modules/catalog/services/catalog-media.service.ts`):**
+    - Cung cấp interface `ICatalogMediaService` theo chuẩn SOLID (DIP & OCP), hỗ trợ validate metadata, tạo ảnh sản phẩm, và chuyển đổi storage path sang public URL. Sẵn sàng tích hợp Supabase Storage adapter khi Người 2 hoàn tất policy.
+  - **Viết bộ kiểm thử chuyên biệt:**
+    - `backend/tests/modules/catalog/media.test.ts`: 11 tests PASS trên Vitest.
+    - `backend/test/modules/catalog/media.spec.ts`: 4 tests PASS trên Node native runner.
+- Test đã chạy:
+  - `vitest run tests/modules/catalog/`: 6 suites PASS, 46/46 tests PASS (gồm 5 integration tests trên PostgreSQL Supabase thật).
+  - `npm test`: 138/138 tests PASS toàn hệ thống.
+  - `npm run typecheck`: 0 lỗi.
+  - `npm run lint`: 0 lỗi.
+  - `npm run build`: bundle thành công 1.1MB.
 
 ### 2026-09-18 (Diagnose sau merge vào dev — sửa contract Catalog và xác nhận quality gate)
 

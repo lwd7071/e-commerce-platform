@@ -108,6 +108,8 @@ remoteDescribe('Catalog PostgreSQL Integration Tests (T2)', () => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
+    expect(cat1.categoryId).toBe(testCatId1);
+    expect(cat1.categoryName).toBe('Electronics DB');
 
     const cat2 = await categoryRepo.create({
       categoryId: testCatId2,
@@ -118,6 +120,9 @@ remoteDescribe('Catalog PostgreSQL Integration Tests (T2)', () => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
+    expect(cat2.categoryId).toBe(testCatId2);
+    expect(cat2.categoryName).toBe('Phones DB');
+    expect(cat2.parentCategoryId).toBe(testCatId1);
 
     const roots = await categoryRepo.findRoots();
     expect(roots.some((r) => r.categoryId === testCatId1)).toBe(true);

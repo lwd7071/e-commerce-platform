@@ -1,4 +1,4 @@
-﻿import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import type {
   IShopRepository,
   ICategoryRepository,
@@ -94,10 +94,12 @@ describe('Catalog Domain Repositories (TDD)', () => {
       const roots = await categoryRepo.findRoots();
       expect(roots).toHaveLength(1);
       expect(roots[0].categoryId).toBe('cat-root');
+      expect(root.categoryName).toBe('Electronics');
 
       const children = await categoryRepo.findChildren('cat-root');
       expect(children).toHaveLength(1);
       expect(children[0].categoryId).toBe('cat-child');
+      expect(child.categoryName).toBe('Smartphones');
     });
   });
 
