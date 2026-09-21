@@ -11,42 +11,42 @@ describe('Voucher Domain Tests (QD09, RB-LTT03, RB-LTT04, RB-LTT05, RB-MG09)', (
     it('[RB-LTT03] startAt = "2026-01-10", endAt = "2026-01-01" (đảo ngược) -> reject VALIDATION_FAILED', () => {
       assert.throws(
         () => validateVoucherTime('2026-01-10T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-        (err: any) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
+        (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
     });
 
     it('[RB-LTT03] startAt = endAt = "2026-01-10" (bằng nhau, biên) -> reject VALIDATION_FAILED', () => {
       assert.throws(
         () => validateVoucherTime('2026-01-10T00:00:00.000Z', '2026-01-10T00:00:00.000Z'),
-        (err: any) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
+        (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
     });
 
     it('[QD09] now < startAt (chưa tới hạn) -> reject VOUCHER_NOT_APPLICABLE', () => {
       assert.throws(
         () => validateVoucherTime('2026-09-10T00:00:00.000Z', '2026-09-20T00:00:00.000Z', '2026-09-05T00:00:00.000Z'),
-        (err: any) => err instanceof VoucherNotApplicableError && err.code === 'VOUCHER_NOT_APPLICABLE'
+        (err: unknown) => err instanceof VoucherNotApplicableError && err.code === 'VOUCHER_NOT_APPLICABLE'
       );
     });
 
     it('[QD09] now > endAt (hết hạn) -> reject VOUCHER_NOT_APPLICABLE', () => {
       assert.throws(
         () => validateVoucherTime('2026-09-10T00:00:00.000Z', '2026-09-20T00:00:00.000Z', '2026-09-25T00:00:00.000Z'),
-        (err: any) => err instanceof VoucherNotApplicableError && err.code === 'VOUCHER_NOT_APPLICABLE'
+        (err: unknown) => err instanceof VoucherNotApplicableError && err.code === 'VOUCHER_NOT_APPLICABLE'
       );
     });
 
     it('[RB-LTT03, QD09] now = "not-a-date" không hợp lệ -> reject VALIDATION_FAILED', () => {
       assert.throws(
         () => validateVoucherTime('2026-09-01T00:00:00.000Z', '2026-09-30T00:00:00.000Z', 'not-a-date'),
-        (err: any) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
+        (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
     });
 
     it('[RB-LTT03, QD09] now = "invalid-iso-string" -> reject VALIDATION_FAILED', () => {
       assert.throws(
         () => validateVoucherTime('2026-09-01T00:00:00.000Z', '2026-09-30T00:00:00.000Z', 'invalid-iso-string'),
-        (err: any) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
+        (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
     });
 
@@ -61,7 +61,7 @@ describe('Voucher Domain Tests (QD09, RB-LTT03, RB-LTT04, RB-LTT05, RB-MG09)', (
     it('[RB-LTT04] type=PERCENT, value=0 (biên dưới) -> reject VALIDATION_FAILED', () => {
       assert.throws(
         () => validateDiscountRange('PERCENT', '0'),
-        (err: any) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
+        (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
     });
 
@@ -72,49 +72,49 @@ describe('Voucher Domain Tests (QD09, RB-LTT03, RB-LTT04, RB-LTT05, RB-MG09)', (
     it('[RB-LTT04] type=PERCENT, value=101 (> 100) -> reject VALIDATION_FAILED', () => {
       assert.throws(
         () => validateDiscountRange('PERCENT', '101'),
-        (err: any) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
+        (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
     });
 
     it('[RB-MG09] type=FIXED, value=0 -> reject VALIDATION_FAILED (DiscountValue > 0)', () => {
       assert.throws(
         () => validateDiscountRange('FIXED', '0'),
-        (err: any) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
+        (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
     });
 
     it('[RB-MG09] type=FIXED, value=-5000 -> reject VALIDATION_FAILED', () => {
       assert.throws(
         () => validateDiscountRange('FIXED', '-5000'),
-        (err: any) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
+        (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
     });
 
     it('[RB-MG09] type=FIXED, value="10garbage" có ký tự rác -> reject VALIDATION_FAILED', () => {
       assert.throws(
         () => validateDiscountRange('FIXED', '10garbage'),
-        (err: any) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
+        (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
     });
 
     it('[RB-MG09] type=FIXED, value="abc" không phải số -> reject VALIDATION_FAILED', () => {
       assert.throws(
         () => validateDiscountRange('FIXED', 'abc'),
-        (err: any) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
+        (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
     });
 
     it('[RB-LTT04] type=PERCENT, value="20garbage" có ký tự rác -> reject VALIDATION_FAILED', () => {
       assert.throws(
         () => validateDiscountRange('PERCENT', '20garbage'),
-        (err: any) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
+        (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
     });
 
     it('[RB-MG09] type=FIXED, value="0.00" -> reject VALIDATION_FAILED', () => {
       assert.throws(
         () => validateDiscountRange('FIXED', '0.00'),
-        (err: any) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
+        (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
     });
 
@@ -142,7 +142,7 @@ describe('Voucher Domain Tests (QD09, RB-LTT03, RB-LTT04, RB-LTT05, RB-MG09)', (
     it('[RB-MG09] calculateDiscountAmount với subtotal="not-a-number" -> reject VALIDATION_FAILED', () => {
       assert.throws(
         () => calculateDiscountAmount('FIXED', '50000.00', null, 'not-a-number'),
-        (err: any) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
+        (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
     });
   });
@@ -156,7 +156,7 @@ describe('Voucher Domain Tests (QD09, RB-LTT03, RB-LTT04, RB-LTT05, RB-MG09)', (
           orderSubtotal: 'abc',
           now: '2026-09-15T10:00:00.000Z',
         }),
-        (err: any) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
+        (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
     });
 
@@ -168,7 +168,7 @@ describe('Voucher Domain Tests (QD09, RB-LTT03, RB-LTT04, RB-LTT05, RB-MG09)', (
           orderSubtotal: '100000garbage',
           now: '2026-09-15T10:00:00.000Z',
         }),
-        (err: any) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
+        (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
     });
 
@@ -180,7 +180,7 @@ describe('Voucher Domain Tests (QD09, RB-LTT03, RB-LTT04, RB-LTT05, RB-MG09)', (
           orderSubtotal: '-50000',
           now: '2026-09-15T10:00:00.000Z',
         }),
-        (err: any) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
+        (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
     });
 
@@ -188,7 +188,7 @@ describe('Voucher Domain Tests (QD09, RB-LTT03, RB-LTT04, RB-LTT05, RB-MG09)', (
       const invalidVoucher: Voucher = { ...mockShopVoucher, shopId: null };
       assert.throws(
         () => evaluateVoucher(invalidVoucher, { buyerId: mockBuyerId, shopId: mockShopId, orderSubtotal: '200000.00', now: '2026-09-15T10:00:00.000Z' }),
-        (err: any) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
+        (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
     });
 
@@ -196,14 +196,14 @@ describe('Voucher Domain Tests (QD09, RB-LTT03, RB-LTT04, RB-LTT05, RB-MG09)', (
       const invalidVoucher: Voucher = { ...mockPlatformVoucher, shopId: mockShopId };
       assert.throws(
         () => evaluateVoucher(invalidVoucher, { buyerId: mockBuyerId, shopId: mockShopId, orderSubtotal: '200000.00', now: '2026-09-15T10:00:00.000Z' }),
-        (err: any) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
+        (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
     });
 
     it('[QD09] scope=SHOP, shopId="A", context.shopId="B" (sai shop) -> reject VOUCHER_NOT_APPLICABLE', () => {
       assert.throws(
         () => evaluateVoucher(mockShopVoucher, { buyerId: mockBuyerId, shopId: mockOtherShopId, orderSubtotal: '200000.00', now: '2026-09-15T10:00:00.000Z' }),
-        (err: any) => err instanceof VoucherNotApplicableError && err.code === 'VOUCHER_NOT_APPLICABLE'
+        (err: unknown) => err instanceof VoucherNotApplicableError && err.code === 'VOUCHER_NOT_APPLICABLE'
       );
     });
 
@@ -211,14 +211,14 @@ describe('Voucher Domain Tests (QD09, RB-LTT03, RB-LTT04, RB-LTT05, RB-MG09)', (
       const outOfStockVoucher: Voucher = { ...mockPlatformVoucher, quantity: 0 };
       assert.throws(
         () => evaluateVoucher(outOfStockVoucher, { buyerId: mockBuyerId, shopId: mockShopId, orderSubtotal: '200000.00', now: '2026-09-15T10:00:00.000Z' }),
-        (err: any) => err instanceof VoucherNotApplicableError && err.code === 'VOUCHER_NOT_APPLICABLE'
+        (err: unknown) => err instanceof VoucherNotApplicableError && err.code === 'VOUCHER_NOT_APPLICABLE'
       );
     });
 
     it('[QD09] subtotal=50000 < minOrderValue=100000 -> reject VOUCHER_NOT_APPLICABLE', () => {
       assert.throws(
         () => evaluateVoucher(mockPlatformVoucher, { buyerId: mockBuyerId, shopId: mockShopId, orderSubtotal: '50000.00', now: '2026-09-15T10:00:00.000Z' }),
-        (err: any) => err instanceof VoucherNotApplicableError && err.code === 'VOUCHER_NOT_APPLICABLE'
+        (err: unknown) => err instanceof VoucherNotApplicableError && err.code === 'VOUCHER_NOT_APPLICABLE'
       );
     });
 
@@ -230,7 +230,7 @@ describe('Voucher Domain Tests (QD09, RB-LTT03, RB-LTT04, RB-LTT05, RB-MG09)', (
           orderSubtotal: '100000.00',
           now: 'not-a-date',
         }),
-        (err: any) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
+        (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
     });
 

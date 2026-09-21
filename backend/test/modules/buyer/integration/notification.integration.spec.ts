@@ -6,10 +6,10 @@ import { mockNotification, mockBuyerId } from '../fixtures';
 import type { IDbClient } from '../../../../src/modules/buyer/infrastructure/db-client';
 
 class MockDbClient {
-  public queries: { sql: string; params: any[] }[] = [];
-  public customHandler?: (sql: string, params: any[]) => Promise<any>;
+  public queries: { sql: string; params: unknown[] }[] = [];
+  public customHandler?: (sql: string, params: unknown[]) => Promise<{ rows: Record<string, unknown>[]; rowCount: number }>;
 
-  async query(sql: string, params: any[] = []): Promise<{ rows: any[]; rowCount: number }> {
+  async query(sql: string, params: unknown[] = []): Promise<{ rows: Record<string, unknown>[]; rowCount: number }> {
     this.queries.push({ sql: sql.trim(), params });
     if (this.customHandler) {
       return this.customHandler(sql, params);
@@ -139,7 +139,10 @@ describe('Phase 5 — PostgresNotificationRepository (SOLID: S, L, D)', () => {
       const repo = new PostgresNotificationRepository(client as IDbClient);
       await assert.rejects(
         () => repo.create({ ...mockNotification, isRead: true, readAt: null }),
-        (err: any) => err.code === '23514' && err.constraint === 'ck_notifications__read_at'
+        (err: unknown) => {
+          const e = err as { code?: string; constraint?: string };
+          return e.code === '23514' && e.constraint === 'ck_notifications__read_at';
+        }
       );
     });
   });

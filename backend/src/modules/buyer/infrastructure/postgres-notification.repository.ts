@@ -23,7 +23,7 @@ export class PostgresNotificationRepository implements INotificationRepository {
 
   async findByRecipientId(recipientId: UUID, isRead?: boolean): Promise<Notification[]> {
     let sql = `SELECT notification_id, recipient_id, type, title, content, is_read, created_at, read_at FROM notifications WHERE recipient_id = $1`;
-    const params: any[] = [recipientId];
+    const params: unknown[] = [recipientId];
     if (isRead !== undefined) {
       params.push(isRead);
       sql += ` AND is_read = $${params.length}`;

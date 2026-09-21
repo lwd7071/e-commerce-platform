@@ -5,5 +5,5 @@
  * - Interface Segregation Principle (I): Chỉ yêu cầu method query cần thiết cho repository.
  */
 export interface IDbClient {
-  query<T = any>(sql: string, params?: any[]): Promise<{ rows: T[]; rowCount?: number | null }>;
+  query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<{ rows: T[]; rowCount?: number | null }>;
 }
