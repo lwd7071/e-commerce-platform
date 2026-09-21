@@ -3,6 +3,7 @@ import { requestIdMiddleware } from './middlewares/request-id.ts';
 import { errorHandlerMiddleware } from './middlewares/error-handler.ts';
 import { healthRouter } from '../routes/health.ts';
 import { createBuyerRouter, createCatalogRouter, createOrderRouter, type T1RouteApplications } from './routes/t1-routes.ts';
+import { createAdminRouter } from './routes/admin-routes.ts';
 import { createDatabasePool, closeDatabasePool } from '../../../db/client.ts';
 import { loadDatabaseConfig } from '../../../db/config.ts';
 import { PgAuthRepository } from '../../modules/identity/repositories/pg-auth.repository.ts';
@@ -31,6 +32,7 @@ export function createApp(applications: T1RouteApplications = {}): Application {
   app.use('/api/v1', createCatalogRouter(applications.catalog, auth));
   app.use('/api/v1', createBuyerRouter(applications.buyer, auth));
   app.use('/api/v1', createOrderRouter(applications.orders, auth));
+  app.use('/api/v1', createAdminRouter(applications.moderation, auth));
 
   app.use(errorHandlerMiddleware);
 

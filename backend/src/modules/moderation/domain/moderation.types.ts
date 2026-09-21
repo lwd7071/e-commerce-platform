@@ -1,4 +1,6 @@
 import type { UserStatus } from '../../identity/domain/types.ts';
+export type { UserStatus };
+export type { IAuditPort, AdminAuditRecord } from '../../../contracts/audit.port.ts';
 
 export const ALLOWED_MODERATION_TARGET_TYPES = ['USER', 'SHOP', 'PRODUCT', 'REVIEW'] as const;
 export type ModerationTargetType = typeof ALLOWED_MODERATION_TARGET_TYPES[number];
@@ -41,4 +43,10 @@ export interface ITargetLookupRepository {
 
 export interface ITransactionManager {
   withTransaction<T>(fn: (trx: unknown) => Promise<T>): Promise<T>;
+}
+
+export interface IModerationService {
+  moderateTarget(command: ModerateTargetCommand): Promise<UserStatusUpdateResult>;
+  lockUser(adminId: string, userId: string, reason: string): Promise<UserStatusUpdateResult>;
+  unlockUser(adminId: string, userId: string, reason: string): Promise<UserStatusUpdateResult>;
 }

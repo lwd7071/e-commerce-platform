@@ -33,11 +33,14 @@ export interface OrderHttpApplication {
   retryPayment(context: RequestContext, orderId: string, input: Record<string, unknown>): Promise<unknown>;
 }
 
+import type { IModerationService } from '../../../modules/moderation/domain/moderation.types.ts';
+
 export interface T1RouteApplications {
   auth?: RequestHandler;
   catalog?: CatalogHttpApplication;
   buyer?: BuyerHttpApplication;
   orders?: OrderHttpApplication;
+  moderation?: IModerationService;
 }
 
 function guards(auth: RequestHandler | undefined, ...roles: Role[]): RequestHandler[] {

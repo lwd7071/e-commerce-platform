@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { PgAuditRepository } from '../../src/platform/audit/pg-audit.repository.ts';
 import { ValidationFailedError } from '../../src/platform/errors/app-error.ts';
+import type { AdminAuditRecord } from '../../src/contracts/audit.port.ts';
 
 interface QueryCall {
   sql: string;
@@ -55,7 +56,7 @@ describe('Phase 3 — TDD Cycle 3.1: PostgreSQL Audit Adapter (PgAuditRepository
         await auditRepo.logAdminAction(fakeClient, {
           admin_id: '',
           action: 'LOCK_USER'
-        });
+        } as unknown as AdminAuditRecord);
       },
       (err: unknown) => {
         assert.ok(err instanceof ValidationFailedError);
@@ -69,7 +70,7 @@ describe('Phase 3 — TDD Cycle 3.1: PostgreSQL Audit Adapter (PgAuditRepository
         await auditRepo.logAdminAction(fakeClient, {
           admin_id: '00000000-0000-0000-0000-000000000001',
           action: ''
-        });
+        } as unknown as AdminAuditRecord);
       },
       (err: unknown) => {
         assert.ok(err instanceof ValidationFailedError);
@@ -87,8 +88,9 @@ describe('Phase 3 — TDD Cycle 3.1: PostgreSQL Audit Adapter (PgAuditRepository
           admin_id: '00000000-0000-0000-0000-000000000001',
           action: 'LOCK_USER',
           target_type: 'ORDER', // Invalid polymorphic target
-          target_id: '00000000-0000-0000-0000-000000000002'
-        });
+          target_id: '00000000-0000-0000-0000-000000000002',
+          reason: 'Some reason'
+        } as unknown as AdminAuditRecord);
       },
       (err: unknown) => {
         assert.ok(err instanceof ValidationFailedError);
@@ -107,9 +109,10 @@ describe('Phase 3 — TDD Cycle 3.1: PostgreSQL Audit Adapter (PgAuditRepository
         await auditRepo.logAdminAction(fakeClient, {
           admin_id: '00000000-0000-0000-0000-000000000001',
           action: 'LOCK_USER',
-          target_type: 'USER'
+          target_type: 'USER',
+          reason: 'Some reason'
           // missing target_id
-        });
+        } as unknown as AdminAuditRecord);
       },
       (err: unknown) => {
         assert.ok(err instanceof ValidationFailedError);
@@ -122,9 +125,10 @@ describe('Phase 3 — TDD Cycle 3.1: PostgreSQL Audit Adapter (PgAuditRepository
         await auditRepo.logAdminAction(fakeClient, {
           admin_id: '00000000-0000-0000-0000-000000000001',
           action: 'LOCK_USER',
-          target_id: '00000000-0000-0000-0000-000000000002'
+          target_id: '00000000-0000-0000-0000-000000000002',
+          reason: 'Some reason'
           // missing target_type
-        });
+        } as unknown as AdminAuditRecord);
       },
       (err: unknown) => {
         assert.ok(err instanceof ValidationFailedError);

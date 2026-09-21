@@ -4,10 +4,35 @@
 
 - Mốc: T2
 - Cập nhật lần cuối: 2026-09-21
-- Đang làm: Hoàn thành Phase 1, Phase 2, Phase 3 (Audit logging adapter & ModerationService với atomic rollback); chuẩn bị Phase 4 (Admin Lock/Unlock endpoints)
+- Đang làm: Hoàn thành Phase 1, Phase 2, Phase 3, Phase 4 (Admin Lock/Unlock endpoints); chuẩn bị Phase 5 (ESLint 9 tech-stack.md và Quality Gates)
 - Bị block bởi: Không
 
 ## Nhật ký theo ngày
+
+### 2026-09-21 (T2 Phase 4 — Admin User Lock & Unlock Endpoints)
+
+- Đã làm:
+  - Xây dựng router `src/platform/http/routes/admin-routes.ts` bọc qua middleware RBAC `requireRole('ADMIN')` cho 2 endpoints:
+    - `POST /api/v1/admin/users/:id/lock`
+    - `POST /api/v1/admin/users/:id/unlock`
+  - Tích hợp chuẩn xác `ModerationService.moderateTarget` với đầy đủ context người thực hiện (`admin_id` từ `req.context.user_id`), ghi nhận audit log và trả về envelope thành công chuẩn:
+    `{ data: { user_id, status, updated_at }, request_id }`.
+  - Mount `createAdminRouter` vào `src/platform/http/app.ts` và mở rộng `T1RouteApplications` hỗ trợ `moderation?: IModerationService`.
+  - Viết bộ test `test/platform/admin-routes.spec.ts` gồm 12 test cases:
+    - TDD Cycle 4.1 (Lock User): 7 cases (401 unauth, 403 non-admin role, 422 missing reason QD17, 404 user not found RB-KN20, 409 already locked, 200 success lock, 403 USER_LOCKED enforcement QD03 khi user bị khóa gọi protected route).
+    - TDD Cycle 4.2 (Unlock User): 5 cases (403 non-admin role, 422 missing reason QD17, 404 user not found RB-KN20, 409 already active, 200 success unlock).
+  - Toàn bộ 12/12 tests của Phase 4 đều PASS. Tổng bộ unit tests đạt 320/320 PASS.
+- Quyết định kỹ thuật:
+  - Sử dụng middleware RBAC `requireRole('ADMIN')` để bảo vệ tài nguyên admin ngay từ lớp HTTP routing trước khi đi vào domain service.
+  - Kiểm chứng chặt chẽ quy định QD03: Ngay sau khi admin khóa tài khoản, request tiếp theo từ user đó (kể cả có mang token hợp lệ) đều bị chặn đứng với mã lỗi 403 `USER_LOCKED`.
+- Contract/port thay đổi:
+  - Cung cấp 2 HTTP routes mới: `POST /api/v1/admin/users/:id/lock` và `POST /api/v1/admin/users/:id/unlock`.
+- Blocker phát sinh:
+  - Không.
+  - Đã tích hợp file cấu hình `.env` cho database vào `backend/.env`, bảo đảm an toàn qua `.gitignore`.
+- Test đã viết:
+  - `[ADMIN-01]` -> `[ADMIN-07]`: Admin Lock User (401, 403, 422 QD17, 404 RB-KN20, 409 USER_ALREADY_LOCKED, 200 OK envelope, 403 QD03 USER_LOCKED enforcement) — Unit test — Kết quả: pass.
+  - `[ADMIN-08]` -> `[ADMIN-12]`: Admin Unlock User (403, 422 QD17, 404 RB-KN20, 409 USER_ALREADY_ACTIVE, 200 OK envelope) — Unit test — Kết quả: pass.
 
 ### 2026-09-21 (T2 Phase 3 — Audit Logging Adapter & ModerationService Atomic Transaction)
 
