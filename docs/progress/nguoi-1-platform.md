@@ -4,10 +4,37 @@
 
 - Mốc: T2
 - Cập nhật lần cuối: 2026-09-21
-- Đang làm: Hoàn thành Phase 1 & Phase 2 (Error Catalog & Postgres mapping); chuẩn bị Phase 3 Moderation & AdminLog Service (QD20, RB-KN20)
+- Đang làm: Hoàn thành Phase 1, Phase 2, Phase 3 (Audit logging adapter & ModerationService với atomic rollback); chuẩn bị Phase 4 (Admin Lock/Unlock endpoints)
 - Bị block bởi: Không
 
 ## Nhật ký theo ngày
+
+### 2026-09-21 (T2 Phase 3 — Audit Logging Adapter & ModerationService Atomic Transaction)
+
+- Đã làm:
+  - Xây dựng `src/platform/audit/pg-audit.repository.ts` hiện thực hóa interface `IAuditPort` (ghi vào bảng `admin_logs`), hỗ trợ ngữ cảnh transaction (truyền pool hoặc trx client), kiểm tra chặt chẽ cấu trúc polymorphic target theo `RB-KN20`.
+  - Định nghĩa domain types cho kiểm duyệt tại `src/modules/moderation/domain/moderation.types.ts`.
+  - Hiện thực hóa `ModerationService` trong `src/modules/moderation/services/moderation.service.ts` tuân thủ nghiêm ngặt 6 bước kiểm tra ưu tiên:
+    1. Kiểm tra `target_type` hợp lệ (`USER`, `SHOP`, `PRODUCT`, `REVIEW`) ➔ 422 `VALIDATION_FAILED`.
+    2. Kiểm tra `target_id` hợp lệ (UUID v4) ➔ 422 `VALIDATION_FAILED`.
+    3. Kiểm tra lý do `reason` bắt buộc (QD17) ➔ 422 `REASON_REQUIRED`.
+    4. Kiểm tra sự tồn tại của target trong bảng nguồn (RB-KN20) ➔ 404 `RESOURCE_NOT_FOUND`.
+    5. Kiểm tra tính lũy kế / idempotent ➔ 409 `USER_ALREADY_LOCKED` hoặc `USER_ALREADY_ACTIVE`.
+    6. Thực thi trong Atomic Database Transaction (QD20): Cập nhật trạng thái target, ghi nhận bản ghi kiểm duyệt, và gọi `IAuditPort.logAdminAction`. Nếu ghi audit log thất bại ➔ rollback toàn bộ và bắn 500 `AUDIT_WRITE_FAILED`.
+  - Viết unit test cho Audit Adapter: `test/platform/audit-logging.spec.ts` (4/4 pass).
+  - Viết unit test cho ModerationService: `test/modules/moderation/moderation-service.spec.ts` (9/9 pass).
+  - Toàn bộ unit suite `node:test` đạt 308/308 pass.
+- Quyết định kỹ thuật:
+  - Thiết kế `ITargetRepository` và `ITransactionManager` theo kiến trúc Ports & Adapters (Hexagonal Architecture) giúp cô lập hoàn toàn business logic và atomic rollback test mà không bị lệ thuộc vào instance DB thật ở unit test suite.
+  - Xử lý rollback an toàn qua Unit of Work / Transaction Manager đảm bảo không bao giờ có hành động kiểm duyệt nào được commit mà không có audit log đi kèm.
+- Contract/port thay đổi:
+  - Thêm `IAuditPort` implementation: `PgAuditRepository`.
+  - Thêm domain interface: `ITargetRepository`, `ITransactionManager`, `IModerationService`.
+- Blocker phát sinh:
+  - Không.
+- Test đã viết:
+  - `[AUDIT-01]` -> `[AUDIT-04]`: `PgAuditRepository` write, missing params, RB-KN20 polymorphic enum & pair checks — Unit test — Kết quả: pass.
+  - `[MOD-01]` -> `[MOD-09]`: `ModerationService` 6-step priority order (target type 422, target id 422, QD17 reason 422, RB-KN20 not found 404, idempotency 409, QD20 atomic rollback 500 AUDIT_WRITE_FAILED, happy path commit) — Unit test — Kết quả: pass.
 
 ### 2026-09-21 (T2 Phase 2 — Error Catalog & Database Exception Mapper)
 
