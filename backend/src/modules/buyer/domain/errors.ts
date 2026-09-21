@@ -45,6 +45,13 @@ export class CartItemConflictError extends BuyerDomainError {
   }
 }
 
+export class InventoryInsufficientError extends BuyerDomainError {
+  constructor(message: string, details?: unknown) {
+    super('INVENTORY_INSUFFICIENT', message, details);
+    this.name = 'InventoryInsufficientError';
+  }
+}
+
 export class DefaultAddressConflictError extends BuyerDomainError {
   constructor(message: string, details?: unknown) {
     super('DEFAULT_ADDRESS_CONFLICT', message, details);
