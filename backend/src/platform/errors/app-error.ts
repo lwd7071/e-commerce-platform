@@ -60,3 +60,27 @@ export class AuthConfigurationError extends AppError {
     super(500, 'AUTH_CONFIGURATION_ERROR', message);
   }
 }
+
+export class ReasonRequiredError extends AppError {
+  constructor(message = 'Reason is required', details?: unknown) {
+    super(422, 'REASON_REQUIRED', message, details);
+  }
+}
+
+export class AuditWriteFailedError extends AppError {
+  constructor(message = 'Failed to write audit log', details?: unknown) {
+    super(500, 'AUDIT_WRITE_FAILED', message, details);
+  }
+}
+
+export class DependencyUnavailableError extends AppError {
+  constructor(message = 'Service dependency is temporarily unavailable', details?: unknown) {
+    super(503, 'DEPENDENCY_UNAVAILABLE', message, details);
+  }
+}
+
+export class InvalidStateTransitionError extends ConflictError {
+  constructor(code = 'CONFLICT', message = 'Invalid state transition', details?: unknown) {
+    super(code, message, details);
+  }
+}

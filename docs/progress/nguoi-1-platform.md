@@ -4,10 +4,31 @@
 
 - Mốc: T2
 - Cập nhật lần cuối: 2026-09-21
-- Đang làm: Hoàn thành Phase 1 RBAC & Ownership Guard Middleware; chuẩn bị Phase 2 Error Catalog & Postgres mapping
+- Đang làm: Hoàn thành Phase 1 & Phase 2 (Error Catalog & Postgres mapping); chuẩn bị Phase 3 Moderation & AdminLog Service (QD20, RB-KN20)
 - Bị block bởi: Không
 
 ## Nhật ký theo ngày
+
+### 2026-09-21 (T2 Phase 2 — Error Catalog & Database Exception Mapper)
+
+- Đã làm:
+  - Bổ sung các class lỗi vào `src/platform/errors/app-error.ts`: `ReasonRequiredError` (422), `AuditWriteFailedError` (500), `DependencyUnavailableError` (503), và `InvalidStateTransitionError` (409 nhận mã lỗi cụ thể `USER_ALREADY_LOCKED`, `USER_ALREADY_ACTIVE`).
+  - Nâng cấp `errorHandlerMiddleware` trong `src/platform/http/middlewares/error-handler.ts` để bắt và ánh xạ các mã lỗi Postgres:
+    - Mã `23505` (unique violation) ➔ 409 (`USER_EMAIL_CONFLICT`, `SHOP_ALREADY_EXISTS`, `VOUCHER_CODE_CONFLICT`, `SKU_CONFLICT`).
+    - Mã `23503` (foreign key violation) phân 2 nhánh chuẩn: Insert/Update tham chiếu bản ghi cha không tồn tại ➔ 404 `RESOURCE_NOT_FOUND`; Delete vi phạm ràng buộc RESTRICT ➔ 409 `RESOURCE_DELETE_NOT_ALLOWED`.
+    - Mã `23514` (check constraint violation) ➔ 422 `VALIDATION_FAILED`.
+  - Bảo đảm tuyệt đối không để lộ chuỗi SQL, tên constraint hoặc stack trace trong response client.
+  - Viết thêm 8 test case trong `test/platform/error-handling.spec.ts` (14/14 tests pass, full suite 295/295 tests pass).
+- Quyết định kỹ thuật:
+  - Phân biệt rõ 2 nhánh của lỗi FK 23503 (Insert 404 vs Delete Restrict 409) theo đúng catalog `error-observability.md` Mục 2.
+  - Giữ class `InvalidStateTransitionError` kế thừa `ConflictError` và nhận mã lỗi ngữ cảnh linh hoạt để dùng chuẩn xác cho nghiệp vụ User/Shop/Order.
+- Contract/port thay đổi:
+  - Không.
+- Blocker phát sinh:
+  - Không.
+- Test đã viết:
+  - `[ERR-05]` -> `[ERR-08]`: AppError subclasses (`REASON_REQUIRED`, `AUDIT_WRITE_FAILED`, `DEPENDENCY_UNAVAILABLE`, `InvalidStateTransitionError`) — Unit test — Kết quả: pass.
+  - `[PG-01]` -> `[PG-04]`: Postgres error translation (23505, 23503 insert 404, 23503 delete 409, 23514 422) — Unit test — Kết quả: pass.
 
 ### 2026-09-21 (T2 Phase 1 — RBAC Middleware & Role/Ownership Guards)
 
