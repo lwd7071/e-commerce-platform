@@ -2,12 +2,32 @@
 
 ## Trạng thái hiện tại
 
-- Mốc: T1
-- Cập nhật lần cuối: 2026-09-18
-- Đang làm: Hoàn thành Phase 1 - 5 nền tảng T1, chờ Người 2 bàn giao DB app_users và Người 3/4/5 wiring routes
-- Bị block bởi: Không (Phần làm ngay của T1 đã hoàn thành; phần chờ Người 2, 3, 4, 5 sẽ tiến hành khi có bàn giao)
+- Mốc: T2
+- Cập nhật lần cuối: 2026-09-21
+- Đang làm: Hoàn thành Phase 1 RBAC & Ownership Guard Middleware; chuẩn bị Phase 2 Error Catalog & Postgres mapping
+- Bị block bởi: Không
 
 ## Nhật ký theo ngày
+
+### 2026-09-21 (T2 Phase 1 — RBAC Middleware & Role/Ownership Guards)
+
+- Đã làm:
+  - Tạo file `src/platform/http/middlewares/rbac.ts` cung cấp `requireRole(...roles)`, `requireBuyerOwnership`, `requireShopOwnership`.
+  - Triển khai Role Guard: request thiếu context trả `401 AUTH_REQUIRED`, sai role trả `403 RESOURCE_FORBIDDEN`.
+  - Triển khai Buyer Ownership Guard chống Resource Enumeration theo `auth-rbac-rls.md` Mục 3: truy cập tài nguyên của Buyer khác trả dứt khoát `404 RESOURCE_NOT_FOUND`.
+  - Triển khai Seller Shop Ownership Guard: truy cập sai `shop_id` trả `403 RESOURCE_FORBIDDEN`.
+  - Cho phép Admin bypass quyền sở hữu đối với các tài nguyên khi command cho phép.
+  - Viết bộ unit test TDD toàn diện tại `test/platform/rbac-middleware.spec.ts` (10/10 tests pass).
+- Quyết định kỹ thuật:
+  - Tách `requireBuyerOwnership` (404 anti-enumeration) và `requireShopOwnership` (403 forbidden) để đảm bảo an ninh thông tin riêng tư của Buyer.
+  - Đặt toàn bộ Unit test trong `test/platform/` chạy qua `node:test` + `tsx`, độc lập 100% với database instance.
+- Contract/port thay đổi:
+  - Không.
+- Blocker phát sinh:
+  - Không.
+- Test đã viết:
+  - `[RBAC-01]` -> `[RBAC-04]`: `requireRole` unauthenticated, wrong role, matching role, multi-role — Unit test — Kết quả: pass.
+  - `[OWNER-01]` -> `[OWNER-06]`: Buyer ownership (404), Seller ownership (403), Admin bypass — Unit test — Kết quả: pass.
 
 ### 2026-09-18 (Khắc phục GitHub Actions Backend quality)
 
