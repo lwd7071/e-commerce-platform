@@ -10,6 +10,8 @@ export interface QueryableClient {
 }
 
 export class PgAuditRepository implements IAuditPort {
+  constructor(private readonly pool?: unknown) {}
+
   public async logAdminAction(trx: unknown, record: AdminAuditRecord): Promise<void> {
     if (!record.admin_id || typeof record.admin_id !== 'string' || record.admin_id.trim() === '') {
       throw new ValidationFailedError('admin_id is required for audit log');
@@ -35,7 +37,7 @@ export class PgAuditRepository implements IAuditPort {
       }
     }
 
-    const client = trx as QueryableClient;
+    const client = (trx ?? this.pool) as QueryableClient;
     if (!client || typeof client.query !== 'function') {
       throw new Error('Database transaction client is required for audit logging');
     }

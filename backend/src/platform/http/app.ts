@@ -12,6 +12,10 @@ import { createAuthMiddleware } from './middlewares/auth.ts';
 import { PgBuyerHttpService } from '../../modules/buyer/services/pg-buyer-http.service.ts';
 import { PgCheckoutService } from '../../modules/checkout/services/pg-checkout.service.ts';
 import { PgCatalogHttpService } from '../../modules/catalog/services/pg-catalog-http.service.ts';
+import { ModerationService } from '../../modules/moderation/services/moderation.service.ts';
+import { PgModerationTargetRepository } from '../../modules/moderation/repositories/pg-target.repository.ts';
+import { PgAuditRepository } from '../audit/pg-audit.repository.ts';
+import { PgTransactionManager } from '../database/pg-transaction-manager.ts';
 
 declare global {
   namespace Express {
@@ -67,6 +71,11 @@ export function createRuntimeApp(environment: NodeJS.ProcessEnv = process.env): 
       catalog: new PgCatalogHttpService(pool),
       buyer: new PgBuyerHttpService(pool),
       orders: new PgCheckoutService(pool),
+      moderation: new ModerationService(
+        new PgModerationTargetRepository(pool),
+        new PgAuditRepository(pool),
+        new PgTransactionManager(pool)
+      ),
     }),
     close: () => closeDatabasePool(pool),
   };

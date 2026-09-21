@@ -4,10 +4,27 @@
 
 - Mốc: T2
 - Cập nhật lần cuối: 2026-09-21
-- Đang làm: ĐÃ HOÀN THÀNH 100% tất cả các Phase của Mốc T2 (Phase 1 -> Phase 5); vượt qua toàn bộ Quality Gates (typecheck, build, test:node, lint)
+- Đang làm: ĐÃ HOÀN THÀNH 100% tất cả các Phase của Mốc T2 và hoàn thiện gắn kết nối PostgreSQL Transaction thật vào Runtime App
 - Bị block bởi: Không
 
 ## Nhật ký theo ngày
+
+### 2026-09-21 (T2 Hoàn thiện — Gắn kết nối PostgreSQL Transaction & Target Repository vào Runtime App)
+
+- Đã làm:
+  - Hiện thực hóa `PgModerationTargetRepository` (`src/modules/moderation/repositories/pg-target.repository.ts`) tương tác với các bảng `app_users`, `shops`, `products`, `reviews`, và `moderation_records`.
+  - Hiện thực hóa `PgTransactionManager` (`src/platform/database/pg-transaction-manager.ts`) quản lý transaction thật (`BEGIN ... COMMIT / ROLLBACK`) trên PostgreSQL pool connection client.
+  - Cập nhật `createRuntimeApp` trong `src/platform/http/app.ts` để gắn kết nối `ModerationService` vào connection pool PostgreSQL thật khi khởi động production server.
+  - Viết bộ unit test cho adapter mới: `test/modules/moderation/pg-target-repository.spec.ts` (8/8 pass).
+  - Nâng tổng số unit test lên 328/328 pass (100%).
+- Quyết định kỹ thuật:
+  - Hoàn thiện trọn vẹn kiến trúc Hexagonal: `ModerationService` được cấp adapter kết nối DB thật cho runtime production và adapter mock cho unit tests mà không cần sửa đổi domain logic.
+- Contract/port thay đổi:
+  - Bổ sung `PgModerationTargetRepository` và `PgTransactionManager`.
+- Blocker phát sinh:
+  - Không.
+- Test đã viết:
+  - `[PG-MOD-01]` -> `[PG-MOD-08]`: `PgModerationTargetRepository` (userExists, getUserStatus, updateUserStatus, shopExists, productExists, reviewExists, insertModerationRecord) và `PgTransactionManager` (commit on success, rollback on error, release client) — Unit test — Kết quả: pass.
 
 ### 2026-09-21 (T2 Phase 5 — Canonical Tech Stack Update & Quality Gate Verification)
 
