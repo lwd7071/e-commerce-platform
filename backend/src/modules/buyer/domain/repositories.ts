@@ -7,7 +7,6 @@ import type {
   Voucher,
   VoucherUsage,
   Review,
-  ReviewImage,
   Notification,
 } from './types';
 

@@ -2,7 +2,7 @@ import type { UUID, DecimalString, VoucherUsage } from '../domain/types';
 import type { IVoucherPort, EvaluateVoucherContext, VoucherEvaluationResult } from '../ports/voucher.port';
 import type { IVoucherRepository } from '../domain/repositories';
 import { evaluateVoucher } from '../domain/voucher';
-import { VoucherNotApplicableError, ValidationError } from '../domain/errors';
+import { VoucherNotApplicableError } from '../domain/errors';
 
 export class VoucherPortService implements IVoucherPort {
   private voucherRepo: IVoucherRepository;
