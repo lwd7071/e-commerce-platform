@@ -138,6 +138,103 @@ export function validateCreateAddressDTO(rawDto: unknown): CreateAddressDTO {
   };
 }
 
+export interface UpdateAddressDTO {
+  recipientName?: string;
+  phone?: string;
+  province?: string;
+  district?: string;
+  ward?: string;
+  detailAddress?: string;
+  isDefault?: boolean;
+}
+
+export function validateUpdateAddressDTO(rawDto: unknown): UpdateAddressDTO {
+  const dto = assertNonNullObject(rawDto, 'UpdateAddress');
+  const allowedKeys = [
+    'recipientName', 'phone', 'province', 'district', 'ward', 'detailAddress', 'isDefault',
+    'recipient_name', 'detail_address', 'is_default'
+  ];
+  for (const k of Object.keys(dto)) {
+    if (!allowedKeys.includes(k)) {
+      throw new ValidationError(`Trường '${k}' không được phép tồn tại (Unknown field).`, { field: k });
+    }
+  }
+
+  const rawRecipientName = dto.recipientName ?? dto.recipient_name;
+  let recipientName: string | undefined;
+  if (rawRecipientName !== undefined) {
+    if (typeof rawRecipientName !== 'string' || rawRecipientName.trim() === '') {
+      throw new ValidationError("Trường 'recipient_name' không được để trống.", { field: 'recipient_name' });
+    }
+    recipientName = rawRecipientName.trim();
+  }
+
+  const rawPhone = dto.phone;
+  let phone: string | undefined;
+  if (rawPhone !== undefined) {
+    if (typeof rawPhone !== 'string' || rawPhone.trim() === '') {
+      throw new ValidationError("Trường 'phone' không được để trống.", { field: 'phone' });
+    }
+    phone = rawPhone.trim();
+  }
+
+  const rawProvince = dto.province;
+  let province: string | undefined;
+  if (rawProvince !== undefined) {
+    if (typeof rawProvince !== 'string' || rawProvince.trim() === '') {
+      throw new ValidationError("Trường 'province' không được để trống.", { field: 'province' });
+    }
+    province = rawProvince.trim();
+  }
+
+  const rawDistrict = dto.district;
+  let district: string | undefined;
+  if (rawDistrict !== undefined) {
+    if (typeof rawDistrict !== 'string' || rawDistrict.trim() === '') {
+      throw new ValidationError("Trường 'district' không được để trống.", { field: 'district' });
+    }
+    district = rawDistrict.trim();
+  }
+
+  const rawWard = dto.ward;
+  let ward: string | undefined;
+  if (rawWard !== undefined) {
+    if (typeof rawWard !== 'string' || rawWard.trim() === '') {
+      throw new ValidationError("Trường 'ward' không được để trống.", { field: 'ward' });
+    }
+    ward = rawWard.trim();
+  }
+
+  const rawDetailAddress = dto.detailAddress ?? dto.detail_address;
+  let detailAddress: string | undefined;
+  if (rawDetailAddress !== undefined) {
+    if (typeof rawDetailAddress !== 'string' || rawDetailAddress.trim() === '') {
+      throw new ValidationError("Trường 'detail_address' không được để trống.", { field: 'detail_address' });
+    }
+    detailAddress = rawDetailAddress.trim();
+  }
+
+  const rawIsDefault = dto.isDefault ?? dto.is_default;
+  let isDefault: boolean | undefined;
+  if (rawIsDefault !== undefined) {
+    if (typeof rawIsDefault !== 'boolean') {
+      throw new ValidationError('Trường is_default phải là boolean.', { field: 'is_default' });
+    }
+    isDefault = rawIsDefault;
+  }
+
+  const result: UpdateAddressDTO = {};
+  if (recipientName !== undefined) result.recipientName = recipientName;
+  if (phone !== undefined) result.phone = phone;
+  if (province !== undefined) result.province = province;
+  if (district !== undefined) result.district = district;
+  if (ward !== undefined) result.ward = ward;
+  if (detailAddress !== undefined) result.detailAddress = detailAddress;
+  if (isDefault !== undefined) result.isDefault = isDefault;
+
+  return result;
+}
+
 // 3. Cart DTOs
 export interface AddToCartDTO {
   variantId: UUID;
