@@ -4,10 +4,37 @@
 
 - Mốc: T2
 - Cập nhật lần cuối: 2026-09-21
-- Đang làm: Hoàn thành Phase 1, Phase 2, Phase 3, Phase 4 (Admin Lock/Unlock endpoints); chuẩn bị Phase 5 (ESLint 9 tech-stack.md và Quality Gates)
+- Đang làm: ĐÃ HOÀN THÀNH 100% tất cả các Phase của Mốc T2 (Phase 1 -> Phase 5); vượt qua toàn bộ Quality Gates (typecheck, build, test:node, lint)
 - Bị block bởi: Không
 
 ## Nhật ký theo ngày
+
+### 2026-09-21 (T2 Phase 5 — Canonical Tech Stack Update & Quality Gate Verification)
+
+- Đã làm:
+  - Bổ sung mục Tooling và Linter vào `docs/architecture/tech-stack.md`: ESLint `9.21.x` (Flat config qua `eslint.config.js`), `typescript-eslint` `8.26.x`, `@eslint/js` `9.21.x`.
+  - Cấu hình file môi trường database `.env` an toàn tại `backend/.env`, bảo đảm tuân thủ `.gitignore` và không lộ secret lên GitHub.
+  - Kiểm tra và xác nhận toàn bộ 4 quality gates của repository đều đạt chuẩn 100%:
+    - `npm run typecheck` (`tsc --noEmit`): 0 error.
+    - `npm run build` (`esbuild`): Hoàn thành bundle `dist/app.js` (79.1kb).
+    - `npm run test:node` (`node:test` qua `tsx`): 320/320 tests pass (100%), thời gian thực thi ~2s.
+    - `npm run lint` (`eslint`): 0 error.
+- Quyết định kỹ thuật:
+  - Cập nhật tài liệu kiến trúc dùng chung `tech-stack.md` theo quy trình Change Governance, chuẩn hóa bộ công cụ linter/formatter cho toàn đội.
+- Contract/port thay đổi:
+  - Đã bàn giao đầy đủ:
+    - RBAC Guards: `requireRole`, `requireBuyerOwnership`, `requireShopOwnership`.
+    - Error Catalog & Postgres Mapper: `REASON_REQUIRED`, `AUDIT_WRITE_FAILED`, `DEPENDENCY_UNAVAILABLE`, `InvalidStateTransitionError`, và xử lý các mã lỗi Postgres 23505, 23503, 23514.
+    - Audit Adapter: `PgAuditRepository` (hỗ trợ atomic transaction context và RB-KN20 polymorphic checks).
+    - Moderation Service: `ModerationService` với thứ tự kiểm tra 6 bước ưu tiên và atomic rollback theo QD20.
+    - Admin Endpoints: `POST /api/v1/admin/users/:id/lock` và `POST /api/v1/admin/users/:id/unlock`.
+- Blocker phát sinh:
+  - Không.
+- Test đã chạy:
+  - `npm run typecheck`: PASS.
+  - `npm run build`: PASS.
+  - `npm run test:node`: 320/320 PASS.
+  - `npm run lint`: PASS (0 errors).
 
 ### 2026-09-21 (T2 Phase 4 — Admin User Lock & Unlock Endpoints)
 

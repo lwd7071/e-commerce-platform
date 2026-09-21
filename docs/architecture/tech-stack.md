@@ -67,6 +67,14 @@ Payload/Node.js xác minh JWT, RBAC, ownership, transaction, audit và business 
 
 Hai runner là trạng thái chuyển tiếp đến review cuối T2. Remote DB suite bắt buộc chạy trên push `dev`/`main`; PR có thể chỉ chạy unit/integration không cần remote credentials.
 
+## Tooling và Linter
+
+| Thành phần | Version/trạng thái | Mục đích |
+|---|---|---|
+| ESLint | `9.21.x` (Flat config qua `eslint.config.js`) | Linter chuẩn backend phục vụ quality gate `npm run lint` |
+| typescript-eslint | `8.26.x` | Plugin và parser TypeScript cho ESLint |
+| @eslint/js | `9.21.x` | Cấu hình ESLint core JavaScript rules |
+
 ## Dependency boundaries
 
 - Next.js không đọc hoặc ghi trực tiếp bảng nghiệp vụ.
