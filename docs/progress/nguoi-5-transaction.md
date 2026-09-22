@@ -70,25 +70,27 @@
 
 | Tên | Trạng thái bàn giao | Version/ngày khóa | Người tiêu thụ |
 |---|---|---|---|
-| CheckoutCommand / CheckoutResult | Đề xuất, chưa khóa | Bản cập nhật 2026-09-18 | Người 1, Người 5 |
-| IdempotencyPort | Đề xuất, đã có interface & mock | Bản cập nhật 2026-09-18 | Người 1, Người 2, Người 5 |
+| `CheckoutCommand` / `CheckoutResult` | Đề xuất | Bản cập nhật 2026-09-18 | Người 1, Người 5 |
+| `IdempotencyPort` / `InMemoryIdempotencyAdapter` | Đã có interface & in-memory adapter | Bản cập nhật 2026-09-23 | Người 1, Người 2, Người 5 |
+| `IOrderQueryPort` (`ReviewOrderItemDTO`) | Đã bàn giao (sẵn sàng cho Review QD14) | v1 / 2026-09-23 | Người 4 |
+| `TransactionDomainEvent` (Order/Payment/Shipment) | Đã bàn giao (sẵn sàng cho Notification) | v1 / 2026-09-23 | Người 4 |
 | Endpoint checkout/cancel/transition/retry | Đề xuất trong checkout-contract.md | Bản cập nhật 2026-09-18 | Người 1 |
 
-Chưa có contract nào được xác nhận bàn giao/khóa trong đợt này do cần phối hợp với Người 1 và Người 2.
+## Việc còn lại trong mốc hiện tại (T2)
 
-## Việc còn lại trong mốc hiện tại
-
-- [ ] Order snapshot/history — Chưa hoàn thành; chờ Người 3 từ 2026-09-18: productName bắt buộc và được trả về, shopId qua Catalog port, quy tắc mapping VariantSnapshot. Chưa viết test RED, chưa tạo snapshot builder, chưa chạy GREEN.
 - [x] Xây domain service thuần cho ba state machine Order, Payment và Shipment.
 - [x] Viết unit test cho mọi transition hợp lệ, transition bị cấm và terminal state.
 - [x] Thiết kế checkout command/result, transaction boundary, danh sách bước checkout và idempotency interface.
 - [x] Tính tiền Order thuần với decimal exact và validation NUMERIC(15,2).
 - [x] Soạn thảo endpoint contract tạo Order, cancel, transition và retry Payment.
-- [ ] Khóa endpoint contract sau khi Người 1 review và thống nhất.
 - [x] Dùng mock Catalog, Cart và Voucher port để kiểm thử orchestration contract (13 tests positive & negative).
+- [x] Order snapshot và history domain service (`order-snapshot.ts`, QD08, QD11, QD20).
+- [x] Công bố Order query port / trạng thái `COMPLETED` cho Người 4 làm Review.
+- [x] Công bố Order/Payment/Shipment domain events cho Người 4 làm Notification.
+- [x] Triển khai In-memory Idempotency adapter.
 - [ ] Sau khi Người 3 khóa Catalog port và Người 4 khóa Cart/Voucher port: ráp checkout orchestration với các port thật.
-- [ ] Sau khi Người 2 hoàn thành migration và transaction helper: làm persistence, transaction integration và idempotency storage thật.
-- [ ] Sau khi Người 1 hoàn thành scaffold, API envelope và `RequestContext`: wiring endpoint.
+- [ ] Sau khi Người 2 hoàn thành migration và transaction helper: làm persistence, transaction integration và idempotency storage thật trên PostgreSQL.
+- [ ] Sau khi Người 1 hoàn thành scaffold, API envelope và `RequestContext`: wiring endpoint checkout/order/payment.
 
 ---
 
