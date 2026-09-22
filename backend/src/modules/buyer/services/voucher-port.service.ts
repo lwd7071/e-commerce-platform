@@ -34,11 +34,12 @@ export class VoucherPortService implements IVoucherPort {
         voucherId: evaluation.voucherId,
         discountAmount: evaluation.discountAmount,
       };
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const e = err as { code?: string; message?: string };
       return {
         isValid: false,
-        errorCode: err.code || 'VOUCHER_NOT_APPLICABLE',
-        errorMessage: err.message,
+        errorCode: e.code || 'VOUCHER_NOT_APPLICABLE',
+        errorMessage: e.message || 'Không thể áp dụng voucher.',
       };
     }
   }

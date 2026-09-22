@@ -10,21 +10,21 @@ describe('Cart & CartItem Domain Tests (RB-MG05, RB-LB03, RB-LB04)', () => {
     it('[RB-MG05] addCartItem({quantity: 0}) -> reject VALIDATION_FAILED', () => {
       assert.throws(
         () => validateCartQuantity(0),
-        (err: any) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
+        (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
     });
 
     it('[RB-MG05] addCartItem({quantity: -1}) -> reject VALIDATION_FAILED', () => {
       assert.throws(
         () => validateCartQuantity(-1),
-        (err: any) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
+        (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
     });
 
     it('[RB-MG05] CART-03: quantity = 1.5 (số thập phân) -> reject VALIDATION_FAILED', () => {
       assert.throws(
         () => validateCartQuantity(1.5),
-        (err: any) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
+        (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
     });
 
@@ -84,7 +84,7 @@ describe('Cart & CartItem Domain Tests (RB-MG05, RB-LB03, RB-LB04)', () => {
 
       assert.throws(
         () => createBuyerCart('B1', existingCart),
-        (err: any) => err instanceof CartConflictError && err.code === 'CART_CONFLICT'
+        (err: unknown) => err instanceof CartConflictError && err.code === 'CART_CONFLICT'
       );
     });
 

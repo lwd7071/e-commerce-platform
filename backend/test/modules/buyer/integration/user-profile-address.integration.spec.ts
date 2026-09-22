@@ -11,10 +11,10 @@ import type { IDbClient } from '../../../../src/modules/buyer/infrastructure/db-
  * Phục vụ unit & contract testing theo nguyên lý Dependency Inversion (SOLID: D)
  */
 class MockDbClient {
-  public queries: { sql: string; params: any[] }[] = [];
-  public customHandler?: (sql: string, params: any[]) => Promise<any>;
+  public queries: { sql: string; params: unknown[] }[] = [];
+  public customHandler?: (sql: string, params: unknown[]) => Promise<{ rows: Record<string, unknown>[]; rowCount: number }>;
 
-  async query(sql: string, params: any[] = []): Promise<{ rows: any[]; rowCount: number }> {
+  async query(sql: string, params: unknown[] = []): Promise<{ rows: Record<string, unknown>[]; rowCount: number }> {
     this.queries.push({ sql: sql.trim(), params });
     if (this.customHandler) {
       return this.customHandler(sql, params);
@@ -205,7 +205,10 @@ describe('Phase 1 — PostgresUserProfileRepository & PostgresAddressRepository 
       const repo = new PostgresAddressRepository(client as IDbClient);
       await assert.rejects(
         () => repo.create(mockAddress1),
-        (err: any) => err.code === '23505' && err.constraint === 'uq_addresses__one_default_per_user'
+        (err: unknown) => {
+          const e = err as { code?: string; constraint?: string };
+          return e.code === '23505' && e.constraint === 'uq_addresses__one_default_per_user';
+        }
       );
     });
   });

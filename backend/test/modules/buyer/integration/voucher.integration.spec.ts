@@ -2,14 +2,14 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { PostgresVoucherRepository } from '../../../../src/modules/buyer/infrastructure/postgres-voucher.repository';
 import { mapVoucher, mapVoucherUsage } from '../../../../src/modules/buyer/infrastructure/row-mappers';
-import { mockPlatformVoucher, mockShopVoucher, mockBuyerId, mockShopId } from '../fixtures';
+import { mockPlatformVoucher, mockBuyerId, mockShopId } from '../fixtures';
 import type { IDbClient } from '../../../../src/modules/buyer/infrastructure/db-client';
 
 class MockDbClient {
-  public queries: { sql: string; params: any[] }[] = [];
-  public customHandler?: (sql: string, params: any[]) => Promise<any>;
+  public queries: { sql: string; params: unknown[] }[] = [];
+  public customHandler?: (sql: string, params: unknown[]) => Promise<{ rows: Record<string, unknown>[]; rowCount: number }>;
 
-  async query(sql: string, params: any[] = []): Promise<{ rows: any[]; rowCount: number }> {
+  async query(sql: string, params: unknown[] = []): Promise<{ rows: Record<string, unknown>[]; rowCount: number }> {
     this.queries.push({ sql: sql.trim(), params });
     if (this.customHandler) {
       return this.customHandler(sql, params);

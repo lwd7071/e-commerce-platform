@@ -3,11 +3,54 @@
 ## Trạng thái hiện tại
 
 - Mốc: T2
-- Cập nhật lần cuối: 2026-09-17
-- Đang làm: Đã hoàn tất 100% Phase 1 đến Phase 6 của mốc T2 (6 PostgreSQL Repositories theo SOLID, 5 bộ integration test Red->Green, chốt tài liệu Query Patterns bàn giao Người 2, đạt 110/110 tests pass, sạch 100% typecheck)
-- Bị block bởi: Không bị block. Sẵn sàng tích hợp khi Người 2 review Index và Người 5 gọi các Port Services.
+- Cập nhật lần cuối: 2026-09-21
+- Đang làm: Đã hoàn tất 100% các hạng mục T2 "Làm được ngay, không cần chờ ai" của Người 4: Dọn sạch 100% cảnh báo ESLint, xây dựng toàn bộ 5 Application Services theo TDD với đầy đủ ràng buộc QD/RB và ownership 404, hoàn thiện stub port cho Order Query và Event Bus. Đạt 243/243 tests toàn hệ thống (181/181 tests Buyer domain), sạch 100% typecheck và ESLint 0 warning.
+- Bị block bởi: Không bị block. Sẵn sàng tích hợp khi Người 5 bàn giao Order Query / Event Bus contract chính thức và Người 1 wiring REST routes.
 
 ## Nhật ký theo ngày
+
+### 2026-09-21 (Mốc T2 — Hoàn tất 100% Application Services & Xử lý Triệt để Rủi ro / Điểm cần hoàn thiện)
+
+- **Đã làm:**
+  - **Dọn sạch 100% cảnh báo `@typescript-eslint/no-explicit-any` (0 errors, 0 warnings):**
+    - Sửa toàn bộ 108 warnings trong 5 file integration test (`cart`, `notification`, `review`, `user-profile-address`, `voucher`) và mã nguồn Buyer.
+    - Chuẩn hóa `MockDbClient` dùng typed rows và `unknown[]`. Chuyển đổi toàn bộ assertions `(err: any)` sang `(err: unknown)`.
+    - Chuẩn hóa `buyer.dto.ts` nhận `snake_case`, bổ sung validation chặn `null` object để tránh TypeError 500 runtime.
+  - **Thiết kế Stub Port nội bộ (Chuẩn bị điểm nối cho Người 5):**
+    - Tạo `IOrderQueryPort` (`backend/src/modules/buyer/ports/order-query.port.ts`): Cung cấp `getOrderItemContext` (tái dùng `ReviewOrderItemContext`) để kiểm tra điều kiện đánh giá.
+    - Tạo `IBuyerEventPort` (`backend/src/modules/buyer/ports/buyer-event.port.ts`): Cung cấp `publish`/`subscribe` cho các sự kiện `ORDER_COMPLETED`, `PAYMENT_SUCCESS`, `SHIPMENT_DELIVERED`.
+    - *Ghi chú rõ ràng:* Đây là stub port nội bộ tạm thời cho T2, sẽ được thay thế hoàn toàn khi Người 5 bàn giao contract chính thức.
+  - **Triển khai toàn diện 5 Application Services theo chuẩn TDD (Red $\rightarrow$ Green $\rightarrow$ Refactor):**
+    - **`ProfileService` (`profile.service.ts`):** Quản lý hồ sơ người mua, ném `RESOURCE_NOT_FOUND` (404) khi không tìm thấy hồ sơ theo `auth-rbac-rls.md` §3.
+    - **`AddressService` (`address.service.ts`):**
+      - Bảo vệ quyền sở hữu riêng tư nghiêm ngặt theo `auth-rbac-rls.md` §3: Trả về 404 `RESOURCE_NOT_FOUND` (không trả 403) khi truy cập, sửa, xoá, hoặc đặt default địa chỉ của user khác.
+      - Thực thi quy tắc nghiệp vụ `[RB-LB05]`: Tối đa 10 địa chỉ/User (`VALIDATION_FAILED`), tối đa 1 địa chỉ `isDefault = TRUE`.
+      - Áp dụng heuristic UX: Tự động gán `isDefault = true` cho địa chỉ đầu tiên của user nếu danh sách đang rỗng.
+    - **`CartService` (`cart.service.ts`):**
+      - Inject `ICatalogPort`, gọi `getVariantPriceAndStock` kiểm tra `status === 'ACTIVE'` (`VALIDATION_FAILED` nếu không active) và kiểm tra tồn kho `quantity <= stockQuantity` (ném `409 INVENTORY_INSUFFICIENT` theo `error-observability.md`).
+      - Bảo vệ quyền sở hữu theo `auth-rbac-rls.md` §3: Trả về 404 `RESOURCE_NOT_FOUND` khi `cartItemId` không thuộc giỏ của caller.
+      - Cộng dồn số lượng sản phẩm khi trùng variant và tự động khởi tạo giỏ hàng nếu buyer chưa có giỏ.
+    - **`VoucherService` (`voucher.service.ts`):**
+      - `listActiveVouchers`: Liệt kê và lọc voucher theo scope (`PLATFORM` / `SHOP`), `shopId` và khoảng thời gian hiệu lực `[startAt, endAt]`.
+      - `getVoucherByCode`: Trả về 404 `RESOURCE_NOT_FOUND` khi mã voucher không tồn tại.
+      - `previewVoucher`: Ủy thác cho domain `evaluateVoucher` (thực thi `QD09`, `RB-LTT05`, `RB-MG09`, `RB-LTT03`, `RB-LTT04`), tính toán chính xác tiền giảm giá và áp dụng cap `maxDiscount`.
+    - **`ReviewService` (`review.service.ts`):**
+      - Kiểm tra điều kiện đánh giá qua `IOrderQueryPort` (`[QD14]`): Đơn hàng phải ở trạng thái `COMPLETED` và thuộc quyền sở hữu của buyer đang đăng nhập (`REVIEW_NOT_ELIGIBLE`).
+      - Thực thi quy tắc tính nhất quán sản phẩm `[RB-LQH05]`: `Review.ProductID === OrderItem.ProductID`, ném `VALIDATION_FAILED` nếu sản phẩm không khớp.
+      - Thực thi `[RB-LB09 / QD15 / RB-MG08]`: Mỗi `OrderItem` chỉ được đánh giá tối đa 1 lần (`REVIEW_ALREADY_EXISTS`), rating bắt buộc là số nguyên trong khoảng 1..5.
+    - **`NotificationService` (`notification.service.ts`):**
+      - Thực thi quy tắc `[RB-LTT07]`: `isRead = TRUE => readAt != null`, idempotent khi gọi lại `markAsRead`.
+      - Bảo vệ quyền sở hữu theo `auth-rbac-rls.md` §3: Trả về 404 `RESOURCE_NOT_FOUND` khi caller không sở hữu thông báo.
+      - Kiến trúc Dual-path: Lắng nghe và xử lý domain events (`PAYMENT_SUCCESS`, `SHIPMENT_DELIVERED`, `ORDER_COMPLETED`) tự động tạo notification tương ứng.
+      - Cơ chế Idempotency & Replay: Áp dụng in-memory deduplication `processedEventIds` để bỏ qua các event trùng lặp `eventId`.
+  - **Mã ticket phụ thuộc phát sinh gửi Người 2:**
+    - `DEP-P4-P2-01`: Đề xuất Người 2 bổ sung cột `event_id VARCHAR(100) UNIQUE` vào bảng `notifications` trong Schema v2 để bảo đảm tính idempotent ở tầng CSDL khi nhiều instance chạy phân tán.
+  - **Chỉ số kiểm thử & Quality Gates:**
+    - `npm run typecheck` (`tsc --noEmit`): Exit code 0, sạch 100% lỗi type.
+    - `npx eslint src/modules/buyer test/modules/buyer`: 0 errors, 0 warnings.
+    - `npm test`: **243/243 tests PASS 100% (0 fail)**.
+    - Bộ test riêng Buyer Domain: **181/181 tests PASS 100%** (69 domain unit tests + 41 integration tests + 71 services tests).
+
 
 ### 2026-09-17 (Mốc T2 — Triển khai PostgreSQL Repositories theo chuẩn SOLID & Bàn giao Query Patterns)
 
@@ -149,7 +192,11 @@
 - [x] Sau khi Người 1 hoàn thành scaffold và cấu trúc module: đặt Buyer modules vào backend (`src/modules/buyer/` và `test/modules/buyer/`).
 - [x] Sau khi Người 2 hoàn thành migration các bảng liên quan và database client: hoàn thành 6 PostgreSQL Repositories và 41 integration tests.
 - [x] Soạn thảo và bàn giao tài liệu Query Patterns cho Người 2 (`docs/architecture/buyer-query-patterns.md`).
+- [x] Dọn sạch 100% cảnh báo `@typescript-eslint/no-explicit-any` trong mã nguồn và integration tests của Buyer (0 errors, 0 warnings).
+- [x] Triển khai toàn bộ 5 Application Services (`ProfileService`, `AddressService`, `CartService`, `VoucherService`, `ReviewService`, `NotificationService`) theo TDD với quyền sở hữu 404 riêng tư (`auth-rbac-rls.md` §3), ràng buộc QD/RB và kiểm tra tồn kho Catalog.
+- [x] Định nghĩa stub ports `IOrderQueryPort` và `IBuyerEventPort` sẵn sàng điểm nối khi Người 5 bàn giao.
 - [ ] Sau khi Người 1 mở shared contract structure: đưa Cart/Voucher port vào `src/contracts` qua owner.
 - [ ] Sau khi Người 1 khóa `RequestContext`: wiring endpoint cần kiểm tra ownership.
 - [ ] Sau khi Người 5 khóa Order query/state contract: tích hợp Review với Order thật.
 - [ ] Sau khi Người 5 công bố Order/Payment/Shipment events: tích hợp Notification với events thật.
+

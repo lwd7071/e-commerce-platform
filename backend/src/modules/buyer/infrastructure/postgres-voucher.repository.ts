@@ -32,7 +32,7 @@ export class PostgresVoucherRepository implements IVoucherRepository {
 
   async listActive(scope?: 'PLATFORM' | 'SHOP', shopId?: UUID): Promise<Voucher[]> {
     let sql = `SELECT voucher_id, code, voucher_name, scope, shop_id, discount_type, discount_value, max_discount, min_order_value, quantity, start_at, end_at, status, created_at, updated_at FROM vouchers WHERE status = 'ACTIVE' AND start_at <= now() AND end_at > now() AND quantity > 0`;
-    const params: any[] = [];
+    const params: unknown[] = [];
     if (scope === 'PLATFORM') {
       sql += ` AND scope = 'PLATFORM'`;
     } else if (scope === 'SHOP') {

@@ -32,46 +32,46 @@ const toDecimal = (val: unknown): string => {
   return isNaN(num) ? String(val) : num.toFixed(2);
 };
 
-export function mapUserProfile(row: any): UserProfile {
+export function mapUserProfile(row: Record<string, unknown>): UserProfile {
   return {
-    userId: row.user_id,
-    fullName: row.full_name ?? null,
-    phone: row.phone ?? null,
-    avatarUrl: row.avatar_url ?? null,
+    userId: String(row.user_id),
+    fullName: row.full_name !== null && row.full_name !== undefined ? String(row.full_name) : null,
+    phone: row.phone !== null && row.phone !== undefined ? String(row.phone) : null,
+    avatarUrl: row.avatar_url !== null && row.avatar_url !== undefined ? String(row.avatar_url) : null,
     updatedAt: toIso(row.updated_at),
   };
 }
 
-export function mapAddress(row: any): Address {
+export function mapAddress(row: Record<string, unknown>): Address {
   return {
-    addressId: row.address_id,
-    userId: row.user_id,
-    recipientName: row.recipient_name,
-    phone: row.phone,
-    province: row.province,
-    district: row.district,
-    ward: row.ward,
-    detailAddress: row.detail_address,
+    addressId: String(row.address_id),
+    userId: String(row.user_id),
+    recipientName: String(row.recipient_name),
+    phone: String(row.phone),
+    province: String(row.province),
+    district: String(row.district),
+    ward: String(row.ward),
+    detailAddress: String(row.detail_address),
     isDefault: Boolean(row.is_default),
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   };
 }
 
-export function mapCart(row: any): Cart {
+export function mapCart(row: Record<string, unknown>): Cart {
   return {
-    cartId: row.cart_id,
-    buyerId: row.buyer_id,
+    cartId: String(row.cart_id),
+    buyerId: String(row.buyer_id),
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   };
 }
 
-export function mapCartItem(row: any): CartItem {
+export function mapCartItem(row: Record<string, unknown>): CartItem {
   return {
-    cartItemId: row.cart_item_id,
-    cartId: row.cart_id,
-    variantId: row.variant_id,
+    cartItemId: String(row.cart_item_id),
+    cartId: String(row.cart_id),
+    variantId: String(row.variant_id),
     quantity: Number(row.quantity),
     isSelected: Boolean(row.is_selected),
     createdAt: toIso(row.created_at),
@@ -79,67 +79,67 @@ export function mapCartItem(row: any): CartItem {
   };
 }
 
-export function mapVoucher(row: any): Voucher {
+export function mapVoucher(row: Record<string, unknown>): Voucher {
   return {
-    voucherId: row.voucher_id,
-    code: row.code,
-    voucherName: row.voucher_name,
-    scope: row.scope,
-    shopId: row.shop_id ?? null,
-    discountType: row.discount_type,
+    voucherId: String(row.voucher_id),
+    code: String(row.code),
+    voucherName: String(row.voucher_name),
+    scope: row.scope as 'PLATFORM' | 'SHOP',
+    shopId: row.shop_id !== null && row.shop_id !== undefined ? String(row.shop_id) : null,
+    discountType: row.discount_type as 'PERCENT' | 'FIXED',
     discountValue: toDecimal(row.discount_value),
     maxDiscount: row.max_discount !== null && row.max_discount !== undefined ? toDecimal(row.max_discount) : null,
     minOrderValue: toDecimal(row.min_order_value),
     quantity: Number(row.quantity),
     startAt: toIso(row.start_at),
     endAt: toIso(row.end_at),
-    status: row.status,
+    status: row.status as 'ACTIVE' | 'INACTIVE',
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   };
 }
 
-export function mapVoucherUsage(row: any): VoucherUsage {
+export function mapVoucherUsage(row: Record<string, unknown>): VoucherUsage {
   return {
-    usageId: row.usage_id,
-    voucherId: row.voucher_id,
-    orderId: row.order_id,
-    buyerId: row.buyer_id,
+    usageId: String(row.usage_id),
+    voucherId: String(row.voucher_id),
+    orderId: String(row.order_id),
+    buyerId: String(row.buyer_id),
     discountAmount: toDecimal(row.discount_amount),
     usedAt: toIso(row.used_at),
   };
 }
 
-export function mapReview(row: any): Review {
+export function mapReview(row: Record<string, unknown>): Review {
   return {
-    reviewId: row.review_id,
-    buyerId: row.buyer_id,
-    productId: row.product_id,
-    orderItemId: row.order_item_id,
+    reviewId: String(row.review_id),
+    buyerId: String(row.buyer_id),
+    productId: String(row.product_id),
+    orderItemId: String(row.order_item_id),
     rating: Number(row.rating),
-    content: row.content ?? null,
-    status: row.status,
+    content: row.content !== null && row.content !== undefined ? String(row.content) : null,
+    status: row.status as 'VISIBLE' | 'HIDDEN',
     createdAt: toIso(row.created_at),
     updatedAt: toIso(row.updated_at),
   };
 }
 
-export function mapReviewImage(row: any): ReviewImage {
+export function mapReviewImage(row: Record<string, unknown>): ReviewImage {
   return {
-    reviewImageId: row.review_image_id,
-    reviewId: row.review_id,
-    imageUrl: row.image_url,
+    reviewImageId: String(row.review_image_id),
+    reviewId: String(row.review_id),
+    imageUrl: String(row.image_url),
     sortOrder: Number(row.sort_order ?? 0),
   };
 }
 
-export function mapNotification(row: any): Notification {
+export function mapNotification(row: Record<string, unknown>): Notification {
   return {
-    notificationId: row.notification_id,
-    recipientId: row.recipient_id,
+    notificationId: String(row.notification_id),
+    recipientId: String(row.recipient_id),
     type: row.type as NotificationType,
-    title: row.title,
-    content: row.content,
+    title: String(row.title),
+    content: String(row.content),
     isRead: Boolean(row.is_read),
     createdAt: toIso(row.created_at),
     readAt: row.read_at ? toIso(row.read_at) : null,
