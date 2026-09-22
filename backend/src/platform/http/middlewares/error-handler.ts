@@ -44,7 +44,89 @@ export const errorHandlerMiddleware: ErrorRequestHandler = (
     return;
   }
 
-  // 3. Handle unexpected / unhandled runtime errors
+  // 3. Handle PostgreSQL database errors (code 23505, 23503, 23514, etc.)
+  const maybePg = err as { code?: unknown; constraint?: unknown; detail?: unknown; message?: unknown };
+  if (maybePg && typeof maybePg.code === 'string') {
+    // Unique violation (23505)
+    if (maybePg.code === '23505') {
+      const constraint = String(maybePg.constraint || '');
+      let code = 'CONFLICT';
+      let message = 'A unique constraint violation occurred.';
+      if (constraint.includes('app_users__email')) {
+        code = 'USER_EMAIL_CONFLICT';
+        message = 'Email already exists.';
+      } else if (constraint.includes('shops__owner_id') || constraint.includes('shops')) {
+        code = 'SHOP_ALREADY_EXISTS';
+        message = 'User already has a shop.';
+      } else if (constraint.includes('vouchers__code')) {
+        code = 'VOUCHER_CODE_CONFLICT';
+        message = 'Voucher code already exists.';
+      } else if (constraint.includes('product_variants__sku')) {
+        code = 'SKU_CONFLICT';
+        message = 'SKU already exists in this shop.';
+      }
+
+      logger.warn(message, {
+        request_id: requestId,
+        method: req.method,
+        route: req.path,
+        status: 409,
+        error_code: code
+      });
+
+      res.status(409).json(buildErrorEnvelope(code, message, requestId));
+      return;
+    }
+
+    // Foreign key violation (23503)
+    if (maybePg.code === '23503') {
+      const detailStr = `${String(maybePg.message || '')} ${String(maybePg.detail || '')}`;
+      const isDeleteViolation = /delete|update or delete|still referenced/i.test(detailStr);
+
+      if (isDeleteViolation) {
+        const code = 'RESOURCE_DELETE_NOT_ALLOWED';
+        const message = 'Resource cannot be deleted because dependent records exist.';
+        logger.warn(message, {
+          request_id: requestId,
+          method: req.method,
+          route: req.path,
+          status: 409,
+          error_code: code
+        });
+        res.status(409).json(buildErrorEnvelope(code, message, requestId));
+        return;
+      }
+
+      const code = 'RESOURCE_NOT_FOUND';
+      const message = 'Referenced resource was not found.';
+      logger.warn(message, {
+        request_id: requestId,
+        method: req.method,
+        route: req.path,
+        status: 404,
+        error_code: code
+      });
+      res.status(404).json(buildErrorEnvelope(code, message, requestId));
+      return;
+    }
+
+    // Check constraint violation (23514)
+    if (maybePg.code === '23514') {
+      const code = 'VALIDATION_FAILED';
+      const message = 'Data constraint validation failed.';
+      logger.warn(message, {
+        request_id: requestId,
+        method: req.method,
+        route: req.path,
+        status: 422,
+        error_code: code
+      });
+      res.status(422).json(buildErrorEnvelope(code, message, requestId));
+      return;
+    }
+  }
+
+  // 4. Handle unexpected / unhandled runtime errors
   // Quality gate: NEVER leak stack trace, SQL errors, or DB credentials to client
   const actualError = err instanceof Error ? err : new Error(String(err));
   logger.error(actualError.message, {

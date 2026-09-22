@@ -3,6 +3,7 @@ import { requestIdMiddleware } from './middlewares/request-id.ts';
 import { errorHandlerMiddleware } from './middlewares/error-handler.ts';
 import { healthRouter } from '../routes/health.ts';
 import { createBuyerRouter, createCatalogRouter, createOrderRouter, type T1RouteApplications } from './routes/t1-routes.ts';
+import { createAdminRouter } from './routes/admin-routes.ts';
 import { createDatabasePool, closeDatabasePool } from '../../../db/client.ts';
 import { loadDatabaseConfig } from '../../../db/config.ts';
 import { PgAuthRepository } from '../../modules/identity/repositories/pg-auth.repository.ts';
@@ -11,6 +12,10 @@ import { createAuthMiddleware } from './middlewares/auth.ts';
 import { PgBuyerHttpService } from '../../modules/buyer/services/pg-buyer-http.service.ts';
 import { PgCheckoutService } from '../../modules/checkout/services/pg-checkout.service.ts';
 import { PgCatalogHttpService } from '../../modules/catalog/services/pg-catalog-http.service.ts';
+import { ModerationService } from '../../modules/moderation/services/moderation.service.ts';
+import { PgModerationTargetRepository } from '../../modules/moderation/repositories/pg-target.repository.ts';
+import { PgAuditRepository } from '../audit/pg-audit.repository.ts';
+import { PgTransactionManager } from '../database/pg-transaction-manager.ts';
 
 declare global {
   namespace Express {
@@ -31,6 +36,7 @@ export function createApp(applications: T1RouteApplications = {}): Application {
   app.use('/api/v1', createCatalogRouter(applications.catalog, auth));
   app.use('/api/v1', createBuyerRouter(applications.buyer, auth));
   app.use('/api/v1', createOrderRouter(applications.orders, auth));
+  app.use('/api/v1', createAdminRouter(applications.moderation, auth));
 
   app.use(errorHandlerMiddleware);
 
@@ -65,6 +71,11 @@ export function createRuntimeApp(environment: NodeJS.ProcessEnv = process.env): 
       catalog: new PgCatalogHttpService(pool),
       buyer: new PgBuyerHttpService(pool),
       orders: new PgCheckoutService(pool),
+      moderation: new ModerationService(
+        new PgModerationTargetRepository(pool),
+        new PgAuditRepository(pool),
+        new PgTransactionManager(pool)
+      ),
     }),
     close: () => closeDatabasePool(pool),
   };

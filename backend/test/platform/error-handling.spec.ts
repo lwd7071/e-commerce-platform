@@ -2,7 +2,14 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
 import express, { type Request, type Response } from 'express';
-import { ValidationFailedError, InvalidRequestError } from '../../src/platform/errors/app-error.ts';
+import {
+  ValidationFailedError,
+  InvalidRequestError,
+  ReasonRequiredError,
+  AuditWriteFailedError,
+  DependencyUnavailableError,
+  InvalidStateTransitionError
+} from '../../src/platform/errors/app-error.ts';
 import { errorHandlerMiddleware } from '../../src/platform/http/middlewares/error-handler.ts';
 import { requestIdMiddleware } from '../../src/platform/http/middlewares/request-id.ts';
 import { redactSensitiveData } from '../../src/platform/logging/redact.ts';
@@ -27,6 +34,43 @@ function createTestErrorApp() {
 
   app.get('/test-error/crash', () => {
     throw new Error('Database crash host: postgres://postgres:secretpassword@localhost:5432/db');
+  });
+
+  // Endpoints for Postgres Error Translation (Cycle 2.2)
+  app.get('/test-error/pg-unique-email', () => {
+    const err = new Error('duplicate key value violates unique constraint "uq_app_users__email"');
+    (err as unknown as Record<string, unknown>).code = '23505';
+    (err as unknown as Record<string, unknown>).constraint = 'uq_app_users__email';
+    (err as unknown as Record<string, unknown>).detail = 'Key (email)=(duplicate@test.com) already exists.';
+    throw err;
+  });
+
+  app.get('/test-error/pg-unique-shop', () => {
+    const err = new Error('duplicate key value violates unique constraint "uq_shops__owner_id"');
+    (err as unknown as Record<string, unknown>).code = '23505';
+    (err as unknown as Record<string, unknown>).constraint = 'uq_shops__owner_id';
+    throw err;
+  });
+
+  app.get('/test-error/pg-fk-insert', () => {
+    const err = new Error('insert or update on table "admin_logs" violates foreign key constraint');
+    (err as unknown as Record<string, unknown>).code = '23503';
+    (err as unknown as Record<string, unknown>).detail = 'Key (admin_id)=(00000000-0000-0000-0000-000000000099) is not present in table "app_users".';
+    throw err;
+  });
+
+  app.get('/test-error/pg-fk-delete', () => {
+    const err = new Error('update or delete on table "app_users" violates foreign key constraint "fk_orders__buyer_id"');
+    (err as unknown as Record<string, unknown>).code = '23503';
+    (err as unknown as Record<string, unknown>).detail = 'Key (user_id)=(...) is still referenced from table "orders".';
+    throw err;
+  });
+
+  app.get('/test-error/pg-check', () => {
+    const err = new Error('new row for relation "product_variants" violates check constraint "ck_product_variants__price_positive"');
+    (err as unknown as Record<string, unknown>).code = '23514';
+    (err as unknown as Record<string, unknown>).constraint = 'ck_product_variants__price_positive';
+    throw err;
   });
 
   app.use(errorHandlerMiddleware);
@@ -149,6 +193,73 @@ describe('Phase 3 — Error Handling & Security Log Redaction', () => {
       assert.strictEqual(parsed.duration_ms, 45);
       // Redaction in logger
       assert.strictEqual(parsed.token, '[REDACTED]');
+    });
+  });
+
+  describe('TDD Cycle 2.1: AppError Subclasses', () => {
+    it('Case 1: ReasonRequiredError has status 422 and code REASON_REQUIRED', () => {
+      const err = new ReasonRequiredError('Reason is mandatory for moderation');
+      assert.strictEqual(err.httpStatus, 422);
+      assert.strictEqual(err.code, 'REASON_REQUIRED');
+      assert.strictEqual(err.message, 'Reason is mandatory for moderation');
+    });
+
+    it('Case 2: AuditWriteFailedError has status 500 and code AUDIT_WRITE_FAILED', () => {
+      const err = new AuditWriteFailedError('Failed to commit admin audit log');
+      assert.strictEqual(err.httpStatus, 500);
+      assert.strictEqual(err.code, 'AUDIT_WRITE_FAILED');
+      assert.strictEqual(err.message, 'Failed to commit admin audit log');
+    });
+
+    it('Case 3: DependencyUnavailableError has status 503 and code DEPENDENCY_UNAVAILABLE', () => {
+      const err = new DependencyUnavailableError('Database service unreachable');
+      assert.strictEqual(err.httpStatus, 503);
+      assert.strictEqual(err.code, 'DEPENDENCY_UNAVAILABLE');
+      assert.strictEqual(err.message, 'Database service unreachable');
+    });
+
+    it('Case 4: InvalidStateTransitionError has status 409 and accepts specific contextual code', () => {
+      const lockErr = new InvalidStateTransitionError('USER_ALREADY_LOCKED', 'User is already locked');
+      assert.strictEqual(lockErr.httpStatus, 409);
+      assert.strictEqual(lockErr.code, 'USER_ALREADY_LOCKED');
+      assert.strictEqual(lockErr.message, 'User is already locked');
+
+      const activeErr = new InvalidStateTransitionError('USER_ALREADY_ACTIVE', 'User is already active');
+      assert.strictEqual(activeErr.httpStatus, 409);
+      assert.strictEqual(activeErr.code, 'USER_ALREADY_ACTIVE');
+      assert.strictEqual(activeErr.message, 'User is already active');
+    });
+  });
+
+  describe('TDD Cycle 2.2: Postgres Error Translation Middleware', () => {
+    const app = createTestErrorApp();
+
+    it('Case 1: maps unique violation (23505) to 409 with specific conflict code', async () => {
+      const res = await request(app).get('/test-error/pg-unique-email').expect(409);
+      assert.strictEqual(res.body.error.code, 'USER_EMAIL_CONFLICT');
+      assert.ok(res.body.error.message.includes('Email already exists') || res.body.error.message.includes('already exists'));
+      assert.ok(!JSON.stringify(res.body).includes('uq_app_users__email'));
+
+      const resShop = await request(app).get('/test-error/pg-unique-shop').expect(409);
+      assert.strictEqual(resShop.body.error.code, 'SHOP_ALREADY_EXISTS');
+    });
+
+    it('Case 2a: maps foreign key violation (23503) on insert/update to 404 RESOURCE_NOT_FOUND', async () => {
+      const res = await request(app).get('/test-error/pg-fk-insert').expect(404);
+      assert.strictEqual(res.body.error.code, 'RESOURCE_NOT_FOUND');
+      assert.ok(!JSON.stringify(res.body).includes('violates foreign key'));
+    });
+
+    it('Case 2b: maps foreign key violation (23503) on delete restrict to 409 RESOURCE_DELETE_NOT_ALLOWED', async () => {
+      const res = await request(app).get('/test-error/pg-fk-delete').expect(409);
+      assert.strictEqual(res.body.error.code, 'RESOURCE_DELETE_NOT_ALLOWED');
+      assert.ok(!JSON.stringify(res.body).includes('violates foreign key'));
+    });
+
+    it('Case 3: maps check constraint violation (23514) to 422 VALIDATION_FAILED', async () => {
+      const res = await request(app).get('/test-error/pg-check').expect(422);
+      assert.strictEqual(res.body.error.code, 'VALIDATION_FAILED');
+      assert.ok(!JSON.stringify(res.body).includes('ck_product_variants__price_positive'));
     });
   });
 });

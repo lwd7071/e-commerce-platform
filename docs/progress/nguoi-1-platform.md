@@ -2,12 +2,149 @@
 
 ## Trạng thái hiện tại
 
-- Mốc: T1
-- Cập nhật lần cuối: 2026-09-18
-- Đang làm: Hoàn thành Phase 1 - 5 nền tảng T1, chờ Người 2 bàn giao DB app_users và Người 3/4/5 wiring routes
-- Bị block bởi: Không (Phần làm ngay của T1 đã hoàn thành; phần chờ Người 2, 3, 4, 5 sẽ tiến hành khi có bàn giao)
+- Mốc: T2
+- Cập nhật lần cuối: 2026-09-21
+- Đang làm: ĐÃ HOÀN THÀNH 100% tất cả các Phase của Mốc T2 và hoàn thiện gắn kết nối PostgreSQL Transaction thật vào Runtime App
+- Bị block bởi: Không
 
 ## Nhật ký theo ngày
+
+### 2026-09-21 (T2 Hoàn thiện — Gắn kết nối PostgreSQL Transaction & Target Repository vào Runtime App)
+
+- Đã làm:
+  - Hiện thực hóa `PgModerationTargetRepository` (`src/modules/moderation/repositories/pg-target.repository.ts`) tương tác với các bảng `app_users`, `shops`, `products`, `reviews`, và `moderation_records`.
+  - Hiện thực hóa `PgTransactionManager` (`src/platform/database/pg-transaction-manager.ts`) quản lý transaction thật (`BEGIN ... COMMIT / ROLLBACK`) trên PostgreSQL pool connection client.
+  - Cập nhật `createRuntimeApp` trong `src/platform/http/app.ts` để gắn kết nối `ModerationService` vào connection pool PostgreSQL thật khi khởi động production server.
+  - Viết bộ unit test cho adapter mới: `test/modules/moderation/pg-target-repository.spec.ts` (8/8 pass).
+  - Nâng tổng số unit test lên 328/328 pass (100%).
+- Quyết định kỹ thuật:
+  - Hoàn thiện trọn vẹn kiến trúc Hexagonal: `ModerationService` được cấp adapter kết nối DB thật cho runtime production và adapter mock cho unit tests mà không cần sửa đổi domain logic.
+- Contract/port thay đổi:
+  - Bổ sung `PgModerationTargetRepository` và `PgTransactionManager`.
+- Blocker phát sinh:
+  - Không.
+- Test đã viết:
+  - `[PG-MOD-01]` -> `[PG-MOD-08]`: `PgModerationTargetRepository` (userExists, getUserStatus, updateUserStatus, shopExists, productExists, reviewExists, insertModerationRecord) và `PgTransactionManager` (commit on success, rollback on error, release client) — Unit test — Kết quả: pass.
+
+### 2026-09-21 (T2 Phase 5 — Canonical Tech Stack Update & Quality Gate Verification)
+
+- Đã làm:
+  - Bổ sung mục Tooling và Linter vào `docs/architecture/tech-stack.md`: ESLint `9.21.x` (Flat config qua `eslint.config.js`), `typescript-eslint` `8.26.x`, `@eslint/js` `9.21.x`.
+  - Cấu hình file môi trường database `.env` an toàn tại `backend/.env`, bảo đảm tuân thủ `.gitignore` và không lộ secret lên GitHub.
+  - Kiểm tra và xác nhận toàn bộ 4 quality gates của repository đều đạt chuẩn 100%:
+    - `npm run typecheck` (`tsc --noEmit`): 0 error.
+    - `npm run build` (`esbuild`): Hoàn thành bundle `dist/app.js` (79.1kb).
+    - `npm run test:node` (`node:test` qua `tsx`): 320/320 tests pass (100%), thời gian thực thi ~2s.
+    - `npm run lint` (`eslint`): 0 error.
+- Quyết định kỹ thuật:
+  - Cập nhật tài liệu kiến trúc dùng chung `tech-stack.md` theo quy trình Change Governance, chuẩn hóa bộ công cụ linter/formatter cho toàn đội.
+- Contract/port thay đổi:
+  - Đã bàn giao đầy đủ:
+    - RBAC Guards: `requireRole`, `requireBuyerOwnership`, `requireShopOwnership`.
+    - Error Catalog & Postgres Mapper: `REASON_REQUIRED`, `AUDIT_WRITE_FAILED`, `DEPENDENCY_UNAVAILABLE`, `InvalidStateTransitionError`, và xử lý các mã lỗi Postgres 23505, 23503, 23514.
+    - Audit Adapter: `PgAuditRepository` (hỗ trợ atomic transaction context và RB-KN20 polymorphic checks).
+    - Moderation Service: `ModerationService` với thứ tự kiểm tra 6 bước ưu tiên và atomic rollback theo QD20.
+    - Admin Endpoints: `POST /api/v1/admin/users/:id/lock` và `POST /api/v1/admin/users/:id/unlock`.
+- Blocker phát sinh:
+  - Không.
+- Test đã chạy:
+  - `npm run typecheck`: PASS.
+  - `npm run build`: PASS.
+  - `npm run test:node`: 320/320 PASS.
+  - `npm run lint`: PASS (0 errors).
+
+### 2026-09-21 (T2 Phase 4 — Admin User Lock & Unlock Endpoints)
+
+- Đã làm:
+  - Xây dựng router `src/platform/http/routes/admin-routes.ts` bọc qua middleware RBAC `requireRole('ADMIN')` cho 2 endpoints:
+    - `POST /api/v1/admin/users/:id/lock`
+    - `POST /api/v1/admin/users/:id/unlock`
+  - Tích hợp chuẩn xác `ModerationService.moderateTarget` với đầy đủ context người thực hiện (`admin_id` từ `req.context.user_id`), ghi nhận audit log và trả về envelope thành công chuẩn:
+    `{ data: { user_id, status, updated_at }, request_id }`.
+  - Mount `createAdminRouter` vào `src/platform/http/app.ts` và mở rộng `T1RouteApplications` hỗ trợ `moderation?: IModerationService`.
+  - Viết bộ test `test/platform/admin-routes.spec.ts` gồm 12 test cases:
+    - TDD Cycle 4.1 (Lock User): 7 cases (401 unauth, 403 non-admin role, 422 missing reason QD17, 404 user not found RB-KN20, 409 already locked, 200 success lock, 403 USER_LOCKED enforcement QD03 khi user bị khóa gọi protected route).
+    - TDD Cycle 4.2 (Unlock User): 5 cases (403 non-admin role, 422 missing reason QD17, 404 user not found RB-KN20, 409 already active, 200 success unlock).
+  - Toàn bộ 12/12 tests của Phase 4 đều PASS. Tổng bộ unit tests đạt 320/320 PASS.
+- Quyết định kỹ thuật:
+  - Sử dụng middleware RBAC `requireRole('ADMIN')` để bảo vệ tài nguyên admin ngay từ lớp HTTP routing trước khi đi vào domain service.
+  - Kiểm chứng chặt chẽ quy định QD03: Ngay sau khi admin khóa tài khoản, request tiếp theo từ user đó (kể cả có mang token hợp lệ) đều bị chặn đứng với mã lỗi 403 `USER_LOCKED`.
+- Contract/port thay đổi:
+  - Cung cấp 2 HTTP routes mới: `POST /api/v1/admin/users/:id/lock` và `POST /api/v1/admin/users/:id/unlock`.
+- Blocker phát sinh:
+  - Không.
+  - Đã tích hợp file cấu hình `.env` cho database vào `backend/.env`, bảo đảm an toàn qua `.gitignore`.
+- Test đã viết:
+  - `[ADMIN-01]` -> `[ADMIN-07]`: Admin Lock User (401, 403, 422 QD17, 404 RB-KN20, 409 USER_ALREADY_LOCKED, 200 OK envelope, 403 QD03 USER_LOCKED enforcement) — Unit test — Kết quả: pass.
+  - `[ADMIN-08]` -> `[ADMIN-12]`: Admin Unlock User (403, 422 QD17, 404 RB-KN20, 409 USER_ALREADY_ACTIVE, 200 OK envelope) — Unit test — Kết quả: pass.
+
+### 2026-09-21 (T2 Phase 3 — Audit Logging Adapter & ModerationService Atomic Transaction)
+
+- Đã làm:
+  - Xây dựng `src/platform/audit/pg-audit.repository.ts` hiện thực hóa interface `IAuditPort` (ghi vào bảng `admin_logs`), hỗ trợ ngữ cảnh transaction (truyền pool hoặc trx client), kiểm tra chặt chẽ cấu trúc polymorphic target theo `RB-KN20`.
+  - Định nghĩa domain types cho kiểm duyệt tại `src/modules/moderation/domain/moderation.types.ts`.
+  - Hiện thực hóa `ModerationService` trong `src/modules/moderation/services/moderation.service.ts` tuân thủ nghiêm ngặt 6 bước kiểm tra ưu tiên:
+    1. Kiểm tra `target_type` hợp lệ (`USER`, `SHOP`, `PRODUCT`, `REVIEW`) ➔ 422 `VALIDATION_FAILED`.
+    2. Kiểm tra `target_id` hợp lệ (UUID v4) ➔ 422 `VALIDATION_FAILED`.
+    3. Kiểm tra lý do `reason` bắt buộc (QD17) ➔ 422 `REASON_REQUIRED`.
+    4. Kiểm tra sự tồn tại của target trong bảng nguồn (RB-KN20) ➔ 404 `RESOURCE_NOT_FOUND`.
+    5. Kiểm tra tính lũy kế / idempotent ➔ 409 `USER_ALREADY_LOCKED` hoặc `USER_ALREADY_ACTIVE`.
+    6. Thực thi trong Atomic Database Transaction (QD20): Cập nhật trạng thái target, ghi nhận bản ghi kiểm duyệt, và gọi `IAuditPort.logAdminAction`. Nếu ghi audit log thất bại ➔ rollback toàn bộ và bắn 500 `AUDIT_WRITE_FAILED`.
+  - Viết unit test cho Audit Adapter: `test/platform/audit-logging.spec.ts` (4/4 pass).
+  - Viết unit test cho ModerationService: `test/modules/moderation/moderation-service.spec.ts` (9/9 pass).
+  - Toàn bộ unit suite `node:test` đạt 308/308 pass.
+- Quyết định kỹ thuật:
+  - Thiết kế `ITargetRepository` và `ITransactionManager` theo kiến trúc Ports & Adapters (Hexagonal Architecture) giúp cô lập hoàn toàn business logic và atomic rollback test mà không bị lệ thuộc vào instance DB thật ở unit test suite.
+  - Xử lý rollback an toàn qua Unit of Work / Transaction Manager đảm bảo không bao giờ có hành động kiểm duyệt nào được commit mà không có audit log đi kèm.
+- Contract/port thay đổi:
+  - Thêm `IAuditPort` implementation: `PgAuditRepository`.
+  - Thêm domain interface: `ITargetRepository`, `ITransactionManager`, `IModerationService`.
+- Blocker phát sinh:
+  - Không.
+- Test đã viết:
+  - `[AUDIT-01]` -> `[AUDIT-04]`: `PgAuditRepository` write, missing params, RB-KN20 polymorphic enum & pair checks — Unit test — Kết quả: pass.
+  - `[MOD-01]` -> `[MOD-09]`: `ModerationService` 6-step priority order (target type 422, target id 422, QD17 reason 422, RB-KN20 not found 404, idempotency 409, QD20 atomic rollback 500 AUDIT_WRITE_FAILED, happy path commit) — Unit test — Kết quả: pass.
+
+### 2026-09-21 (T2 Phase 2 — Error Catalog & Database Exception Mapper)
+
+- Đã làm:
+  - Bổ sung các class lỗi vào `src/platform/errors/app-error.ts`: `ReasonRequiredError` (422), `AuditWriteFailedError` (500), `DependencyUnavailableError` (503), và `InvalidStateTransitionError` (409 nhận mã lỗi cụ thể `USER_ALREADY_LOCKED`, `USER_ALREADY_ACTIVE`).
+  - Nâng cấp `errorHandlerMiddleware` trong `src/platform/http/middlewares/error-handler.ts` để bắt và ánh xạ các mã lỗi Postgres:
+    - Mã `23505` (unique violation) ➔ 409 (`USER_EMAIL_CONFLICT`, `SHOP_ALREADY_EXISTS`, `VOUCHER_CODE_CONFLICT`, `SKU_CONFLICT`).
+    - Mã `23503` (foreign key violation) phân 2 nhánh chuẩn: Insert/Update tham chiếu bản ghi cha không tồn tại ➔ 404 `RESOURCE_NOT_FOUND`; Delete vi phạm ràng buộc RESTRICT ➔ 409 `RESOURCE_DELETE_NOT_ALLOWED`.
+    - Mã `23514` (check constraint violation) ➔ 422 `VALIDATION_FAILED`.
+  - Bảo đảm tuyệt đối không để lộ chuỗi SQL, tên constraint hoặc stack trace trong response client.
+  - Viết thêm 8 test case trong `test/platform/error-handling.spec.ts` (14/14 tests pass, full suite 295/295 tests pass).
+- Quyết định kỹ thuật:
+  - Phân biệt rõ 2 nhánh của lỗi FK 23503 (Insert 404 vs Delete Restrict 409) theo đúng catalog `error-observability.md` Mục 2.
+  - Giữ class `InvalidStateTransitionError` kế thừa `ConflictError` và nhận mã lỗi ngữ cảnh linh hoạt để dùng chuẩn xác cho nghiệp vụ User/Shop/Order.
+- Contract/port thay đổi:
+  - Không.
+- Blocker phát sinh:
+  - Không.
+- Test đã viết:
+  - `[ERR-05]` -> `[ERR-08]`: AppError subclasses (`REASON_REQUIRED`, `AUDIT_WRITE_FAILED`, `DEPENDENCY_UNAVAILABLE`, `InvalidStateTransitionError`) — Unit test — Kết quả: pass.
+  - `[PG-01]` -> `[PG-04]`: Postgres error translation (23505, 23503 insert 404, 23503 delete 409, 23514 422) — Unit test — Kết quả: pass.
+
+### 2026-09-21 (T2 Phase 1 — RBAC Middleware & Role/Ownership Guards)
+
+- Đã làm:
+  - Tạo file `src/platform/http/middlewares/rbac.ts` cung cấp `requireRole(...roles)`, `requireBuyerOwnership`, `requireShopOwnership`.
+  - Triển khai Role Guard: request thiếu context trả `401 AUTH_REQUIRED`, sai role trả `403 RESOURCE_FORBIDDEN`.
+  - Triển khai Buyer Ownership Guard chống Resource Enumeration theo `auth-rbac-rls.md` Mục 3: truy cập tài nguyên của Buyer khác trả dứt khoát `404 RESOURCE_NOT_FOUND`.
+  - Triển khai Seller Shop Ownership Guard: truy cập sai `shop_id` trả `403 RESOURCE_FORBIDDEN`.
+  - Cho phép Admin bypass quyền sở hữu đối với các tài nguyên khi command cho phép.
+  - Viết bộ unit test TDD toàn diện tại `test/platform/rbac-middleware.spec.ts` (10/10 tests pass).
+- Quyết định kỹ thuật:
+  - Tách `requireBuyerOwnership` (404 anti-enumeration) và `requireShopOwnership` (403 forbidden) để đảm bảo an ninh thông tin riêng tư của Buyer.
+  - Đặt toàn bộ Unit test trong `test/platform/` chạy qua `node:test` + `tsx`, độc lập 100% với database instance.
+- Contract/port thay đổi:
+  - Không.
+- Blocker phát sinh:
+  - Không.
+- Test đã viết:
+  - `[RBAC-01]` -> `[RBAC-04]`: `requireRole` unauthenticated, wrong role, matching role, multi-role — Unit test — Kết quả: pass.
+  - `[OWNER-01]` -> `[OWNER-06]`: Buyer ownership (404), Seller ownership (403), Admin bypass — Unit test — Kết quả: pass.
 
 ### 2026-09-18 (Khắc phục GitHub Actions Backend quality)
 
