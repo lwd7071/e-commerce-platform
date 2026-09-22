@@ -18,5 +18,16 @@ export * from './cart.port.ts';
 export * from './voucher.port.ts';
 
 // Order Query & Transaction Events (Member 5 -> Member 4 Review/Notification)
-export * from '../modules/order/contracts/order-query.contract.ts';
-export * from '../modules/order/contracts/order-events.contract.ts';
+export type {
+  ReviewOrderItemDTO,
+  OrderSummaryDTO,
+  IOrderQueryPort,
+} from '../modules/order/contracts/order-query.contract.ts';
+export type {
+  BaseTransactionEvent,
+  OrderCreatedEvent,
+  OrderStatusChangedEvent,
+  PaymentStatusChangedEvent,
+  ShipmentStatusChangedEvent,
+  TransactionDomainEvent,
+} from '../modules/order/contracts/order-events.contract.ts';
