@@ -2,12 +2,29 @@
 
 ## Trạng thái hiện tại
 
-- Mốc: T1
-- Cập nhật lần cuối: 2026-09-18
-- Đang làm: Đã hoàn thành toàn bộ phần Domain thuần độc lập của mốc T1 (3 state machine, Order calculation, checkout command validation, CheckoutOrchestrator 12 bước với 13 tests mock port và boundary tests). TV5 suite 41/41 pass; full backend 229/229 pass; typecheck 0 lỗi; build pass.
-- Bị block bởi: Order snapshot/history chờ Người 3 bảo đảm productName, cung cấp shopId và xác nhận mapping VariantSnapshot từ ngày 2026-09-18. Các dependency tích hợp T1 còn lại: transaction/DB persistence và idempotency storage của Người 2; transaction-compatible Cart/Voucher/Catalog adapters thật của Người 3/4; API wiring/envelope/auth integration của Người 1.
+- Mốc: T2
+- Cập nhật lần cuối: 2026-09-23
+- Đang làm: Đã hoàn tất 100% phần việc độc lập T1 & T2 (Order snapshot, Address snapshot, OrderStatusHistory, IOrderQueryPort bàn giao Người 4 Review, Transaction Domain Events bàn giao Người 4 Notification, InMemoryIdempotencyAdapter). TV5 suite 54/54 pass; full backend 242/242 pass; typecheck 0 lỗi; build pass.
+- Bị block bởi: Các dependency tích hợp T2 với DB/API thật: transaction/DB persistence của Người 2; ráp Catalog/Cart/Voucher repositories thật của Người 3/4; API route wiring của Người 1.
 
 ## Nhật ký theo ngày
+
+### 2026-09-23 — Order Snapshot, History, Query & Events Contract (T2 Independent Scope)
+
+- Triển khai `order/domain/order-snapshot.ts`:
+  - `buildOrderItemSnapshot`: Snapshot bất biến cho `product_name_snapshot`, `variant_snapshot` (chuẩn hóa tên + option), `unit_price`, `quantity`, `line_total` theo chuẩn `QD08`, `RB-MG06`, `RB-MG07`.
+  - `buildOrderAddressSnapshot`: Đóng băng thông tin người nhận và địa chỉ giao hàng tại thời điểm tạo đơn.
+  - `createOrderStatusHistoryRecord`: Tạo bản ghi `order_status_history` bất biến, bắt buộc reason khi hủy hoặc giao thất bại (`QD11`, `QD20`).
+- Triển khai `order/contracts/order-query.contract.ts`:
+  - Định nghĩa `IOrderQueryPort` và `ReviewOrderItemDTO` tương thích 100% với `ReviewOrderItemContext` của Người 4 để mở khóa kiểm tra điều kiện đánh giá sản phẩm (`QD14`).
+- Triển khai `order/contracts/order-events.contract.ts`:
+  - Định nghĩa sự kiện `OrderCreatedEvent`, `OrderStatusChangedEvent`, `PaymentStatusChangedEvent`, `ShipmentStatusChangedEvent` bàn giao cho Người 4 làm Notification.
+- Triển khai `checkout/domain/in-memory-idempotency.ts`:
+  - Hiện thực hóa `IdempotencyPort` chuẩn với các trạng thái `acquired`, `in_progress`, `replay`, `conflict`, `release`.
+- Bổ sung 13 tests mới tại `test/modules/order/order-snapshot.spec.ts`:
+  - 100% test pass (TV5 suite nâng lên 54/54 pass; full backend nâng lên 242/242 pass).
+- Xuất bản contracts qua `src/contracts/index.ts`.
+- Quality gate: `test:node` 242/242 pass; `typecheck` 0 lỗi; `build` pass (`dist/app.js` 5.3kb).
 
 ### 2026-09-18 — Negative Test Orchestration & Domain Boundary Hardening
 

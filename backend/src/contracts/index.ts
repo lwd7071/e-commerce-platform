@@ -16,3 +16,7 @@ export * from './catalog.port.ts';
 // Buyer Cart & Voucher Ports
 export * from './cart.port.ts';
 export * from './voucher.port.ts';
+
+// Order Query & Transaction Events (Member 5 -> Member 4 Review/Notification)
+export * from '../modules/order/contracts/order-query.contract.ts';
+export * from '../modules/order/contracts/order-events.contract.ts';
