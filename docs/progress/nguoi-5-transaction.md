@@ -4,27 +4,28 @@
 
 - Mốc: T2
 - Cập nhật lần cuối: 2026-09-23
-- Đang làm: Đã hoàn tất tầng Persistence & Query của Order domain (`IOrderRepository`, `InMemoryOrderRepository`, `PgOrderRepository` hỗ trợ `withTransaction`, `OrderQueryService`). TV5 suite đạt 57/57 pass; full backend 245/245 pass; typecheck 0 lỗi; build pass.
-- Bị block bởi: Ráp trực tiếp luồng Checkout 12 bước vào PostgreSQL transaction thật (chờ Người 3 bổ sung shopId vào VariantPriceAndStockDTO; chờ Người 1 mount API routes).
+- Đang làm: Đã hoàn tất tầng Persistence, Transactional Checkout Service (ACID withTransaction 12 bước), Order Lifecycle Service (Cancel & Restock) và Payment Repositories (`IPaymentRepository`, `InMemoryPaymentRepository`, `PgPaymentRepository`). TV5 suite đạt 59/59 pass; full backend 247/247 pass; typecheck 0 lỗi; build pass.
+- Bị block bởi: API route wiring của Người 1 để gắn các controller vào Express app; Người 3 bổ sung shopId vào VariantPriceAndStockDTO của Catalog port.
 
 ## Nhật ký theo ngày
 
-### 2026-09-23 — Order Repositories (In-Memory & PostgreSQL) & Order Query Service
+### 2026-09-23 — Transactional Checkout (ACID 12 bước), Order Lifecycle (Cancel & Restock) & Payment Repository
 
-- Triển khai `order/domain/repositories.ts`:
-  - Định nghĩa `IOrderRepository`, `OrderRecord`, `OrderItemRecord`.
-- Triển khai `order/repositories/in-memory-order.repository.ts`:
-  - `InMemoryOrderRepository` hỗ trợ lưu trữ in-memory phục vụ unit test độc lập.
-- Triển khai `order/repositories/pg-order.repository.ts`:
-  - `PgOrderRepository` ánh xạ dữ liệu trực tiếp với PostgreSQL (`orders`, `order_items`, `order_status_history`), tương thích `withTransaction` qua tham số `client?: PoolClient`.
-- Triển khai `order/services/order-query.service.ts`:
-  - Hiện thực hóa `IOrderQueryPort` phục vụ kiểm tra Review eligibility (`QD14`) cho Người 4.
-- Bổ sung 3 test cases tại `test/modules/order/order-repository.spec.ts`:
-  - Lưu và lấy Order kèm Items và History nguyên tử.
-  - Cập nhật trạng thái Order và tự động ghi nhận history.
-  - `getOrderItemForReview` trả đúng DTO cho chủ sở hữu đơn `COMPLETED`.
-- Bổ sung `order/domain/order-snapshot.ts`, `in-memory-idempotency.ts`, contracts `order-query.contract.ts`, `order-events.contract.ts`.
-- Quality gate: `test:node` **245/245 pass**; `typecheck` 0 lỗi; `build` pass (`dist/app.js` 5.3kb).
+- Triển khai `payment/domain/repositories.ts`:
+  - Định nghĩa `IPaymentRepository` và `PaymentRecord` tương thích bảng `payments` trong Schema Freeze v1.
+- Triển khai `payment/repositories/in-memory-payment.repository.ts` và `payment/repositories/pg-payment.repository.ts`:
+  - Lưu trữ và cập nhật trạng thái thanh toán PostgreSQL với `client?: PoolClient` bảo đảm tham gia cùng transaction cha.
+- Triển khai `checkout/services/transactional-checkout.service.ts`:
+  - Hiện thực hóa quy trình checkout 12 bước nguyên tử ACID kết nối trực tiếp với `withTransaction(pool, ...)` của Người 2:
+    - Sắp xếp và khóa dòng variants theo thứ tự UUID (`SELECT ... FOR UPDATE` chống race condition).
+    - Tạo `orders`, `order_items` snapshot, `order_status_history` ban đầu, và `payments` (`PENDING`) trong 1 transaction duy nhất.
+    - Tiêu thụ `voucher_usages` và dọn `cart_items` của Người 4.
+    - Tự động `ROLLBACK` sạch sẽ nếu có bất kỳ bước nào thất bại.
+- Triển khai `order/services/order-lifecycle.service.ts`:
+  - `cancelOrder`: Xác thực quyền actor theo `order-state-machine.ts`, chuyển trạng thái `CANCELLED`, ghi lý do vào history và **hoàn lại tồn kho variant (Restock)** chính xác 1 lần trong transaction.
+- Triển khai `order/domain/repositories.ts`, `in-memory-order.repository.ts`, `pg-order.repository.ts`, `order-query.service.ts`.
+- Bổ sung integration tests tại `test/modules/checkout/transactional-checkout.spec.ts` (Happy path + Cancel & restock).
+- Quality gate: `test:node` **247/247 pass** (0 fail, 75 suites); `typecheck` 0 lỗi; `build` pass (`dist/app.js` 5.3kb).
 
 ### 2026-09-18 — Negative Test Orchestration & Domain Boundary Hardening
 
