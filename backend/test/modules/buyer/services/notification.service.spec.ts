@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { NotificationService } from '../../../../src/modules/buyer/services/notification.service';
 import { ResourceNotFoundError } from '../../../../src/modules/buyer/domain/errors';
 import type { INotificationRepository } from '../../../../src/modules/buyer/domain/repositories';
-import type { IBuyerEventPort, BuyerDomainEvent } from '../../../../src/modules/buyer/ports/buyer-event.port';
+import type { ITransactionEventPort, TransactionDomainEvent } from '../../../../src/modules/buyer/ports/buyer-event.port';
+import type { IOrderQueryPort, OrderSummaryDTO, ReviewOrderItemDTO } from '../../../../src/modules/buyer/ports/order-query.port';
 import type { Notification, UUID } from '../../../../src/modules/buyer/domain/types';
 import { mockBuyerId } from '../fixtures';
 
@@ -40,32 +41,65 @@ class MockNotificationRepository implements INotificationRepository {
   }
 }
 
-class MockBuyerEventPort implements IBuyerEventPort {
-  private handlers: ((event: BuyerDomainEvent) => Promise<void>)[] = [];
+class MockTransactionEventPort implements ITransactionEventPort {
+  private handlers: ((event: TransactionDomainEvent) => Promise<void>)[] = [];
 
-  subscribe(handler: (event: BuyerDomainEvent) => Promise<void>): void {
+  subscribe(handler: (event: TransactionDomainEvent) => Promise<void>): void {
     this.handlers.push(handler);
   }
 
-  async publish(event: BuyerDomainEvent): Promise<void> {
+  async publish(event: TransactionDomainEvent): Promise<void> {
     for (const h of this.handlers) {
       await h(event);
     }
   }
 }
 
-describe('NotificationService Tests (TDD - Ownership, Idempotency & Events)', () => {
+class MockOrderQueryPortForNotif implements IOrderQueryPort {
+  private summaries: Map<UUID, OrderSummaryDTO> = new Map();
+
+  setSummary(orderId: UUID, summary: OrderSummaryDTO): void {
+    this.summaries.set(orderId, summary);
+  }
+
+  async getOrderItemForReview(_: UUID, __: UUID): Promise<ReviewOrderItemDTO | null> {
+    return null;
+  }
+
+  async getOrderSummary(orderId: UUID): Promise<OrderSummaryDTO | null> {
+    return this.summaries.get(orderId) ?? null;
+  }
+}
+
+describe('NotificationService Tests (TDD - Ownership, Idempotency & TransactionDomainEvent)', () => {
   let notificationRepo: MockNotificationRepository;
-  let eventPort: MockBuyerEventPort;
+  let eventPort: MockTransactionEventPort;
+  let orderQueryPort: MockOrderQueryPortForNotif;
   let notificationService: NotificationService;
 
   const otherBuyerId = '88888888-8888-4888-8888-888888888888';
   const notifId1 = '11111111-1111-4111-8111-111111111111';
+  const testOrderId = 'oooo1111-1111-4111-8111-111111111111';
+  const testShopId = 'ssss1111-1111-4111-8111-111111111111';
 
   beforeEach(() => {
     notificationRepo = new MockNotificationRepository();
-    eventPort = new MockBuyerEventPort();
-    notificationService = new NotificationService(notificationRepo, eventPort);
+    eventPort = new MockTransactionEventPort();
+    orderQueryPort = new MockOrderQueryPortForNotif();
+    notificationService = new NotificationService(notificationRepo, eventPort, orderQueryPort);
+
+    // Mock order summary cho testOrderId
+    orderQueryPort.setSummary(testOrderId, {
+      orderId: testOrderId,
+      buyerId: mockBuyerId,
+      shopId: testShopId,
+      status: 'CONFIRMED',
+      subtotal: '200000.00',
+      discountAmount: '0.00',
+      shippingFee: '30000.00',
+      totalAmount: '230000.00',
+      createdAt: new Date().toISOString(),
+    });
   });
 
   describe('getNotifications & getNotificationById', () => {
@@ -174,15 +208,54 @@ describe('NotificationService Tests (TDD - Ownership, Idempotency & Events)', ()
     });
   });
 
-  describe('Domain Event Handling & In-Memory Deduplication', () => {
-    it('nhận event PAYMENT_SUCCESS từ eventPort và tạo Notification tương ứng', async () => {
-      const event: BuyerDomainEvent = {
+  describe('Domain Event Handling & In-Memory Deduplication (TransactionDomainEvent)', () => {
+    it('[ORDER_STATUS_CHANGED -> COMPLETED] tạo Notification loại ORDER cho buyerId trong event', async () => {
+      const event: TransactionDomainEvent = {
         eventId: 'eeee1111-1111-4111-8111-111111111111',
-        type: 'PAYMENT_SUCCESS',
-        recipientId: mockBuyerId,
-        orderId: 'oooo1111-1111-4111-8111-111111111111',
-        title: 'Thanh toán thành công',
-        content: 'Đơn hàng của bạn đã thanh toán thành công.',
+        type: 'ORDER_STATUS_CHANGED',
+        orderId: testOrderId,
+        buyerId: mockBuyerId,
+        shopId: testShopId,
+        oldStatus: 'SHIPPING',
+        newStatus: 'COMPLETED',
+        occurredAt: new Date().toISOString(),
+      };
+
+      await eventPort.publish(event);
+
+      const list = await notificationService.getNotifications(mockBuyerId);
+      assert.equal(list.length, 1);
+      assert.equal(list[0].type, 'ORDER');
+      assert.equal(list[0].title, 'Đơn hàng hoàn tất');
+      assert.equal(list[0].isRead, false);
+    });
+
+    it('[ORDER_STATUS_CHANGED -> CONFIRMED] bỏ qua an toàn, không tạo notification', async () => {
+      const event: TransactionDomainEvent = {
+        eventId: 'eeee1111-2222-4111-8111-111111111111',
+        type: 'ORDER_STATUS_CHANGED',
+        orderId: testOrderId,
+        buyerId: mockBuyerId,
+        shopId: testShopId,
+        oldStatus: 'PENDING_CONFIRMATION',
+        newStatus: 'CONFIRMED',
+        occurredAt: new Date().toISOString(),
+      };
+
+      await eventPort.publish(event);
+
+      const list = await notificationService.getNotifications(mockBuyerId);
+      assert.equal(list.length, 0);
+    });
+
+    it('[PAYMENT_STATUS_CHANGED -> SUCCESS] gọi getOrderSummary, tạo Notification loại PAYMENT cho buyerId', async () => {
+      const event: TransactionDomainEvent = {
+        eventId: 'eeee2222-1111-4111-8111-111111111111',
+        type: 'PAYMENT_STATUS_CHANGED',
+        paymentId: 'pppp1111-1111-4111-8111-111111111111',
+        orderId: testOrderId,
+        status: 'SUCCESS',
+        amount: '230000.00',
         occurredAt: new Date().toISOString(),
       };
 
@@ -195,14 +268,47 @@ describe('NotificationService Tests (TDD - Ownership, Idempotency & Events)', ()
       assert.equal(list[0].isRead, false);
     });
 
-    it('nhận event SHIPMENT_DELIVERED tạo Notification type SHIPPING', async () => {
-      const event: BuyerDomainEvent = {
-        eventId: 'eeee2222-2222-4222-8222-222222222222',
-        type: 'SHIPMENT_DELIVERED',
-        recipientId: mockBuyerId,
-        orderId: 'oooo1111-1111-4111-8111-111111111111',
-        title: 'Đã giao hàng thành công',
-        content: 'Kiện hàng đã được giao.',
+    it('[PAYMENT_STATUS_CHANGED -> SUCCESS, order không tồn tại] bỏ qua an toàn, không throw', async () => {
+      const event: TransactionDomainEvent = {
+        eventId: 'eeee2222-9999-4111-8111-111111111111',
+        type: 'PAYMENT_STATUS_CHANGED',
+        paymentId: 'pppp9999-9999-4999-8999-999999999999',
+        orderId: 'oooo9999-9999-4999-8999-999999999999', // Order không có summary
+        status: 'SUCCESS',
+        amount: '100000.00',
+        occurredAt: new Date().toISOString(),
+      };
+
+      await eventPort.publish(event);
+
+      const list = await notificationService.getNotifications(mockBuyerId);
+      assert.equal(list.length, 0);
+    });
+
+    it('[PAYMENT_STATUS_CHANGED -> FAILED] bỏ qua an toàn, không tạo notification', async () => {
+      const event: TransactionDomainEvent = {
+        eventId: 'eeee2222-3333-4111-8111-111111111111',
+        type: 'PAYMENT_STATUS_CHANGED',
+        paymentId: 'pppp1111-1111-4111-8111-111111111111',
+        orderId: testOrderId,
+        status: 'FAILED',
+        amount: '230000.00',
+        occurredAt: new Date().toISOString(),
+      };
+
+      await eventPort.publish(event);
+
+      const list = await notificationService.getNotifications(mockBuyerId);
+      assert.equal(list.length, 0);
+    });
+
+    it('[SHIPMENT_STATUS_CHANGED -> DELIVERED] gọi getOrderSummary, tạo Notification loại SHIPPING cho buyerId', async () => {
+      const event: TransactionDomainEvent = {
+        eventId: 'eeee3333-1111-4111-8111-111111111111',
+        type: 'SHIPMENT_STATUS_CHANGED',
+        shipmentId: 'ssss1111-1111-4111-8111-111111111111',
+        orderId: testOrderId,
+        status: 'DELIVERED',
         occurredAt: new Date().toISOString(),
       };
 
@@ -211,34 +317,51 @@ describe('NotificationService Tests (TDD - Ownership, Idempotency & Events)', ()
       const list = await notificationService.getNotifications(mockBuyerId);
       assert.equal(list.length, 1);
       assert.equal(list[0].type, 'SHIPPING');
+      assert.equal(list[0].title, 'Đã giao hàng thành công');
+      assert.equal(list[0].isRead, false);
     });
 
-    it('nhận event ORDER_COMPLETED tạo Notification type ORDER', async () => {
-      const event: BuyerDomainEvent = {
-        eventId: 'eeee3333-3333-4333-8333-333333333333',
-        type: 'ORDER_COMPLETED',
-        recipientId: mockBuyerId,
-        orderId: 'oooo1111-1111-4111-8111-111111111111',
-        title: 'Đơn hàng hoàn tất',
-        content: 'Cảm ơn bạn đã mua hàng.',
+    it('[SHIPMENT_STATUS_CHANGED -> DELIVERED, order không tồn tại] bỏ qua an toàn, không throw', async () => {
+      const event: TransactionDomainEvent = {
+        eventId: 'eeee3333-9999-4111-8111-111111111111',
+        type: 'SHIPMENT_STATUS_CHANGED',
+        shipmentId: 'ssss9999-9999-4999-8999-999999999999',
+        orderId: 'oooo9999-9999-4999-8999-999999999999', // Order không có summary
+        status: 'DELIVERED',
         occurredAt: new Date().toISOString(),
       };
 
       await eventPort.publish(event);
 
       const list = await notificationService.getNotifications(mockBuyerId);
-      assert.equal(list.length, 1);
-      assert.equal(list[0].type, 'ORDER');
+      assert.equal(list.length, 0);
     });
 
-    it('idempotency / replay test: nhận lại event trùng lặp eventId -> bỏ qua, không tạo duplicate', async () => {
-      const event: BuyerDomainEvent = {
+    it('[SHIPMENT_STATUS_CHANGED -> SHIPPING] bỏ qua an toàn, không tạo notification', async () => {
+      const event: TransactionDomainEvent = {
+        eventId: 'eeee3333-2222-4111-8111-111111111111',
+        type: 'SHIPMENT_STATUS_CHANGED',
+        shipmentId: 'ssss1111-1111-4111-8111-111111111111',
+        orderId: testOrderId,
+        status: 'SHIPPING',
+        occurredAt: new Date().toISOString(),
+      };
+
+      await eventPort.publish(event);
+
+      const list = await notificationService.getNotifications(mockBuyerId);
+      assert.equal(list.length, 0);
+    });
+
+    it('[Idempotency Replay] cùng eventId gửi 2 lần -> chỉ tạo 1 notification duy nhất', async () => {
+      const event: TransactionDomainEvent = {
         eventId: 'eeee4444-4444-4444-8444-444444444444',
-        type: 'ORDER_COMPLETED',
-        recipientId: mockBuyerId,
-        orderId: 'oooo1111-1111-4111-8111-111111111111',
-        title: 'Đơn hàng hoàn tất',
-        content: 'Cảm ơn bạn đã mua hàng.',
+        type: 'ORDER_STATUS_CHANGED',
+        orderId: testOrderId,
+        buyerId: mockBuyerId,
+        shopId: testShopId,
+        oldStatus: 'SHIPPING',
+        newStatus: 'COMPLETED',
         occurredAt: new Date().toISOString(),
       };
 

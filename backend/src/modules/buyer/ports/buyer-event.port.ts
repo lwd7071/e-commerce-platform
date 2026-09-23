@@ -1,22 +1,16 @@
-import type { UUID } from '../domain/types';
+import type { TransactionDomainEvent } from '../../order/contracts/order-events.contract.ts';
 
-export type BuyerDomainEventType = 'ORDER_COMPLETED' | 'PAYMENT_SUCCESS' | 'SHIPMENT_DELIVERED';
-
-export interface BuyerDomainEvent {
-  eventId: UUID;
-  type: BuyerDomainEventType;
-  recipientId: UUID;
-  orderId: UUID;
-  title: string;
-  content: string;
-  occurredAt: string;
-}
+export type { TransactionDomainEvent };
 
 /**
- * Temporary internal stub port for Person 4 T2 testing.
- * Will be COMPLETELY DISCARDED AND REPLACED once Person 5 delivers the official Event Bus contract.
+ * Event Port cho Buyer Domain đăng ký lắng nghe các sự kiện giao dịch chính thức
+ * từ Transaction Core của Người 5 (TransactionDomainEvent).
+ * Nguồn: backend/src/modules/order/contracts/order-events.contract.ts
  */
-export interface IBuyerEventPort {
-  publish(event: BuyerDomainEvent): Promise<void>;
-  subscribe(handler: (event: BuyerDomainEvent) => Promise<void>): void;
+export interface ITransactionEventPort {
+  publish(event: TransactionDomainEvent): Promise<void>;
+  subscribe(handler: (event: TransactionDomainEvent) => Promise<void>): void;
 }
+
+// Alias tương thích ngược
+export type IBuyerEventPort = ITransactionEventPort;
