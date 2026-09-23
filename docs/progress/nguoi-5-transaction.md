@@ -2,12 +2,53 @@
 
 ## Trạng thái hiện tại
 
-- Mốc: T1
-- Cập nhật lần cuối: 2026-09-18
-- Đang làm: Đã hoàn thành toàn bộ phần Domain thuần độc lập của mốc T1 (3 state machine, Order calculation, checkout command validation, CheckoutOrchestrator 12 bước với 13 tests mock port và boundary tests). TV5 suite 41/41 pass; full backend 229/229 pass; typecheck 0 lỗi; build pass.
-- Bị block bởi: Order snapshot/history chờ Người 3 bảo đảm productName, cung cấp shopId và xác nhận mapping VariantSnapshot từ ngày 2026-09-18. Các dependency tích hợp T1 còn lại: transaction/DB persistence và idempotency storage của Người 2; transaction-compatible Cart/Voucher/Catalog adapters thật của Người 3/4; API wiring/envelope/auth integration của Người 1.
+- Mốc: T2
+- Cập nhật lần cuối: 2026-09-23
+- Đang làm: Đã hoàn tất tầng Persistence, Transactional Checkout Service (ACID withTransaction 12 bước), Order Lifecycle Service (Cancel & Restock) và Payment Repositories (`IPaymentRepository`, `InMemoryPaymentRepository`, `PgPaymentRepository`). TV5 suite đạt 59/59 pass; full backend 247/247 pass; typecheck 0 lỗi; build pass.
+- Bị block bởi: API route wiring của Người 1 để gắn các controller vào Express app; Người 3 bổ sung shopId vào VariantPriceAndStockDTO của Catalog port.
 
 ## Nhật ký theo ngày
+
+### 2026-09-23 — Transactional Checkout (ACID 12 bước), Order Lifecycle (Cancel & Restock) & Payment Repository
+
+- Triển khai `payment/domain/repositories.ts`:
+  - Định nghĩa `IPaymentRepository` và `PaymentRecord` tương thích bảng `payments` trong Schema Freeze v1.
+- Triển khai `payment/repositories/in-memory-payment.repository.ts` và `payment/repositories/pg-payment.repository.ts`:
+  - Lưu trữ và cập nhật trạng thái thanh toán PostgreSQL với `client?: PoolClient` bảo đảm tham gia cùng transaction cha.
+- Triển khai `checkout/services/transactional-checkout.service.ts`:
+  - Hiện thực hóa quy trình checkout 12 bước nguyên tử ACID kết nối trực tiếp với `withTransaction(pool, ...)` của Người 2:
+    - Sắp xếp và khóa dòng variants theo thứ tự UUID (`SELECT ... FOR UPDATE` chống race condition).
+    - Tạo `orders`, `order_items` snapshot, `order_status_history` ban đầu, và `payments` (`PENDING`) trong 1 transaction duy nhất.
+    - Tiêu thụ `voucher_usages` và dọn `cart_items` của Người 4.
+    - Tự động `ROLLBACK` sạch sẽ nếu có bất kỳ bước nào thất bại.
+- Triển khai `order/services/order-lifecycle.service.ts`:
+  - `cancelOrder`: Xác thực quyền actor theo `order-state-machine.ts`, chuyển trạng thái `CANCELLED`, ghi lý do vào history và **hoàn lại tồn kho variant (Restock)** chính xác 1 lần trong transaction.
+- Triển khai `order/domain/repositories.ts`, `in-memory-order.repository.ts`, `pg-order.repository.ts`, `order-query.service.ts`.
+- Bổ sung integration tests tại `test/modules/checkout/transactional-checkout.spec.ts` (Happy path + Cancel & restock).
+- Quality gate: `test:node` **247/247 pass** (0 fail, 75 suites); `typecheck` 0 lỗi; `build` pass (`dist/app.js` 5.3kb).
+
+### 2026-09-19 — PostgreSQL checkout persistence
+
+- Đã thêm `PgCheckoutService`: checkout chạy trong `withTransaction`, khóa selected cart
+  rows/variant stock, snapshot Address/Product/Variant/price, ghi Order/OrderItem,
+  OrderStatusHistory, Payment, Notification và consume Voucher cùng transaction.
+- Same key/same fingerprint replay trả lại IDs; key khác payload trả `IDEMPOTENCY_KEY_REUSED`;
+  lock bận trả `REQUEST_IN_PROGRESS`; retry đúng SQLSTATE `40001`/`40P01`, tối đa 3 attempts,
+  backoff 25ms/50ms.
+- Đã thêm command handlers HTTP cho cancel/confirm/transition/payment retry, ownership và
+  role được kiểm tra ở handler ngoài middleware.
+- Typecheck/build pass; integration suite PostgreSQL sẽ chạy qua CI service `17.6`.
+
+### 2026-09-18 — idempotency advisory-lock seam
+
+- Đã thêm `PgIdempotencyRepository` transaction-scoped: advisory lock dùng canonical
+  `JSON.stringify(["v1", user_id, endpoint, idempotency_key])`, sau đó lookup composite
+  primary key; hash collision chỉ serialize, không tạo replay sai.
+- Đã bỏ việc tính fingerprint từ raw body ở seam mới: `canonicalCheckoutFingerprint` nhận
+  command đã parse, sort voucher theo `shop_id`/`code`, trim code và SHA-256 lowercase.
+- Retry/persistence orchestration vẫn cần gắn vào checkout transaction handler ở slice kế tiếp;
+  chưa tự mở `BEGIN/COMMIT` trong repository.
+- TDD: canonical fingerprint permutation test pass; typecheck pass.
 
 ### 2026-09-18 — Negative Test Orchestration & Domain Boundary Hardening
 
@@ -53,48 +94,27 @@
 
 | Tên | Trạng thái bàn giao | Version/ngày khóa | Người tiêu thụ |
 |---|---|---|---|
-| CheckoutCommand / CheckoutResult | Đề xuất, chưa khóa | Bản cập nhật 2026-09-18 | Người 1, Người 5 |
-| IdempotencyPort | Đề xuất, đã có interface & mock | Bản cập nhật 2026-09-18 | Người 1, Người 2, Người 5 |
+| `CheckoutCommand` / `CheckoutResult` | Đề xuất | Bản cập nhật 2026-09-18 | Người 1, Người 5 |
+| `IdempotencyPort` / `InMemoryIdempotencyAdapter` | Đã có interface & in-memory adapter | Bản cập nhật 2026-09-23 | Người 1, Người 2, Người 5 |
+| `IOrderQueryPort` (`ReviewOrderItemDTO`) | Đã bàn giao (sẵn sàng cho Review QD14) | v1 / 2026-09-23 | Người 4 |
+| `TransactionDomainEvent` (Order/Payment/Shipment) | Đã bàn giao (sẵn sàng cho Notification) | v1 / 2026-09-23 | Người 4 |
 | Endpoint checkout/cancel/transition/retry | Đề xuất trong checkout-contract.md | Bản cập nhật 2026-09-18 | Người 1 |
 
-Chưa có contract nào được xác nhận bàn giao/khóa trong đợt này do cần phối hợp với Người 1 và Người 2.
+## Việc còn lại trong mốc hiện tại (T2)
 
-## Việc còn lại trong mốc hiện tại
-
-### 2026-09-18 — idempotency advisory-lock seam
-
-- Đã thêm `PgIdempotencyRepository` transaction-scoped: advisory lock dùng canonical
-  `JSON.stringify(["v1", user_id, endpoint, idempotency_key])`, sau đó lookup composite
-  primary key; hash collision chỉ serialize, không tạo replay sai.
-- Đã bỏ việc tính fingerprint từ raw body ở seam mới: `canonicalCheckoutFingerprint` nhận
-  command đã parse, sort voucher theo `shop_id`/`code`, trim code và SHA-256 lowercase.
-- Retry/persistence orchestration vẫn cần gắn vào checkout transaction handler ở slice kế tiếp;
-  chưa tự mở `BEGIN/COMMIT` trong repository.
-- TDD: canonical fingerprint permutation test pass; typecheck pass.
-
-### 2026-09-19 — PostgreSQL checkout persistence
-
-- Đã thêm `PgCheckoutService`: checkout chạy trong `withTransaction`, khóa selected cart
-  rows/variant stock, snapshot Address/Product/Variant/price, ghi Order/OrderItem,
-  OrderStatusHistory, Payment, Notification và consume Voucher cùng transaction.
-- Same key/same fingerprint replay trả lại IDs; key khác payload trả `IDEMPOTENCY_KEY_REUSED`;
-  lock bận trả `REQUEST_IN_PROGRESS`; retry đúng SQLSTATE `40001`/`40P01`, tối đa 3 attempts,
-  backoff 25ms/50ms.
-- Đã thêm command handlers HTTP cho cancel/confirm/transition/payment retry, ownership và
-  role được kiểm tra ở handler ngoài middleware.
-- Typecheck/build pass; integration suite PostgreSQL sẽ chạy qua CI service `17.6`.
-
-- [ ] Order snapshot/history — Chưa hoàn thành; chờ Người 3 từ 2026-09-18: productName bắt buộc và được trả về, shopId qua Catalog port, quy tắc mapping VariantSnapshot. Chưa viết test RED, chưa tạo snapshot builder, chưa chạy GREEN.
 - [x] Xây domain service thuần cho ba state machine Order, Payment và Shipment.
 - [x] Viết unit test cho mọi transition hợp lệ, transition bị cấm và terminal state.
 - [x] Thiết kế checkout command/result, transaction boundary, danh sách bước checkout và idempotency interface.
 - [x] Tính tiền Order thuần với decimal exact và validation NUMERIC(15,2).
 - [x] Soạn thảo endpoint contract tạo Order, cancel, transition và retry Payment.
-- [ ] Khóa endpoint contract sau khi Người 1 review và thống nhất.
 - [x] Dùng mock Catalog, Cart và Voucher port để kiểm thử orchestration contract (13 tests positive & negative).
+- [x] Order snapshot và history domain service (`order-snapshot.ts`, QD08, QD11, QD20).
+- [x] Công bố Order query port / trạng thái `COMPLETED` cho Người 4 làm Review.
+- [x] Công bố Order/Payment/Shipment domain events cho Người 4 làm Notification.
+- [x] Triển khai In-memory Idempotency adapter.
 - [ ] Sau khi Người 3 khóa Catalog port và Người 4 khóa Cart/Voucher port: ráp checkout orchestration với các port thật.
-- [ ] Sau khi Người 2 hoàn thành migration và transaction helper: làm persistence, transaction integration và idempotency storage thật.
-- [ ] Sau khi Người 1 hoàn thành scaffold, API envelope và `RequestContext`: wiring endpoint.
+- [ ] Sau khi Người 2 hoàn thành migration và transaction helper: làm persistence, transaction integration và idempotency storage thật trên PostgreSQL.
+- [ ] Sau khi Người 1 hoàn thành scaffold, API envelope và `RequestContext`: wiring endpoint checkout/order/payment.
 
 ---
 
