@@ -8,6 +8,7 @@ import {
 } from '../domain/errors';
 import { checkReviewEligibility } from '../domain/review';
 import { validateCreateReviewDTO, type CreateReviewDTO } from '../contracts/buyer.dto';
+import { ReviewMediaService } from './review-media.service';
 
 /**
  * Service quản lý đánh giá sản phẩm (Review & ReviewImage).
@@ -15,12 +16,14 @@ import { validateCreateReviewDTO, type CreateReviewDTO } from '../contracts/buye
  * - [QD14]: Chỉ người mua sở hữu đơn hàng COMPLETED mới được đánh giá.
  * - [RB-LQH05]: Review.ProductID phải trùng với OrderItem.ProductID.
  * - [RB-LB09 / QD15 / RB-MG08]: Mỗi OrderItem chỉ được đánh giá 1 lần, rating 1..5.
+ * - [auth-rbac-rls.md §3 & §4]: Xác thực quyền sở hữu ảnh đánh giá qua ReviewMediaService.
  * - Dependency Inversion (D): Tách biệt qua IOrderQueryPort chính thức từ Người 5 và IReviewRepository.
  */
 export class ReviewService {
   constructor(
     private readonly reviewRepo: IReviewRepository,
-    private readonly orderQueryPort: IOrderQueryPort
+    private readonly orderQueryPort: IOrderQueryPort,
+    private readonly reviewMediaService: ReviewMediaService = new ReviewMediaService()
   ) {}
 
   async createReview(
@@ -67,6 +70,13 @@ export class ReviewService {
       buyerId
     );
 
+    // 4.5. [auth-rbac-rls §4] Xác thực danh sách ảnh nếu có theo chuẩn Storage RLS
+    const validatedImages = this.reviewMediaService.validateBuyerImages(
+      buyerId,
+      undefined,
+      validated.images
+    );
+
     // 5. Tạo review với trạng thái mặc định VISIBLE
     const now = new Date().toISOString();
     const newReview: Review = {
@@ -81,7 +91,7 @@ export class ReviewService {
       updatedAt: now,
     };
 
-    return this.reviewRepo.create(newReview, validated.images);
+    return this.reviewRepo.create(newReview, validatedImages);
   }
 
   async getReviewsByProduct(

@@ -118,6 +118,39 @@ describe('ReviewService Tests (TDD - Official IOrderQueryPort, Eligibility & Pro
       assert.deepEqual(savedImages, ['https://example.com/image1.jpg']);
     });
 
+    it('[auth-rbac-rls §4] chấp nhận tạo đánh giá kèm ảnh theo cấu trúc storage path của buyer', async () => {
+      const validImagePath = `users/${mockBuyerId}/reviews/22222222-2222-4222-8222-222222222222/33333333-3333-4333-8333-333333333333.jpg`;
+      const review = await reviewService.createReview(
+        mockBuyerId,
+        validOrderItemId,
+        validProductId,
+        {
+          rating: 5,
+          images: [validImagePath],
+        }
+      );
+
+      assert.equal(review.rating, 5);
+      const savedImages = reviewRepo.reviewImages.get(review.reviewId);
+      assert.deepEqual(savedImages, [validImagePath]);
+    });
+
+    it('[auth-rbac-rls §4] ném VALIDATION_FAILED khi ảnh có storage path thuộc về user khác', async () => {
+      const foreignImagePath = `users/${otherBuyerId}/reviews/22222222-2222-4222-8222-222222222222/33333333-3333-4333-8333-333333333333.jpg`;
+      await assert.rejects(
+        async () => reviewService.createReview(
+          mockBuyerId,
+          validOrderItemId,
+          validProductId,
+          {
+            rating: 5,
+            images: [foreignImagePath],
+          }
+        ),
+        (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
+      );
+    });
+
     it('[QD14] ném REVIEW_NOT_ELIGIBLE khi orderItem không tồn tại trên hệ thống Order', async () => {
       await assert.rejects(
         async () => reviewService.createReview(
