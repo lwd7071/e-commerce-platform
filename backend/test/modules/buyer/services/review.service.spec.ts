@@ -7,9 +7,12 @@ import {
   ValidationError,
 } from '../../../../src/modules/buyer/domain/errors';
 import type { IReviewRepository } from '../../../../src/modules/buyer/domain/repositories';
-import type { IOrderQueryPort } from '../../../../src/modules/buyer/ports/order-query.port';
+import type {
+  IOrderQueryPort,
+  ReviewOrderItemDTO,
+  OrderSummaryDTO,
+} from '../../../../src/modules/buyer/ports/order-query.port';
 import type { Review, UUID } from '../../../../src/modules/buyer/domain/types';
-import type { ReviewOrderItemContext } from '../../../../src/modules/buyer/domain/review';
 import { mockBuyerId } from '../fixtures';
 
 class MockReviewRepository implements IReviewRepository {
@@ -43,18 +46,30 @@ class MockReviewRepository implements IReviewRepository {
 }
 
 class MockOrderQueryPort implements IOrderQueryPort {
-  public contexts: Map<UUID, Omit<ReviewOrderItemContext, 'hasExistingReview'>> = new Map();
+  public items: Map<UUID, ReviewOrderItemDTO> = new Map();
+  public orders: Map<UUID, OrderSummaryDTO> = new Map();
 
-  setContext(orderItemId: UUID, context: Omit<ReviewOrderItemContext, 'hasExistingReview'>): void {
-    this.contexts.set(orderItemId, context);
+  setItem(orderItemId: UUID, item: ReviewOrderItemDTO): void {
+    this.items.set(orderItemId, item);
   }
 
-  async getOrderItemContext(orderItemId: UUID): Promise<Omit<ReviewOrderItemContext, 'hasExistingReview'> | null> {
-    return this.contexts.get(orderItemId) ?? null;
+  setOrder(orderId: UUID, order: OrderSummaryDTO): void {
+    this.orders.set(orderId, order);
+  }
+
+  async getOrderItemForReview(orderItemId: UUID, buyerId: UUID): Promise<ReviewOrderItemDTO | null> {
+    const item = this.items.get(orderItemId);
+    if (!item) return null;
+    if (item.buyerId !== buyerId) return null;
+    return item;
+  }
+
+  async getOrderSummary(orderId: UUID): Promise<OrderSummaryDTO | null> {
+    return this.orders.get(orderId) ?? null;
   }
 }
 
-describe('ReviewService Tests (TDD - Eligibility & Product Check)', () => {
+describe('ReviewService Tests (TDD - Official IOrderQueryPort, Eligibility & Product Check)', () => {
   let reviewRepo: MockReviewRepository;
   let orderQueryPort: MockOrderQueryPort;
   let reviewService: ReviewService;
@@ -70,17 +85,18 @@ describe('ReviewService Tests (TDD - Eligibility & Product Check)', () => {
     reviewService = new ReviewService(reviewRepo, orderQueryPort);
 
     // Context hợp lệ mặc định: đơn COMPLETED của mockBuyerId cho validProductId
-    orderQueryPort.setContext(validOrderItemId, {
+    orderQueryPort.setItem(validOrderItemId, {
       orderItemId: validOrderItemId,
       orderId: validOrderId,
       productId: validProductId,
       buyerId: mockBuyerId,
       orderStatus: 'COMPLETED',
+      hasExistingReview: false,
     });
   });
 
   describe('createReview', () => {
-    it('tạo đánh giá thành công khi đủ điều kiện (đơn COMPLETED, đúng Buyer, đúng Product)', async () => {
+    it('[Happy Path] tạo đánh giá thành công khi đủ điều kiện (đơn COMPLETED, đúng Buyer, đúng Product)', async () => {
       const review = await reviewService.createReview(
         mockBuyerId,
         validOrderItemId,
@@ -127,13 +143,14 @@ describe('ReviewService Tests (TDD - Eligibility & Product Check)', () => {
     });
 
     it('[QD14] ném REVIEW_NOT_ELIGIBLE khi trạng thái đơn hàng chưa phải là COMPLETED', async () => {
-      // Giả lập đơn hàng đang SHIPPED
-      orderQueryPort.setContext(validOrderItemId, {
+      // Giả lập đơn hàng đang SHIPPING
+      orderQueryPort.setItem(validOrderItemId, {
         orderItemId: validOrderItemId,
         orderId: validOrderId,
         productId: validProductId,
         buyerId: mockBuyerId,
-        orderStatus: 'SHIPPED',
+        orderStatus: 'SHIPPING',
+        hasExistingReview: false,
       });
 
       await assert.rejects(
@@ -161,7 +178,7 @@ describe('ReviewService Tests (TDD - Eligibility & Product Check)', () => {
       );
     });
 
-    it('[RB-LB09 / QD15] ném REVIEW_ALREADY_EXISTS khi OrderItem đã được đánh giá trước đó', async () => {
+    it('[RB-LB09] ném REVIEW_ALREADY_EXISTS khi OrderItem đã được đánh giá trước đó', async () => {
       // Đánh giá lần 1
       await reviewService.createReview(
         mockBuyerId,
@@ -182,7 +199,7 @@ describe('ReviewService Tests (TDD - Eligibility & Product Check)', () => {
       );
     });
 
-    it('[QD15 / RB-MG08] ném VALIDATION_FAILED khi rating nằm ngoài khoảng 1..5', async () => {
+    it('[QD15 / RB-MG08] ném VALIDATION_FAILED khi rating = 6 (vượt biên trên)', async () => {
       await assert.rejects(
         async () => reviewService.createReview(
           mockBuyerId,
@@ -192,7 +209,9 @@ describe('ReviewService Tests (TDD - Eligibility & Product Check)', () => {
         ),
         (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
+    });
 
+    it('[QD15 / RB-MG08] ném VALIDATION_FAILED khi rating = 0 (dưới biên dưới)', async () => {
       await assert.rejects(
         async () => reviewService.createReview(
           mockBuyerId,

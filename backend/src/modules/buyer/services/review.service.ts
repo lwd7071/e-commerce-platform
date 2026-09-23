@@ -15,7 +15,7 @@ import { validateCreateReviewDTO, type CreateReviewDTO } from '../contracts/buye
  * - [QD14]: Chỉ người mua sở hữu đơn hàng COMPLETED mới được đánh giá.
  * - [RB-LQH05]: Review.ProductID phải trùng với OrderItem.ProductID.
  * - [RB-LB09 / QD15 / RB-MG08]: Mỗi OrderItem chỉ được đánh giá 1 lần, rating 1..5.
- * - Dependency Inversion (D): Tách biệt qua IOrderQueryPort stub và IReviewRepository.
+ * - Dependency Inversion (D): Tách biệt qua IOrderQueryPort chính thức từ Người 5 và IReviewRepository.
  */
 export class ReviewService {
   constructor(
@@ -31,8 +31,8 @@ export class ReviewService {
   ): Promise<Review> {
     const validated: CreateReviewDTO = validateCreateReviewDTO(rawInput);
 
-    // 1. Lấy thông tin order item context từ IOrderQueryPort
-    const orderItemContext = await this.orderQueryPort.getOrderItemContext(orderItemId);
+    // 1. Lấy thông tin order item context từ IOrderQueryPort chính thức từ Người 5
+    const orderItemContext = await this.orderQueryPort.getOrderItemForReview(orderItemId, buyerId);
     if (!orderItemContext) {
       throw new ReviewNotEligibleError('OrderItem không tồn tại hoặc không thể đánh giá (QD14).', {
         orderItemId,
@@ -54,10 +54,14 @@ export class ReviewService {
     const existingReview = await this.reviewRepo.findByOrderItemId(orderItemId);
     const hasExistingReview = !!existingReview;
 
-    // 4. [QD14, RB-LB09] Kiểm tra điều kiện đánh giá
+    // 4. [QD14, RB-LB09] Kiểm tra điều kiện đánh giá (COMPLETED, buyer ownership, duplicate review)
     checkReviewEligibility(
       {
-        ...orderItemContext,
+        orderItemId: orderItemContext.orderItemId,
+        orderId: orderItemContext.orderId,
+        productId: orderItemContext.productId,
+        buyerId: orderItemContext.buyerId,
+        orderStatus: orderItemContext.orderStatus,
         hasExistingReview,
       },
       buyerId
