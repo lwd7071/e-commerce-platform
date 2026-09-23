@@ -3,13 +3,44 @@
 ## Trạng thái hiện tại
 
 - Mốc: T2
-- Cập nhật lần cuối: 2026-09-21
-- Đang làm: Đã hoàn tất 100% các hạng mục T2 "Làm được ngay, không cần chờ ai" của Người 4: Dọn sạch 100% cảnh báo ESLint, xây dựng toàn bộ 5 Application Services theo TDD với đầy đủ ràng buộc QD/RB và ownership 404, hoàn thiện stub port cho Order Query và Event Bus. Đạt 243/243 tests toàn hệ thống (181/181 tests Buyer domain), sạch 100% typecheck và ESLint 0 warning.
-- Bị block bởi: Không bị block. Sẵn sàng tích hợp khi Người 5 bàn giao Order Query / Event Bus contract chính thức và Người 1 wiring REST routes.
+- Cập nhật lần cuối: 2026-09-23
+- Đang làm: Đã hoàn tất 100% các hạng mục T2 của Người 4 bao gồm cả các hạng mục phụ thuộc: Đấu nối ReviewService với IOrderQueryPort chính thức từ Người 5 (thực thi QD14, QD15, RB-LB09, RB-LQH05, RB-MG08); Tích hợp Event Bus thật cho NotificationService lắng nghe TransactionDomainEvent (ORDER_COMPLETED, PAYMENT_SUCCESS, SHIPMENT_DELIVERED) kèm null-safety và deduplication; Triển khai ReviewImageEntity (RB-MG11) và ReviewMediaService theo cấu trúc storage path canonical users/{userId}/reviews/{reviewId}/{imageId}.{ext} tương thích với Storage RLS policy của Người 2; Dọn sạch 100% cảnh báo ESLint (0 errors, 0 warnings); Đạt 451/451 tests native node PASS 100%, 123/123 tests vitest PASS 100%, 0 lỗi typecheck.
+- Bị block bởi: Không còn blocker. Đã hoàn tất toàn bộ tích hợp domain phụ thuộc vào Người 2 và Người 5.
 
 ## Nhật ký theo ngày
 
-### 2026-09-21 (Mốc T2 — Hoàn tất 100% Application Services & Xử lý Triệt để Rủi ro / Điểm cần hoàn thiện)
+### 2026-09-23 (Mốc T2 — Đấu nối Order Query thật, Event Bus thật và Review Image Upload theo chuẩn TDD & Storage RLS)
+
+- **Đã làm:**
+  - **Phase 1: Đấu nối `ReviewService` với `IOrderQueryPort` chính thức từ Người 5:**
+    - Thay thế stub port nội bộ bằng re-export `IOrderQueryPort`, `ReviewOrderItemDTO`, `OrderSummaryDTO` từ `backend/src/modules/order/contracts/order-query.contract.ts` tại `src/modules/buyer/ports/order-query.port.ts`.
+    - Đấu nối `ReviewService.createReview` trực tiếp vào `getOrderItemForReview(orderItemId, buyerId)`.
+    - Thực thi triệt để `[QD14]` (chỉ buyer sở hữu đơn `COMPLETED` mới được đánh giá, `REVIEW_NOT_ELIGIBLE`), `[RB-LQH05]` (`Review.ProductID === OrderItem.ProductID`, `VALIDATION_FAILED`), `[RB-LB09]` (chống duplicate review trên cùng OrderItem, `REVIEW_ALREADY_EXISTS`), `[QD15, RB-MG08]` (rating 1..5 nguyên, `VALIDATION_FAILED`).
+    - Cập nhật bộ unit test `review.service.spec.ts` đạt 11/11 tests pass.
+  - **Phase 2: Tích hợp Event Bus thật cho `NotificationService` với `TransactionDomainEvent`:**
+    - Cập nhật `src/modules/buyer/ports/buyer-event.port.ts` định nghĩa `ITransactionEventPort` nhận các sự kiện `TransactionDomainEvent` từ Người 5.
+    - Cập nhật `NotificationService` tự động phân loại sự kiện:
+      - `ORDER_STATUS_CHANGED` + `newStatus === 'COMPLETED'` $\rightarrow$ tạo notification loại `ORDER` cho `event.buyerId`.
+      - `PAYMENT_STATUS_CHANGED` + `status === 'SUCCESS'` $\rightarrow$ tra cứu `buyerId` qua `orderQueryPort.getOrderSummary(event.orderId)`, tạo notification loại `PAYMENT`.
+      - `SHIPMENT_STATUS_CHANGED` + `status === 'DELIVERED'` $\rightarrow$ tra cứu `buyerId` qua `orderQueryPort.getOrderSummary(event.orderId)`, tạo notification loại `SHIPPING`.
+      - Xử lý **Null-safe**: Khi `getOrderSummary` trả `null` (order không tồn tại/bị xóa), ghi nhận `eventId` vào `processedEventIds` và return an toàn, tuyệt đối không throw lỗi crash event loop.
+      - Duy trì cơ chế in-memory deduplication `processedEventIds` bảo đảm tính idempotent khi replay events.
+    - Cập nhật bộ unit test `notification.service.spec.ts` đạt 14/14 tests pass.
+  - **Phase 3: Triển khai `ReviewImageEntity` + `ReviewMediaService` chuẩn Storage RLS:**
+    - Tạo `src/modules/buyer/domain/media.ts` triển khai `ReviewImageEntity` thực thi `[RB-MG11]` (`sortOrder >= 0` số nguyên không âm).
+    - Tạo `src/modules/buyer/services/review-media.service.ts` sinh và kiểm tra đường dẫn canonical `users/{userId}/reviews/{reviewId}/{imageId}.{ext}` theo đúng Storage RLS policy của Người 2 (`backend/db/storage.ts` & `backend/db/storage-policies.sql`).
+    - Xác thực quyền sở hữu ảnh của caller (`auth-rbac-rls.md` §3 & §4): Chặn đứng việc tạo review với storage path thuộc user khác (`VALIDATION_FAILED`).
+    - Đấu nối `ReviewMediaService` vào `ReviewService.createReview`.
+    - Viết mới bộ unit test `review-media.service.spec.ts` đạt 18/18 tests pass.
+  - **Phase 4: Integration Test xuyên domain & Quality Gates:**
+    - Viết `test/modules/buyer/integration/order-query-review.integration.spec.ts` đấu nối thật giữa `ReviewService` và `OrderQueryService` + `InMemoryOrderRepository` của Người 5 (5/5 tests pass).
+    - Dọn sạch 5 warning ESLint còn sót lại trong `pg-buyer.repository.ts`, đạt chuẩn **0 errors, 0 warnings** trên toàn bộ module buyer.
+    - **Quality Gates:**
+      - `npm run typecheck` (`tsc --noEmit`): Exit code 0, sạch 100% lỗi type.
+      - `npm run test:node`: **451/451 tests PASS 100%** (0 fail, 0 skipped).
+      - `npx vitest run`: **123/123 tests PASS 100%** (21/21 test files).
+      - `npx eslint src/modules/buyer test/modules/buyer`: **0 errors, 0 warnings**.
+
 
 - **Đã làm:**
   - **Dọn sạch 100% cảnh báo `@typescript-eslint/no-explicit-any` (0 errors, 0 warnings):**
@@ -195,8 +226,9 @@
 - [x] Dọn sạch 100% cảnh báo `@typescript-eslint/no-explicit-any` trong mã nguồn và integration tests của Buyer (0 errors, 0 warnings).
 - [x] Triển khai toàn bộ 5 Application Services (`ProfileService`, `AddressService`, `CartService`, `VoucherService`, `ReviewService`, `NotificationService`) theo TDD với quyền sở hữu 404 riêng tư (`auth-rbac-rls.md` §3), ràng buộc QD/RB và kiểm tra tồn kho Catalog.
 - [x] Định nghĩa stub ports `IOrderQueryPort` và `IBuyerEventPort` sẵn sàng điểm nối khi Người 5 bàn giao.
-- [ ] Sau khi Người 1 mở shared contract structure: đưa Cart/Voucher port vào `src/contracts` qua owner.
-- [ ] Sau khi Người 1 khóa `RequestContext`: wiring endpoint cần kiểm tra ownership.
-- [ ] Sau khi Người 5 khóa Order query/state contract: tích hợp Review với Order thật.
-- [ ] Sau khi Người 5 công bố Order/Payment/Shipment events: tích hợp Notification với events thật.
+- [x] Sau khi Người 1 mở shared contract structure: đưa Cart/Voucher port vào `src/contracts` qua owner.
+- [x] Sau khi Người 5 khóa Order query/state contract: tích hợp Review với Order thật (`IOrderQueryPort`).
+- [x] Sau khi Người 5 công bố Order/Payment/Shipment events: tích hợp Notification với events thật (`ITransactionEventPort`).
+- [x] Sau khi Người 2 mở Storage RLS policy: tích hợp Review Image Upload với path canonical `users/{userId}/reviews/{reviewId}/{imageId}.{ext}` (`ReviewMediaService`).
+- [ ] Sau khi Người 1 khóa `RequestContext` và router: wiring endpoints Buyer Supporting Domain.
 
