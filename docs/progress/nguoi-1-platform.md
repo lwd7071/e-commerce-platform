@@ -3,11 +3,46 @@
 ## Trạng thái hiện tại
 
 - Mốc: T2
-- Cập nhật lần cuối: 2026-09-21
-- Đang làm: ĐÃ HOÀN THÀNH 100% tất cả các Phase của Mốc T2 và hoàn thiện gắn kết nối PostgreSQL Transaction thật vào Runtime App
+- Cập nhật lần cuối: 2026-09-23
+- Đang làm: ĐÃ HOÀN THÀNH 100% đấu nối Health Check thật (đo probe latency & pool metrics), Buyer Routes (5 Application Services kèm quyền sở hữu 404), Order & Checkout Routes (Transactional Checkout, Order Lifecycle cancel & restock, Order Query) và Domain Error Mapping.
 - Bị block bởi: Không
 
 ## Nhật ký theo ngày
+
+### 2026-09-23 (T2 Wiring — Đấu nối Health Check thật, Buyer Routes & Order/Checkout Routes)
+
+- Đã làm:
+  - **Đấu nối Health Check Endpoint thật (`GET /api/v1/health`):**
+    - Hiện thực hóa `createHealthRouter(pool?: Pool)` kết nối trực tiếp `checkDatabaseHealth(pool)` từ `backend/db/health.ts` của Người 2.
+    - Đo lường probe query `SELECT 1 AS probe`, latency truy vấn (ms), connection pool metrics (`totalCount`, `idleCount`, `waitingCount`).
+    - Xử lý trạng thái degraded/unhealthy: trả về HTTP 503 khi probe query thất bại hoặc timeout; fallback 200 ok cho môi trường test không có database pool.
+    - Viết bộ test `test/platform/health-route.spec.ts` (3/3 pass).
+  - **Wiring đầy đủ Buyer Routes (`src/platform/http/routes/buyer-routes.ts`):**
+    - Đấu nối 5 Application Services của Người 4: `AddressService`, `CartService`, `VoucherService`, `ReviewService`, `NotificationService`.
+    - Bảo vệ nghiêm ngặt quyền hạn `requireRole('BUYER')` và chính sách bảo mật quyền sở hữu theo `auth-rbac-rls.md §3` (trả về 404 `RESOURCE_NOT_FOUND` thay vì 403 khi truy cập tài nguyên của user khác).
+    - Cung cấp trọn bộ REST endpoints: Address CRUD & Set Default, Cart & Items (kiểm tra tồn kho 409 `INVENTORY_INSUFFICIENT`), Vouchers Preview/Evaluate, Reviews (kiểm tra đơn `COMPLETED` QD14), và Notifications (mark as read idempotent RB-LTT07).
+    - Viết bộ test `test/platform/buyer-routes.spec.ts` (14/14 pass).
+  - **Wiring Route Checkout & Order (`src/platform/http/routes/order-routes.ts`):**
+    - Đấu nối `POST /api/v1/checkout` và alias `POST /api/v1/orders` vào `executeTransactionalCheckout` / `checkoutService` (12 bước nguyên tử, bắt buộc header `Idempotency-Key` 16–128 ký tự).
+    - Đấu nối `POST /api/v1/orders/:id/cancel` vào `OrderLifecycleService.cancelOrder` (bắt buộc `reason` không rỗng theo QD12, chuyển trạng thái `CANCELLED` và kích hoạt restock hoàn tồn kho theo QD13).
+    - Đấu nối `GET /api/v1/orders` và `GET /api/v1/orders/:id` vào `OrderQueryService` và `IOrderRepository` (kiểm tra quyền sở hữu Buyer/Seller/Admin).
+    - Viết bộ test `test/platform/order-routes.spec.ts` (7/7 pass).
+  - **Nâng cấp Domain Error Handler (`src/platform/http/middlewares/error-handler.ts`):**
+    - Tự động ánh xạ toàn bộ mã lỗi domain từ Người 4 và Người 5 sang HTTP status chuẩn (`VALIDATION_FAILED`, `REASON_REQUIRED`, `REVIEW_NOT_ELIGIBLE` -> 422; `RESOURCE_NOT_FOUND` -> 404; `RESOURCE_FORBIDDEN` -> 403; `CONFLICT`, `CART_CONFLICT`, `INVENTORY_INSUFFICIENT`, `IDEMPOTENCY_KEY_REUSED` -> 409; `IDEMPOTENCY_KEY_REQUIRED` -> 400).
+  - **Khắc phục lỗi ESLint tồn đọng trên dev:**
+    - Khai báo node globals trong `eslint.config.js` cho thư mục `scripts/**`.
+    - Chuyển `OrderItemRecord` sang type alias để tuân thủ `@typescript-eslint/no-empty-object-type`.
+- Quyết định kỹ thuật:
+  - Hỗ trợ song song cả domain services mới lẫn legacy HTTP application interfaces trong `createBuyerDomainRouter` và `createOrderDomainRouter` để bảo đảm 100% không bị regression với các test contracts mốc T1.
+- Contract/port thay đổi:
+  - Cung cấp router đầy đủ cho Buyer và Order/Checkout, hoàn tất tích hợp giữa Người 1, 2, 4, 5.
+- Blocker phát sinh:
+  - Không.
+- Test đã viết:
+  - `health-route.spec.ts`: 3 tests pass.
+  - `buyer-routes.spec.ts`: 14 tests pass.
+  - `order-routes.spec.ts`: 7 tests pass.
+  - Toàn bộ suite `npm run test:node`: **450/450 tests pass** (100%).
 
 ### 2026-09-21 (T2 Hoàn thiện — Gắn kết nối PostgreSQL Transaction & Target Repository vào Runtime App)
 

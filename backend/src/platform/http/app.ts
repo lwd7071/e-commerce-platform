@@ -1,8 +1,11 @@
-import express, { type Application } from 'express';
+import express, { type Application, type RequestHandler } from 'express';
+import type { Pool } from 'pg';
 import { requestIdMiddleware } from './middlewares/request-id.ts';
 import { errorHandlerMiddleware } from './middlewares/error-handler.ts';
-import { healthRouter } from '../routes/health.ts';
-import { createBuyerRouter, createCatalogRouter, createOrderRouter, type T1RouteApplications } from './routes/t1-routes.ts';
+import { createHealthRouter } from '../routes/health.ts';
+import { createCatalogRouter, type CatalogHttpApplication, type BuyerHttpApplication, type OrderHttpApplication, type T1RouteApplications } from './routes/t1-routes.ts';
+import { createBuyerDomainRouter, type BuyerServices } from './routes/buyer-routes.ts';
+import { createOrderDomainRouter, type OrderServices } from './routes/order-routes.ts';
 import { createAdminRouter } from './routes/admin-routes.ts';
 import { createDatabasePool, closeDatabasePool } from '../../../db/client.ts';
 import { loadDatabaseConfig } from '../../../db/config.ts';
@@ -25,17 +28,28 @@ declare global {
   }
 }
 
-export function createApp(applications: T1RouteApplications = {}): Application {
+export interface PlatformApplications extends T1RouteApplications {
+  pool?: Pool;
+  buyerServices?: BuyerServices;
+  orderServices?: OrderServices;
+}
+
+export function createApp(applications: PlatformApplications = {}): Application {
   const app = express();
 
   app.use(requestIdMiddleware);
   app.use(express.json());
 
-  app.use('/api/v1/health', healthRouter);
+  app.use('/api/v1/health', createHealthRouter(applications.pool));
   const auth = applications.auth;
   app.use('/api/v1', createCatalogRouter(applications.catalog, auth));
-  app.use('/api/v1', createBuyerRouter(applications.buyer, auth));
-  app.use('/api/v1', createOrderRouter(applications.orders, auth));
+
+  const buyerTarget = applications.buyerServices ?? applications.buyer;
+  app.use('/api/v1', createBuyerDomainRouter(buyerTarget, auth));
+
+  const orderTarget = applications.orderServices ?? applications.orders;
+  app.use('/api/v1', createOrderDomainRouter(orderTarget, auth));
+
   app.use('/api/v1', createAdminRouter(applications.moderation, auth));
 
   app.use(errorHandlerMiddleware);
@@ -67,6 +81,7 @@ export function createRuntimeApp(environment: NodeJS.ProcessEnv = process.env): 
   });
   return {
     app: createApp({
+      pool,
       auth: createAuthMiddleware(authRepository, verifier),
       catalog: new PgCatalogHttpService(pool),
       buyer: new PgBuyerHttpService(pool),
