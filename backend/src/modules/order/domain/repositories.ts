@@ -18,7 +18,7 @@ export interface OrderRecord extends OrderAddressSnapshot {
   readonly updatedAt: string;
 }
 
-export interface OrderItemRecord extends OrderItemSnapshot {}
+export type OrderItemRecord = OrderItemSnapshot;
 
 export interface IOrderRepository {
   /**

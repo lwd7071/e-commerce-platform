@@ -126,6 +126,62 @@ export const errorHandlerMiddleware: ErrorRequestHandler = (
     }
   }
 
+  // 4. Handle Domain & Contract Errors (Buyer, Order, Checkout)
+  const maybeDomain = err as { code?: unknown; details?: unknown; message?: unknown; name?: unknown };
+  if (
+    err instanceof Error &&
+    typeof maybeDomain.code === 'string' &&
+    maybeDomain.code !== 'INTERNAL_ERROR' &&
+    !/^\d{5}$/.test(maybeDomain.code)
+  ) {
+    const code = maybeDomain.code;
+    const details = maybeDomain.details;
+    const message = err.message;
+
+    let httpStatus = 400;
+    if (
+      code === 'VALIDATION_FAILED' ||
+      code === 'REASON_REQUIRED' ||
+      code === 'VOUCHER_NOT_APPLICABLE' ||
+      code === 'REVIEW_NOT_ELIGIBLE'
+    ) {
+      httpStatus = 422;
+    } else if (code === 'RESOURCE_NOT_FOUND') {
+      httpStatus = 404;
+    } else if (code === 'RESOURCE_FORBIDDEN') {
+      httpStatus = 403;
+    } else if (
+      code === 'CONFLICT' ||
+      code === 'CART_CONFLICT' ||
+      code === 'CART_ITEM_CONFLICT' ||
+      code === 'DEFAULT_ADDRESS_CONFLICT' ||
+      code === 'INVENTORY_INSUFFICIENT' ||
+      code === 'REVIEW_ALREADY_EXISTS' ||
+      code === 'INVALID_STATE_TRANSITION' ||
+      code === 'IDEMPOTENCY_KEY_REUSED' ||
+      code === 'REQUEST_IN_PROGRESS'
+    ) {
+      httpStatus = 409;
+    } else if (code === 'DEPENDENCY_UNAVAILABLE') {
+      httpStatus = 503;
+    } else if (code === 'IDEMPOTENCY_KEY_REQUIRED' || code === 'INVALID_REQUEST') {
+      httpStatus = 400;
+    }
+
+    logger.warn(message, {
+      request_id: requestId,
+      method: req.method,
+      route: req.path,
+      status: httpStatus,
+      error_code: code
+    });
+
+    res.status(httpStatus).json(
+      buildErrorEnvelope(code, message, requestId, details)
+    );
+    return;
+  }
+
   // 4. Handle unexpected / unhandled runtime errors
   // Quality gate: NEVER leak stack trace, SQL errors, or DB credentials to client
   const actualError = err instanceof Error ? err : new Error(String(err));
