@@ -1,11 +1,11 @@
-import type { ReviewOrderItemContext } from '../domain/review';
-import type { UUID } from '../domain/types';
-
 /**
- * Temporary internal stub port for Person 4 T2 testing.
- * Will be COMPLETELY DISCARDED AND REPLACED once Person 5 delivers the official Order Query contract.
- * Note: hasExistingReview is handled directly by IReviewRepository in Buyer domain.
+ * Re-export chính thức IOrderQueryPort từ Người 5 (Transaction Core).
+ * Thay thế hoàn toàn stub port nội bộ T2 — sẵn sàng đấu nối thật.
+ * Nguồn: backend/src/modules/order/contracts/order-query.contract.ts
  */
-export interface IOrderQueryPort {
-  getOrderItemContext(orderItemId: UUID): Promise<Omit<ReviewOrderItemContext, 'hasExistingReview'> | null>;
-}
+export type {
+  IOrderQueryPort,
+  ReviewOrderItemDTO,
+  OrderSummaryDTO,
+  UUID,
+} from '../../order/contracts/order-query.contract.ts';
