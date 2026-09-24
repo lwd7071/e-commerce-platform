@@ -23,6 +23,7 @@ import { PgTransactionManager } from '../database/pg-transaction-manager.ts';
 import { createSecurityHeadersMiddleware, createCorsMiddleware } from './middlewares/security-headers.ts';
 import { createLayeredRateLimiter } from './middlewares/rate-limiter.ts';
 import { createMetricsMiddleware } from '../observability/metrics-middleware.ts';
+import { generateOpenApiSpec } from '../openapi/openapi-spec.ts';
 
 declare global {
   namespace Express {
@@ -50,6 +51,10 @@ export function createApp(applications: PlatformApplications = {}): Application 
     app.use(applications.rateLimiter ?? createLayeredRateLimiter());
   }
   app.use(express.json());
+
+  app.get('/api/v1/openapi.json', (_req, res) => {
+    res.json(generateOpenApiSpec());
+  });
 
   app.use('/api/v1/health', createHealthRouter(applications.pool));
   const auth = applications.auth;
