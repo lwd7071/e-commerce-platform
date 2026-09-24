@@ -22,6 +22,7 @@ import { PgTransactionManager } from '../database/pg-transaction-manager.ts';
 
 import { createSecurityHeadersMiddleware, createCorsMiddleware } from './middlewares/security-headers.ts';
 import { createLayeredRateLimiter } from './middlewares/rate-limiter.ts';
+import { createMetricsMiddleware } from '../observability/metrics-middleware.ts';
 
 declare global {
   namespace Express {
@@ -43,6 +44,7 @@ export function createApp(applications: PlatformApplications = {}): Application 
 
   app.use(createSecurityHeadersMiddleware());
   app.use(createCorsMiddleware());
+  app.use(createMetricsMiddleware());
   app.use(requestIdMiddleware);
   if (applications.rateLimiter !== false) {
     app.use(applications.rateLimiter ?? createLayeredRateLimiter());

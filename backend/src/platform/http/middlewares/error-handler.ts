@@ -50,7 +50,30 @@ export const errorHandlerMiddleware: ErrorRequestHandler = (
     return;
   }
 
-  // 3. Handle PostgreSQL database errors (code 23505, 23503, 23514, etc.)
+  // 3. Handle service dependency / connection pool failures (57P01, ECONNREFUSED, timeout, etc.)
+  const maybeErr = err as { code?: unknown; message?: unknown };
+  const errCode = typeof maybeErr?.code === 'string' ? maybeErr.code : '';
+  const errMsg = typeof maybeErr?.message === 'string' ? maybeErr.message : (err instanceof Error ? err.message : '');
+
+  const isDependencyDown =
+    ['57P01', '57P02', '57P03', '08000', '08003', '08006', 'ECONNREFUSED', 'ETIMEDOUT'].includes(errCode) ||
+    /connection (?:terminated|timeout|refused)|timeout exceeded when connecting to database/i.test(errMsg);
+
+  if (isDependencyDown) {
+    const code = 'DEPENDENCY_UNAVAILABLE';
+    const message = 'Database dependency is temporarily unavailable';
+    logger.error(message, {
+      request_id: requestId,
+      method: req.method,
+      route: req.path,
+      status: 503,
+      error_code: code
+    });
+    res.status(503).json(buildErrorEnvelope(code, message, requestId));
+    return;
+  }
+
+  // 4. Handle PostgreSQL database errors (code 23505, 23503, 23514, etc.)
   const maybePg = err as { code?: unknown; constraint?: unknown; detail?: unknown; message?: unknown };
   if (maybePg && typeof maybePg.code === 'string') {
     // Unique violation (23505)
