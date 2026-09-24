@@ -75,12 +75,13 @@ export async function runConcurrentTransactions<T>(
         data: result,
         durationMs: Date.now() - startTime,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       await client.query('ROLLBACK').catch(() => {});
+      const pgError = error as (Error & { code?: string; detail?: string });
       return {
         workerIndex,
         success: false,
-        error,
+        error: pgError,
         durationMs: Date.now() - startTime,
       };
     } finally {
@@ -134,7 +135,7 @@ export interface QueryPlanResult {
 export async function explainQueryPlan(
   client: Queryable,
   query: string,
-  params: any[] = [],
+  params: unknown[] = [],
 ): Promise<QueryPlanResult> {
   const explainSql = `EXPLAIN (FORMAT JSON) ${query}`;
   const res = await client.query(explainSql, params);
@@ -142,20 +143,22 @@ export async function explainQueryPlan(
   const rawJson = res.rows[0]?.['QUERY PLAN'] ?? res.rows[0];
   const planData = typeof rawJson === 'string' ? JSON.parse(rawJson) : rawJson;
 
-  const rootPlan = Array.isArray(planData) ? planData[0]?.Plan : planData?.Plan;
+  const rootPlan = (Array.isArray(planData) ? planData[0]?.Plan : planData?.Plan) as Record<string, unknown> | undefined;
   const scans: PlanScanNode[] = [];
 
-  const traverse = (node: any) => {
+  const traverse = (node: Record<string, unknown> | null | undefined) => {
     if (!node) return;
-    if (node['Node Type']) {
+    if (typeof node['Node Type'] === 'string') {
       scans.push({
-        nodeType: node['Node Type'],
-        relationName: node['Relation Name'],
-        indexName: node['Index Name'],
+        nodeType: node['Node Type'] as string,
+        relationName: node['Relation Name'] as string | undefined,
+        indexName: node['Index Name'] as string | undefined,
       });
     }
     if (Array.isArray(node.Plans)) {
-      for (const child of node.Plans) traverse(child);
+      for (const child of node.Plans) {
+        traverse(child as Record<string, unknown>);
+      }
     }
   };
 

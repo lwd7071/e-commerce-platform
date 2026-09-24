@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import type { QueryResult, QueryResultRow } from 'pg';
 
 export interface Queryable {
-  query<R extends QueryResultRow = any, I extends any[] = any[]>(
+  query<R extends QueryResultRow = QueryResultRow, I extends unknown[] = unknown[]>(
     queryText: string,
     values?: I,
   ): Promise<QueryResult<R>>;
