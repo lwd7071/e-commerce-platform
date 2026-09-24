@@ -1,4 +1,4 @@
-import { redactSensitiveData } from './redact.ts';
+import { redactSensitiveData, sanitizeString } from './redact.ts';
 
 export type LogLevel = 'info' | 'warn' | 'error' | 'debug';
 
@@ -34,7 +34,7 @@ export function createPlatformLogger(
       level,
       service,
       environment: process.env.NODE_ENV || 'development',
-      message,
+      message: sanitizeString(message),
       ...cleanContext
     };
 
