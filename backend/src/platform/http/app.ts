@@ -25,6 +25,9 @@ import { createLayeredRateLimiter } from './middlewares/rate-limiter.ts';
 import { createMetricsMiddleware } from '../observability/metrics-middleware.ts';
 import { generateOpenApiSpec } from '../openapi/openapi-spec.ts';
 
+import { validateEnvConfig } from '../config/env-config.ts';
+import { AuthConfigurationError } from '../errors/app-error.ts';
+
 declare global {
   namespace Express {
     interface Request {
@@ -82,18 +85,19 @@ export interface RuntimeApp {
 
 /** Runtime composition: one pool, one auth repository and a non-stub JWT verifier. */
 export function createRuntimeApp(environment: NodeJS.ProcessEnv = process.env): RuntimeApp {
+  const envConfig = validateEnvConfig(environment);
   const config = loadDatabaseConfig(environment);
   const pool = createDatabasePool(config);
-  const supabaseUrl = environment.SUPABASE_URL;
-  const jwksUrl = environment.SUPABASE_JWKS_URL;
+  const supabaseUrl = envConfig.supabaseUrl ?? environment.SUPABASE_URL;
+  const jwksUrl = envConfig.supabaseJwksUrl ?? environment.SUPABASE_JWKS_URL;
   if (!supabaseUrl || !jwksUrl) {
-    throw new Error('SUPABASE_URL and SUPABASE_JWKS_URL are required for runtime auth');
+    throw new AuthConfigurationError('SUPABASE_URL and SUPABASE_JWKS_URL are required for runtime auth');
   }
   const authRepository = new PgAuthRepository(pool);
   const verifier = new SupabaseJwtVerifier({
     jwksUrl: new URL(jwksUrl),
     issuer: new URL('/auth/v1', supabaseUrl).toString().replace(/\/$/, ''),
-    audience: environment.SUPABASE_JWT_AUDIENCE ?? 'authenticated',
+    audience: envConfig.supabaseJwtAudience ?? 'authenticated',
   });
   return {
     app: createApp({
