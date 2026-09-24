@@ -2,12 +2,34 @@
 
 ## Trạng thái hiện tại
 
-- Mốc: T2
-- Cập nhật lần cuối: 2026-09-23
-- Đang làm: ĐÃ HOÀN THÀNH 100% đấu nối Health Check thật (đo probe latency & pool metrics), Buyer Routes (5 Application Services kèm quyền sở hữu 404), Order & Checkout Routes (Transactional Checkout, Order Lifecycle cancel & restock, Order Query) và Domain Error Mapping.
+- Mốc: T3
+- Cập nhật lần cuối: 2026-09-24
+- Đang làm: Khởi động Mốc T3 — Hardening & Security (Rate limit, Security headers, Secret leak prevention, Security tests, OpenAPI generation, Production readiness)
 - Bị block bởi: Không
 
 ## Nhật ký theo ngày
+
+### 2026-09-24 (Khởi động Mốc T3 — Đồng bộ dev, gộp T2 Wiring và sẵn sàng Hardening)
+
+- Đã làm:
+  - Pull code mới nhất từ `origin/dev` (bao gồm toàn bộ mốc T3 Phase 1 của Người 2: database foundation hardening, migration rebuild verification, strict history retention RLS, backup/restore snapshot và concurrency harness).
+  - Gộp thành công nhánh `feat/t2-p1-wiring` (đấu nối Health Check thật, Buyer Routes 5 services, Order/Checkout routes và Error handling) vào `dev`.
+  - Cập nhật đồng bộ các mock interface trong `test/platform/buyer-routes.spec.ts` và `test/platform/order-routes.spec.ts` tương thích 100% với domain contract mới nhất của Người 3, 4, 5 (`ICartRepository`, `IVoucherRepository`, `IReviewRepository`, `ICatalogPort`, `IOrderRepository`, `OrderItemSnapshot`).
+  - Tạo nhánh làm việc chính thức cho Mốc T3: `feat/t3-nguoi-1-platform`.
+  - Xác minh toàn diện 4 quality gates:
+    - `npm run typecheck`: PASS (0 error).
+    - `npm run lint`: PASS (0 error).
+    - `npm run build`: PASS (bundle `dist/app.js` 105.9kb).
+    - `npm run test:node`: PASS **450/450 tests (100%)**.
+- Quyết định kỹ thuật:
+  - Đồng bộ toàn diện giữa mã nguồn T2 wiring của Platform với các contract mới nhất trên nhánh `dev`, bảo đảm không có regression trước khi tiến hành hardening bảo mật T3.
+- Contract/port thay đổi:
+  - Không.
+- Blocker phát sinh:
+  - Không.
+- Test đã chạy:
+  - Full suite `node:test` + `tsx`: 450/450 tests pass.
+
 
 ### 2026-09-23 (T2 Wiring — Đấu nối Health Check thật, Buyer Routes & Order/Checkout Routes)
 
