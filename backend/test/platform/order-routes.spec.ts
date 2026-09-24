@@ -66,13 +66,11 @@ function createMockOrderServices() {
       orderId: '00000000-0000-4000-8000-000000000001',
       variantId: '00000000-0000-4000-8000-000000000021',
       productId: '00000000-0000-4000-8000-000000000031',
-      productName: 'Ao thun',
-      variantName: 'Size M',
-      variantValue: 'M',
-      price: '50000',
+      productNameSnapshot: 'Ao thun',
+      variantSnapshot: 'Size M: M',
+      unitPrice: '50000',
       quantity: 2,
-      totalPrice: '100000',
-      createdAt: new Date().toISOString(),
+      lineTotal: '100000',
     },
   ];
 
@@ -104,6 +102,9 @@ function createMockOrderServices() {
       if (order) {
         (order as any).status = status;
       }
+    },
+    async findHistoryByOrderId(_orderId) {
+      return [];
     },
   };
 

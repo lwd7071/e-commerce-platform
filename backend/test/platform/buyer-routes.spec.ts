@@ -68,7 +68,6 @@ function createMockBuyerServices() {
 
   const addressRepo: IAddressRepository = {
     async findById(id) { return addresses.find(a => a.addressId === id) ?? null; },
-    async findOwnedSnapshot(userId, addressId) { return addresses.find(a => a.userId === userId && a.addressId === addressId) ?? null; },
     async findByUserId(userId) { return addresses.filter(a => a.userId === userId); },
     async create(addr) { addresses.push(addr); return addr; },
     async update(addr) {
@@ -122,21 +121,33 @@ function createMockBuyerServices() {
       cartItems.length = 0;
       cartItems.push(...remaining);
     },
-    async clearCart(cartId) {
-      const remaining = cartItems.filter(i => i.cartId !== cartId);
-      cartItems.length = 0;
-      cartItems.push(...remaining);
-    },
   };
 
   const catalogPort: ICatalogPort = {
     async getVariantPriceAndStock(variantId: string) {
       if (variantId === 'var-out-of-stock') {
-        return { variantId, price: '100000', stockQuantity: 0, status: 'ACTIVE' };
+        return {
+          variantId,
+          productId: 'prod-1',
+          variantName: 'Color',
+          variantValue: 'Black',
+          price: '100000',
+          stockQuantity: 0,
+          status: 'ACTIVE',
+        };
       }
-      return { variantId, price: '50000', stockQuantity: 10, status: 'ACTIVE' };
+      return {
+        variantId,
+        productId: 'prod-1',
+        variantName: 'Color',
+        variantValue: 'Black',
+        price: '50000',
+        stockQuantity: 10,
+        status: 'ACTIVE',
+      };
     },
-    async lockVariantForUpdate() { return {} as any; },
+    async lockVariant() { return {} as any; },
+    async checkShopActive() { return true; },
   };
 
   const vouchers: Voucher[] = [{
@@ -158,15 +169,19 @@ function createMockBuyerServices() {
   }];
 
   const voucherRepo: IVoucherRepository = {
+    async findById(id) { return vouchers.find(v => v.voucherId === id) ?? null; },
     async findByCode(code) { return vouchers.find(v => v.code === code) ?? null; },
     async listActive() { return vouchers; },
+    async create(v) { vouchers.push(v); return v; },
     async decrementQuantity() { return true; },
-    async incrementQuantity() {},
-    async recordUsage() {},
+    async incrementQuantity() { return true; },
+    async recordUsage(u) { return u; },
   };
 
   const reviews: Review[] = [];
   const reviewRepo: IReviewRepository = {
+    async findById(id) { return reviews.find(r => r.reviewId === id) ?? null; },
+    async findByProductId(pid) { return reviews.filter(r => r.productId === pid); },
     async findByOrderItemId(orderItemId) { return reviews.find(r => r.orderItemId === orderItemId) ?? null; },
     async create(r) { reviews.push(r); return r; },
   };
@@ -200,9 +215,9 @@ function createMockBuyerServices() {
   const notifications: Notification[] = [{
     notificationId: 'notif-1',
     recipientId: BUYER_ID,
-    type: 'ORDER_STATUS',
+    type: 'ORDER',
     title: 'Don hang da giao',
-    message: 'Don hang #123 da hoan tat',
+    content: 'Don hang #123 da hoan tat',
     isRead: false,
     readAt: null,
     createdAt: new Date().toISOString(),
@@ -216,7 +231,7 @@ function createMockBuyerServices() {
       const notif = notifications.find(n => n.notificationId === id);
       if (notif) {
         notif.isRead = true;
-        notif.readAt = readAt;
+        notif.readAt = readAt ?? null;
       }
       return notif!;
     },
