@@ -210,7 +210,7 @@ remoteDescribe('Strict Transaction History Retention & RLS Regression (T3 [QD16]
         const variant = await createFixtureVariant(client, prod.productId);
 
         const cart = await createFixtureCart(client, buyer.userId);
-        const cartItem = await createFixtureCartItem(client, cart.cartId, variant.variantId, 2);
+        const cartItem = await createFixtureCartItem(client, cart.cartId, variant.variantId, { quantity: 2 });
 
         // Xóa cart -> cart_items tự động cascade xóa
         await client.query('DELETE FROM carts WHERE cart_id = $1', [cart.cartId]);
