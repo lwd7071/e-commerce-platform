@@ -4,10 +4,86 @@
 
 - Mốc: T3
 - Cập nhật lần cuối: 2026-09-24
-- Đang làm: Khởi động Mốc T3 — Hardening & Security (Rate limit, Security headers, Secret leak prevention, Security tests, OpenAPI generation, Production readiness)
+- Đang làm: Đã hoàn thành toàn bộ 6 Phase Mốc T3 — Hardening & Security. Toàn bộ 4 quality gates sạch 100% (479/479 tests pass). Chờ mở PR và xin review từ Người 2 hoặc Người 5 để merge vào dev.
 - Bị block bởi: Không
 
 ## Nhật ký theo ngày
+
+### 2026-09-24 (Hoàn thành Mốc T3 — Hardening & Security Toàn diện 6 Phase)
+
+- **Đã làm:**
+  - Hoàn thành đầy đủ 6 Phase của Kế hoạch T3 Hardening & Security theo TDD (Red -> Green -> Refactor) và commit tách biệt theo từng phase:
+    1. **Phase 1: Security Headers & CORS Policy (`c0c8f1d`)**
+       - Middleware `security-headers.ts`: Thêm đầy đủ OWASP headers (`nosniff`, `DENY`, `HSTS`, `CSP`, `XSS: 0`, `COOP`, `CORP`), gỡ bỏ `X-Powered-By`, cấu hình CORS whitelist.
+       - Unit test: `test/platform/security-headers.spec.ts` (4/4 pass).
+    2. **Phase 2: Layered Rate Limiting & 429 (`a3e314c` docs, `2fc26d2` code)**
+       - Change Request: `docs/spec/changes/CR-RATE-LIMIT-01-rate-limit-exceeded.md` & bổ sung `RATE_LIMIT_EXCEEDED` vào `error-observability.md §2`.
+       - Lỗi `RateLimitExceededError` (429) trong `app-error.ts` và xử lý tại `error-handler.ts`.
+       - Middleware `rate-limiter.ts`: Sliding-window rate limiter hỗ trợ phân tầng (sensitive routes checkout/orders vs default), gửi headers `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset`, `Retry-After`.
+       - Unit test: `test/platform/rate-limiter.spec.ts` (6/6 pass).
+    3. **Phase 3: Log Redaction & Secret Leak Prevention (`1b04688`)**
+       - Nâng cấp `redact.ts` và `logger.ts` với hàm `sanitizeString`: che giấu mật khẩu URI `postgres://`, JWT token, Supabase secret key (`sbp_...`), PAN thẻ tín dụng (13–19 số), bảo đảm 500 error không bao giờ rò rỉ stack trace/SQL sang client response.
+       - Unit test: `test/platform/security-redaction.spec.ts` (5/5 pass).
+    4. **Phase 4: Metrics, Dependency Error Mapping & Sửa lỗi kỹ thuật (`383cc6c`, `ba98234`)**
+       - Commit 4A: Hiện thực `MetricsCollector` và `createMetricsMiddleware` thu thập request count, status, percentiles p50/p95/p99. Ánh xạ database pool failure / timeout sang 503 `DEPENDENCY_UNAVAILABLE`.
+       - Commit 4B: Bỏ mã generic `CONFLICT`, thay bằng `RESOURCE_CONFLICT` cho unique violation, thêm `ORDER_INVALID_TRANSITION` vào 409 (QD11), sửa `order-routes.ts:156` sang `ReasonRequiredError` (422 REASON_REQUIRED theo RB-LTT08) và đồng bộ assertion test.
+       - Unit test: `test/platform/metrics-observability.spec.ts` (5/5 pass).
+    5. **Phase 5: Draft OpenAPI 3.1 Spec Generation (`61872b8`)**
+       - Hiện thực `openapi-spec.ts` sinh document OpenAPI 3.1.0 chuẩn hóa cho toàn bộ routes thật đã qua kiểm thử (Health, Addresses, Cart, Orders, Reviews).
+       - Loại trừ 9 routes chưa có test coverage theo danh sách `[OAS-VERIFY-02]`. Xác minh RBAC guard cho confirm/transition (`[OAS-VERIFY-01]`).
+       - Endpoint `GET /api/v1/openapi.json` trong `app.ts`.
+       - Unit test: `test/platform/openapi-spec.spec.ts` (4/4 pass).
+    6. **Phase 6: Production Environment Config Validation with Fail-Fast (`dd986ba`)**
+       - Hiện thực `env-config.ts` với `validateEnvConfig`: ném lỗi `AUTH_CONFIGURATION_ERROR` hoặc `DATABASE_CONFIGURATION_ERROR` khi thiếu env trong `production`, fallback an toàn ở `development`/`test`.
+       - Cập nhật `createRuntimeApp` và tài liệu hướng dẫn vận hành `docs/architecture/backend-run-guide.md`.
+       - Unit test: `test/platform/production-config.spec.ts` (5/5 pass).
+  - Tăng tổng số test từ **450** lên **479 tests** (100% pass trên native runner `test:node`).
+
+- **Kết quả 4 Quality Gates Bước 7 (Diagnose) dán nguyên văn:**
+
+  1. `npm run typecheck`:
+  ```text
+  > ecommerce-backend@0.1.0 typecheck
+  > tsc --noEmit
+  ```
+  *(Thoát mã 0 - Sạch 100% lỗi TypeScript)*
+
+  2. `npm run lint`:
+  ```text
+  > ecommerce-backend@0.1.0 lint
+  > eslint .
+
+  ✖ 193 problems (0 errors, 193 warnings)
+  ```
+  *(Thoát mã 0 - Sạch 100% lỗi ESLint, 0 error)*
+
+  3. `npm run build`:
+  ```text
+  > ecommerce-backend@0.1.0 build
+  > esbuild src/platform/http/app.ts --bundle --platform=node --format=esm --packages=external --alias:@=./src --outfile=dist/app.js
+
+    dist\app.js  129.1kb
+
+  Done in 15ms
+  ```
+  *(Thoát mã 0 - Build bundle hoàn tất thành công)*
+
+  4. `npm run test:node`:
+  ```text
+  ℹ tests 479
+  ℹ suites 142
+  ℹ pass 479
+  ℹ fail 0
+  ℹ cancelled 0
+  ℹ skipped 0
+  ℹ todo 0
+  ℹ duration_ms 3662.2833
+  ```
+  *(Thoát mã 0 - Toàn bộ 479/479 tests pass 100%)*
+
+- **Quy trình tiếp theo:**
+  - Nhánh `feat/t3-nguoi-1-platform` đã hoàn thành toàn bộ 6 Phase và sẵn sàng mở Pull Request vào `dev`.
+  - Tuân thủ quy định: Người 1 không tự merge PR của chính mình. Yêu cầu Người 2 (Database & Dev Lead) hoặc Người 5 (Transaction Core) review và approve trước khi merge.
 
 ### 2026-09-24 (Khởi động Mốc T3 — Đồng bộ dev, gộp T2 Wiring và sẵn sàng Hardening)
 
