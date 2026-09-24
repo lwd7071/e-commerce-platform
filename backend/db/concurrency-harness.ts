@@ -166,7 +166,7 @@ export async function explainQueryPlan(
 
   return {
     rawPlan: JSON.stringify(planData, null, 2),
-    totalCost: rootPlan?.['Total Cost'],
+    totalCost: typeof rootPlan?.['Total Cost'] === 'number' ? rootPlan['Total Cost'] : undefined,
     scans,
   };
 }
