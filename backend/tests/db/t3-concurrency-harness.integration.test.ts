@@ -21,9 +21,13 @@ remoteDescribe('PostgreSQL Concurrency Harness & Query Plan Baseline (T3 Remote)
     // Cấp pool tối đa 5 connections để chạy concurrency tests
     pool = createDatabasePool({ databaseUrl: config.directUrl, pool: { ...config.pool, max: 5 } });
 
-    // Tạo bảng probe tạm thời để mô phỏng concurrency
+    // Dọn dẹp probe cũ nếu có trong public
+    await pool.query('DROP TABLE IF EXISTS public.p2_concurrency_probe CASCADE');
+
+    // Tạo schema riêng biệt để cách ly tuyệt đối, không làm ô nhiễm information_schema của public
+    await pool.query('CREATE SCHEMA IF NOT EXISTS p2_test_harness');
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS public.p2_concurrency_probe (
+      CREATE TABLE IF NOT EXISTS p2_test_harness.concurrency_probe (
         probe_id UUID PRIMARY KEY,
         shared_key TEXT NOT NULL,
         worker_index INT NOT NULL
@@ -31,13 +35,13 @@ remoteDescribe('PostgreSQL Concurrency Harness & Query Plan Baseline (T3 Remote)
     `);
     await pool.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS uq_concurrency_probe__shared_key
-      ON public.p2_concurrency_probe(shared_key)
+      ON p2_test_harness.concurrency_probe(shared_key)
     `);
-  }, 45_000);
+  }, 60_000);
 
   afterAll(async () => {
     if (pool) {
-      await pool.query('DROP TABLE IF EXISTS public.p2_concurrency_probe CASCADE');
+      await pool.query('DROP SCHEMA IF EXISTS p2_test_harness CASCADE');
       await closeDatabasePool(pool);
     }
   }, 20_000);
@@ -54,7 +58,7 @@ remoteDescribe('PostgreSQL Concurrency Harness & Query Plan Baseline (T3 Remote)
         async (client, workerIndex) => {
           const probeId = randomUUID();
           await client.query(
-            `INSERT INTO public.p2_concurrency_probe (probe_id, shared_key, worker_index)
+            `INSERT INTO p2_test_harness.concurrency_probe (probe_id, shared_key, worker_index)
              VALUES ($1, $2, $3)`,
             [probeId, `${batchTag}_${workerIndex}`, workerIndex],
           );
@@ -66,7 +70,7 @@ remoteDescribe('PostgreSQL Concurrency Harness & Query Plan Baseline (T3 Remote)
       expect(aggResult.succeeded).toBe(3);
       expect(aggResult.failed).toBe(0);
       expect(Object.keys(aggResult.errorCodesCount)).toHaveLength(0);
-    }, 25_000);
+    }, 35_000);
 
     it('detects and accurately categorizes concurrent unique race conditions (SQLSTATE 23505)', async () => {
       if (!pool) throw new Error('Pool not initialized');
@@ -80,7 +84,7 @@ remoteDescribe('PostgreSQL Concurrency Harness & Query Plan Baseline (T3 Remote)
         async (client, workerIndex) => {
           const probeId = randomUUID();
           await client.query(
-            `INSERT INTO public.p2_concurrency_probe (probe_id, shared_key, worker_index)
+            `INSERT INTO p2_test_harness.concurrency_probe (probe_id, shared_key, worker_index)
              VALUES ($1, $2, $3)`,
             [probeId, conflictKey, workerIndex],
           );
@@ -94,7 +98,7 @@ remoteDescribe('PostgreSQL Concurrency Harness & Query Plan Baseline (T3 Remote)
       // 2 workers còn lại phải thất bại do va chạm UNIQUE
       expect(aggResult.failed).toBe(2);
       expect(aggResult.errorCodesCount['23505']).toBe(2);
-    }, 25_000);
+    }, 35_000);
 
     it('supports REPEATABLE READ isolation level without leaking client connections', async () => {
       if (!pool) throw new Error('Pool not initialized');
@@ -107,7 +111,7 @@ remoteDescribe('PostgreSQL Concurrency Harness & Query Plan Baseline (T3 Remote)
         async (client, workerIndex) => {
           const probeId = randomUUID();
           await client.query(
-            `INSERT INTO public.p2_concurrency_probe (probe_id, shared_key, worker_index)
+            `INSERT INTO p2_test_harness.concurrency_probe (probe_id, shared_key, worker_index)
              VALUES ($1, $2, $3)`,
             [probeId, `${batchTag}_${workerIndex}`, workerIndex],
           );
@@ -117,7 +121,7 @@ remoteDescribe('PostgreSQL Concurrency Harness & Query Plan Baseline (T3 Remote)
 
       expect(aggResult.succeeded).toBe(2);
       expect(aggResult.failed).toBe(0);
-    }, 25_000);
+    }, 35_000);
   });
 
   describe('explainQueryPlan and assertUsesIndex', () => {
