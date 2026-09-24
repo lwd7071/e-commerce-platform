@@ -20,6 +20,8 @@ import { PgModerationTargetRepository } from '../../modules/moderation/repositor
 import { PgAuditRepository } from '../audit/pg-audit.repository.ts';
 import { PgTransactionManager } from '../database/pg-transaction-manager.ts';
 
+import { createSecurityHeadersMiddleware, createCorsMiddleware } from './middlewares/security-headers.ts';
+
 declare global {
   namespace Express {
     interface Request {
@@ -37,6 +39,8 @@ export interface PlatformApplications extends T1RouteApplications {
 export function createApp(applications: PlatformApplications = {}): Application {
   const app = express();
 
+  app.use(createSecurityHeadersMiddleware());
+  app.use(createCorsMiddleware());
   app.use(requestIdMiddleware);
   app.use(express.json());
 
