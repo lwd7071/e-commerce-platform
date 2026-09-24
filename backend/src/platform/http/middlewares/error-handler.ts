@@ -79,7 +79,7 @@ export const errorHandlerMiddleware: ErrorRequestHandler = (
     // Unique violation (23505)
     if (maybePg.code === '23505') {
       const constraint = String(maybePg.constraint || '');
-      let code = 'CONFLICT';
+      let code = 'RESOURCE_CONFLICT';
       let message = 'A unique constraint violation occurred.';
       if (constraint.includes('app_users__email')) {
         code = 'USER_EMAIL_CONFLICT';
@@ -181,12 +181,15 @@ export const errorHandlerMiddleware: ErrorRequestHandler = (
       httpStatus = 403;
     } else if (
       code === 'CONFLICT' ||
+      code === 'RESOURCE_CONFLICT' ||
       code === 'CART_CONFLICT' ||
       code === 'CART_ITEM_CONFLICT' ||
       code === 'DEFAULT_ADDRESS_CONFLICT' ||
       code === 'INVENTORY_INSUFFICIENT' ||
       code === 'REVIEW_ALREADY_EXISTS' ||
       code === 'INVALID_STATE_TRANSITION' ||
+      code === 'ORDER_INVALID_TRANSITION' ||
+      code === 'ORDER_CANCELLATION_NOT_ALLOWED' ||
       code === 'IDEMPOTENCY_KEY_REUSED' ||
       code === 'REQUEST_IN_PROGRESS'
     ) {

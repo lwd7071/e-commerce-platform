@@ -228,7 +228,7 @@ describe('Order & Checkout Domain Routes Integration (/api/v1/...) [Mốc T2]', 
     assert.strictEqual(res.body.error.code, 'RESOURCE_NOT_FOUND');
   });
 
-  it('POST /api/v1/orders/:id/cancel: returns 422 VALIDATION_FAILED when reason is missing (QD12)', async () => {
+  it('POST /api/v1/orders/:id/cancel: returns 422 REASON_REQUIRED when reason is missing (RB-LTT08, QD12)', async () => {
     const services = createMockOrderServices();
     const app = createApp({ auth: buyerAuth, orderServices: services });
 
@@ -237,7 +237,7 @@ describe('Order & Checkout Domain Routes Integration (/api/v1/...) [Mốc T2]', 
       .send({ reason: '   ' })
       .expect(422);
 
-    assert.strictEqual(res.body.error.code, 'VALIDATION_FAILED');
+    assert.strictEqual(res.body.error.code, 'REASON_REQUIRED');
   });
 
   it('POST /api/v1/orders/:id/cancel: cancels order and triggers restock handler (QD12, QD13)', async () => {

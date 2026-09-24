@@ -1,6 +1,6 @@
 import { Router, type Request, type Response, type NextFunction, type RequestHandler } from 'express';
 import { buildSuccessEnvelope } from '../envelope.ts';
-import { ForbiddenError, NotFoundError, UnauthorizedError, ValidationFailedError } from '../../errors/app-error.ts';
+import { ForbiddenError, NotFoundError, ReasonRequiredError, UnauthorizedError, ValidationFailedError } from '../../errors/app-error.ts';
 import { parseCheckoutCommand } from '../../../modules/checkout/contracts/checkout-command.ts';
 import type { RequestContext } from '../../context/request-context.ts';
 import type { OrderLifecycleService } from '../../../modules/order/services/order-lifecycle.service.ts';
@@ -153,7 +153,7 @@ export function createOrderDomainRouter(
     const reason = typeof rawReason === 'string' ? rawReason.trim() : '';
 
     if (!reason) {
-      throw new ValidationFailedError('A non-blank reason is required to cancel an order.', { field: 'reason' });
+      throw new ReasonRequiredError('A non-blank reason is required to cancel an order.', { field: 'reason' });
     }
 
     if (orderLifecycleService) {
