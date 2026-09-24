@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction, ErrorRequestHandler } from 'express';
-import { AppError } from '../../errors/app-error.ts';
+import { AppError, RateLimitExceededError } from '../../errors/app-error.ts';
 import { buildErrorEnvelope } from '../envelope.ts';
 import { logger } from '../../logging/logger.ts';
 
@@ -29,6 +29,12 @@ export const errorHandlerMiddleware: ErrorRequestHandler = (
 
   // 2. Handle standard application errors (AppError)
   if (err instanceof AppError) {
+    if (err instanceof RateLimitExceededError && err.retryAfterSeconds !== undefined) {
+      if (!res.getHeader('Retry-After')) {
+        res.setHeader('Retry-After', String(err.retryAfterSeconds));
+      }
+    }
+
     const level = err.httpStatus >= 500 ? 'error' : 'warn';
     logger[level](err.message, {
       request_id: requestId,

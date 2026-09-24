@@ -21,6 +21,7 @@ import { PgAuditRepository } from '../audit/pg-audit.repository.ts';
 import { PgTransactionManager } from '../database/pg-transaction-manager.ts';
 
 import { createSecurityHeadersMiddleware, createCorsMiddleware } from './middlewares/security-headers.ts';
+import { createLayeredRateLimiter } from './middlewares/rate-limiter.ts';
 
 declare global {
   namespace Express {
@@ -34,6 +35,7 @@ export interface PlatformApplications extends T1RouteApplications {
   pool?: Pool;
   buyerServices?: BuyerServices;
   orderServices?: OrderServices;
+  rateLimiter?: RequestHandler | false;
 }
 
 export function createApp(applications: PlatformApplications = {}): Application {
@@ -42,6 +44,9 @@ export function createApp(applications: PlatformApplications = {}): Application 
   app.use(createSecurityHeadersMiddleware());
   app.use(createCorsMiddleware());
   app.use(requestIdMiddleware);
+  if (applications.rateLimiter !== false) {
+    app.use(applications.rateLimiter ?? createLayeredRateLimiter());
+  }
   app.use(express.json());
 
   app.use('/api/v1/health', createHealthRouter(applications.pool));
