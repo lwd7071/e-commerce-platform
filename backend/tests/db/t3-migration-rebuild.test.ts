@@ -31,10 +31,11 @@ describe('Migration Rebuild & Clean Replay Safety (T3 Unit)', () => {
       .map((d) => d.name)
       .sort();
 
-    // Xác nhận có đủ các migration milestones từ T1 đến T2
+    // Xác nhận có đủ các migration milestones từ T1 đến T3
     expect(entries).toContain('20260916110000_initial_schema');
     expect(entries).toContain('20260918170000_add_api_idempotency_records');
     expect(entries).toContain('20260922120000_t2_performance_indexes');
+    expect(entries).toContain('20260924120000_t3_idempotency_rls_hardening');
   });
 
   it('guarantees migration files do not contain destructive DROP or hardcoded secrets', () => {
