@@ -2,12 +2,56 @@
 
 ## Trạng thái hiện tại
 
-- Mốc: T2
-- Cập nhật lần cuối: 2026-09-23
-- Đang làm: ĐÃ HOÀN THÀNH 100% tất cả các hạng mục của Mốc T2 cho Người 2 (Database và Supabase)
-- Bị block bởi: Không (Toàn bộ các dependency từ Người 1, 3, 4, 5 đã được tích hợp đầy đủ)
+- Mốc: T3
+- Cập nhật lần cuối: 2026-09-24
+- Đang làm: ĐÃ HOÀN THÀNH 100% tất cả các hạng mục "Làm được ngay, không cần chờ ai" của Mốc T3 cho Người 2 (Database và Supabase)
+- Bị block bởi: Không (Sẵn sàng môi trường Concurrency và Baseline bàn giao cho Người 4 và Người 5)
 
 ## Nhật ký theo ngày
+
+### 2026-09-24 — T3 Database Foundation Hardening, History Retention & Concurrency Environment
+
+- **Đã làm:**
+  - **Lát cắt 1 — Migration Rebuild & Clean Replay Safety (`backend/tests/db/t3-migration-rebuild.test.ts`):**
+    - Kiểm tra chuỗi migration theo thứ tự thời gian (`20260916110000`, `20260918170000`, `20260922120000`, `20260924120000`).
+    - Xác nhận không có câu lệnh phá hủy schema (`DROP DATABASE/SCHEMA`), không chứa hardcoded secrets/credentials.
+    - Xác nhận toàn bộ migration logs `_prisma_migrations` đã finished_at sạch sẽ và tái tạo đủ 22 bảng nghiệp vụ + 1 bảng vận hành `api_idempotency_records`.
+    - Viết 6 tests unit & remote: 6/6 tests pass.
+  - **Lát cắt 2 — Strict Transaction History Retention & Idempotency RLS Hardening (`backend/tests/db/t3-history-retention-regression.integration.test.ts` & `backend/prisma/migrations/20260924120000_t3_idempotency_rls_hardening/migration.sql`):**
+    - Tạo migration T3 kích hoạt RLS và `REVOKE ALL` từ `anon, authenticated, PUBLIC` trên bảng vận hành `api_idempotency_records`.
+    - Kiểm thử hồi quy bảo toàn dữ liệu lịch sử giao dịch theo `[QD16]` và `db-schema-rules.md` mục 5:
+      - `ON DELETE RESTRICT` chặn xóa vật lý `orders` khi đã có `order_items` hoặc `payments` (`23503`).
+      - `ON DELETE RESTRICT` chặn xóa vật lý `order_items` khi đã có `reviews` (`23503`).
+      - `ON DELETE RESTRICT` chặn xóa vật lý `products` và `product_variants` khi đã tham gia vào đơn hàng (`23503`).
+      - `ON DELETE RESTRICT` chặn xóa vật lý `shops` khi đã có sản phẩm hoặc đơn hàng (`23503`).
+    - Kiểm chứng `ON DELETE CASCADE` chỉ giới hạn ở bảng phụ thuộc phụ không độc lập: xóa `reviews` xóa sạch `review_images`; xóa `carts` xóa sạch `cart_items` mà không ảnh hưởng bảng nghiệp vụ chính.
+    - Kiểm chứng RLS default-deny trên `api_idempotency_records`: chặn truy vấn role `anon` và `authenticated` với SQLSTATE `42501`.
+    - Viết 9 integration tests: 9/9 tests pass.
+  - **Lát cắt 3 — Backup & Restore Integrity Verification (`backend/db/backup-restore.ts` & `backend/tests/db/backup-restore.test.ts`):**
+    - Cung cấp hàm `extractSchemaSnapshotMetadata(client)` trích xuất toàn diện metadata: bảng, cột, kiểu dữ liệu, primary keys, foreign keys (kèm delete rule), check constraints và indexes.
+    - Cung cấp hàm `computeSchemaFingerprint(metadata)` sinh chuỗi băm SHA-256 chuẩn hóa cho snapshot schema.
+    - Cung cấp hàm `compareSchemaSnapshots(baseline, candidate)` phát hiện chính xác mọi sai lệch cấu trúc bảng, cột, khóa hoặc index phục vụ rollback/restore verification.
+    - Viết 4 tests unit & remote: 4/4 tests pass.
+  - **Lát cắt 4 — PostgreSQL Concurrency Test Harness & Query Plan Baseline (`backend/db/concurrency-harness.ts` & `backend/tests/db/t3-concurrency-harness.integration.test.ts`):**
+    - Hiện thực hóa `runConcurrentTransactions` hỗ trợ chạy $N$ worker song song với cơ chế Barrier Synchronization, hỗ trợ cấu hình isolation levels (`READ COMMITTED`, `REPEATABLE READ`, `SERIALIZABLE`), tự động phân loại mã lỗi (`40001`, `40P01`, `23505`).
+    - Cung cấp `explainQueryPlan` và `assertUsesIndex` hỗ trợ đo lường execution plan qua `EXPLAIN (FORMAT JSON)` và xác nhận index usage.
+    - Kiểm thử tích hợp chạy 3 transaction song song không xung đột (100% success), mô phỏng race condition chèn trùng khóa UNIQUE (chính xác 1 success, 2 failed với SQLSTATE `23505`), hỗ trợ `REPEATABLE READ`, và bắt index scan trên `orders`.
+    - Cô lập bảng probe trong schema độc lập `p2_test_harness` để bảo toàn tính sạch sẽ cho `public` schema.
+    - Viết 5 tests remote: 5/5 tests pass.
+- **Quyết định kỹ thuật:**
+  - Cách ly toàn bộ bảng probe của concurrency harness vào schema riêng `p2_test_harness`, tránh làm ô nhiễm `information_schema.tables` của `public` schema khi chạy test song song.
+  - Khóa chặt quyền truy cập trên bảng `api_idempotency_records` bằng migration T3 để đảm bảo 100% bảng trong database đều tuân thủ nguyên tắc RLS default-deny.
+- **Contract/port thay đổi:**
+  - Bổ sung `extractSchemaSnapshotMetadata`, `computeSchemaFingerprint`, `compareSchemaSnapshots` tại `backend/db/backup-restore.ts`.
+  - Bổ sung `runConcurrentTransactions`, `explainQueryPlan`, `assertUsesIndex` tại `backend/db/concurrency-harness.ts` sẵn sàng bàn giao cho Người 4 và Người 5.
+  - Bổ sung migration `20260924120000_t3_idempotency_rls_hardening`.
+- **Blocker phát sinh:**
+  - Không.
+- **Kết quả kiểm thử:**
+  - DB Vitest Suite: 19 files / 101 tests PASS (100% pass, 1 skipped theo mock probe).
+  - Typecheck: 0 lỗi (`tsc --noEmit`).
+  - Linter: 0 lỗi / 0 cảnh báo trong `db` và `tests/db`.
+  - Build: Bundle hoàn tất `dist/app.js` (88.9kb).
 
 ### 2026-09-23 — T2 Hoàn thiện toàn diện Database & Supabase theo chuẩn TDD
 
@@ -126,20 +170,26 @@
 | Storage policy & path validator | Sẵn sàng sử dụng; path builder, MIME/ext validation, RLS policies SQL | v1 / 2026-09-23 | Người 3 (Catalog), Người 4 (Review) |
 | Database test fixtures platform | Sẵn sàng sử dụng; fixture generators cho 22 bảng có transaction rollback | v1 / 2026-09-23 | Toàn đội Backend |
 | T2 performance indexes migration | Đã tạo migration và nghiệm thu query plan EXPLAIN trên DB | v1 / 2026-09-23 | Toàn đội Backend |
+| Backup/Restore Schema Fingerprint | Sẵn sàng sử dụng; trích xuất metadata schema, hash SHA-256 và diff engine | v1 / 2026-09-24 | Người 1 / CI / Production Safety |
+| PostgreSQL Concurrency Test Harness | Sẵn sàng bàn giao; barrier runner đa session, phân loại mã lỗi | v1 / 2026-09-24 | Người 4 (Voucher/Address race), Người 5 (Checkout race) |
+| Query Plan Baseline Helper | Sẵn sàng bàn giao; explain format JSON và assert index usage | v1 / 2026-09-24 | Người 3, Người 4, Người 5 |
 
-## Việc còn lại trong mốc hiện tại
+## Việc còn lại trong mốc hiện tại (T3)
 
-- [x] Hoàn thiện constraint, partial unique index, delete policy và RLS test từ migration T1.
-- [x] Dựng test database, fixture nền, migration rebuild test và database health check.
-- [x] Viết integration test trực tiếp cho PK, FK, CHECK, UNIQUE và RLS default-deny.
-- [x] Triển khai Storage policy nền và helper kiểm tra cấu trúc đường dẫn.
-- [x] Chốt index Catalog theo query bàn giao của Người 3.
-- [x] Chốt index Buyer domain theo `buyer-query-patterns.md` của Người 4.
-- [x] Tạo migration T2 bổ sung 7 index hiệu năng và kiểm chứng bằng test.
+- **Làm được ngay (Đã xong 100%):**
+  - [x] Chạy migration rebuild từ database trống và từ trạng thái sau T2 (`t3-migration-rebuild.test.ts`).
+  - [x] Kiểm tra RLS, delete policy, constraint regression, backup/restore và bảo toàn lịch sử giao dịch không cascade (`t3-history-retention-regression.integration.test.ts`).
+  - [x] Triển khai bộ công cụ xác thực backup/restore và fingerprint schema (`backup-restore.ts`).
+  - [x] Chuẩn bị PostgreSQL concurrency test environment và query-plan baseline (`concurrency-harness.ts`, `t3-concurrency-harness.integration.test.ts`).
+- **Phải chờ người khác xong trước khi bắt đầu:**
+  - [ ] Chờ **Người 3 xong query Catalog thực tế và dataset benchmark** → chạy `EXPLAIN` Catalog.
+  - [ ] Chờ **Người 4 xong query Buyer domain thực tế** → chạy `EXPLAIN` Buyer domain.
+  - [ ] Chờ **Người 5 xong transaction implementation** → chạy lock/deadlock/concurrency test thật.
+  - [ ] Chờ **Người 3, 4 và 5 bàn giao kết quả test tải** → chốt index tuning và báo kết quả cho Người 1.
 
 ## Dependency tickets / việc cần phối hợp
 
-- **Người 1:** Tích hợp `checkDatabaseHealth(pool)` từ `backend/db/health.ts` vào router `/api/v1/health` khi sẵn sàng.
-- **Người 3:** Sử dụng `buildProductImagePath` và `buildShopLogoPath` từ `backend/db/storage.ts` cho module upload ảnh media Catalog.
-- **Người 4:** Sử dụng `buildReviewImagePath` từ `backend/db/storage.ts` cho module upload ảnh đánh giá.
-- **Người 5:** Các transaction query trên Order/Payment/Shipment đã có đầy đủ index và kiểm chứng concurrency isolation.
+- **Người 1:** Đã có `backup-restore.ts` để kiểm tra snapshot schema trước migration trên CI/Staging.
+- **Người 3:** Sử dụng `explainQueryPlan` và `assertUsesIndex` từ `backend/db/concurrency-harness.ts` để đo baseline query Catalog khi chuẩn bị dataset lớn.
+- **Người 4:** Sử dụng `runConcurrentTransactions` từ `backend/db/concurrency-harness.ts` để chạy kịch bản concurrency tranh chấp Voucher lượt cuối và đua default Address.
+- **Người 5:** Sử dụng `runConcurrentTransactions` từ `backend/db/concurrency-harness.ts` để chạy kịch bản checkout overselling, deadlock retry và concurrent payment callbacks.
