@@ -187,7 +187,8 @@ function createMockBuyerServices() {
   };
 
   const orderQueryPort: IOrderQueryPort = {
-    async getOrderItemContext(orderItemId: string) {
+    async getOrderItemForReview(orderItemId: string, buyerId: string) {
+      if (buyerId !== BUYER_ID) return null;
       if (orderItemId === 'oi-completed') {
         return {
           orderItemId,
@@ -208,6 +209,9 @@ function createMockBuyerServices() {
           hasExistingReview: false,
         };
       }
+      return null;
+    },
+    async getOrderSummary() {
       return null;
     },
   };
