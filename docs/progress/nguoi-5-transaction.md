@@ -2,12 +2,35 @@
 
 ## Trạng thái hiện tại
 
-- Mốc: T2
-- Cập nhật lần cuối: 2026-09-23
-- Đang làm: Đã hoàn tất tầng Persistence, Transactional Checkout Service (ACID withTransaction 12 bước), Order Lifecycle Service (Cancel & Restock) và Payment Repositories (`IPaymentRepository`, `InMemoryPaymentRepository`, `PgPaymentRepository`). TV5 suite đạt 59/59 pass; full backend 247/247 pass; typecheck 0 lỗi; build pass.
-- Bị block bởi: API route wiring của Người 1 để gắn các controller vào Express app; Người 3 bổ sung shopId vào VariantPriceAndStockDTO của Catalog port.
+- Mốc: **Hoàn thành T2 (Sẵn sàng mở T3 Hardening & Concurrency)**
+- Cập nhật lần cuối: 2026-09-25
+- Đang làm: Đã hoàn tất 100% Mốc T2 của Người 5:
+  - Triển khai `PaymentService` (`payment.service.ts`): hiện thực `retryPayment` và `settlePayment` theo domain state machine.
+  - Nâng cấp `OrderLifecycleService` (`order-lifecycle.service.ts`): bổ sung `confirmOrder` (QD11, QD13) và `transitionOrder` đầy đủ 8 cạnh chuyển trạng thái.
+  - Hoàn thiện đấu nối `order-routes.ts` cho cả 3 endpoints còn thiếu: `POST /orders/:id/confirm`, `POST /orders/:id/transition`, `POST /orders/:id/payments` (16/16 tests pass).
+  - Triển khai bộ kiểm thử tích hợp liên thông End-to-End Happy Path (`test/modules/checkout/e2e-happy-path.spec.ts`): mô phỏng toàn diện luồng `Cart -> Checkout (ACID 12 bước) -> Settle Payment -> Seller Confirm -> Transition Shipping -> Completed -> Review & Notification` (liên thông 5 thành viên).
+  - Ánh xạ mã lỗi `PAYMENT_STATE_INVALID`, `PAYMENT_ALREADY_COMPLETED` (409) và `PAYMENT_AMOUNT_INVALID` (422) trong `error-handler.ts` chuẩn theo `error-observability.md`.
+  - Quality gates: `test:node` **518/518 pass 100%** (149 suites), `typecheck` 0 lỗi (`tsc --noEmit`), `build` pass.
+- Bị block bởi: Không còn blocker. Sẵn sàng phối hợp cùng Người 2 chạy Concurrency Test Harness và Người 1 chốt OpenAPI 3.1.
 
 ## Nhật ký theo ngày
+
+### 2026-09-25 — Hoàn thành 100% Mốc T2: Order Lifecycle Routing, Payment Service & E2E Happy Path
+
+- Triển khai `payment/services/payment.service.ts`:
+  - `retryPayment`: kiểm tra quyền sở hữu của buyer, trạng thái đơn chưa hủy/hoàn tất, tạo bản ghi thanh toán retry `PENDING`.
+  - `settlePayment`: chốt trạng thái thanh toán `SUCCESS` / `FAILED` đồng bộ với Order.
+- Nâng cấp `order/services/order-lifecycle.service.ts`:
+  - `confirmOrder`: Seller kiểm tra shop sở hữu và xác nhận đơn (`CONFIRMED`).
+  - `transitionOrder`: Hỗ trợ transition đa trạng thái (`PREPARING`, `SHIPPING`, `DELIVERED`, `COMPLETED`, `CANCELLED`).
+- Hoàn thiện `order-routes.ts`:
+  - Đấu nối chính thức `confirmOrder`, `transitionOrder`, `retryPayment` vào router Express.
+  - Viết 7 tests mới trong `order-routes.spec.ts` (16/16 tests PASS).
+- Triển khai `test/modules/checkout/e2e-happy-path.spec.ts`:
+  - Kiểm thử happy path khép kín từ Giỏ hàng & Voucher (Người 4), Khóa tồn kho Catalog (Người 3), Checkout ACID & Thanh toán & Vòng đời đơn (Người 5), Đánh giá Review (Người 4) và Thông báo Notification (Người 4).
+- Quality Gate:
+  - `npm run test:node`: **518/518 PASS (100%)**.
+  - `npm run typecheck`: **0 lỗi (exit 0)**.
 
 ### 2026-09-23 — Transactional Checkout (ACID 12 bước), Order Lifecycle (Cancel & Restock) & Payment Repository
 
@@ -112,9 +135,9 @@
 - [x] Công bố Order query port / trạng thái `COMPLETED` cho Người 4 làm Review.
 - [x] Công bố Order/Payment/Shipment domain events cho Người 4 làm Notification.
 - [x] Triển khai In-memory Idempotency adapter.
-- [ ] Sau khi Người 3 khóa Catalog port và Người 4 khóa Cart/Voucher port: ráp checkout orchestration với các port thật.
-- [ ] Sau khi Người 2 hoàn thành migration và transaction helper: làm persistence, transaction integration và idempotency storage thật trên PostgreSQL.
-- [ ] Sau khi Người 1 hoàn thành scaffold, API envelope và `RequestContext`: wiring endpoint checkout/order/payment.
+- [x] Sau khi Người 3 khóa Catalog port và Người 4 khóa Cart/Voucher port: ráp checkout orchestration với các port thật.
+- [x] Sau khi Người 2 hoàn thành migration và transaction helper: làm persistence, transaction integration và idempotency storage thật trên PostgreSQL.
+- [x] Sau khi Người 1 hoàn thành scaffold, API envelope và `RequestContext`: wiring endpoint checkout/order/payment.
 
 ---
 

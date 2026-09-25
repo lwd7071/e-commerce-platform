@@ -172,7 +172,8 @@ export const errorHandlerMiddleware: ErrorRequestHandler = (
       code === 'VALIDATION_FAILED' ||
       code === 'REASON_REQUIRED' ||
       code === 'VOUCHER_NOT_APPLICABLE' ||
-      code === 'REVIEW_NOT_ELIGIBLE'
+      code === 'REVIEW_NOT_ELIGIBLE' ||
+      code === 'PAYMENT_AMOUNT_INVALID'
     ) {
       httpStatus = 422;
     } else if (code === 'RESOURCE_NOT_FOUND') {
@@ -190,6 +191,8 @@ export const errorHandlerMiddleware: ErrorRequestHandler = (
       code === 'INVALID_STATE_TRANSITION' ||
       code === 'ORDER_INVALID_TRANSITION' ||
       code === 'ORDER_CANCELLATION_NOT_ALLOWED' ||
+      code === 'PAYMENT_STATE_INVALID' ||
+      code === 'PAYMENT_ALREADY_COMPLETED' ||
       code === 'IDEMPOTENCY_KEY_REUSED' ||
       code === 'REQUEST_IN_PROGRESS'
     ) {
