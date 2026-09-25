@@ -1,8 +1,11 @@
-import express, { type Application } from 'express';
+import express, { type Application, type RequestHandler } from 'express';
+import type { Pool } from 'pg';
 import { requestIdMiddleware } from './middlewares/request-id.ts';
 import { errorHandlerMiddleware } from './middlewares/error-handler.ts';
-import { healthRouter } from '../routes/health.ts';
-import { createBuyerRouter, createCatalogRouter, createOrderRouter, type T1RouteApplications } from './routes/t1-routes.ts';
+import { createHealthRouter } from '../routes/health.ts';
+import { createCatalogRouter, type CatalogHttpApplication, type BuyerHttpApplication, type OrderHttpApplication, type T1RouteApplications } from './routes/t1-routes.ts';
+import { createBuyerDomainRouter, type BuyerServices } from './routes/buyer-routes.ts';
+import { createOrderDomainRouter, type OrderServices } from './routes/order-routes.ts';
 import { createAdminRouter } from './routes/admin-routes.ts';
 import { createDatabasePool, closeDatabasePool } from '../../../db/client.ts';
 import { loadDatabaseConfig } from '../../../db/config.ts';
@@ -17,6 +20,14 @@ import { PgModerationTargetRepository } from '../../modules/moderation/repositor
 import { PgAuditRepository } from '../audit/pg-audit.repository.ts';
 import { PgTransactionManager } from '../database/pg-transaction-manager.ts';
 
+import { createSecurityHeadersMiddleware, createCorsMiddleware } from './middlewares/security-headers.ts';
+import { createLayeredRateLimiter } from './middlewares/rate-limiter.ts';
+import { createMetricsMiddleware } from '../observability/metrics-middleware.ts';
+import { generateOpenApiSpec } from '../openapi/openapi-spec.ts';
+
+import { validateEnvConfig } from '../config/env-config.ts';
+import { AuthConfigurationError } from '../errors/app-error.ts';
+
 declare global {
   namespace Express {
     interface Request {
@@ -25,17 +36,39 @@ declare global {
   }
 }
 
-export function createApp(applications: T1RouteApplications = {}): Application {
+export interface PlatformApplications extends T1RouteApplications {
+  pool?: Pool;
+  buyerServices?: BuyerServices;
+  orderServices?: OrderServices;
+  rateLimiter?: RequestHandler | false;
+}
+
+export function createApp(applications: PlatformApplications = {}): Application {
   const app = express();
 
+  app.use(createSecurityHeadersMiddleware());
+  app.use(createCorsMiddleware());
+  app.use(createMetricsMiddleware());
   app.use(requestIdMiddleware);
+  if (applications.rateLimiter !== false) {
+    app.use(applications.rateLimiter ?? createLayeredRateLimiter());
+  }
   app.use(express.json());
 
-  app.use('/api/v1/health', healthRouter);
+  app.get('/api/v1/openapi.json', (_req, res) => {
+    res.json(generateOpenApiSpec());
+  });
+
+  app.use('/api/v1/health', createHealthRouter(applications.pool));
   const auth = applications.auth;
   app.use('/api/v1', createCatalogRouter(applications.catalog, auth));
-  app.use('/api/v1', createBuyerRouter(applications.buyer, auth));
-  app.use('/api/v1', createOrderRouter(applications.orders, auth));
+
+  const buyerTarget = applications.buyerServices ?? applications.buyer;
+  app.use('/api/v1', createBuyerDomainRouter(buyerTarget, auth));
+
+  const orderTarget = applications.orderServices ?? applications.orders;
+  app.use('/api/v1', createOrderDomainRouter(orderTarget, auth));
+
   app.use('/api/v1', createAdminRouter(applications.moderation, auth));
 
   app.use(errorHandlerMiddleware);
@@ -52,21 +85,23 @@ export interface RuntimeApp {
 
 /** Runtime composition: one pool, one auth repository and a non-stub JWT verifier. */
 export function createRuntimeApp(environment: NodeJS.ProcessEnv = process.env): RuntimeApp {
+  const envConfig = validateEnvConfig(environment);
   const config = loadDatabaseConfig(environment);
   const pool = createDatabasePool(config);
-  const supabaseUrl = environment.SUPABASE_URL;
-  const jwksUrl = environment.SUPABASE_JWKS_URL;
+  const supabaseUrl = envConfig.supabaseUrl ?? environment.SUPABASE_URL;
+  const jwksUrl = envConfig.supabaseJwksUrl ?? environment.SUPABASE_JWKS_URL;
   if (!supabaseUrl || !jwksUrl) {
-    throw new Error('SUPABASE_URL and SUPABASE_JWKS_URL are required for runtime auth');
+    throw new AuthConfigurationError('SUPABASE_URL and SUPABASE_JWKS_URL are required for runtime auth');
   }
   const authRepository = new PgAuthRepository(pool);
   const verifier = new SupabaseJwtVerifier({
     jwksUrl: new URL(jwksUrl),
     issuer: new URL('/auth/v1', supabaseUrl).toString().replace(/\/$/, ''),
-    audience: environment.SUPABASE_JWT_AUDIENCE ?? 'authenticated',
+    audience: envConfig.supabaseJwtAudience ?? 'authenticated',
   });
   return {
     app: createApp({
+      pool,
       auth: createAuthMiddleware(authRepository, verifier),
       catalog: new PgCatalogHttpService(pool),
       buyer: new PgBuyerHttpService(pool),

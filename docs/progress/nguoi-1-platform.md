@@ -2,12 +2,145 @@
 
 ## Trạng thái hiện tại
 
-- Mốc: T2
-- Cập nhật lần cuối: 2026-09-21
-- Đang làm: ĐÃ HOÀN THÀNH 100% tất cả các Phase của Mốc T2 và hoàn thiện gắn kết nối PostgreSQL Transaction thật vào Runtime App
+- Mốc: T3
+- Cập nhật lần cuối: 2026-09-24
+- Đang làm: Đã hoàn thành toàn bộ 6 Phase Mốc T3 — Hardening & Security. Toàn bộ 4 quality gates sạch 100% (479/479 tests pass). Chờ mở PR và xin review từ Người 2 hoặc Người 5 để merge vào dev.
 - Bị block bởi: Không
 
 ## Nhật ký theo ngày
+
+### 2026-09-24 (Hoàn thành Mốc T3 — Hardening & Security Toàn diện 6 Phase)
+
+- **Đã làm:**
+  - Hoàn thành đầy đủ 6 Phase của Kế hoạch T3 Hardening & Security theo TDD (Red -> Green -> Refactor) và commit tách biệt theo từng phase:
+    1. **Phase 1: Security Headers & CORS Policy (`c0c8f1d`)**
+       - Middleware `security-headers.ts`: Thêm đầy đủ OWASP headers (`nosniff`, `DENY`, `HSTS`, `CSP`, `XSS: 0`, `COOP`, `CORP`), gỡ bỏ `X-Powered-By`, cấu hình CORS whitelist.
+       - Unit test: `test/platform/security-headers.spec.ts` (4/4 pass).
+    2. **Phase 2: Layered Rate Limiting & 429 (`a3e314c` docs, `2fc26d2` code)**
+       - Change Request: `docs/spec/changes/CR-RATE-LIMIT-01-rate-limit-exceeded.md` & bổ sung `RATE_LIMIT_EXCEEDED` vào `error-observability.md §2`.
+       - Lỗi `RateLimitExceededError` (429) trong `app-error.ts` và xử lý tại `error-handler.ts`.
+       - Middleware `rate-limiter.ts`: Sliding-window rate limiter hỗ trợ phân tầng (sensitive routes checkout/orders vs default), gửi headers `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset`, `Retry-After`.
+       - Unit test: `test/platform/rate-limiter.spec.ts` (6/6 pass).
+    3. **Phase 3: Log Redaction & Secret Leak Prevention (`1b04688`)**
+       - Nâng cấp `redact.ts` và `logger.ts` với hàm `sanitizeString`: che giấu mật khẩu URI `postgres://`, JWT token, Supabase secret key (`sbp_...`), PAN thẻ tín dụng (13–19 số), bảo đảm 500 error không bao giờ rò rỉ stack trace/SQL sang client response.
+       - Unit test: `test/platform/security-redaction.spec.ts` (5/5 pass).
+    4. **Phase 4: Metrics, Dependency Error Mapping & Sửa lỗi kỹ thuật (`383cc6c`, `ba98234`)**
+       - Commit 4A: Hiện thực `MetricsCollector` và `createMetricsMiddleware` thu thập request count, status, percentiles p50/p95/p99. Ánh xạ database pool failure / timeout sang 503 `DEPENDENCY_UNAVAILABLE`.
+       - Commit 4B: Bỏ mã generic `CONFLICT`, thay bằng `RESOURCE_CONFLICT` cho unique violation, thêm `ORDER_INVALID_TRANSITION` vào 409 (QD11), sửa `order-routes.ts:156` sang `ReasonRequiredError` (422 REASON_REQUIRED theo RB-LTT08) và đồng bộ assertion test.
+       - Unit test: `test/platform/metrics-observability.spec.ts` (5/5 pass).
+    5. **Phase 5: Draft OpenAPI 3.1 Spec Generation (`61872b8`)**
+       - Hiện thực `openapi-spec.ts` sinh document OpenAPI 3.1.0 chuẩn hóa cho toàn bộ routes thật đã qua kiểm thử (Health, Addresses, Cart, Orders, Reviews).
+       - Loại trừ 9 routes chưa có test coverage theo danh sách `[OAS-VERIFY-02]`. Xác minh RBAC guard cho confirm/transition (`[OAS-VERIFY-01]`).
+       - Endpoint `GET /api/v1/openapi.json` trong `app.ts`.
+       - Unit test: `test/platform/openapi-spec.spec.ts` (4/4 pass).
+    6. **Phase 6: Production Environment Config Validation with Fail-Fast (`dd986ba`)**
+       - Hiện thực `env-config.ts` với `validateEnvConfig`: ném lỗi `AUTH_CONFIGURATION_ERROR` hoặc `DATABASE_CONFIGURATION_ERROR` khi thiếu env trong `production`, fallback an toàn ở `development`/`test`.
+       - Cập nhật `createRuntimeApp` và tài liệu hướng dẫn vận hành `docs/architecture/backend-run-guide.md`.
+       - Unit test: `test/platform/production-config.spec.ts` (5/5 pass).
+  - Tăng tổng số test từ **450** lên **479 tests** (100% pass trên native runner `test:node`).
+
+- **Kết quả 4 Quality Gates Bước 7 (Diagnose) dán nguyên văn:**
+
+  1. `npm run typecheck`:
+  ```text
+  > ecommerce-backend@0.1.0 typecheck
+  > tsc --noEmit
+  ```
+  *(Thoát mã 0 - Sạch 100% lỗi TypeScript)*
+
+  2. `npm run lint`:
+  ```text
+  > ecommerce-backend@0.1.0 lint
+  > eslint .
+
+  ✖ 193 problems (0 errors, 193 warnings)
+  ```
+  *(Thoát mã 0 - Sạch 100% lỗi ESLint, 0 error)*
+
+  3. `npm run build`:
+  ```text
+  > ecommerce-backend@0.1.0 build
+  > esbuild src/platform/http/app.ts --bundle --platform=node --format=esm --packages=external --alias:@=./src --outfile=dist/app.js
+
+    dist\app.js  129.1kb
+
+  Done in 15ms
+  ```
+  *(Thoát mã 0 - Build bundle hoàn tất thành công)*
+
+  4. `npm run test:node`:
+  ```text
+  ℹ tests 479
+  ℹ suites 142
+  ℹ pass 479
+  ℹ fail 0
+  ℹ cancelled 0
+  ℹ skipped 0
+  ℹ todo 0
+  ℹ duration_ms 3662.2833
+  ```
+  *(Thoát mã 0 - Toàn bộ 479/479 tests pass 100%)*
+
+- **Quy trình tiếp theo:**
+  - Nhánh `feat/t3-nguoi-1-platform` đã hoàn thành toàn bộ 6 Phase và sẵn sàng mở Pull Request vào `dev`.
+  - Tuân thủ quy định: Người 1 không tự merge PR của chính mình. Yêu cầu Người 2 (Database & Dev Lead) hoặc Người 5 (Transaction Core) review và approve trước khi merge.
+
+### 2026-09-24 (Khởi động Mốc T3 — Đồng bộ dev, gộp T2 Wiring và sẵn sàng Hardening)
+
+- Đã làm:
+  - Pull code mới nhất từ `origin/dev` (bao gồm toàn bộ mốc T3 Phase 1 của Người 2: database foundation hardening, migration rebuild verification, strict history retention RLS, backup/restore snapshot và concurrency harness).
+  - Gộp thành công nhánh `feat/t2-p1-wiring` (đấu nối Health Check thật, Buyer Routes 5 services, Order/Checkout routes và Error handling) vào `dev`.
+  - Cập nhật đồng bộ các mock interface trong `test/platform/buyer-routes.spec.ts` và `test/platform/order-routes.spec.ts` tương thích 100% với domain contract mới nhất của Người 3, 4, 5 (`ICartRepository`, `IVoucherRepository`, `IReviewRepository`, `ICatalogPort`, `IOrderRepository`, `OrderItemSnapshot`).
+  - Tạo nhánh làm việc chính thức cho Mốc T3: `feat/t3-nguoi-1-platform`.
+  - Xác minh toàn diện 4 quality gates:
+    - `npm run typecheck`: PASS (0 error).
+    - `npm run lint`: PASS (0 error).
+    - `npm run build`: PASS (bundle `dist/app.js` 105.9kb).
+    - `npm run test:node`: PASS **450/450 tests (100%)**.
+- Quyết định kỹ thuật:
+  - Đồng bộ toàn diện giữa mã nguồn T2 wiring của Platform với các contract mới nhất trên nhánh `dev`, bảo đảm không có regression trước khi tiến hành hardening bảo mật T3.
+- Contract/port thay đổi:
+  - Không.
+- Blocker phát sinh:
+  - Không.
+- Test đã chạy:
+  - Full suite `node:test` + `tsx`: 450/450 tests pass.
+
+
+### 2026-09-23 (T2 Wiring — Đấu nối Health Check thật, Buyer Routes & Order/Checkout Routes)
+
+- Đã làm:
+  - **Đấu nối Health Check Endpoint thật (`GET /api/v1/health`):**
+    - Hiện thực hóa `createHealthRouter(pool?: Pool)` kết nối trực tiếp `checkDatabaseHealth(pool)` từ `backend/db/health.ts` của Người 2.
+    - Đo lường probe query `SELECT 1 AS probe`, latency truy vấn (ms), connection pool metrics (`totalCount`, `idleCount`, `waitingCount`).
+    - Xử lý trạng thái degraded/unhealthy: trả về HTTP 503 khi probe query thất bại hoặc timeout; fallback 200 ok cho môi trường test không có database pool.
+    - Viết bộ test `test/platform/health-route.spec.ts` (3/3 pass).
+  - **Wiring đầy đủ Buyer Routes (`src/platform/http/routes/buyer-routes.ts`):**
+    - Đấu nối 5 Application Services của Người 4: `AddressService`, `CartService`, `VoucherService`, `ReviewService`, `NotificationService`.
+    - Bảo vệ nghiêm ngặt quyền hạn `requireRole('BUYER')` và chính sách bảo mật quyền sở hữu theo `auth-rbac-rls.md §3` (trả về 404 `RESOURCE_NOT_FOUND` thay vì 403 khi truy cập tài nguyên của user khác).
+    - Cung cấp trọn bộ REST endpoints: Address CRUD & Set Default, Cart & Items (kiểm tra tồn kho 409 `INVENTORY_INSUFFICIENT`), Vouchers Preview/Evaluate, Reviews (kiểm tra đơn `COMPLETED` QD14), và Notifications (mark as read idempotent RB-LTT07).
+    - Viết bộ test `test/platform/buyer-routes.spec.ts` (14/14 pass).
+  - **Wiring Route Checkout & Order (`src/platform/http/routes/order-routes.ts`):**
+    - Đấu nối `POST /api/v1/checkout` và alias `POST /api/v1/orders` vào `executeTransactionalCheckout` / `checkoutService` (12 bước nguyên tử, bắt buộc header `Idempotency-Key` 16–128 ký tự).
+    - Đấu nối `POST /api/v1/orders/:id/cancel` vào `OrderLifecycleService.cancelOrder` (bắt buộc `reason` không rỗng theo QD12, chuyển trạng thái `CANCELLED` và kích hoạt restock hoàn tồn kho theo QD13).
+    - Đấu nối `GET /api/v1/orders` và `GET /api/v1/orders/:id` vào `OrderQueryService` và `IOrderRepository` (kiểm tra quyền sở hữu Buyer/Seller/Admin).
+    - Viết bộ test `test/platform/order-routes.spec.ts` (7/7 pass).
+  - **Nâng cấp Domain Error Handler (`src/platform/http/middlewares/error-handler.ts`):**
+    - Tự động ánh xạ toàn bộ mã lỗi domain từ Người 4 và Người 5 sang HTTP status chuẩn (`VALIDATION_FAILED`, `REASON_REQUIRED`, `REVIEW_NOT_ELIGIBLE` -> 422; `RESOURCE_NOT_FOUND` -> 404; `RESOURCE_FORBIDDEN` -> 403; `CONFLICT`, `CART_CONFLICT`, `INVENTORY_INSUFFICIENT`, `IDEMPOTENCY_KEY_REUSED` -> 409; `IDEMPOTENCY_KEY_REQUIRED` -> 400).
+  - **Khắc phục lỗi ESLint tồn đọng trên dev:**
+    - Khai báo node globals trong `eslint.config.js` cho thư mục `scripts/**`.
+    - Chuyển `OrderItemRecord` sang type alias để tuân thủ `@typescript-eslint/no-empty-object-type`.
+- Quyết định kỹ thuật:
+  - Hỗ trợ song song cả domain services mới lẫn legacy HTTP application interfaces trong `createBuyerDomainRouter` và `createOrderDomainRouter` để bảo đảm 100% không bị regression với các test contracts mốc T1.
+- Contract/port thay đổi:
+  - Cung cấp router đầy đủ cho Buyer và Order/Checkout, hoàn tất tích hợp giữa Người 1, 2, 4, 5.
+- Blocker phát sinh:
+  - Không.
+- Test đã viết:
+  - `health-route.spec.ts`: 3 tests pass.
+  - `buyer-routes.spec.ts`: 14 tests pass.
+  - `order-routes.spec.ts`: 7 tests pass.
+  - Toàn bộ suite `npm run test:node`: **450/450 tests pass** (100%).
 
 ### 2026-09-21 (T2 Hoàn thiện — Gắn kết nối PostgreSQL Transaction & Target Repository vào Runtime App)
 

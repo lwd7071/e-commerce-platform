@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction, ErrorRequestHandler } from 'express';
-import { AppError } from '../../errors/app-error.ts';
+import { AppError, RateLimitExceededError } from '../../errors/app-error.ts';
 import { buildErrorEnvelope } from '../envelope.ts';
 import { logger } from '../../logging/logger.ts';
 
@@ -29,6 +29,12 @@ export const errorHandlerMiddleware: ErrorRequestHandler = (
 
   // 2. Handle standard application errors (AppError)
   if (err instanceof AppError) {
+    if (err instanceof RateLimitExceededError && err.retryAfterSeconds !== undefined) {
+      if (!res.getHeader('Retry-After')) {
+        res.setHeader('Retry-After', String(err.retryAfterSeconds));
+      }
+    }
+
     const level = err.httpStatus >= 500 ? 'error' : 'warn';
     logger[level](err.message, {
       request_id: requestId,
@@ -44,13 +50,36 @@ export const errorHandlerMiddleware: ErrorRequestHandler = (
     return;
   }
 
-  // 3. Handle PostgreSQL database errors (code 23505, 23503, 23514, etc.)
+  // 3. Handle service dependency / connection pool failures (57P01, ECONNREFUSED, timeout, etc.)
+  const maybeErr = err as { code?: unknown; message?: unknown };
+  const errCode = typeof maybeErr?.code === 'string' ? maybeErr.code : '';
+  const errMsg = typeof maybeErr?.message === 'string' ? maybeErr.message : (err instanceof Error ? err.message : '');
+
+  const isDependencyDown =
+    ['57P01', '57P02', '57P03', '08000', '08003', '08006', 'ECONNREFUSED', 'ETIMEDOUT'].includes(errCode) ||
+    /connection (?:terminated|timeout|refused)|timeout exceeded when connecting to database/i.test(errMsg);
+
+  if (isDependencyDown) {
+    const code = 'DEPENDENCY_UNAVAILABLE';
+    const message = 'Database dependency is temporarily unavailable';
+    logger.error(message, {
+      request_id: requestId,
+      method: req.method,
+      route: req.path,
+      status: 503,
+      error_code: code
+    });
+    res.status(503).json(buildErrorEnvelope(code, message, requestId));
+    return;
+  }
+
+  // 4. Handle PostgreSQL database errors (code 23505, 23503, 23514, etc.)
   const maybePg = err as { code?: unknown; constraint?: unknown; detail?: unknown; message?: unknown };
   if (maybePg && typeof maybePg.code === 'string') {
     // Unique violation (23505)
     if (maybePg.code === '23505') {
       const constraint = String(maybePg.constraint || '');
-      let code = 'CONFLICT';
+      let code = 'RESOURCE_CONFLICT';
       let message = 'A unique constraint violation occurred.';
       if (constraint.includes('app_users__email')) {
         code = 'USER_EMAIL_CONFLICT';
@@ -124,6 +153,65 @@ export const errorHandlerMiddleware: ErrorRequestHandler = (
       res.status(422).json(buildErrorEnvelope(code, message, requestId));
       return;
     }
+  }
+
+  // 4. Handle Domain & Contract Errors (Buyer, Order, Checkout)
+  const maybeDomain = err as { code?: unknown; details?: unknown; message?: unknown; name?: unknown };
+  if (
+    err instanceof Error &&
+    typeof maybeDomain.code === 'string' &&
+    maybeDomain.code !== 'INTERNAL_ERROR' &&
+    !/^\d{5}$/.test(maybeDomain.code)
+  ) {
+    const code = maybeDomain.code;
+    const details = maybeDomain.details;
+    const message = err.message;
+
+    let httpStatus = 400;
+    if (
+      code === 'VALIDATION_FAILED' ||
+      code === 'REASON_REQUIRED' ||
+      code === 'VOUCHER_NOT_APPLICABLE' ||
+      code === 'REVIEW_NOT_ELIGIBLE'
+    ) {
+      httpStatus = 422;
+    } else if (code === 'RESOURCE_NOT_FOUND') {
+      httpStatus = 404;
+    } else if (code === 'RESOURCE_FORBIDDEN') {
+      httpStatus = 403;
+    } else if (
+      code === 'CONFLICT' ||
+      code === 'RESOURCE_CONFLICT' ||
+      code === 'CART_CONFLICT' ||
+      code === 'CART_ITEM_CONFLICT' ||
+      code === 'DEFAULT_ADDRESS_CONFLICT' ||
+      code === 'INVENTORY_INSUFFICIENT' ||
+      code === 'REVIEW_ALREADY_EXISTS' ||
+      code === 'INVALID_STATE_TRANSITION' ||
+      code === 'ORDER_INVALID_TRANSITION' ||
+      code === 'ORDER_CANCELLATION_NOT_ALLOWED' ||
+      code === 'IDEMPOTENCY_KEY_REUSED' ||
+      code === 'REQUEST_IN_PROGRESS'
+    ) {
+      httpStatus = 409;
+    } else if (code === 'DEPENDENCY_UNAVAILABLE') {
+      httpStatus = 503;
+    } else if (code === 'IDEMPOTENCY_KEY_REQUIRED' || code === 'INVALID_REQUEST') {
+      httpStatus = 400;
+    }
+
+    logger.warn(message, {
+      request_id: requestId,
+      method: req.method,
+      route: req.path,
+      status: httpStatus,
+      error_code: code
+    });
+
+    res.status(httpStatus).json(
+      buildErrorEnvelope(code, message, requestId, details)
+    );
+    return;
   }
 
   // 4. Handle unexpected / unhandled runtime errors

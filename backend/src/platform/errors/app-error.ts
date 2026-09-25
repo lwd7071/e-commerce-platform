@@ -84,3 +84,17 @@ export class InvalidStateTransitionError extends ConflictError {
     super(code, message, details);
   }
 }
+
+export class RateLimitExceededError extends AppError {
+  public readonly retryAfterSeconds?: number;
+
+  constructor(
+    message = 'Too many requests, please try again later',
+    retryAfterSeconds?: number,
+    details?: unknown
+  ) {
+    super(429, 'RATE_LIMIT_EXCEEDED', message, details);
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
