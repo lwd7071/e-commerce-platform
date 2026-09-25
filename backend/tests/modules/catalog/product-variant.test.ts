@@ -63,8 +63,8 @@ describe('Catalog Domain: ProductVariant & Product Validation', () => {
     it('Sản phẩm hợp lệ không lưu trường price hoặc stockQuantity (3NF & Single Source of Truth)', () => {
       const product = new ProductEntity(validProductParams);
       expect(product.productName).toBe('Áo Thun Nam Cotton Cổ Tròn');
-      expect((product as any).price).toBeUndefined();
-      expect((product as any).stockQuantity).toBeUndefined();
+      expect((product as unknown as Record<string, unknown>).price).toBeUndefined();
+      expect((product as unknown as Record<string, unknown>).stockQuantity).toBeUndefined();
     });
 
     it('[QD16] Dữ liệu có lịch sử giao dịch: soft delete chỉ được đổi status sang INACTIVE hoặc HIDDEN', () => {

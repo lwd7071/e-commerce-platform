@@ -48,6 +48,20 @@ export class ProductImageEntity implements ProductImage {
   }
 }
 
+export const ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'] as const;
+export type AllowedImageExtension = (typeof ALLOWED_IMAGE_EXTENSIONS)[number];
+
+function sanitizeExtension(extension?: string, defaultExt: AllowedImageExtension = 'jpg'): AllowedImageExtension {
+  if (!extension) return defaultExt;
+  const cleanExt = extension.replace(/^\./, '').toLowerCase().trim();
+  if (!ALLOWED_IMAGE_EXTENSIONS.includes(cleanExt as AllowedImageExtension)) {
+    throw new ValidationError(
+      `Đuôi mở rộng hình ảnh không hợp lệ: '${extension}'. Chỉ chấp nhận: ${ALLOWED_IMAGE_EXTENSIONS.join(', ')}.`
+    );
+  }
+  return cleanExt as AllowedImageExtension;
+}
+
 /**
  * Khóa chuẩn cấu trúc Media Storage Path cho Catalog theo tài liệu kiến trúc.
  * Dùng để Người 2 cấu hình Storage Policy và RLS trên Supabase Storage bucket.
@@ -58,7 +72,7 @@ export function buildProductImagePath(
   imageId: UUID,
   extension: string = 'jpg'
 ): string {
-  const cleanExt = extension.replace(/^\./, '').toLowerCase() || 'jpg';
+  const cleanExt = sanitizeExtension(extension, 'jpg');
   return `shops/${shopId}/products/${productId}/${imageId}.${cleanExt}`;
 }
 
@@ -66,6 +80,6 @@ export function buildShopLogoPath(
   shopId: UUID,
   extension: string = 'png'
 ): string {
-  const cleanExt = extension.replace(/^\./, '').toLowerCase() || 'png';
+  const cleanExt = sanitizeExtension(extension, 'png');
   return `shops/${shopId}/logo.${cleanExt}`;
 }

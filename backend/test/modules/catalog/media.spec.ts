@@ -52,6 +52,21 @@ describe('Catalog Media Domain & Service (Node native spec)', () => {
     assert.strictEqual(logoPath, `shops/${shopId}/logo.jpg`);
   });
 
+  it('rejects unsupported extensions (.exe, .sh) and normalizes case', () => {
+    assert.throws(
+      () => buildProductImagePath(shopId, productId, imageId, 'exe'),
+      (err: unknown) => err instanceof ValidationError
+    );
+    assert.throws(
+      () => buildShopLogoPath(shopId, '.sh'),
+      (err: unknown) => err instanceof ValidationError
+    );
+    assert.strictEqual(
+      buildProductImagePath(shopId, productId, imageId, '.WEBP'),
+      `shops/${shopId}/products/${productId}/${imageId}.webp`
+    );
+  });
+
   it('resolves public URL and validates image metadata through CatalogMediaService', () => {
     const mediaService = new CatalogMediaService('https://supabase.co/storage/v1/object/public/catalog-media');
     const path = `shops/${shopId}/products/${productId}/${imageId}.jpg`;
