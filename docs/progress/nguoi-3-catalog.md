@@ -29,16 +29,22 @@
     - Xác nhận độ phức tạp truy vấn là $O(1)$ (1 câu SELECT tổng hợp JOINs + 1 câu COUNT), triệt tiêu 100% N+1 query.
   - **Soft Deactivation [QD16]:**
     - Chuyển trạng thái sang `INACTIVE` bảo toàn toàn vẹn dữ liệu thay vì xoá vật lý khi đã có liên kết nghiệp vụ.
+  - **Khắc phục 3 lỗi T2 theo phản hồi của Lead:**
+    - **1. Bảo vệ dữ liệu nhạy cảm Guest (`getProduct`):** Truy vấn JOIN `shops` và `categories`, chỉ trả về HTTP 200 khi cả Product, Shop và Category đều `ACTIVE` và có ít nhất 1 variant `ACTIVE`. Tất cả các trường hợp `DRAFT`, `INACTIVE`, `SUSPENDED` hoặc không tồn tại đều trả về đúng chuẩn HTTP 404 (`RESOURCE_NOT_FOUND`). Đồng thời sửa `createProduct` trả về trực tiếp thông tin sản phẩm mới tạo mà không qua bộ lọc public của `getProduct`.
+    - **2. Sửa lỗi `decodeCursor`:** Chuyển `throw new Error('Invalid cursor')` thành `throw new ValidationError('Invalid cursor')` (`VALIDATION_FAILED`), biến lỗi từ HTTP 500 thành mã lỗi đầu vào 4xx (422) theo đúng hợp đồng REST API.
+    - **3. Đồng bộ hợp đồng Media Storage:** Khóa `ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp']` trong `media.ts` đồng bộ với `db/storage.ts`, chủ động từ chối các file đuôi `.exe`, `.sh` với lỗi `ValidationError`.
   - **Bộ kiểm thử T3 chuyên biệt:**
-    - `backend/tests/modules/catalog/catalog-hardening.test.ts`: 12/12 tests PASS trên PostgreSQL Supabase thật (Vitest).
+    - `backend/tests/modules/catalog/catalog-hardening.test.ts`: 14/14 tests PASS trên PostgreSQL Supabase thật (Vitest).
     - `backend/tests/modules/catalog/catalog-benchmark.integration.test.ts`: 4/4 tests PASS trên PostgreSQL Supabase thật (Vitest).
-    - `backend/test/modules/catalog/catalog-hardening.spec.ts`: 9/9 tests PASS trên Node native runner.
+    - `backend/test/modules/catalog/catalog-hardening.spec.ts`: 12/12 tests PASS trên Node native runner.
+    - `backend/tests/modules/catalog/media.test.ts`: 13/13 tests PASS trên Vitest.
+    - `backend/test/modules/catalog/media.spec.ts`: 5/5 tests PASS trên Node native runner.
 - Test đã chạy:
   - `npm run typecheck`: 0 lỗi biên dịch `tsc --noEmit`.
   - `npm run lint`: 0 errors.
-  - `npx vitest run tests/modules/catalog --no-file-parallelism`: 8/8 test files PASS, 62/62 tests PASS 100%.
-  - `npm run test:node`: 154/154 test suites PASS, 518/518 tests PASS 100%.
-  - `npm run build`: bundle thành công `dist/app.js` (132.8kb trong 53ms).
+  - `npx vitest run tests/modules/catalog --no-file-parallelism`: 8/8 test files PASS, 66/66 tests PASS 100%.
+  - `npm run test:node`: 155/155 test suites PASS, 522/522 tests PASS 100%.
+  - `npm run build`: bundle thành công `dist/app.js` (134.1kb trong 22ms).
 
 
 - Đã làm:

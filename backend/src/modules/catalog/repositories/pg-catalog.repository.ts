@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
+import { ValidationError } from '../domain/errors.ts';
 import type {
   UUID,
   Shop,
@@ -439,17 +440,20 @@ export class PgProductRepository implements IProductRepository {
   }
 }
 
-function encodeCursor(offset: number): string {
+export function encodeCursor(offset: number): string {
   return Buffer.from(JSON.stringify({ v: 1, offset }), 'utf8').toString('base64url');
 }
 
-function decodeCursor(cursor: string): number {
+export function decodeCursor(cursor: string): number {
   try {
     const value = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as { v?: number; offset?: number };
     const offset = value.offset;
-    if (value.v !== 1 || typeof offset !== 'number' || !Number.isInteger(offset) || offset < 0) throw new Error('invalid cursor');
+    if (value.v !== 1 || typeof offset !== 'number' || !Number.isInteger(offset) || offset < 0) {
+      throw new ValidationError('Invalid cursor');
+    }
     return offset;
-  } catch {
-    throw new Error('Invalid cursor');
+  } catch (err) {
+    if (err instanceof ValidationError) throw err;
+    throw new ValidationError('Invalid cursor');
   }
 }

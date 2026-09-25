@@ -76,6 +76,22 @@ describe('Catalog Media Domain & Service (RB-MG11)', () => {
       const path = buildShopLogoPath(shopId, 'png');
       expect(path).toBe(`shops/${shopId}/logo.png`);
     });
+
+    it('rejects disallowed extension (.exe, .sh, .pdf) with ValidationError', () => {
+      expect(() => buildProductImagePath(shopId, productId, imageId, 'exe')).toThrowError(ValidationError);
+      expect(() => buildProductImagePath(shopId, productId, imageId, '.exe')).toThrowError(ValidationError);
+      expect(() => buildProductImagePath(shopId, productId, imageId, 'sh')).toThrowError(ValidationError);
+      expect(() => buildShopLogoPath(shopId, 'exe')).toThrowError(ValidationError);
+    });
+
+    it('normalizes allowed extensions with leading dot and mixed case', () => {
+      expect(buildProductImagePath(shopId, productId, imageId, '.PNG')).toBe(
+        `shops/${shopId}/products/${productId}/${imageId}.png`
+      );
+      expect(buildProductImagePath(shopId, productId, imageId, '.JPEG')).toBe(
+        `shops/${shopId}/products/${productId}/${imageId}.jpeg`
+      );
+    });
   });
 
   describe('CatalogMediaService', () => {

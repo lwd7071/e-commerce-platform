@@ -14,6 +14,10 @@ import { ProductEntity } from '../../../src/modules/catalog/domain/product.ts';
 import { ProductVariantEntity } from '../../../src/modules/catalog/domain/product-variant.ts';
 import { ProductImageEntity } from '../../../src/modules/catalog/domain/media.ts';
 import { CategoryEntity } from '../../../src/modules/catalog/domain/category.ts';
+import {
+  decodeCursor,
+  encodeCursor,
+} from '../../../src/modules/catalog/repositories/pg-catalog.repository.ts';
 
 describe('Catalog Hardening & Business Rules (Node native test runner — Mốc T3)', () => {
   const shopId = '00000000-0000-4000-a000-000000000001';
@@ -244,6 +248,36 @@ describe('Catalog Hardening & Business Rules (Node native test runner — Mốc 
         updatedAt: new Date().toISOString(),
       });
       assert.strictEqual(childCat.parentCategoryId, categoryId);
+    });
+  });
+
+  describe('6. Cursor & Pagination Validation [Issue 2]', () => {
+    it('encodes and decodes valid cursor correctly', () => {
+      const encoded = encodeCursor(20);
+      const decoded = decodeCursor(encoded);
+      assert.strictEqual(decoded, 20);
+    });
+
+    it('rejects invalid cursor string with ValidationError (VALIDATION_FAILED)', () => {
+      assert.throws(
+        () => decodeCursor('not-a-cursor'),
+        (err: unknown) => {
+          assert.ok(err instanceof ValidationError);
+          assert.strictEqual((err as ValidationError).code, 'VALIDATION_FAILED');
+          return true;
+        },
+      );
+    });
+
+    it('rejects cursor with invalid version or negative offset', () => {
+      const badVersion = Buffer.from(JSON.stringify({ v: 2, offset: 10 })).toString('base64url');
+      assert.throws(() => decodeCursor(badVersion), ValidationError);
+
+      const negativeOffset = Buffer.from(JSON.stringify({ v: 1, offset: -5 })).toString('base64url');
+      assert.throws(() => decodeCursor(negativeOffset), ValidationError);
+
+      const nonIntegerOffset = Buffer.from(JSON.stringify({ v: 1, offset: 3.14 })).toString('base64url');
+      assert.throws(() => decodeCursor(nonIntegerOffset), ValidationError);
     });
   });
 });

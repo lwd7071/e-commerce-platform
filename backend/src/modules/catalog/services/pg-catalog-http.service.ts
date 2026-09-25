@@ -64,19 +64,41 @@ export class PgCatalogHttpService {
   }
 
   async getProduct(productId: string): Promise<unknown> {
-    const product = await this.products.findById(productId);
-    if (!product) {
+    const res = await this.pool.query(
+      `SELECT 
+         p.product_id, p.shop_id, p.category_id, p.product_name, p.description, p.status,
+         s.status AS shop_status,
+         c.status AS category_status
+       FROM products p
+       JOIN shops s ON p.shop_id = s.shop_id
+       JOIN categories c ON p.category_id = c.category_id
+       WHERE p.product_id = $1`,
+      [productId],
+    );
+
+    if (res.rows.length === 0) {
       throw new ResourceNotFoundError(`Product ${productId} not found`);
     }
+
+    const row = res.rows[0];
+    if (row.status !== 'ACTIVE' || row.shop_status !== 'ACTIVE' || row.category_status !== 'ACTIVE') {
+      throw new ResourceNotFoundError(`Product ${productId} not found`);
+    }
+
     const variants = await this.variants.findByProductId(productId);
+    const activeVariants = variants.filter((v) => v.status === 'ACTIVE');
+    if (activeVariants.length === 0) {
+      throw new ResourceNotFoundError(`Product ${productId} not found`);
+    }
+
     return {
-      product_id: product.productId,
-      shop_id: product.shopId,
-      category_id: product.categoryId,
-      product_name: product.productName,
-      description: product.description,
-      status: product.status,
-      variants: variants.map((v) => ({
+      product_id: row.product_id,
+      shop_id: row.shop_id,
+      category_id: row.category_id,
+      product_name: row.product_name,
+      description: row.description,
+      status: row.status,
+      variants: activeVariants.map((v) => ({
         variant_id: v.variantId,
         variant_name: v.variantName,
         variant_value: v.variantValue,
@@ -176,7 +198,23 @@ export class PgCatalogHttpService {
     });
 
     await this.products.create(product, variants, images);
-    return this.getProduct(productId);
+    return {
+      product_id: product.productId,
+      shop_id: product.shopId,
+      category_id: product.categoryId,
+      product_name: product.productName,
+      description: product.description,
+      status: product.status,
+      variants: variants.map((v) => ({
+        variant_id: v.variantId,
+        variant_name: v.variantName,
+        variant_value: v.variantValue,
+        sku: v.sku,
+        price: v.price,
+        stock_quantity: v.stockQuantity,
+        status: v.status,
+      })),
+    };
   }
 
   async updateVariantStock(

@@ -446,6 +446,60 @@ interface VariantStockUpdateResponse {
       expect(returnedIds).toContain(activeProd.product_id);
       expect(returnedIds).not.toContain(inactiveCatProd.product_id);
       expect(returnedIds).not.toContain(draftProd.product_id);
+
+      // getProduct Public Detail API Visibility [Issue 1 fix verification]
+      // 1. ACTIVE product in ACTIVE shop & category must return 200 (success)
+      const detail = (await catalogHttpService.getProduct(activeProd.product_id)) as ProductCreatedResponse;
+      expect(detail).toBeDefined();
+      expect(detail.product_id).toBe(activeProd.product_id);
+      expect(detail.status).toBe('ACTIVE');
+      expect(detail.variants.length).toBeGreaterThan(0);
+
+      // 2. DRAFT / INACTIVE product must throw ResourceNotFoundError (HTTP 404)
+      await expect(
+        catalogHttpService.getProduct(draftProd.product_id),
+      ).rejects.toThrowError(ResourceNotFoundError);
+
+      // 3. Product in INACTIVE category must throw ResourceNotFoundError (HTTP 404)
+      await expect(
+        catalogHttpService.getProduct(inactiveCatProd.product_id),
+      ).rejects.toThrowError(ResourceNotFoundError);
+
+      // 4. Non-existent product must throw ResourceNotFoundError (HTTP 404)
+      await expect(
+        catalogHttpService.getProduct('00000000-0000-4000-8000-000000000000'),
+      ).rejects.toThrowError(ResourceNotFoundError);
+    }, 30_000);
+
+    it('denies public getProduct when the owning Shop is SUSPENDED or not ACTIVE', async () => {
+      // Create product in Shop 2
+      const prod = (await catalogHttpService.createProduct(contextSeller2, {
+        category_id: categoryActiveId,
+        product_name: 'Sản phẩm của Shop 2 sẽ bị tạm dừng',
+        variants: [
+          {
+            variant_name: 'Var Temp',
+            sku: 'SHOP2-TEMP-01',
+            price: '200000.00',
+            stock_quantity: 10,
+          },
+        ],
+      })) as ProductCreatedResponse;
+
+      // Suspend shop 2
+      await shopRepo.updateStatus(shop2Id, 'SUSPENDED');
+
+      // Public getProduct must return 404
+      await expect(
+        catalogHttpService.getProduct(prod.product_id),
+      ).rejects.toThrowError(ResourceNotFoundError);
+
+      // Restore shop 2 to ACTIVE
+      await shopRepo.updateStatus(shop2Id, 'ACTIVE');
+
+      // After restoring shop to ACTIVE, public getProduct works again
+      const restored = (await catalogHttpService.getProduct(prod.product_id)) as ProductCreatedResponse;
+      expect(restored.product_id).toBe(prod.product_id);
     }, 30_000);
   });
 
@@ -471,6 +525,22 @@ interface VariantStockUpdateResponse {
       const dbCheck = await productRepo.findById(prod.product_id);
       expect(dbCheck).not.toBeNull();
       expect(dbCheck?.status).toBe('INACTIVE');
+    }, 30_000);
+  });
+
+  describe('6. Cursor & Pagination Input Validation [Issue 2]', () => {
+    it('throws ValidationError (VALIDATION_FAILED) instead of 500 when cursor is invalid', async () => {
+      await expect(
+        catalogHttpService.listProducts({ cursor: 'not-a-cursor' }),
+      ).rejects.toThrowError(ValidationError);
+
+      try {
+        await catalogHttpService.listProducts({ cursor: 'not-a-cursor' });
+        expect.fail('Should have thrown ValidationError');
+      } catch (err: unknown) {
+        expect(err).toBeInstanceOf(ValidationError);
+        expect((err as ValidationError).code).toBe('VALIDATION_FAILED');
+      }
     }, 30_000);
   });
 });
