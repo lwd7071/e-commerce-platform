@@ -41,10 +41,15 @@ export interface PlatformApplications extends T1RouteApplications {
   buyerServices?: BuyerServices;
   orderServices?: OrderServices;
   rateLimiter?: RequestHandler | false;
+  trustProxy?: boolean | string | number;
 }
 
 export function createApp(applications: PlatformApplications = {}): Application {
   const app = express();
+
+  if (applications.trustProxy !== undefined) {
+    app.set('trust proxy', applications.trustProxy);
+  }
 
   app.use(createSecurityHeadersMiddleware());
   app.use(createCorsMiddleware());
@@ -102,6 +107,7 @@ export function createRuntimeApp(environment: NodeJS.ProcessEnv = process.env): 
   return {
     app: createApp({
       pool,
+      trustProxy: envConfig.trustProxy,
       auth: createAuthMiddleware(authRepository, verifier),
       catalog: new PgCatalogHttpService(pool),
       buyer: new PgBuyerHttpService(pool),

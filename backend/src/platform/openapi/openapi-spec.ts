@@ -401,6 +401,167 @@ export function generateOpenApiSpec(): OpenApiSpec {
           },
         },
       },
+      '/api/v1/vouchers': {
+        get: {
+          summary: 'List Active Vouchers',
+          description: 'Retrieve active vouchers applicable to buyer or shop.',
+          security: [{ BearerAuth: [] }],
+          parameters: [
+            {
+              name: 'scope',
+              in: 'query',
+              required: false,
+              schema: { type: 'string', enum: ['PLATFORM', 'SHOP'] },
+            },
+            {
+              name: 'shop_id',
+              in: 'query',
+              required: false,
+              schema: { type: 'string', format: 'uuid' },
+            },
+            {
+              name: 'now',
+              in: 'query',
+              required: false,
+              schema: { type: 'string', format: 'date-time' },
+            },
+          ],
+          responses: {
+            '200': {
+              description: 'Active vouchers list',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/SuccessEnvelope' },
+                },
+              },
+            },
+            '401': {
+              description: 'Authentication required',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+                },
+              },
+            },
+          },
+        },
+      },
+      '/api/v1/vouchers/evaluate': {
+        post: {
+          summary: 'Evaluate & Preview Voucher',
+          description: 'Preview voucher discount amount for given subtotal and context.',
+          security: [{ BearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['code', 'order_subtotal'],
+                  properties: {
+                    code: { type: 'string', example: 'DISCOUNT10' },
+                    order_subtotal: { type: 'string', example: '100000' },
+                    shop_id: { type: 'string', format: 'uuid' },
+                    now: { type: 'string', format: 'date-time' },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            '200': {
+              description: 'Voucher preview result',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/SuccessEnvelope' },
+                },
+              },
+            },
+            '422': {
+              description: 'Voucher not applicable or validation failed',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+                },
+              },
+            },
+          },
+        },
+      },
+      '/api/v1/notifications': {
+        get: {
+          summary: 'List Buyer Notifications',
+          description: 'Retrieve recipient notifications with optional read status filter.',
+          security: [{ BearerAuth: [] }],
+          parameters: [
+            {
+              name: 'is_read',
+              in: 'query',
+              required: false,
+              schema: { type: 'boolean' },
+            },
+          ],
+          responses: {
+            '200': {
+              description: 'List of notifications',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/SuccessEnvelope' },
+                },
+              },
+            },
+            '401': {
+              description: 'Authentication required',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+                },
+              },
+            },
+          },
+        },
+      },
+      '/api/v1/notifications/{notification_id}/read': {
+        patch: {
+          summary: 'Mark Notification As Read',
+          description: 'Mark specific notification as read (RB-LTT07).',
+          security: [{ BearerAuth: [] }],
+          parameters: [
+            {
+              name: 'notification_id',
+              in: 'path',
+              required: true,
+              schema: { type: 'string' },
+            },
+          ],
+          responses: {
+            '200': {
+              description: 'Notification marked as read',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/SuccessEnvelope' },
+                },
+              },
+            },
+            '401': {
+              description: 'Authentication required',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+                },
+              },
+            },
+            '404': {
+              description: 'Notification not found',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+                },
+              },
+            },
+          },
+        },
+      },
     },
   };
 }

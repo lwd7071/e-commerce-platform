@@ -23,6 +23,7 @@ Tài liệu này hướng dẫn thiết lập biến môi trường, khởi ch�
 Theo quy chuẩn Phase 6 (`validateEnvConfig`), khi ứng dụng chạy ở môi trường `NODE_ENV=production`:
 - Nếu thiếu `DATABASE_URL`: Server dừng ngay lập tức và ném lỗi `DATABASE_CONFIGURATION_ERROR`.
 - Nếu thiếu `SUPABASE_URL` hoặc `SUPABASE_JWKS_URL`: Server dừng ngay lập tức và ném lỗi `AUTH_CONFIGURATION_ERROR`.
+- Nếu thiếu `TRUST_PROXY`: Server dừng ngay lập tức và ném lỗi `CONFIGURATION_ERROR` (bắt buộc cấu hình số hop e.g. `1` hoặc CIDR proxy để ngăn chặn giả mạo IP và bảo vệ rate limiter).
 
 Mục đích: Không bao giờ cho phép một container/process production khởi động khi cấu hình bảo mật hoặc database chưa hoàn chỉnh, tránh rủi ro mở cổng mà không thể xác thực an toàn.
 
@@ -38,6 +39,8 @@ SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_JWKS_URL=https://your-project.supabase.co/auth/v1/.well-known/jwks.json
 SUPABASE_JWT_AUDIENCE=authenticated
 CORS_ORIGIN=http://localhost:3000
+# Bắt buộc khi NODE_ENV=production: ví dụ 1 cho single load-balancer (ALB/Nginx), hoặc dải CIDR
+TRUST_PROXY=1
 ```
 
 ---

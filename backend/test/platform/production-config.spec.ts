@@ -12,6 +12,7 @@ describe('Production Environment Config Validation & Fail-Fast (Phase 6)', () =>
       SUPABASE_URL: 'https://project.supabase.co',
       SUPABASE_JWKS_URL: 'https://project.supabase.co/auth/v1/.well-known/jwks.json',
       SUPABASE_JWT_AUDIENCE: 'authenticated',
+      TRUST_PROXY: '1',
       PORT: '8080',
       CORS_ORIGIN: 'https://my-store.com'
     };
@@ -82,6 +83,26 @@ describe('Production Environment Config Validation & Fail-Fast (Phase 6)', () =>
       () => createRuntimeApp(brokenEnv),
       (err: unknown) => {
         assert.ok(err instanceof AuthConfigurationError);
+        return true;
+      }
+    );
+  });
+
+  it('[CFG-06]: throws AppError fail-fast in production when TRUST_PROXY is missing or blank', () => {
+    const missingTrustProxyEnv: NodeJS.ProcessEnv = {
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgresql://postgres:secret@localhost:5432/ecommerce_prod',
+      SUPABASE_URL: 'https://project.supabase.co',
+      SUPABASE_JWKS_URL: 'https://project.supabase.co/auth/v1/.well-known/jwks.json',
+      // Missing TRUST_PROXY
+    };
+
+    assert.throws(
+      () => validateEnvConfig(missingTrustProxyEnv),
+      (err: unknown) => {
+        assert.ok(err instanceof AppError);
+        assert.strictEqual((err as AppError).code, 'CONFIGURATION_ERROR');
+        assert.ok((err as Error).message.includes('TRUST_PROXY'));
         return true;
       }
     );
