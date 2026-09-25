@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { randomUUID } from 'node:crypto';
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import { loadDatabaseConfig, parseRunRemoteDbTests } from '../../../db/config.js';
 import { closeDatabasePool, createDatabasePool } from '../../../db/client.js';
 import {
@@ -29,7 +29,7 @@ suite('Buyer Domain Concurrency & Race Conditions Integration (T3 Quality Gate)'
     }
   });
 
-  const makeTestBuyer = async (client: any) => {
+  const makeTestBuyer = async (client: PoolClient) => {
     const userId = randomUUID();
     const email = `buyer_race_${randomUUID().slice(0, 8)}@example.com`;
     await ensureAuthUser(client, userId, email);
@@ -42,7 +42,7 @@ suite('Buyer Domain Concurrency & Race Conditions Integration (T3 Quality Gate)'
 
       // Tạo user trước
       const setupClient = await pool.connect();
-      let buyer: any;
+      let buyer: Awaited<ReturnType<typeof makeTestBuyer>>;
       try {
         buyer = await makeTestBuyer(setupClient);
       } finally {

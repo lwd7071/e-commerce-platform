@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { NotificationService } from '../../../../src/modules/buyer/services/notification.service';
 import { InMemoryEventIdempotencyStore } from '../../../../src/modules/buyer/ports/event-idempotency.port';
 import type { INotificationRepository } from '../../../../src/modules/buyer/domain/repositories';
-import type { ITransactionEventPort, TransactionDomainEvent } from '../../../../src/modules/buyer/ports/buyer-event.port';
+import type { TransactionDomainEvent } from '../../../../src/modules/buyer/ports/buyer-event.port';
 import type { Notification, UUID } from '../../../../src/modules/buyer/domain/types';
 import { mockBuyerId } from '../fixtures';
 
@@ -46,20 +46,6 @@ class MockFaultyNotificationRepository implements INotificationRepository {
     };
     this.notifications.set(notificationId, updated);
     return updated;
-  }
-}
-
-class MockDirectEventPort implements ITransactionEventPort {
-  private handlers: ((event: TransactionDomainEvent) => Promise<void>)[] = [];
-
-  subscribe(handler: (event: TransactionDomainEvent) => Promise<void>): void {
-    this.handlers.push(handler);
-  }
-
-  async publish(event: TransactionDomainEvent): Promise<void> {
-    for (const h of this.handlers) {
-      await h(event);
-    }
   }
 }
 

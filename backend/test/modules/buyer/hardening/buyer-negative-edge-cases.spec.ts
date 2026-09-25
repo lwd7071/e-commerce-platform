@@ -18,14 +18,15 @@ import type {
   IReviewRepository,
   IVoucherRepository,
 } from '../../../../src/modules/buyer/domain/repositories';
-import type { ICatalogPort, VariantPriceAndStockDTO } from '../../../../src/contracts/catalog.port';
-import type { IOrderQueryPort, ReviewOrderItemDTO } from '../../../../src/modules/buyer/ports/order-query.port';
+import type { ICatalogPort, VariantPriceAndStockDTO, LockVariantResultDTO } from '../../../../src/contracts/catalog.port';
+import type { IOrderQueryPort, ReviewOrderItemDTO, OrderSummaryDTO } from '../../../../src/modules/buyer/ports/order-query.port';
 import type {
   Cart,
   CartItem,
   Address,
   Review,
   Voucher,
+  VoucherUsage,
   UUID,
 } from '../../../../src/modules/buyer/domain/types';
 
@@ -66,15 +67,18 @@ class MockCartRepository implements ICartRepository {
     return item;
   }
 
-  async removeItem(cartId: UUID, cartItemId: UUID): Promise<void> {
-    const list = this.items.get(cartId) ?? [];
-    this.items.set(cartId, list.filter(i => i.cartItemId !== cartItemId));
+  async removeItem(cartItemId: UUID): Promise<void> {
+    for (const [cartId, list] of this.items.entries()) {
+      this.items.set(cartId, list.filter(i => i.cartItemId !== cartItemId));
+    }
   }
 
-  async clearCheckedOutItems(cartId: UUID, itemIds: UUID[]): Promise<void> {
+  async clearCheckedOutItems(buyerId: UUID, itemIds: UUID[]): Promise<void> {
     const set = new Set(itemIds);
-    const list = this.items.get(cartId) ?? [];
-    this.items.set(cartId, list.filter(i => !set.has(i.cartItemId)));
+    const cart = await this.findByBuyerId(buyerId);
+    if (!cart) return;
+    const list = this.items.get(cart.cartId) ?? [];
+    this.items.set(cart.cartId, list.filter(i => !set.has(i.cartItemId)));
   }
 }
 
@@ -87,11 +91,13 @@ class MockCatalogPort implements ICatalogPort {
     return v;
   }
 
-  async lockVariant(): Promise<VariantPriceAndStockDTO> {
+  async lockVariant(_variantId: UUID, _quantity: number): Promise<LockVariantResultDTO> {
     throw new Error('Not implemented for unit tests');
   }
 
-  async unlockVariant(): Promise<void> {}
+  async checkShopActive(_shopId: UUID): Promise<boolean> {
+    return true;
+  }
 }
 
 class MockAddressRepository implements IAddressRepository {
@@ -160,7 +166,7 @@ class MockOrderQueryPort implements IOrderQueryPort {
     return this.items.get(key) ?? null;
   }
 
-  async getOrderSummary(): Promise<any> {
+  async getOrderSummary(_orderId: UUID): Promise<OrderSummaryDTO | null> {
     return null;
   }
 }
@@ -202,8 +208,8 @@ class MockVoucherRepository implements IVoucherRepository {
     return true;
   }
 
-  async recordUsage(): Promise<any> {
-    return {} as any;
+  async recordUsage(usage: VoucherUsage): Promise<VoucherUsage> {
+    return usage;
   }
 }
 
@@ -230,7 +236,8 @@ describe('Buyer Domain Negative & Edge-Case Hardening (T3 Quality Gate)', () => 
       catalogPort.variants.set(variantId1, {
         variantId: variantId1,
         productId: productId1,
-        sku: 'TEST-SKU-1',
+        variantName: 'Test Variant',
+        variantValue: 'Standard',
         price: '100000.00',
         stockQuantity: 10,
         status: 'ACTIVE',
@@ -277,7 +284,8 @@ describe('Buyer Domain Negative & Edge-Case Hardening (T3 Quality Gate)', () => 
       catalogPort.variants.set(variantId1, {
         variantId: variantId1,
         productId: productId1,
-        sku: 'TEST-SKU-INACTIVE',
+        variantName: 'Test Variant Inactive',
+        variantValue: 'Standard',
         price: '100000.00',
         stockQuantity: 10,
         status: 'INACTIVE',
