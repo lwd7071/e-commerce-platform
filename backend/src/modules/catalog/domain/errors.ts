@@ -51,3 +51,11 @@ export class InventoryInsufficientError extends CatalogDomainError {
     this.name = 'InventoryInsufficientError';
   }
 }
+
+export class ResourceNotFoundError extends CatalogDomainError {
+  constructor(message: string, details?: any) {
+    super('RESOURCE_NOT_FOUND', message, details);
+    this.name = 'ResourceNotFoundError';
+  }
+}
+

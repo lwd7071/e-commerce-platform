@@ -2,14 +2,44 @@
 
 ## Trạng thái hiện tại
 
-- Mốc: T2 (Hoàn thiện chẩn đoán)
-- Cập nhật lần cuối: 2026-09-21
-- Đang làm: Đã xử lý triệt để 2 điểm review của Lead: loại bỏ biến thừa trong integration test và chuẩn hóa Media Domain / Service với quy tắc RB-MG11, khóa cấu trúc Media Storage Path cho Người 2
-- Bị block bởi: Không (Đã tích hợp xong với DB client và Transaction helper của Người 2)
+- Mốc: T3 (Hardening & Nghiệm thu)
+- Cập nhật lần cuối: 2026-09-25
+- Đang làm: Đã hoàn tất 100% các hạng mục của Mốc T3: Negative Testing & Cross-Shop Ownership (QD04, RB-LQH07), Status Visibility Matrix (RB-MG12), SKU Conflict Isolation per Shop (RB-LB11), Media Validation (RB-MG11), Dataset Benchmark & Triệt tiêu N+1 Query, Soft Deactivation (QD16). Quality gates đạt 100% (Typecheck 0 lỗi, Lint 0 lỗi, Node runner 518/518 tests pass, Vitest catalog 62/62 tests pass).
+- Bị block bởi: Không (Sẵn sàng mở PR T3 để merge vào dev).
 
 ## Nhật ký theo ngày
 
-### 2026-09-21 (Hoàn thiện theo phản hồi của Lead — Clean Test & Media Storage Path)
+### 2026-09-25 (Hoàn thành Toàn diện Mốc T3 — Hardening, Negative Testing & Performance Tuning)
+
+- Đã làm:
+  - **Negative Testing & Bảo vệ Quyền sở hữu Cross-Shop [QD04, RB-LQH07]:**
+    - Chặn đứng hành vi Seller cập nhật tồn kho hoặc can thiệp biến thể của Shop khác với lỗi chuẩn 403 `RESOURCE_FORBIDDEN`.
+    - Trả về 404 `RESOURCE_NOT_FOUND` khi variant không tồn tại, 422 `STOCK_INVALID` khi `stock_quantity < 0` (QD06).
+  - **Status Visibility Matrix [RB-MG12]:**
+    - Kiểm chứng chặt chẽ câu lệnh `queryPublic`: Sản phẩm chỉ hiển thị ra ngoài public API khi đồng thời thoả mãn: Product `ACTIVE` + Shop `ACTIVE` + Category `ACTIVE` + ít nhất 1 Variant `ACTIVE`. Sản phẩm `DRAFT`, `INACTIVE` hoặc thuộc Category/Shop ẩn đều bị loại trừ hoàn toàn.
+  - **SKU Conflict & Scope Isolation [RB-LB11]:**
+    - Ngăn chặn trùng SKU trong cùng payload tạo sản phẩm hoặc trùng với variant đã có trong cùng Shop với mã lỗi 409 `SKU_CONFLICT`.
+    - Cho phép hai Shop khác nhau sở hữu cùng mã SKU mà không hề bị xung đột (phân lập dữ liệu đa người bán).
+  - **Media Validation [RB-MG11]:**
+    - Ràng buộc nghiêm ngặt `sortOrder` số nguyên không âm (`sortOrder >= 0`), chặn số âm hoặc float không nguyên với 422 `VALIDATION_FAILED`.
+  - **Dataset Benchmark & Triệt tiêu Hoàn toàn N+1 Query:**
+    - Khởi tạo dataset lớn với 25 sản phẩm, 50 biến thể, 50 hình ảnh trên PostgreSQL Supabase thật.
+    - Benchmark lọc danh mục, phân trang cursor không trùng lặp, lọc khoảng giá `min_price`/`max_price`, sắp xếp theo giá và thời gian.
+    - Chạy `EXPLAIN ANALYZE` xác nhận PostgreSQL kích hoạt các chỉ mục hiệu năng `t2_performance_indexes`.
+    - Xác nhận độ phức tạp truy vấn là $O(1)$ (1 câu SELECT tổng hợp JOINs + 1 câu COUNT), triệt tiêu 100% N+1 query.
+  - **Soft Deactivation [QD16]:**
+    - Chuyển trạng thái sang `INACTIVE` bảo toàn toàn vẹn dữ liệu thay vì xoá vật lý khi đã có liên kết nghiệp vụ.
+  - **Bộ kiểm thử T3 chuyên biệt:**
+    - `backend/tests/modules/catalog/catalog-hardening.test.ts`: 12/12 tests PASS trên PostgreSQL Supabase thật (Vitest).
+    - `backend/tests/modules/catalog/catalog-benchmark.integration.test.ts`: 4/4 tests PASS trên PostgreSQL Supabase thật (Vitest).
+    - `backend/test/modules/catalog/catalog-hardening.spec.ts`: 9/9 tests PASS trên Node native runner.
+- Test đã chạy:
+  - `npm run typecheck`: 0 lỗi biên dịch `tsc --noEmit`.
+  - `npm run lint`: 0 errors.
+  - `npx vitest run tests/modules/catalog --no-file-parallelism`: 8/8 test files PASS, 62/62 tests PASS 100%.
+  - `npm run test:node`: 154/154 test suites PASS, 518/518 tests PASS 100%.
+  - `npm run build`: bundle thành công `dist/app.js` (132.8kb trong 53ms).
+
 
 - Đã làm:
   - **Khắc phục biến thừa `cat1`, `cat2` trong `catalog-db.integration.test.ts`:** Bổ sung assertions trực tiếp cho cả 2 category, vừa nâng cao tính chặt chẽ của bài test vừa triệt tiêu 100% warning ESLint.

@@ -46,7 +46,7 @@ remoteDescribe('Catalog PostgreSQL Integration Tests (T2)', () => {
     catalogPort = new CatalogPortService({ pool });
 
     // Clean up test data if exists
-    await pool.query('DELETE FROM product_variants WHERE variant_id = $1', [testVarId1]);
+    await pool.query('DELETE FROM product_variants WHERE product_id = $1', [testProdId1]);
     await pool.query('DELETE FROM product_images WHERE product_id = $1', [testProdId1]);
     await pool.query('DELETE FROM products WHERE product_id = $1', [testProdId1]);
     await pool.query('DELETE FROM categories WHERE category_id IN ($1, $2)', [testCatId1, testCatId2]);
@@ -72,7 +72,7 @@ remoteDescribe('Catalog PostgreSQL Integration Tests (T2)', () => {
 
   afterAll(async () => {
     if (pool) {
-      await pool.query('DELETE FROM product_variants WHERE variant_id = $1', [testVarId1]);
+      await pool.query('DELETE FROM product_variants WHERE product_id = $1', [testProdId1]);
       await pool.query('DELETE FROM product_images WHERE product_id = $1', [testProdId1]);
       await pool.query('DELETE FROM products WHERE product_id = $1', [testProdId1]);
       await pool.query('DELETE FROM categories WHERE category_id IN ($1, $2)', [testCatId1, testCatId2]);
@@ -196,8 +196,8 @@ remoteDescribe('Catalog PostgreSQL Integration Tests (T2)', () => {
         await catalogPort.lockVariant(testVarId1, 3, client);
         throw new Error('Downstream payment failure simulation');
       });
-    } catch (err: any) {
-      expect(err.message).toBe('Downstream payment failure simulation');
+    } catch (err: unknown) {
+      expect((err as Error).message).toBe('Downstream payment failure simulation');
     }
 
     // After rollback, stock must remain 15, NOT 12!
