@@ -6,7 +6,8 @@ import type { RequestContext } from '../../context/request-context.ts';
 import type { OrderLifecycleService } from '../../../modules/order/services/order-lifecycle.service.ts';
 import type { OrderQueryService } from '../../../modules/order/services/order-query.service.ts';
 import type { IOrderRepository } from '../../../modules/order/domain/repositories.ts';
-import type { OrderActor } from '../../../modules/order/domain/types.ts';
+import type { OrderActor, OrderStatus } from '../../../modules/order/domain/types.ts';
+import type { PaymentService } from '../../../modules/payment/services/payment.service.ts';
 import type { OrderHttpApplication } from './t1-routes.ts';
 
 type AsyncRoute = (req: Request, res: Response, next: NextFunction) => Promise<void>;
@@ -19,6 +20,7 @@ export interface OrderServices {
   orderLifecycleService?: OrderLifecycleService;
   orderQueryService?: OrderQueryService;
   orderRepo?: IOrderRepository;
+  paymentService?: PaymentService;
 }
 
 function guards(auth: RequestHandler | undefined, ...roles: Role[]): RequestHandler[] {
@@ -72,6 +74,7 @@ export function createOrderDomainRouter(
   const orderLifecycleService = services?.orderLifecycleService;
   const orderQueryService = services?.orderQueryService;
   const orderRepo = services?.orderRepo;
+  const paymentService = services?.paymentService;
 
   // ==========================================
   // 1. CHECKOUT / CREATE ORDER
@@ -181,11 +184,27 @@ export function createOrderDomainRouter(
   }));
 
   // ==========================================
-  // 5. LEGACY ORDER OPERATIONS
+  // 5. ORDER OPERATIONS (CONFIRM, TRANSITION, PAYMENT RETRY)
   // ==========================================
   router.post('/orders/:order_id/confirm', ...guards(auth, 'SELLER', 'ADMIN'), asyncRoute(async (req, res) => {
+    const ctx = context(req);
+    const orderId = req.params.order_id;
+
+    if (orderLifecycleService) {
+      let actor: OrderActor;
+      if (ctx.role === 'SELLER') {
+        actor = { kind: 'SELLER', userId: ctx.user_id, shopId: ctx.shop_id ?? '' };
+      } else {
+        actor = { kind: 'ADMIN', userId: ctx.user_id };
+      }
+
+      const result = await orderLifecycleService.confirmOrder(orderId, actor);
+      res.json(buildSuccessEnvelope(result, requestId(req)));
+      return;
+    }
+
     if (legacyApp?.confirmOrder) {
-      const result = await legacyApp.confirmOrder(context(req), req.params.order_id);
+      const result = await legacyApp.confirmOrder(ctx, orderId);
       res.json(buildSuccessEnvelope(result, requestId(req)));
       return;
     }
@@ -193,8 +212,36 @@ export function createOrderDomainRouter(
   }));
 
   router.post('/orders/:order_id/transition', ...guards(auth, 'SELLER', 'ADMIN'), asyncRoute(async (req, res) => {
+    const ctx = context(req);
+    const orderId = req.params.order_id;
+
+    if (orderLifecycleService) {
+      let actor: OrderActor;
+      if (ctx.role === 'SELLER') {
+        actor = { kind: 'SELLER', userId: ctx.user_id, shopId: ctx.shop_id ?? '' };
+      } else {
+        actor = { kind: 'ADMIN', userId: ctx.user_id };
+      }
+
+      const to = req.body?.to as OrderStatus;
+      const reason = typeof req.body?.reason === 'string' ? req.body.reason : undefined;
+      const exceptionalCancellation = req.body?.exceptional_cancellation === true;
+      const shipmentStatus = req.body?.shipment_status;
+      const processingEligible = req.body?.processing_eligible !== false;
+
+      const result = await orderLifecycleService.transitionOrder(orderId, actor, {
+        to,
+        reason,
+        exceptionalCancellation,
+        shipmentStatus,
+        processingEligible,
+      });
+      res.json(buildSuccessEnvelope(result, requestId(req)));
+      return;
+    }
+
     if (legacyApp?.transitionOrder) {
-      const result = await legacyApp.transitionOrder(context(req), req.params.order_id, req.body as Record<string, unknown>);
+      const result = await legacyApp.transitionOrder(ctx, orderId, req.body as Record<string, unknown>);
       res.json(buildSuccessEnvelope(result, requestId(req)));
       return;
     }
@@ -202,9 +249,20 @@ export function createOrderDomainRouter(
   }));
 
   router.post('/orders/:order_id/payments', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
+    const ctx = context(req);
+    const orderId = req.params.order_id;
+
+    if (paymentService) {
+      const rawMethod = req.body?.payment_method ?? req.body?.method ?? 'ONLINE';
+      const method = rawMethod === 'COD' ? 'COD' : 'ONLINE';
+      const result = await paymentService.retryPayment(orderId, ctx.user_id, method);
+      res.status(201).json(buildSuccessEnvelope(result, requestId(req)));
+      return;
+    }
+
     if (legacyApp?.retryPayment) {
-      const result = await legacyApp.retryPayment(context(req), req.params.order_id, req.body as Record<string, unknown>);
-      res.json(buildSuccessEnvelope(result, requestId(req)));
+      const result = await legacyApp.retryPayment(ctx, orderId, req.body as Record<string, unknown>);
+      res.status(201).json(buildSuccessEnvelope(result, requestId(req)));
       return;
     }
     throw new NotFoundError('Order payment retry handler is not configured');
