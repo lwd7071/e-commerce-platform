@@ -2,18 +2,60 @@
 
 ## Trạng thái hiện tại
 
-- Mốc: **Hoàn thành T2 (Sẵn sàng mở T3 Hardening & Concurrency)**
+- Mốc: **Hoàn thành Mốc T3 (Transaction Hardening, Concurrency, Exhaustive Edge-cases & Reporting Module)**
 - Cập nhật lần cuối: 2026-09-25
-- Đang làm: Đã hoàn tất 100% Mốc T2 của Người 5:
-  - Triển khai `PaymentService` (`payment.service.ts`): hiện thực `retryPayment` và `settlePayment` theo domain state machine.
-  - Nâng cấp `OrderLifecycleService` (`order-lifecycle.service.ts`): bổ sung `confirmOrder` (QD11, QD13) và `transitionOrder` đầy đủ 8 cạnh chuyển trạng thái.
-  - Hoàn thiện đấu nối `order-routes.ts` cho cả 3 endpoints còn thiếu: `POST /orders/:id/confirm`, `POST /orders/:id/transition`, `POST /orders/:id/payments` (16/16 tests pass).
-  - Triển khai bộ kiểm thử tích hợp liên thông End-to-End Happy Path (`test/modules/checkout/e2e-happy-path.spec.ts`): mô phỏng toàn diện luồng `Cart -> Checkout (ACID 12 bước) -> Settle Payment -> Seller Confirm -> Transition Shipping -> Completed -> Review & Notification` (liên thông 5 thành viên).
-  - Ánh xạ mã lỗi `PAYMENT_STATE_INVALID`, `PAYMENT_ALREADY_COMPLETED` (409) và `PAYMENT_AMOUNT_INVALID` (422) trong `error-handler.ts` chuẩn theo `error-observability.md`.
-  - Quality gates: `test:node` **518/518 pass 100%** (149 suites), `typecheck` 0 lỗi (`tsc --noEmit`), `build` pass.
-- Bị block bởi: Không còn blocker. Sẵn sàng phối hợp cùng Người 2 chạy Concurrency Test Harness và Người 1 chốt OpenAPI 3.1.
+- Đang làm: Đã hoàn tất 100% Mốc T3 của Người 5:
+  - **T3.1 Concurrency Hardening** (`test/modules/checkout/t3-transaction-concurrency.spec.ts`):
+    - Overselling race condition: 5 concurrent workers tranh mua 1 tồn kho -> đúng 1 order tạo thành công, 4 order bị chặn `INVENTORY_INSUFFICIENT`, tồn kho không âm.
+    - Idempotency concurrency claim: atomic lease acquisition (`acquired`), phát hiện `in_progress` khi đang xử lý, và `replay` kết quả khi đã xong.
+    - Serialization failure retry loop: bắt lỗi PostgreSQL `40001` / `40P01`, exponential backoff 25ms / 50ms, tối đa 3 lần thử.
+    - Double payment success prevention: chống 2 callback cùng chốt `SUCCESS` cho 1 `PENDING` payment -> đúng 1 callback được duyệt, callback thứ 2 bị từ chối `PAYMENT_STATE_INVALID`.
+  - **T3.2 Exhaustive Edge-cases** (`test/modules/order/t3-exhaustive-edge-cases.spec.ts`):
+    - Payment amount mismatch: số tiền callback/settle lệch với `orderTotal` -> bắt `PAYMENT_AMOUNT_INVALID` (422).
+    - Duplicate cancel retry: gọi `cancelOrder` liên tiếp trên đơn đã hủy -> bắt `ORDER_INVALID_TRANSITION` / `ORDER_CANCELLATION_NOT_ALLOWED`, bảo đảm hoàn tồn kho (restock) đúng 1 lần, lịch sử không sinh bản ghi trùng.
+    - Exceptional cancellation guard: hủy đơn ở trạng thái `PREPARING` bắt buộc cờ `exceptionalCancellation: true` kèm lý do hợp lệ (QD12).
+    - Shipment state machine terminal guards: các trạng thái kết thúc `DELIVERED`, `FAILED` không thể chuyển tiếp; đơn hàng chỉ lên `SHIPPING` khi shipment `HANDED_OVER`/`SHIPPING`, chỉ lên `COMPLETED` khi shipment `DELIVERED`.
+    - Payment retry terminal guards: đơn đã có payment `SUCCESS` hoặc đơn bị `CANCELLED` thì không cho phép retry thanh toán mới (`PAYMENT_ALREADY_COMPLETED`, `PAYMENT_STATE_INVALID`).
+    - Order history audit trail: kiểm tra tính bất biến và chuỗi thời gian của `order_status_history`.
+  - **T3.3 Reporting Module & QD19** (`modules/reporting/` & `test/modules/order/reporting.spec.ts`):
+    - Triển khai `ReportingService` với các báo cáo doanh thu Shop (`getShopRevenueReport`), chi tiêu Buyer (`getBuyerSpendingReport`), và tổng quan sàn (`getPlatformSummaryReport`).
+    - Thực thi triệt để quy tắc **QD19**: Doanh thu chỉ tính các đơn hợp lệ/`COMPLETED`. Các đơn `CANCELLED`, `DELIVERY_FAILED`, `PENDING`, `PREPARING`, `SHIPPING` bị loại trừ 100% khỏi doanh thu.
+    - Kiểm soát bộ lọc ngày và chặn các filter không hợp lệ với mã lỗi `REPORT_FILTER_INVALID` (422).
+  - **T3.4 Phối hợp & Bàn giao**:
+    - Sẵn sàng bàn giao 3 endpoints `/orders/:id/confirm`, `/orders/:id/transition`, `/orders/:id/payments` với đầy đủ integration test coverage cho Người 1 đưa vào `openapi-spec.ts`.
+    - Sẵn sàng bàn giao kịch bản kiểm thử tải / concurrency cho Người 2 đo đạc `EXPLAIN` và tối ưu index transaction.
+  - Quality gates: `test:node` **533/533 pass 100%** (150 suites), `typecheck` 0 lỗi (`tsc --noEmit`), `build` pass.
+- Bị block bởi: Không còn blocker. Sẵn sàng tham gia Review Gate T3 do Người 1 điều phối.
 
 ## Nhật ký theo ngày
+
+### 2026-09-25 — Hoàn thành 100% Mốc T3: Transaction Hardening, Concurrency Harness, Edge Cases & Reporting Module
+
+- **Bước 1 (Concurrency Hardening)**:
+  - Triển khai `test/modules/checkout/t3-transaction-concurrency.spec.ts` (4/4 tests PASS):
+    1. Overselling race condition: 5 concurrent requests tranh mua 1 tồn kho duy nhất -> đúng 1 request thành công, 4 request nhận `INVENTORY_INSUFFICIENT`, kho còn 0.
+    2. Idempotency atomic lease: cơ chế claim lock (`acquired`), chặn race condition `in_progress`, và `replay` kết quả khi đã xử lý xong.
+    3. Serialization retry loop: tự động bắt lỗi PostgreSQL `40001`/`40P01` và retry tối đa 3 lần với backoff 25ms, 50ms.
+    4. Chống double payment callback: 2 worker callback cùng chốt `SUCCESS` cho 1 thanh toán `PENDING` -> chỉ 1 worker thành công, worker kia nhận lỗi `PAYMENT_STATE_INVALID`.
+- **Bước 2 (Exhaustive Edge Cases)**:
+  - Triển khai `test/modules/order/t3-exhaustive-edge-cases.spec.ts` (6/6 tests PASS):
+    1. Amount mismatch khi settle payment -> quăng `PAYMENT_AMOUNT_INVALID` (422).
+    2. Duplicate cancel retry -> chặn gọi lại, không restock trùng lần 2, không sinh thêm bản ghi history.
+    3. Hủy đơn khi đang `PREPARING` -> bắt buộc cờ `exceptionalCancellation: true`.
+    4. Trạng thái kết thúc của Shipment (`DELIVERED`, `FAILED`) là terminal; Order chuyển sang `SHIPPING`/`COMPLETED` phải kiểm tra trạng thái tương ứng của Shipment.
+    5. Payment retry bị từ chối nếu đơn đã thanh toán thành công hoặc đã bị hủy.
+    6. Kiểm tra tính bất biến và chuỗi thời gian của `order_status_history`.
+- **Bước 3 (Reporting Module & QD19)**:
+  - Tạo domain module `backend/src/modules/reporting/`:
+    - `ReportingDomainError`, `ReportingErrorCode` (`REPORT_FILTER_INVALID`, `REPORT_ACCESS_DENIED`).
+    - DTOs và types: `ShopRevenueReport`, `BuyerSpendingReport`, `PlatformSummaryReport`.
+    - `ReportingService`: Thực thi quy tắc **QD19** — chỉ tính các đơn có trạng thái `COMPLETED` vào doanh thu, loại trừ hoàn toàn các đơn `CANCELLED`, `DELIVERY_FAILED`, `PENDING`, `PREPARING`, `SHIPPING`.
+    - Đấu nối mã lỗi `REPORT_FILTER_INVALID` vào `error-handler.ts` (HTTP 422).
+  - Triển khai `test/modules/order/reporting.spec.ts` (5/5 tests PASS).
+- **Bước 4 (Phối hợp & Quality Gate)**:
+  - `npm run test:node`: **533/533 tests PASS (100%)**.
+  - `npm run typecheck`: **0 errors**.
+  - Sẵn sàng bàn giao cho Người 1 (OpenAPI 3.1) và Người 2 (Index tuning / Concurrency harness).
 
 ### 2026-09-25 — Hoàn thành 100% Mốc T2: Order Lifecycle Routing, Payment Service & E2E Happy Path
 

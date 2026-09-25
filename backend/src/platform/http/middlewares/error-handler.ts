@@ -173,7 +173,8 @@ export const errorHandlerMiddleware: ErrorRequestHandler = (
       code === 'REASON_REQUIRED' ||
       code === 'VOUCHER_NOT_APPLICABLE' ||
       code === 'REVIEW_NOT_ELIGIBLE' ||
-      code === 'PAYMENT_AMOUNT_INVALID'
+      code === 'PAYMENT_AMOUNT_INVALID' ||
+      code === 'REPORT_FILTER_INVALID'
     ) {
       httpStatus = 422;
     } else if (code === 'RESOURCE_NOT_FOUND') {
