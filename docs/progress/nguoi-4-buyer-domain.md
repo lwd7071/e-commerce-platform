@@ -2,12 +2,52 @@
 
 ## Trạng thái hiện tại
 
-- Mốc: T2
-- Cập nhật lần cuối: 2026-09-23
-- Đang làm: Đã hoàn tất 100% các hạng mục T2 của Người 4 bao gồm cả các hạng mục phụ thuộc: Đấu nối ReviewService với IOrderQueryPort chính thức từ Người 5 (thực thi QD14, QD15, RB-LB09, RB-LQH05, RB-MG08); Tích hợp Event Bus thật cho NotificationService lắng nghe TransactionDomainEvent (ORDER_COMPLETED, PAYMENT_SUCCESS, SHIPMENT_DELIVERED) kèm null-safety và deduplication; Triển khai ReviewImageEntity (RB-MG11) và ReviewMediaService theo cấu trúc storage path canonical users/{userId}/reviews/{reviewId}/{imageId}.{ext} tương thích với Storage RLS policy của Người 2; Dọn sạch 100% cảnh báo ESLint (0 errors, 0 warnings); Đạt 451/451 tests native node PASS 100%, 123/123 tests vitest PASS 100%, 0 lỗi typecheck.
-- Bị block bởi: Không còn blocker. Đã hoàn tất toàn bộ tích hợp domain phụ thuộc vào Người 2 và Người 5.
+- Mốc: T3
+- Cập nhật lần cuối: 2026-09-25
+- Đang làm: Đã hoàn tất 100% các hạng mục T3 Hardening & Nghiệm thu của Người 4 (Buyer Supporting Domain):
+  1. Khắc phục triệt để lỗi Notification Idempotency & Fault Tolerance qua `IEventIdempotencyStore` với API nguyên tử `tryClaim()` và `release()` khi DB fail tạm thời, bảo đảm không nuốt chửng domain events khi replay/retry.
+  2. PostgreSQL Concurrency Hardening: Kiểm thử thực tế trên PostgreSQL thật với 2 `PoolClient` độc lập (chống serialize giả), bảo đảm race condition đặt default address (`RB-LB05`) và race condition claim voucher còn 1 lượt (`QD09`) vận hành chuẩn xác.
+  3. Negative & Edge-case Hardening: Bổ sung 26 bài test biên và negative sâu rộng cho Cart, Review, Address, Voucher.
+  4. Diagnose toàn diện: 540/540 tests native node runner PASS 100%, 147/147 tests vitest runner PASS 100%, 0 lỗi typecheck, 0 errors/0 warnings ESLint trên mã nguồn T3 Người 4, build thành công (exit code 0).
+- Bị block bởi: Ticket `DEP-P4-P2-01` (bổ sung cột `event_id VARCHAR(100) UNIQUE` trong bảng `notifications`) đang chờ Người 2 bàn giao migration. Tầng logic Người 4 đã hoàn tất phòng vệ qua `IEventIdempotencyStore` (Singleton DI) và test contract atomic claim giữa các worker instances.
 
 ## Nhật ký theo ngày
+
+### 2026-09-25 (Mốc T3 — Hardening, Chống trùng Event Idempotent, Concurrency Multi-Connection & Nghiệm thu)
+
+- **Đã làm:**
+  - **Phase 1: Khắc phục lỗi Notification Idempotency & Fault-Tolerance Hardening:**
+    - Tạo `src/modules/buyer/ports/event-idempotency.port.ts` định nghĩa interface `IEventIdempotencyStore` với API atomic `tryClaim(eventId)` và `release(eventId)`, kèm `InMemoryEventIdempotencyStore` mặc định (ràng buộc Singleton DI trong tiến trình).
+    - Cập nhật `NotificationService` (`src/modules/buyer/services/notification.service.ts`):
+      - Gọi `tryClaim(event.eventId)` đầu tiên để loại bỏ duplicate giữa các worker/instances.
+      - Bọc logic lưu notification trong `try ... catch`. Khi gặp transient DB error hoặc connection timeout, gọi `release(event.eventId)` để giải phóng claim, bảo đảm lần retry/replay tiếp theo không bị nuốt tin nhắn.
+    - Viết bộ test TDD RED $\rightarrow$ GREEN: `test/modules/buyer/services/notification-fault-tolerance.spec.ts` (Fault tolerance transient error recovery, multi-instance atomic claim, replay x3) $\rightarrow$ 3/3 tests PASS.
+    - Commit: `1652bc1 fix(buyer): implement atomic event idempotency claim and fault tolerant retry release`.
+  - **Phase 2: PostgreSQL Concurrency Hardening (2 PoolClients độc lập):**
+    - Tạo `tests/modules/buyer/buyer-concurrency.integration.test.ts` kiểm thử trực tiếp trên PostgreSQL thật của dự án:
+      - Sử dụng **2 `PoolClient` riêng biệt** (`client1 = await pool.connect(); client2 = await pool.connect()`) để tránh việc `pg` serialize tuần tự trên cùng một kết nối.
+      - *Race Condition 1 ([RB-LB05] Default Address)*: 2 client đồng thời insert default address cho cùng 1 user $\rightarrow$ đúng 1 client thành công, client kia nhận lỗi `SQLSTATE 23505 (Unique Violation)` do partial unique index `uq_addresses__one_default_per_user` bảo vệ. Trong DB chỉ còn đúng 1 bản ghi default.
+      - *Race Condition 2 ([QD09] Voucher Last Quantity)*: Voucher có `quantity = 1`, 2 client cùng lúc gọi `decrementQuantity` $\rightarrow$ đúng 1 worker thành công, 1 worker nhận false. Số lượng voucher cuối cùng bằng 0, không bao giờ bị âm.
+    - Commit: `199c651 test(buyer): add postgres concurrency integration tests for address default and voucher decrement race conditions`.
+  - **Phase 3: Negative & Edge-case Hardening:**
+    - Tạo `test/modules/buyer/hardening/buyer-negative-edge-cases.spec.ts` bao quát 26 test cases:
+      - *Cart Negative*: Chặn `quantity = 0`, số âm, số thập phân; chặn vượt tồn kho hiện có (`INVENTORY_INSUFFICIENT 409`); chặn variant không tồn tại hoặc `INACTIVE`; 404 khi sửa cart item không thuộc về caller.
+      - *Review Negative*: Chặn review khi đơn chưa `COMPLETED` ([QD14]); chặn caller không sở hữu đơn; chặn rating ngoài khoảng 1..5 ([QD15, RB-MG08]); chặn sai `productId` ([RB-LQH05]); chặn duplicate review ([RB-LB09]).
+      - *Address Negative*: Bảo đảm trả về 404 `RESOURCE_NOT_FOUND` khi truy cập/sửa/xóa/đặt default địa chỉ người khác (`auth-rbac-rls.md` §3); chặn tạo địa chỉ thứ 11 ([RB-LB05]); chặn payload có trường lạ (`api-conventions.md` §2).
+      - *Voucher Negative*: 404 khi sai mã voucher; chặn khi `subtotal < minOrderValue` ([QD09]); chặn khi chưa tới hạn hoặc đã hết hạn ([RB-LTT03]); chặn khi hết lượt (`quantity = 0`); chặn voucher shop áp dụng sai shop ([RB-LTT05]).
+    - Commit: `9da4a24 test(buyer): add negative and boundary edge-case tests for cart, review, address, and voucher`.
+  - **Phase 4: Chẩn đoán toàn diện (Diagnose & Quality Gates):**
+    - Sạch 100% cảnh báo ESLint và strict types trên các file T3 Person 4 (Commit `4b5b2f2`).
+    - `npm run typecheck` (`tsc --noEmit`): Exit code 0, 0 errors.
+    - `npx eslint src/modules/buyer test/modules/buyer tests/modules/buyer`: 0 errors.
+    - `npm run build` (`esbuild`): Hoàn thành bundle `dist/app.js` (129.1kb) exit code 0.
+    - `npm run test:node`: **540 / 540 tests PASS 100%** (157 test suites, 0 fail, 0 skipped).
+    - `npx vitest run`: **147 / 147 tests PASS 100%** (25 test files, 1 skipped).
+- **Quyết định kỹ thuật:**
+  - Thiết kế atomic API `tryClaim()` và `release()` cho `IEventIdempotencyStore`: Cho phép giải phóng claim ngay khi phát sinh lỗi ngoại lệ CSDL để hỗ trợ retry/replay tin cậy từ Message Broker mà không bị nuốt chửng event.
+  - Sử dụng 2 `PoolClient` riêng biệt trong integration test để mô phỏng chính xác race conditions giữa 2 kết nối CSDL thực tế, loại trừ hoàn toàn rủi ro serialize giả.
+- **Contract/Port thay đổi:** Không thay đổi public contract dùng chung giữa các domain.
+- **Blocker:** Ticket `DEP-P4-P2-01` (Người 2 bổ sung cột `event_id UNIQUE` vào bảng `notifications`) đang chờ Người 2 bàn giao migration. Tầng logic Người 4 đã hoàn thành phòng vệ đầy đủ.
 
 ### 2026-09-23 (Mốc T2 — Đấu nối Order Query thật, Event Bus thật và Review Image Upload theo chuẩn TDD & Storage RLS)
 
