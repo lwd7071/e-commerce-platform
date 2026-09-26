@@ -108,3 +108,9 @@ Mọi lỗi ở bất kỳ bước nào đều rollback toàn bộ side-effect t
 4. **Người 4 (Buyer Port)**:
    - Cung cấp CartPort và VoucherPort adapter kết nối trực tiếp database transaction.
 
+## 7. PostgreSQL lifecycle gate (T3-P5, 2026-09-27)
+
+- Cancel/confirm/transition khóa Order và ghi status/history trong cùng `withTransaction`. Hủy còn khóa OrderItems/variants và hoàn tồn đúng một lần; lỗi history rollback cả status và tồn kho.
+- Retry Payment khóa Order rồi Payment. Order terminal (`CANCELLED`, `COMPLETED`, `DELIVERY_FAILED`), không có attempt cũ hoặc còn PENDING trả `409 PAYMENT_STATE_INVALID`; đã có SUCCESS trả `409 PAYMENT_ALREADY_COMPLETED`. Chỉ tạo attempt mới khi các attempt cũ đều FAILED.
+- Gate PostgreSQL thật: `npm run test:transaction:pg`; bằng chứng và phạm vi tại [T3-P5 PostgreSQL](../../../../../docs/progress/t3-p5-postgresql.md).
+
