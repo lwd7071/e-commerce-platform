@@ -231,3 +231,46 @@ jobs:
 
       - name: Run Supabase auth smoke
         run: npm run test:auth-smoke
+
+  remote-storage:
+    name: Remote Supabase storage policy smoke
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')
+    needs: remote-auth
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_TEST_URL }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_TEST_PROJECT_REF }}
+      EXPECTED_SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_TEST_PROJECT_REF }}
+      DATABASE_URL: ${{ secrets.SUPABASE_TEST_DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.SUPABASE_TEST_DIRECT_URL }}
+      DATABASE_ENVIRONMENT: test
+      RUN_REMOTE_DB_TESTS: "true"
+      ALLOW_STORAGE_POLICY_DEPLOY: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Verify required storage secrets exist
+        run: |
+          test -n "$SUPABASE_URL"
+          test -n "$SUPABASE_PROJECT_REF"
+          test -n "$DATABASE_URL"
+          test -n "$DIRECT_URL"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22.20.0
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci
+
+      - name: Deploy and verify Storage policies on test project
+        run: |
+          npm run db:storage:deploy
+          npm run test:storage
