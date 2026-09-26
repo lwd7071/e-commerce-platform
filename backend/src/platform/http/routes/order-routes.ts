@@ -19,6 +19,9 @@ export interface OrderServices {
   orderLifecycleService?: OrderLifecycleService;
   orderQueryService?: OrderQueryService;
   orderRepo?: IOrderRepository;
+  confirmOrder?(context: RequestContext, orderId: string): Promise<unknown>;
+  transitionOrder?(context: RequestContext, orderId: string, input: Record<string, unknown>): Promise<unknown>;
+  retryPayment?(context: RequestContext, orderId: string, input: Record<string, unknown>): Promise<unknown>;
 }
 
 function guards(auth: RequestHandler | undefined, ...roles: Role[]): RequestHandler[] {
@@ -64,7 +67,7 @@ export function createOrderDomainRouter(
 ): Router {
   const router = Router();
 
-  const isLegacyApp = servicesOrApp && 'confirmOrder' in servicesOrApp && typeof servicesOrApp.confirmOrder === 'function';
+  const isLegacyApp = servicesOrApp && 'confirmOrder' in servicesOrApp && typeof (servicesOrApp as any).confirmOrder === 'function' && !('orderRepo' in servicesOrApp || 'orderLifecycleService' in servicesOrApp);
   const legacyApp = isLegacyApp ? (servicesOrApp as OrderHttpApplication) : undefined;
   const services = (!isLegacyApp ? servicesOrApp : undefined) as OrderServices | undefined;
 
@@ -72,6 +75,10 @@ export function createOrderDomainRouter(
   const orderLifecycleService = services?.orderLifecycleService;
   const orderQueryService = services?.orderQueryService;
   const orderRepo = services?.orderRepo;
+
+  const confirmHandler = (services?.confirmOrder ?? legacyApp?.confirmOrder)?.bind(services ?? legacyApp);
+  const transitionHandler = (services?.transitionOrder ?? legacyApp?.transitionOrder)?.bind(services ?? legacyApp);
+  const retryPaymentHandler = (services?.retryPayment ?? legacyApp?.retryPayment)?.bind(services ?? legacyApp);
 
   // ==========================================
   // 1. CHECKOUT / CREATE ORDER
@@ -181,29 +188,55 @@ export function createOrderDomainRouter(
   }));
 
   // ==========================================
-  // 5. LEGACY ORDER OPERATIONS
+  // 5. ORDER CONFIRM, TRANSITION & PAYMENTS
   // ==========================================
   router.post('/orders/:order_id/confirm', ...guards(auth, 'SELLER', 'ADMIN'), asyncRoute(async (req, res) => {
-    if (legacyApp?.confirmOrder) {
-      const result = await legacyApp.confirmOrder(context(req), req.params.order_id);
+    const ctx = context(req);
+    const orderId = req.params.order_id;
+    if (confirmHandler) {
+      const result = await confirmHandler(ctx, orderId);
       res.json(buildSuccessEnvelope(result, requestId(req)));
+      return;
+    }
+    if (orderLifecycleService) {
+      const actor: OrderActor = ctx.role === 'ADMIN'
+        ? { kind: 'ADMIN', userId: ctx.user_id }
+        : { kind: 'SELLER', userId: ctx.user_id, shopId: ctx.shop_id ?? '' };
+      await orderLifecycleService.transitionStatus(orderId, 'CONFIRMED' as any, actor, undefined, true);
+      const updated = orderRepo ? await orderRepo.findById(orderId) : { order_id: orderId, status: 'CONFIRMED' };
+      res.json(buildSuccessEnvelope(updated, requestId(req)));
       return;
     }
     throw new NotFoundError('Order confirm handler is not configured');
   }));
 
   router.post('/orders/:order_id/transition', ...guards(auth, 'SELLER', 'ADMIN'), asyncRoute(async (req, res) => {
-    if (legacyApp?.transitionOrder) {
-      const result = await legacyApp.transitionOrder(context(req), req.params.order_id, req.body as Record<string, unknown>);
+    const ctx = context(req);
+    const orderId = req.params.order_id;
+    const input = (req.body ?? {}) as Record<string, unknown>;
+    if (transitionHandler) {
+      const result = await transitionHandler(ctx, orderId, input);
       res.json(buildSuccessEnvelope(result, requestId(req)));
+      return;
+    }
+    if (orderLifecycleService) {
+      const actor: OrderActor = ctx.role === 'ADMIN'
+        ? { kind: 'ADMIN', userId: ctx.user_id }
+        : { kind: 'SELLER', userId: ctx.user_id, shopId: ctx.shop_id ?? '' };
+      await orderLifecycleService.transitionStatus(orderId, input.to as any, actor, input.reason as string | undefined);
+      const updated = orderRepo ? await orderRepo.findById(orderId) : { order_id: orderId, status: input.to };
+      res.json(buildSuccessEnvelope(updated, requestId(req)));
       return;
     }
     throw new NotFoundError('Order transition handler is not configured');
   }));
 
   router.post('/orders/:order_id/payments', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
-    if (legacyApp?.retryPayment) {
-      const result = await legacyApp.retryPayment(context(req), req.params.order_id, req.body as Record<string, unknown>);
+    const ctx = context(req);
+    const orderId = req.params.order_id;
+    const input = (req.body ?? {}) as Record<string, unknown>;
+    if (retryPaymentHandler) {
+      const result = await retryPaymentHandler(ctx, orderId, input);
       res.json(buildSuccessEnvelope(result, requestId(req)));
       return;
     }
