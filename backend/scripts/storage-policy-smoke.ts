@@ -68,7 +68,7 @@ const upload = async (user: SupabaseClient, bucket: string, path: string): Promi
   const { error } = await user.storage.from(bucket).upload(path, new Uint8Array([1, 2, 3]), {
     contentType: 'image/png',
   });
-  if (error) throw error;
+  if (error) throw new Error(`Storage upload denied for ${bucket}/${path}: ${error.message}`);
   uploaded.push({ bucket, path });
 };
 
@@ -86,11 +86,14 @@ try {
   const item = await createFixtureOrderItem(db, order.orderId, product.productId, variant.variantId);
   const review = await createFixtureReview(db, buyer.userId, product.productId, item.orderItemId);
 
+  process.stdout.write('Storage smoke fixtures ready.\n');
   const productPath = `shops/${shop.shopId}/products/${product.productId}/${randomUUID()}.png`;
   await upload(seller.client, 'product-media', productPath);
+  process.stdout.write('Product owner upload passed.\n');
   const movedProductPath = `shops/${shop.shopId}/products/${product.productId}/${randomUUID()}.png`;
   const productMove = await seller.client.storage.from('product-media').move(productPath, movedProductPath);
   if (productMove.error) throw productMove.error;
+  process.stdout.write('Product owner move passed.\n');
   uploaded.splice(uploaded.findIndex((object) => object.path === productPath), 1, {
     bucket: 'product-media', path: movedProductPath,
   });
@@ -113,6 +116,7 @@ try {
 
   const reviewPath = `users/${buyer.userId}/reviews/${review.reviewId}/${randomUUID()}.png`;
   await upload(buyer.client, 'review-media', reviewPath);
+  process.stdout.write('Review owner upload passed.\n');
   const movedReviewPath = `users/${buyer.userId}/reviews/${review.reviewId}/${randomUUID()}.png`;
   const reviewMove = await buyer.client.storage.from('review-media').move(reviewPath, movedReviewPath);
   if (reviewMove.error) throw reviewMove.error;
