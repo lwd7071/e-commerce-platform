@@ -87,6 +87,17 @@ try {
   const review = await createFixtureReview(db, buyer.userId, product.productId, item.orderItemId);
 
   process.stdout.write('Storage smoke fixtures ready.\n');
+  await db.query('SET LOCAL ROLE authenticated');
+  await db.query(
+    "SELECT set_config('request.jwt.claim.sub', $1, true), set_config('request.jwt.claims', $2, true)",
+    [seller.userId, JSON.stringify({ sub: seller.userId, role: 'authenticated' })],
+  );
+  const ownership = await db.query<{ allowed: boolean }>(
+    'SELECT public.can_manage_product_media($1, $2) AS allowed',
+    [shop.shopId, product.productId],
+  );
+  await db.query('RESET ROLE');
+  if (!ownership.rows[0]?.allowed) throw new Error('Storage ownership helper rejected the fixture seller/product');
   const productPath = `shops/${shop.shopId}/products/${product.productId}/${randomUUID()}.png`;
   await upload(seller.client, 'product-media', productPath);
   process.stdout.write('Product owner upload passed.\n');
