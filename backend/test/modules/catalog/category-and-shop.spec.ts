@@ -48,7 +48,7 @@ describe('Catalog Domain: Category & Shop Ownership', () => {
             updatedAt: '2026-09-16T10:00:00.000Z',
             parentDepth: 2, // cha đã là cấp 2 -> vi phạm
           }),
-        (err: any) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
+        (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
     });
   });
@@ -76,7 +76,7 @@ describe('Catalog Domain: Category & Shop Ownership', () => {
       const shop = new ShopEntity(shopParams);
       assert.throws(
         () => shop.assertOwnership('user-seller-2'),
-        (err: any) => err instanceof ForbiddenError && err.code === 'RESOURCE_FORBIDDEN'
+        (err: unknown) => err instanceof ForbiddenError && err.code === 'RESOURCE_FORBIDDEN'
       );
     });
 
@@ -89,7 +89,7 @@ describe('Catalog Domain: Category & Shop Ownership', () => {
       // Đăng ký lại SKU đã tồn tại trong Shop -> Bị chặn với SkuConflictError
       assert.throws(
         () => shop.registerSku('SKU-POLO-BLACK'),
-        (err: any) => err instanceof SkuConflictError && err.code === 'SKU_CONFLICT'
+        (err: unknown) => err instanceof SkuConflictError && err.code === 'SKU_CONFLICT'
       );
     });
   });

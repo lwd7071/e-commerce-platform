@@ -3,6 +3,7 @@ import type { CheckoutCommand } from '../contracts/checkout-command.ts';
 import type { CheckoutResult, CheckoutOrderResult } from '../contracts/checkout-result.ts';
 import type { ICartPort } from '../../buyer/ports/cart.port.ts';
 import type { ICatalogPort } from '../../catalog/ports/catalog.port.ts';
+import type { VariantPriceAndStockDTO } from '../../catalog/ports/catalog.port.ts';
 import type { IVoucherPort } from '../../buyer/ports/voucher.port.ts';
 import type { IdempotencyPort, IdempotencyScope } from '../contracts/idempotency.port.ts';
 import type { IOrderRepository, OrderRecord, OrderItemRecord } from '../../order/domain/repositories.ts';
@@ -124,7 +125,7 @@ export async function executeTransactionalCheckout(
 
     // Step 3-4: Stable sort by variantId to prevent deadlocks; fetch and lock variant
     const sortedItems = [...selectedItems].sort((a, b) => a.variantId.localeCompare(b.variantId));
-    const variantMap = new Map<string, any>();
+    const variantMap = new Map<string, VariantPriceAndStockDTO>();
     const itemShopMap = new Map<string, UUID>();
 
     for (const item of sortedItems) {

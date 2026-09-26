@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { setDefaultAddress } from '../../../src/modules/buyer/domain/address';
 import { ValidationError } from '../../../src/modules/buyer/domain/errors';
 import type { Address } from '../../../src/modules/buyer/domain/types';
-import { mockAddress1, mockAddress2, mockBuyerId } from './fixtures';
+import { mockAddress1, mockAddress2 } from './fixtures';
 
 describe('Address Domain Tests (RB-LB05)', () => {
 
@@ -53,7 +53,7 @@ describe('Address Domain Tests (RB-LB05)', () => {
 
     assert.throws(
       () => setDefaultAddress(addresses, '99999999-9999-4999-8999-999999999999'),
-      (err: any) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
+      (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
     );
   });
 

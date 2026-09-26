@@ -231,3 +231,68 @@ jobs:
 
       - name: Run Supabase auth smoke
         run: npm run test:auth-smoke
+
+  remote-storage:
+    name: Remote Supabase storage policy smoke
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')
+    needs: remote-auth
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_TEST_URL }}
+      DATABASE_URL: ${{ secrets.SUPABASE_TEST_DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.SUPABASE_TEST_DIRECT_URL }}
+      SUPABASE_TEST_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_TEST_PUBLISHABLE_KEY }}
+      SUPABASE_TEST_SECRET_KEY: ${{ secrets.SUPABASE_TEST_SECRET_KEY }}
+      DATABASE_ENVIRONMENT: test
+      RUN_REMOTE_DB_TESTS: "true"
+      ALLOW_STORAGE_POLICY_DEPLOY: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Verify required storage secrets exist
+        run: |
+          test -n "$SUPABASE_URL"
+          test -n "$DATABASE_URL"
+          test -n "$DIRECT_URL"
+          test -n "$SUPABASE_TEST_PUBLISHABLE_KEY"
+          test -n "$SUPABASE_TEST_SECRET_KEY"
+
+      - name: Verify test project reference
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from 'node:fs';
+
+          const supabaseUrl = new URL(process.env.SUPABASE_URL);
+          const directUrl = new URL(process.env.DIRECT_URL);
+          const urlProjectRef = supabaseUrl.hostname.split('.')[0];
+          const directDatabaseUser = decodeURIComponent(directUrl.username);
+          const directUserProjectRef = directDatabaseUser.match(/\.([a-z0-9]+)$/i)?.[1];
+
+          if (!urlProjectRef || directUserProjectRef !== urlProjectRef) {
+            throw new Error('Supabase test URL and direct database project reference do not match');
+          }
+
+          appendFileSync(process.env.GITHUB_ENV, `SUPABASE_PROJECT_REF=${urlProjectRef}\nEXPECTED_SUPABASE_PROJECT_REF=${directUserProjectRef}\n`);
+          NODE
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22.20.0
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Pin npm
+        run: npm install --global npm@11.12.1
+
+      - name: Install backend dependencies
+        run: npm ci
+
+      - name: Deploy and verify Storage policies on test project
+        run: |
+          npm run db:storage:deploy
+          npm run test:storage

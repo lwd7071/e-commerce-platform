@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { CartPortService } from '../../../src/modules/buyer/services/cart-port.service';
 import { VoucherPortService } from '../../../src/modules/buyer/services/voucher-port.service';
 import { InMemoryCartRepository, InMemoryVoucherRepository } from './in-memory-repos';
-import { mockBuyerId, mockShopId, mockOtherShopId, mockPlatformVoucher, mockShopVoucher } from './fixtures';
+import { mockBuyerId, mockShopId, mockPlatformVoucher, mockShopVoucher } from './fixtures';
 
 describe('Buyer Ports Contract Tests (Bàn giao cho Người 5 - Transaction Core)', () => {
 
@@ -142,7 +142,7 @@ describe('Buyer Ports Contract Tests (Bàn giao cho Người 5 - Transaction Cor
           buyerId: mockBuyerId,
           discountAmount: '20000.00',
         }),
-        (err: any) => err.message.includes('Database transaction failure')
+        (err: unknown) => err instanceof Error && err.message.includes('Database transaction failure')
       );
 
       // Kiểm tra số lượng voucher: phải được hoàn lại 5 nguyên vẹn

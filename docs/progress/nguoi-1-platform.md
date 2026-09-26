@@ -3,11 +3,36 @@
 ## Trạng thái hiện tại
 
 - Mốc: T3
-- Cập nhật lần cuối: 2026-09-24
-- Đang làm: Đã hoàn thành toàn bộ 6 Phase Mốc T3 — Hardening & Security. Toàn bộ 4 quality gates sạch 100% (479/479 tests pass). Chờ mở PR và xin review từ Người 2 hoặc Người 5 để merge vào dev.
+- Cập nhật lần cuối: 2026-09-25
+- Đang làm: Đã xử lý triệt để lỗ hổng Rate Limiter spoofing bypass qua X-Forwarded-For, cơ chế fail-safe 400 không gây DoS chéo, bắt buộc cấu hình TRUST_PROXY ở production, bổ sung 4 canonical paths vào OpenAPI 3.1 và làm rõ trạng thái legacy alias routes. Đạt 514/514 tests pass trên toàn hệ thống (0 fail), sạch 100% typecheck và build.
 - Bị block bởi: Không
 
 ## Nhật ký theo ngày
+
+### 2026-09-25 (Khắc phục Lỗ hổng Bảo mật Rate Limiter Bypass & Bổ sung OpenAPI 3.1 Spec)
+
+- **Đã làm:**
+  - **Sửa Lỗ hổng Rate Limiter Bypass (`rate-limiter.ts`):**
+    - Loại bỏ việc bóc tách `req.headers['x-forwarded-for']` thủ công, chuyển sang dùng `req.ip` đã qua Express xác thực làm Single Source of Truth.
+    - Loại bỏ fallback cứng `'127.0.0.1'` và `req.socket.remoteAddress` thừa nhằm triệt tiêu hoàn toàn rủi ro DoS chéo (Cross-client DoS) giữa các client thật khi IP bị lỗi.
+    - Cơ chế fail-safe an toàn: Khi `req.ip` không xác định được, ghi log cảnh báo mức `warn` kèm ngữ cảnh request và từ chối với HTTP 400 `CLIENT_IP_REQUIRED`, không cấp free-pass.
+    - Xây dựng trừu tượng `IRateLimitStore` và `MemoryRateLimitStore` sẵn sàng tích hợp Redis Store khi scale ngang.
+  - **Chốt Cấu hình `trust proxy` & Fail-Fast ở Production (`env-config.ts`, `app.ts`):**
+    - Cấu hình `app.set('trust proxy', trustProxy)` trong `createApp()`.
+    - Thêm kiểm tra fail-fast vào `validateEnvConfig`: Bắt buộc biến `TRUST_PROXY` ở môi trường `NODE_ENV=production` (chỉ rõ số hop e.g. `1` hoặc CIDR proxy), cấm dùng ngầm `false` (gây rate-limit nhầm toàn bộ user) hoặc `true` (anti-pattern cho phép multi-hop spoofing).
+    - Cập nhật tài liệu vận hành tại `backend-run-guide.md`.
+  - **Bổ sung 4 Canonical Paths vào OpenAPI 3.1 Spec (`openapi-spec.ts`):**
+    - Bổ sung định nghĩa Envelope và Schema hoàn chỉnh cho: `GET /api/v1/vouchers`, `POST /api/v1/vouchers/evaluate`, `GET /api/v1/notifications`, `PATCH /api/v1/notifications/{notification_id}/read`.
+    - Phân định rõ ràng trong tài liệu và test: Các routes `/vouchers/preview`, `/vouchers/applicable`, và `/reviews` vẫn hoạt động để tương thích ngược tạm thời (backward-compatibility), nhưng cố tình không khai báo trong OpenAPI công khai (Intentional Deprecation).
+  - **Bộ kiểm thử TDD bổ sung (Red -> Green):**
+    - `test/platform/rate-limiter.spec.ts`: Thêm `[RATE-07]` (chặn bypass header), `[RATE-08]` (chuẩn hóa `trust proxy = 1` và chống multi-hop spoofing), `[RATE-09]` (stress test 20 requests đồng thời không lệch counter), `[RATE-10]` (fail-safe 400 khi thiếu IP).
+    - `test/platform/production-config.spec.ts`: Thêm `[CFG-06]` (bắt buộc `TRUST_PROXY` ở production).
+    - `test/platform/openapi-spec.spec.ts`: Bổ sung kiểm tra 4 canonical paths trong `[OAS-02]`, chuẩn hóa loại trừ legacy alias trong `[OAS-03]`.
+- **Quality Gates:**
+  - `npm run typecheck`: Pass (0 error).
+  - `npm run lint`: Pass (0 error, 188 warnings).
+  - `npm run build`: Pass (`dist/app.js` 136.0kb).
+  - `npm run test:node`: **514/514 tests PASS** (148 suites, 0 fail).
 
 ### 2026-09-24 (Hoàn thành Mốc T3 — Hardening & Security Toàn diện 6 Phase)
 

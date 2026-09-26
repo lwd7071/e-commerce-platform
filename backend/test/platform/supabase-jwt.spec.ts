@@ -18,7 +18,9 @@ describe('SupabaseJwtVerifier', () => {
       issuer: 'https://localtest.supabase.co/auth/v1',
       audience: 'authenticated',
     });
-    await assert.rejects(verifier.verifyToken('not-a-jwt'), (error: any) =>
-      error.code === 'AUTH_INVALID_TOKEN' && error.httpStatus === 401);
+    await assert.rejects(verifier.verifyToken('not-a-jwt'), (error: unknown) =>
+      error instanceof Error
+      && 'code' in error && error.code === 'AUTH_INVALID_TOKEN'
+      && 'httpStatus' in error && error.httpStatus === 401);
   });
 });

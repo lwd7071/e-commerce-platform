@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
 import { loadDatabaseConfig, parseRunRemoteDbTests } from '../../../db/config.js';
 import { closeDatabasePool, createDatabasePool } from '../../../db/client.js';
+import { assertUsesIndex, explainQueryPlan } from '../../../db/concurrency-harness.js';
 import { PgProductRepository } from '../../../src/modules/catalog/repositories/pg-catalog.repository.ts';
 
 const runRemoteDbTests = parseRunRemoteDbTests(process.env);
@@ -16,7 +17,8 @@ const benchShopId = '00000000-0000-4000-a000-000000000099';
 const benchCatId1 = '00000000-0000-4000-c000-000000000091';
 const benchCatId2 = '00000000-0000-4000-c000-000000000092';
 
-const PRODUCT_COUNT = 25; // 25 products, 50 variants, 50 images
+const PRODUCT_COUNT = 1_000;
+const ACTIVE_PRODUCT_COUNT = 25;
 const createdProductIds: string[] = [];
 
 remoteDescribe('Catalog Benchmark & N+1 Audit Integration (Mốc T3)', () => {
@@ -61,7 +63,10 @@ remoteDescribe('Catalog Benchmark & N+1 Audit Integration (Mốc T3)', () => {
     for (let i = 1; i <= PRODUCT_COUNT; i++) {
       const prodId = `00000000-0000-4000-db00-${String(i).padStart(12, '0')}`;
       createdProductIds.push(prodId);
-      const catId = i % 2 === 0 ? benchCatId1 : benchCatId2;
+      // Most rows in the target category are inactive. This mirrors a mature
+      // catalog and makes the compound (category_id, status) index meaningful.
+      const catId = benchCatId1;
+      const status = i <= ACTIVE_PRODUCT_COUNT ? 'ACTIVE' : 'INACTIVE';
       const basePrice = 100_000 + i * 10_000;
 
       // Product
@@ -72,7 +77,7 @@ remoteDescribe('Catalog Benchmark & N+1 Audit Integration (Mốc T3)', () => {
         catId,
         `Benchmark Product ${i} - ${i % 2 === 0 ? 'Áo sơ mi' : 'Túi xách'}`,
         `Mô tả benchmark chi tiết cho sản phẩm số ${i}`,
-        'ACTIVE',
+        status,
         now,
         now,
       );
@@ -157,6 +162,8 @@ remoteDescribe('Catalog Benchmark & N+1 Audit Integration (Mốc T3)', () => {
        VALUES ${imagePlaceholders.join(', ')}`,
       imageValues,
     );
+
+    await pool.query('ANALYZE products, product_variants');
   }, 60_000);
 
   afterAll(async () => {
@@ -183,7 +190,7 @@ remoteDescribe('Catalog Benchmark & N+1 Audit Integration (Mốc T3)', () => {
     const durationMs = performance.now() - start;
 
     expect(result.items.length).toBeGreaterThan(0);
-    expect(result.total).toBeGreaterThanOrEqual(PRODUCT_COUNT);
+    expect(result.total).toBeGreaterThanOrEqual(ACTIVE_PRODUCT_COUNT);
 
     // Verify all aggregates are present directly in single query results
     for (const item of result.items) {
@@ -254,11 +261,10 @@ remoteDescribe('Catalog Benchmark & N+1 Audit Integration (Mốc T3)', () => {
     }
   }, 30_000);
 
-  it('runs EXPLAIN ANALYZE on catalog public queries to verify index and plan efficiency', async () => {
+  it('verifies the catalog query plan uses the handed-off indexes', async () => {
     if (!pool) throw new Error('Pool not initialized');
 
-    const explainSql = `
-      EXPLAIN (FORMAT JSON)
+    const catalogQuery = `
       SELECT 
         p.product_id,
         p.shop_id,
@@ -281,12 +287,35 @@ remoteDescribe('Catalog Benchmark & N+1 Audit Integration (Mốc T3)', () => {
       LIMIT 10
     `;
 
-    const explainRes = await pool.query(explainSql, [benchCatId1]);
-    expect(explainRes.rows.length).toBeGreaterThan(0);
+    const plan = await explainQueryPlan(pool, catalogQuery, [benchCatId1]);
+    expect(plan.rawPlan).toContain('Plan');
+    expect(
+      assertUsesIndex(plan, 'idx_products__category_id__status')
+        || assertUsesIndex(plan, 'idx_products__shop_id__status'),
+      plan.rawPlan,
+    ).toBe(true);
+    expect(assertUsesIndex(plan, 'idx_product_variants__product_id__status'), plan.rawPlan).toBe(true);
 
-    const planJson = explainRes.rows[0]['QUERY PLAN'];
-    expect(planJson).toBeDefined();
-    const planStr = JSON.stringify(planJson);
-    expect(planStr).toContain('Plan');
+    const categoryLookupPlan = await explainQueryPlan(
+      pool,
+      `SELECT product_id FROM products
+       WHERE category_id = $1 AND status = 'ACTIVE'`,
+      [benchCatId1],
+    );
+    expect(
+      assertUsesIndex(categoryLookupPlan, 'idx_products__category_id__status'),
+      categoryLookupPlan.rawPlan,
+    ).toBe(true);
+
+    const shopLookupPlan = await explainQueryPlan(
+      pool,
+      `SELECT product_id FROM products
+       WHERE shop_id = $1 AND status = 'ACTIVE'`,
+      [benchShopId],
+    );
+    expect(
+      assertUsesIndex(shopLookupPlan, 'idx_products__shop_id__status'),
+      shopLookupPlan.rawPlan,
+    ).toBe(true);
   }, 30_000);
 });

@@ -4,8 +4,6 @@ import {
   validateUpdateProfileDTO,
   validateCreateAddressDTO,
   validateAddToCartDTO,
-  validateUpdateCartItemDTO,
-  validateCreateReviewDTO,
   validateUpdateNotificationDTO,
 } from '../../../src/modules/buyer/contracts/buyer.dto';
 import { ValidationError } from '../../../src/modules/buyer/domain/errors';
@@ -21,7 +19,7 @@ describe('Buyer DTO & Validation Tests (api-conventions.md §2: reject unknown f
     it('reject unknown fields với VALIDATION_FAILED (api-conventions.md §2)', () => {
       assert.throws(
         () => validateUpdateProfileDTO({ fullName: 'Nguyễn Văn A', hackField: 'malicious' }),
-        (err: any) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
+        (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
     });
   });
@@ -43,7 +41,7 @@ describe('Buyer DTO & Validation Tests (api-conventions.md §2: reject unknown f
     it('thiếu trường bắt buộc -> reject VALIDATION_FAILED', () => {
       assert.throws(
         () => validateCreateAddressDTO({ recipientName: 'Trần Thị B', phone: '0912345678' }),
-        (err: any) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
+        (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
     });
   });
@@ -57,7 +55,7 @@ describe('Buyer DTO & Validation Tests (api-conventions.md §2: reject unknown f
     it('variantId không phải UUID -> reject VALIDATION_FAILED', () => {
       assert.throws(
         () => validateAddToCartDTO({ variantId: 'invalid-uuid', quantity: 2 }),
-        (err: any) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
+        (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
     });
   });
@@ -71,7 +69,7 @@ describe('Buyer DTO & Validation Tests (api-conventions.md §2: reject unknown f
     it('reject unknown fields ví dụ action hay readAt trong client body', () => {
       assert.throws(
         () => validateUpdateNotificationDTO({ isRead: true, action: 'read' }),
-        (err: any) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
+        (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
     });
   });

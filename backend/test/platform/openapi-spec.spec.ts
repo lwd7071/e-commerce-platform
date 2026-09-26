@@ -47,33 +47,45 @@ describe('Draft OpenAPI 3.1 Spec Generation & RBAC Audit (Phase 5)', () => {
     // Reviews (canonical /order-items/:order_item_id/review)
     assert.ok(spec.paths['/api/v1/order-items/{order_item_id}/review']);
     assert.ok(spec.paths['/api/v1/order-items/{order_item_id}/review'].post);
+
+    // Vouchers (canonical tested endpoints)
+    assert.ok(spec.paths['/api/v1/vouchers'], 'Expected /api/v1/vouchers path to be present');
+    assert.ok(spec.paths['/api/v1/vouchers'].get, 'Expected GET /api/v1/vouchers operation');
+    assert.ok(spec.paths['/api/v1/vouchers/evaluate'], 'Expected /api/v1/vouchers/evaluate path to be present');
+    assert.ok(spec.paths['/api/v1/vouchers/evaluate'].post, 'Expected POST /api/v1/vouchers/evaluate operation');
+
+    // Notifications (canonical tested endpoints)
+    assert.ok(spec.paths['/api/v1/notifications'], 'Expected /api/v1/notifications path to be present');
+    assert.ok(spec.paths['/api/v1/notifications'].get, 'Expected GET /api/v1/notifications operation');
+    assert.ok(spec.paths['/api/v1/notifications/{notification_id}/read'], 'Expected /api/v1/notifications/{notification_id}/read path to be present');
+    assert.ok(spec.paths['/api/v1/notifications/{notification_id}/read'].patch, 'Expected PATCH /api/v1/notifications/{notification_id}/read operation');
   });
 
-  it('[OAS-03]: excludes untested routes documented in OAS-VERIFY-02 pending test coverage', () => {
+  it('[OAS-03]: intentionally excludes legacy alias routes and untested endpoints', () => {
     const spec = generateOpenApiSpec();
 
-    // 1. PATCH /api/v1/cart/items/{cart_item_id}
+    // 1. PATCH /api/v1/cart/items/{cart_item_id} (pending route tests)
     assert.strictEqual(spec.paths['/api/v1/cart/items/{cart_item_id}'], undefined);
 
-    // 2. GET /api/v1/notifications/{notification_id}
+    // 2. GET /api/v1/notifications/{notification_id} (pending standalone route test)
     assert.strictEqual(spec.paths['/api/v1/notifications/{notification_id}'], undefined);
 
-    // 3. POST /api/v1/reviews (legacy alias)
+    // 3. POST /api/v1/reviews (legacy alias to /order-items/:id/review, deprecated)
     assert.strictEqual(spec.paths['/api/v1/reviews'], undefined);
 
-    // 4. GET /api/v1/vouchers/preview
+    // 4. GET /api/v1/vouchers/preview (legacy alias to /vouchers/evaluate, deprecated)
     assert.strictEqual(spec.paths['/api/v1/vouchers/preview'], undefined);
 
-    // 5. GET /api/v1/vouchers/applicable
+    // 5. GET /api/v1/vouchers/applicable (legacy alias to /vouchers, deprecated)
     assert.strictEqual(spec.paths['/api/v1/vouchers/applicable'], undefined);
 
-    // 6. POST /api/v1/orders/{order_id}/confirm
+    // 6. POST /api/v1/orders/{order_id}/confirm (pending test coverage)
     assert.strictEqual(spec.paths['/api/v1/orders/{order_id}/confirm'], undefined);
 
-    // 7. POST /api/v1/orders/{order_id}/transition
+    // 7. POST /api/v1/orders/{order_id}/transition (pending test coverage)
     assert.strictEqual(spec.paths['/api/v1/orders/{order_id}/transition'], undefined);
 
-    // 8. POST /api/v1/orders/{order_id}/payments
+    // 8. POST /api/v1/orders/{order_id}/payments (pending test coverage)
     assert.strictEqual(spec.paths['/api/v1/orders/{order_id}/payments'], undefined);
   });
 

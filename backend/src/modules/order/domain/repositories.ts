@@ -1,5 +1,6 @@
 import type { OrderStatus } from './types.ts';
 import type { OrderItemSnapshot, OrderAddressSnapshot, OrderStatusHistoryRecord } from './order-snapshot.ts';
+import type { DatabaseExecutor } from '../../../../db/types.ts';
 
 export type UUID = string;
 export type DecimalString = string;
@@ -28,33 +29,33 @@ export interface IOrderRepository {
     order: OrderRecord,
     items: OrderItemRecord[],
     history: OrderStatusHistoryRecord,
-    client?: any,
+    client?: DatabaseExecutor,
   ): Promise<OrderRecord>;
 
   /**
    * Finds an order by its ID.
    */
-  findById(orderId: UUID, client?: any): Promise<OrderRecord | null>;
+  findById(orderId: UUID, client?: DatabaseExecutor): Promise<OrderRecord | null>;
 
   /**
    * Finds all items belonging to an order.
    */
-  findItemsByOrderId(orderId: UUID, client?: any): Promise<OrderItemRecord[]>;
+  findItemsByOrderId(orderId: UUID, client?: DatabaseExecutor): Promise<OrderItemRecord[]>;
 
   /**
    * Finds a specific order item by its ID.
    */
-  findItemById(orderItemId: UUID, client?: any): Promise<OrderItemRecord | null>;
+  findItemById(orderItemId: UUID, client?: DatabaseExecutor): Promise<OrderItemRecord | null>;
 
   /**
    * Finds all orders belonging to a buyer.
    */
-  findByBuyerId(buyerId: UUID, client?: any): Promise<OrderRecord[]>;
+  findByBuyerId(buyerId: UUID, client?: DatabaseExecutor): Promise<OrderRecord[]>;
 
   /**
    * Finds all orders belonging to a shop.
    */
-  findByShopId(shopId: UUID, client?: any): Promise<OrderRecord[]>;
+  findByShopId(shopId: UUID, client?: DatabaseExecutor): Promise<OrderRecord[]>;
 
   /**
    * Updates an order's status and adds an entry to order_status_history.
@@ -63,11 +64,11 @@ export interface IOrderRepository {
     orderId: UUID,
     newStatus: OrderStatus,
     history: OrderStatusHistoryRecord,
-    client?: any,
+    client?: DatabaseExecutor,
   ): Promise<void>;
 
   /**
    * Finds the status history for an order in chronological order.
    */
-  findHistoryByOrderId(orderId: UUID, client?: any): Promise<OrderStatusHistoryRecord[]>;
+  findHistoryByOrderId(orderId: UUID, client?: DatabaseExecutor): Promise<OrderStatusHistoryRecord[]>;
 }

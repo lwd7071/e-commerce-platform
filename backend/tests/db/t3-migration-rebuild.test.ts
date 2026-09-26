@@ -36,6 +36,20 @@ describe('Migration Rebuild & Clean Replay Safety (T3 Unit)', () => {
     expect(entries).toContain('20260918170000_add_api_idempotency_records');
     expect(entries).toContain('20260922120000_t2_performance_indexes');
     expect(entries).toContain('20260924120000_t3_idempotency_rls_hardening');
+    expect(entries).toContain('20260926100000_t3_cross_domain_hardening');
+  });
+
+  it('contains durable notification event idempotency migration', () => {
+    const sqlPath = path.join(
+      migrationsDir,
+      '20260926100000_t3_cross_domain_hardening',
+      'migration.sql',
+    );
+
+    expect(fs.existsSync(sqlPath)).toBe(true);
+    const sql = fs.readFileSync(sqlPath, 'utf8');
+    expect(sql).toMatch(/ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+event_id\s+VARCHAR\(100\)/i);
+    expect(sql).toMatch(/CREATE\s+UNIQUE\s+INDEX\s+IF\s+NOT\s+EXISTS\s+uq_notifications__event_id/i);
   });
 
   it('guarantees migration files do not contain destructive DROP or hardcoded secrets', () => {

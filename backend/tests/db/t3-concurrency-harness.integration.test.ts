@@ -145,6 +145,42 @@ remoteDescribe('PostgreSQL Concurrency Harness & Query Plan Baseline (T3 Remote)
       expect(hasOrderScan).toBe(true);
     }, 20_000);
 
+    it('uses the expected Buyer and Transaction indexes for production query shapes', async () => {
+      if (!pool) throw new Error('Pool not initialized');
+
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        // The acceptance database is intentionally small, so force index consideration
+        // while preserving the exact predicates/order used by the repositories.
+        await client.query('SET LOCAL enable_seqscan = off');
+        const dummyId = '00000000-0000-0000-0000-000000000000';
+
+        const notificationPlan = await explainQueryPlan(
+          client,
+          'SELECT * FROM notifications WHERE recipient_id = $1 AND is_read = $2 ORDER BY created_at DESC',
+          [dummyId, false],
+        );
+        const orderPlan = await explainQueryPlan(
+          client,
+          'SELECT * FROM orders WHERE buyer_id = $1 ORDER BY created_at DESC',
+          [dummyId],
+        );
+        const paymentPlan = await explainQueryPlan(
+          client,
+          'SELECT * FROM payments WHERE order_id = $1',
+          [dummyId],
+        );
+
+        expect(assertUsesIndex(notificationPlan, 'idx_notifications__recipient_id__is_read__created_at')).toBe(true);
+        expect(assertUsesIndex(orderPlan, 'idx_orders__buyer_id__created_at')).toBe(true);
+        expect(assertUsesIndex(paymentPlan, 'idx_payments__order_id')).toBe(true);
+        await client.query('ROLLBACK');
+      } finally {
+        client.release();
+      }
+    }, 20_000);
+
     it('correctly reports true when expected index is used, and false otherwise', () => {
       const mockPlan = {
         rawPlan: '{}',

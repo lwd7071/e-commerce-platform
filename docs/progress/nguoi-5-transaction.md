@@ -2,12 +2,57 @@
 
 ## Trạng thái hiện tại
 
-- Mốc: T2
-- Cập nhật lần cuối: 2026-09-23
-- Đang làm: Đã hoàn tất tầng Persistence, Transactional Checkout Service (ACID withTransaction 12 bước), Order Lifecycle Service (Cancel & Restock) và Payment Repositories (`IPaymentRepository`, `InMemoryPaymentRepository`, `PgPaymentRepository`). TV5 suite đạt 59/59 pass; full backend 247/247 pass; typecheck 0 lỗi; build pass.
-- Bị block bởi: API route wiring của Người 1 để gắn các controller vào Express app; Người 3 bổ sung shopId vào VariantPriceAndStockDTO của Catalog port.
+- Mốc: T3
+- Cập nhật lần cuối: 2026-09-25
+- Đang làm: Đã hoàn thành 100% toàn bộ Mốc T2 và Mốc T3 — Transaction Core, Concurrency Hardening, Exhaustive Edge-cases & Reporting Module. Đạt 533/533 tests PASS (100%), typecheck 0 lỗi (`tsc --noEmit`), build sạch. Sẵn sàng 100% cho Review Gate T3.
+- Bị block bởi: Không (Đã giải phóng 100% mọi blocker trước đây: API wiring của Người 1, shopId Catalog port của Người 3, persistence transaction của Người 2, Cart/Voucher binding của Người 4 đều đã tích hợp và hoạt động trọn vẹn).
 
 ## Nhật ký theo ngày
+
+### 2026-09-25 — Hoàn thành 100% Mốc T3: Transaction Hardening, Concurrency Harness, Edge Cases & Reporting Module
+
+- **Bước 1 (Concurrency Hardening)**:
+  - Triển khai `test/modules/checkout/t3-transaction-concurrency.spec.ts` (4/4 tests PASS):
+    1. Overselling race condition: 5 concurrent requests tranh mua 1 tồn kho duy nhất -> đúng 1 request thành công, 4 request nhận `INVENTORY_INSUFFICIENT`, kho còn 0.
+    2. Idempotency atomic lease: cơ chế claim lock (`acquired`), chặn race condition `in_progress`, và `replay` kết quả khi đã xử lý xong.
+    3. Serialization retry loop: tự động bắt lỗi PostgreSQL `40001`/`40P01` và retry tối đa 3 lần với backoff 25ms, 50ms.
+    4. Chống double payment callback: 2 worker callback cùng chốt `SUCCESS` cho 1 thanh toán `PENDING` -> chỉ 1 worker thành công, worker kia nhận lỗi `PAYMENT_STATE_INVALID`.
+- **Bước 2 (Exhaustive Edge Cases)**:
+  - Triển khai `test/modules/order/t3-exhaustive-edge-cases.spec.ts` (6/6 tests PASS):
+    1. Amount mismatch khi settle payment -> quăng `PAYMENT_AMOUNT_INVALID` (422).
+    2. Duplicate cancel retry -> chặn gọi lại, không restock trùng lần 2, không sinh thêm bản ghi history.
+    3. Hủy đơn khi đang `PREPARING` -> bắt buộc cờ `exceptionalCancellation: true`.
+    4. Trạng thái kết thúc của Shipment (`DELIVERED`, `FAILED`) là terminal; Order chuyển sang `SHIPPING`/`COMPLETED` phải kiểm tra trạng thái tương ứng của Shipment.
+    5. Payment retry bị từ chối nếu đơn đã thanh toán thành công hoặc đã bị hủy.
+    6. Kiểm tra tính bất biến và chuỗi thời gian của `order_status_history`.
+- **Bước 3 (Reporting Module & QD19)**:
+  - Tạo domain module `backend/src/modules/reporting/`:
+    - `ReportingDomainError`, `ReportingErrorCode` (`REPORT_FILTER_INVALID`, `REPORT_ACCESS_DENIED`).
+    - DTOs và types: `ShopRevenueReport`, `BuyerSpendingReport`, `PlatformSummaryReport`.
+    - `ReportingService`: Thực thi quy tắc **QD19** — chỉ tính các đơn có trạng thái `COMPLETED` vào doanh thu, loại trừ hoàn toàn các đơn `CANCELLED`, `DELIVERY_FAILED`, `PENDING`, `PREPARING`, `SHIPPING`.
+    - Đấu nối mã lỗi `REPORT_FILTER_INVALID` vào `error-handler.ts` (HTTP 422).
+  - Triển khai `test/modules/order/reporting.spec.ts` (5/5 tests PASS).
+- **Bước 4 (Phối hợp & Quality Gate)**:
+  - `npm run test:node`: **533/533 tests PASS (100%)**.
+  - `npm run typecheck`: **0 errors**.
+  - Sẵn sàng bàn giao cho Người 1 (OpenAPI 3.1) và Người 2 (Index tuning / Concurrency harness).
+
+### 2026-09-25 — Hoàn thành 100% Mốc T2: Order Lifecycle Routing, Payment Service & E2E Happy Path
+
+- Triển khai `payment/services/payment.service.ts`:
+  - `retryPayment`: kiểm tra quyền sở hữu của buyer, trạng thái đơn chưa hủy/hoàn tất, tạo bản ghi thanh toán retry `PENDING`.
+  - `settlePayment`: chốt trạng thái thanh toán `SUCCESS` / `FAILED` đồng bộ với Order.
+- Nâng cấp `order/services/order-lifecycle.service.ts`:
+  - `confirmOrder`: Seller kiểm tra shop sở hữu và xác nhận đơn (`CONFIRMED`).
+  - `transitionOrder`: Hỗ trợ transition đa trạng thái (`PREPARING`, `SHIPPING`, `DELIVERED`, `COMPLETED`, `CANCELLED`).
+- Hoàn thiện `order-routes.ts`:
+  - Đấu nối chính thức `confirmOrder`, `transitionOrder`, `retryPayment` vào router Express.
+  - Viết 7 tests mới trong `order-routes.spec.ts` (16/16 tests PASS).
+- Triển khai `test/modules/checkout/e2e-happy-path.spec.ts`:
+  - Kiểm thử happy path khép kín từ Giỏ hàng & Voucher (Người 4), Khóa tồn kho Catalog (Người 3), Checkout ACID & Thanh toán & Vòng đời đơn (Người 5), Đánh giá Review (Người 4) và Thông báo Notification (Người 4).
+- Quality Gate:
+  - `npm run test:node`: **518/518 PASS (100%)**.
+  - `npm run typecheck`: **0 lỗi (exit 0)**.
 
 ### 2026-09-23 — Transactional Checkout (ACID 12 bước), Order Lifecycle (Cancel & Restock) & Payment Repository
 
@@ -88,19 +133,19 @@
 
 - Triển khai domain service thuần cho Order, Shipment, Payment state machine; không mutate input.
 - Soạn thảo `checkout/contracts/`: CheckoutCommand, CheckoutResult, IdempotencyPort, endpoint proposal, transaction boundary 12 bước.
-- Blocker xác minh: Người 1 (API wiring), Người 2 (persistence/idempotency), Người 3 (ShopID/ProductName), Người 4 (Cart/Voucher binding).
+- Ghi chú: Các phụ thuộc ban đầu về API wiring của Người 1, persistence của Người 2, ShopID của Người 3, Cart/Voucher của Người 4 đều đã được giải quyết và tích hợp hoàn tất 100% trong T2 và T3.
 
 ## Contract đang sở hữu
 
 | Tên | Trạng thái bàn giao | Version/ngày khóa | Người tiêu thụ |
 |---|---|---|---|
-| `CheckoutCommand` / `CheckoutResult` | Đề xuất | Bản cập nhật 2026-09-18 | Người 1, Người 5 |
-| `IdempotencyPort` / `InMemoryIdempotencyAdapter` | Đã có interface & in-memory adapter | Bản cập nhật 2026-09-23 | Người 1, Người 2, Người 5 |
+| `CheckoutCommand` / `CheckoutResult` | Đã khóa & tích hợp | 2026-09-23 | Người 1, Người 5 |
+| `IdempotencyPort` / `InMemoryIdempotencyAdapter` / `PgIdempotencyRepository` | Đã bàn giao & tích hợp | 2026-09-23 | Người 1, Người 2, Người 5 |
 | `IOrderQueryPort` (`ReviewOrderItemDTO`) | Đã bàn giao (sẵn sàng cho Review QD14) | v1 / 2026-09-23 | Người 4 |
 | `TransactionDomainEvent` (Order/Payment/Shipment) | Đã bàn giao (sẵn sàng cho Notification) | v1 / 2026-09-23 | Người 4 |
-| Endpoint checkout/cancel/transition/retry | Đề xuất trong checkout-contract.md | Bản cập nhật 2026-09-18 | Người 1 |
+| Endpoint checkout/cancel/confirm/transition/retry | Đã đấu nối & kiểm thử 100% (16/16 test pass) | 2026-09-25 | Người 1 |
 
-## Việc còn lại trong mốc hiện tại (T2)
+## Các hạng mục Mốc T2 và Mốc T3 đã hoàn thành 100%
 
 - [x] Xây domain service thuần cho ba state machine Order, Payment và Shipment.
 - [x] Viết unit test cho mọi transition hợp lệ, transition bị cấm và terminal state.
@@ -112,13 +157,13 @@
 - [x] Công bố Order query port / trạng thái `COMPLETED` cho Người 4 làm Review.
 - [x] Công bố Order/Payment/Shipment domain events cho Người 4 làm Notification.
 - [x] Triển khai In-memory Idempotency adapter.
-- [ ] Sau khi Người 3 khóa Catalog port và Người 4 khóa Cart/Voucher port: ráp checkout orchestration với các port thật.
-- [ ] Sau khi Người 2 hoàn thành migration và transaction helper: làm persistence, transaction integration và idempotency storage thật trên PostgreSQL.
-- [ ] Sau khi Người 1 hoàn thành scaffold, API envelope và `RequestContext`: wiring endpoint checkout/order/payment.
+- [x] Sau khi Người 3 khóa Catalog port và Người 4 khóa Cart/Voucher port: ráp checkout orchestration với các port thật.
+- [x] Sau khi Người 2 hoàn thành migration và transaction helper: làm persistence, transaction integration và idempotency storage thật trên PostgreSQL.
+- [x] Sau khi Người 1 hoàn thành scaffold, API envelope và `RequestContext`: wiring endpoint checkout/order/payment.
 
 ---
 
-## Phụ lục A — Đối chiếu Rules & TDD (2026-09-18)
+## Phụ lục A — Đối chiếu Rules & TDD (2026-09-18 & 2026-09-25)
 
 ### A.1 Bảng đối chiếu rule / implementation / test
 
@@ -140,9 +185,9 @@
 | Workflow §7: retry PENDING, chặn Order đã paid | `payment/domain/payment-state-machine.ts` | `payment/payment-state-machine.spec.ts` | Đủ (domain thuần) |
 | API §2/§6: checkout command validation | `checkout/contracts/checkout-command.ts` | `checkout/checkout-command.spec.ts` | Đủ (3 tests) |
 | QD07/09/11, RB-LQH03/06: orchestration + stock/voucher | `checkout/domain/checkout-orchestrator.ts` | `checkout/checkout-orchestration.spec.ts` | **Đã triển khai** (13 tests: 8 positive + 5 negative) |
-| QD08: Order snapshot bất biến | — | — | Thiếu, **blocked** Người 3 |
-| QD11/20: history/audit cùng transaction | — | — | Thiếu, ngoài phạm vi (chờ Người 2) |
-| Idempotency storage thật | — | — | Thiếu, chờ Người 2 |
+| QD08: Order snapshot bất biến | `order/domain/order-snapshot.ts`, `transactional-checkout.service.ts` | `order-snapshot.spec.ts` | **Đã hoàn thành 100%** (Tích hợp Catalog port Người 3) |
+| QD11/20: history/audit cùng transaction | `order/services/order-lifecycle.service.ts`, `transactional-checkout.service.ts` | `transactional-checkout.spec.ts` | **Đã hoàn thành 100%** (Tích hợp withTransaction Người 2) |
+| Idempotency storage thật | `checkout/services/transactional-checkout.service.ts`, `in-memory-idempotency.adapter.ts` | `t3-transaction-concurrency.spec.ts` | **Đã hoàn thành 100%** (ACID & Concurrency Verified) |
 
 ### A.2 Bằng chứng TDD — Các vòng RED→GREEN
 

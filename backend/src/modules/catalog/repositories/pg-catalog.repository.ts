@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
+import { SkuConflictError } from '../domain/errors.ts';
 import { ValidationError } from '../domain/errors.ts';
 import type {
   UUID,
@@ -9,6 +10,8 @@ import type {
   ProductStatus,
   ProductVariant,
   ProductImage,
+  CategoryStatus,
+  VariantStatus,
 } from '../domain/types.ts';
 import type {
   IShopRepository,
@@ -20,55 +23,59 @@ import type {
   PublicProductSummary,
 } from '../domain/repositories.ts';
 
+type DatabaseRow = Record<string, unknown>;
+const isoString = (value: unknown): string => value instanceof Date ? value.toISOString() : String(value);
+const nullableString = (value: unknown): string | null => value == null ? null : String(value);
+
 // Helper mappers from DB snake_case to Domain camelCase
-export const mapShopRow = (row: any): Shop => ({
-  shopId: row.shop_id,
-  ownerId: row.owner_id,
-  shopName: row.shop_name,
-  description: row.description,
-  logoUrl: row.logo_url,
-  pickupAddress: row.pickup_address,
-  contactPhone: row.contact_phone,
-  status: row.status,
-  createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
-  updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
+export const mapShopRow = (row: DatabaseRow): Shop => ({
+  shopId: String(row.shop_id),
+  ownerId: String(row.owner_id),
+  shopName: String(row.shop_name),
+  description: nullableString(row.description),
+  logoUrl: nullableString(row.logo_url),
+  pickupAddress: String(row.pickup_address),
+  contactPhone: String(row.contact_phone),
+  status: row.status as ShopStatus,
+  createdAt: isoString(row.created_at),
+  updatedAt: isoString(row.updated_at),
 });
 
-export const mapCategoryRow = (row: any): Category => ({
-  categoryId: row.category_id,
-  parentCategoryId: row.parent_category_id,
-  categoryName: row.category_name,
-  description: row.description,
-  status: row.status,
-  createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
-  updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
+export const mapCategoryRow = (row: DatabaseRow): Category => ({
+  categoryId: String(row.category_id),
+  parentCategoryId: nullableString(row.parent_category_id),
+  categoryName: String(row.category_name),
+  description: nullableString(row.description),
+  status: row.status as CategoryStatus,
+  createdAt: isoString(row.created_at),
+  updatedAt: isoString(row.updated_at),
 });
 
-export const mapProductRow = (row: any): Product => ({
-  productId: row.product_id,
-  shopId: row.shop_id,
-  categoryId: row.category_id,
-  productName: row.product_name,
-  description: row.description,
-  status: row.status,
-  createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
-  updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
+export const mapProductRow = (row: DatabaseRow): Product => ({
+  productId: String(row.product_id),
+  shopId: String(row.shop_id),
+  categoryId: String(row.category_id),
+  productName: String(row.product_name),
+  description: nullableString(row.description),
+  status: row.status as ProductStatus,
+  createdAt: isoString(row.created_at),
+  updatedAt: isoString(row.updated_at),
 });
 
-export const mapVariantRow = (row: any): ProductVariant => ({
-  variantId: row.variant_id,
-  productId: row.product_id,
-  variantName: row.variant_name,
-  variantValue: row.variant_value,
-  sku: row.sku,
+export const mapVariantRow = (row: DatabaseRow): ProductVariant => ({
+  variantId: String(row.variant_id),
+  productId: String(row.product_id),
+  variantName: String(row.variant_name),
+  variantValue: nullableString(row.variant_value),
+  sku: String(row.sku),
   price: String(row.price),
   stockQuantity: Number(row.stock_quantity),
-  status: row.status,
-  createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
-  updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
-  productName: row.product_name,
-  shopId: row.shop_id,
-  shopOwnerId: row.shop_owner_id,
+  status: row.status as VariantStatus,
+  createdAt: isoString(row.created_at),
+  updatedAt: isoString(row.updated_at),
+  productName: row.product_name == null ? undefined : String(row.product_name),
+  shopId: row.shop_id == null ? undefined : String(row.shop_id),
+  shopOwnerId: row.shop_owner_id == null ? undefined : String(row.shop_owner_id),
 });
 
 export class PgShopRepository implements IShopRepository {
@@ -250,7 +257,7 @@ export class PgProductRepository implements IProductRepository {
 
   async findByShopId(shopId: UUID, filter?: ProductFilter): Promise<Product[]> {
     const conditions: string[] = ['shop_id = $1'];
-    const params: any[] = [shopId];
+    const params: unknown[] = [shopId];
 
     if (filter?.status) {
       params.push(filter.status);
@@ -272,13 +279,34 @@ export class PgProductRepository implements IProductRepository {
     images: ProductImage[] = [],
     client?: PoolClient,
   ): Promise<Product> {
-    if (client) {
+    const persist = async (runner: PoolClient) => {
+      const skus = [...new Set(variants.map((variant) => variant.sku))].sort();
+      for (const sku of skus) {
+        const lockScope = JSON.stringify(['catalog-sku-v1', product.shopId, sku]);
+        await runner.query(
+          'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
+          [lockScope],
+        );
+      }
+
+      const existingSku = await runner.query<{ sku: string }>(
+        `SELECT v.sku
+           FROM product_variants v
+           JOIN products p ON p.product_id = v.product_id
+          WHERE p.shop_id = $1 AND v.sku = ANY($2::text[])
+          LIMIT 1`,
+        [product.shopId, skus],
+      );
+      if (existingSku.rows[0]) {
+        throw new SkuConflictError(`SKU '${existingSku.rows[0].sku}' already exists in this shop`);
+      }
+
       const productQuery = `
         INSERT INTO products (product_id, shop_id, category_id, product_name, description, status, created_at, updated_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING *
       `;
-      const res = await client.query(productQuery, [
+      const res = await runner.query(productQuery, [
         product.productId,
         product.shopId,
         product.categoryId,
@@ -290,7 +318,7 @@ export class PgProductRepository implements IProductRepository {
       ]);
 
       for (const v of variants) {
-        await client.query(
+        await runner.query(
           `INSERT INTO product_variants (variant_id, product_id, variant_name, variant_value, sku, price, stock_quantity, status, created_at, updated_at)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
           [
@@ -309,7 +337,7 @@ export class PgProductRepository implements IProductRepository {
       }
 
       for (const img of images) {
-        await client.query(
+        await runner.query(
           `INSERT INTO product_images (image_id, product_id, image_url, sort_order)
            VALUES ($1, $2, $3, $4)`,
           [img.imageId, product.productId, img.imageUrl, img.sortOrder],
@@ -317,57 +345,18 @@ export class PgProductRepository implements IProductRepository {
       }
 
       return mapProductRow(res.rows[0]);
+    };
+
+    if (client) {
+      return await persist(client);
     }
 
     const conn = await this.pool.connect();
     try {
       await conn.query('BEGIN');
-
-      const productQuery = `
-        INSERT INTO products (product_id, shop_id, category_id, product_name, description, status, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        RETURNING *
-      `;
-      const res = await conn.query(productQuery, [
-        product.productId,
-        product.shopId,
-        product.categoryId,
-        product.productName,
-        product.description,
-        product.status,
-        product.createdAt,
-        product.updatedAt,
-      ]);
-
-      for (const v of variants) {
-        await conn.query(
-          `INSERT INTO product_variants (variant_id, product_id, variant_name, variant_value, sku, price, stock_quantity, status, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-          [
-            v.variantId,
-            product.productId,
-            v.variantName,
-            v.variantValue,
-            v.sku,
-            v.price,
-            v.stockQuantity,
-            v.status,
-            v.createdAt,
-            v.updatedAt,
-          ],
-        );
-      }
-
-      for (const img of images) {
-        await conn.query(
-          `INSERT INTO product_images (image_id, product_id, image_url, sort_order)
-           VALUES ($1, $2, $3, $4)`,
-          [img.imageId, product.productId, img.imageUrl, img.sortOrder],
-        );
-      }
-
+      const created = await persist(conn);
       await conn.query('COMMIT');
-      return mapProductRow(res.rows[0]);
+      return created;
     } catch (err) {
       await conn.query('ROLLBACK');
       throw err;
@@ -392,7 +381,7 @@ export class PgProductRepository implements IProductRepository {
       "c.status = 'ACTIVE'",
       "v.status = 'ACTIVE'",
     ];
-    const params: any[] = [];
+    const params: unknown[] = [];
 
     if (filter.categoryId) {
       params.push(filter.categoryId);
@@ -416,7 +405,7 @@ export class PgProductRepository implements IProductRepository {
 
     const havingClause = havingConditions.length > 0 ? `HAVING ${havingConditions.join(' AND ')}` : '';
 
-    let orderClause = 'ORDER BY p.created_at DESC';
+    let orderClause = 'ORDER BY p.created_at DESC, p.product_id ASC';
     if (filter.sortBy === 'price_asc') {
       orderClause = 'ORDER BY min_price ASC, p.product_id ASC';
     } else if (filter.sortBy === 'price_desc') {
@@ -475,17 +464,17 @@ export class PgProductRepository implements IProductRepository {
     `;
 
     const dataRes = await this.pool.query(dataSql, params);
-    const items: PublicProductSummary[] = dataRes.rows.map((row: Record<string, any>) => ({
-      productId: row.product_id,
-      shopId: row.shop_id,
-      categoryId: row.category_id,
-      productName: row.product_name,
-      description: row.description,
+    const items: PublicProductSummary[] = dataRes.rows.map((row: DatabaseRow) => ({
+      productId: String(row.product_id),
+      shopId: String(row.shop_id),
+      categoryId: String(row.category_id),
+      productName: String(row.product_name),
+      description: nullableString(row.description),
       minPrice: Number(row.min_price).toFixed(2),
       maxPrice: Number(row.max_price).toFixed(2),
       totalStock: Number(row.total_stock),
-      imageUrl: row.image_url ?? null,
-      createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+      imageUrl: nullableString(row.image_url),
+      createdAt: isoString(row.created_at),
     }));
 
     return { items, total, nextCursor: items.length === limit && offset + items.length < total ? encodeCursor(offset + items.length) : null };

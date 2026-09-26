@@ -3,13 +3,13 @@ import type {
   Shop,
   ShopStatus,
   Category,
-  CategoryStatus,
   Product,
   ProductStatus,
   ProductVariant,
   ProductImage,
   DecimalString,
 } from './types.ts';
+import type { DatabaseExecutor } from '../../../../db/types.ts';
 
 export interface ProductFilter {
   status?: ProductStatus;
@@ -63,10 +63,10 @@ export interface IProductRepository {
 }
 
 export interface IProductVariantRepository {
-  findById(variantId: UUID, client?: any): Promise<ProductVariant | null>;
+  findById(variantId: UUID, client?: DatabaseExecutor): Promise<ProductVariant | null>;
   findByProductId(productId: UUID): Promise<ProductVariant[]>;
   findBySku(shopId: UUID, sku: string): Promise<ProductVariant | null>;
-  create(variant: ProductVariant, client?: any): Promise<ProductVariant>;
-  lockForUpdate(variantId: UUID, client?: any): Promise<ProductVariant | null>;
-  deductStock(variantId: UUID, quantity: number, client?: any): Promise<void>;
+  create(variant: ProductVariant, client?: DatabaseExecutor): Promise<ProductVariant>;
+  lockForUpdate(variantId: UUID, client?: DatabaseExecutor): Promise<ProductVariant | null>;
+  deductStock(variantId: UUID, quantity: number, client?: DatabaseExecutor): Promise<void>;
 }

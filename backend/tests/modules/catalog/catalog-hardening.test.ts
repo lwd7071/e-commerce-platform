@@ -268,6 +268,61 @@ interface VariantStockUpdateResponse {
   });
 
   describe('2. SKU Conflict & Scope Isolation [RB-LB11]', () => {
+    it('serializes concurrent product creation with the same SKU in one Shop', async () => {
+      if (!pool) throw new Error('Pool not initialized');
+
+      const concurrentSku = `SKU-RACE-${Date.now()}`;
+      const now = new Date().toISOString();
+      const makeProduct = (suffix: string) => {
+        const productId = crypto.randomUUID();
+        return {
+          product: {
+            productId,
+            shopId: shop1Id,
+            categoryId: categoryActiveId,
+            productName: `Concurrent product ${suffix}`,
+            description: null,
+            status: 'ACTIVE' as const,
+            createdAt: now,
+            updatedAt: now,
+          },
+          variants: [{
+            variantId: crypto.randomUUID(),
+            productId,
+            variantName: 'Default',
+            variantValue: null,
+            sku: concurrentSku,
+            price: '100000.00',
+            stockQuantity: 1,
+            status: 'ACTIVE' as const,
+            createdAt: now,
+            updatedAt: now,
+          }],
+        };
+      };
+
+      const first = makeProduct('A');
+      const second = makeProduct('B');
+      const results = await Promise.allSettled([
+        new PgProductRepository(pool).create(first.product, first.variants),
+        new PgProductRepository(pool).create(second.product, second.variants),
+      ]);
+
+      expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+      const failure = results.find((result) => result.status === 'rejected');
+      expect(failure).toBeDefined();
+      if (failure?.status === 'rejected') expect(failure.reason).toBeInstanceOf(SkuConflictError);
+
+      const persisted = await pool.query<{ count: string }>(
+        `SELECT count(*)::text AS count
+           FROM product_variants v
+           JOIN products p ON p.product_id = v.product_id
+          WHERE p.shop_id = $1 AND v.sku = $2`,
+        [shop1Id, concurrentSku],
+      );
+      expect(Number(persisted.rows[0].count)).toBe(1);
+    }, 30_000);
+
     it('rejects creating product with duplicate SKUs inside the same request payload', async () => {
       await expect(
         catalogHttpService.createProduct(contextSeller1, {

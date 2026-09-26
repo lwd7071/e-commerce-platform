@@ -1,7 +1,4 @@
 import 'dotenv/config';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool, PoolClient } from 'pg';
@@ -23,9 +20,6 @@ import {
   createFixtureCartItem,
 } from './fixtures/database-fixtures.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 const runRemoteDbTests = parseRunRemoteDbTests(process.env);
 const remoteDescribe = runRemoteDbTests ? describe : describe.skip;
 
@@ -36,15 +30,6 @@ remoteDescribe('Strict Transaction History Retention & RLS Regression (T3 [QD16]
     const config = loadDatabaseConfig(process.env);
     pool = createDatabasePool({ databaseUrl: config.directUrl, pool: { ...config.pool, max: 1 } });
 
-    // Áp dụng T3 idempotency RLS hardening migration một cách idempotent
-    const migrationPath = path.resolve(
-      __dirname,
-      '../../prisma/migrations/20260924120000_t3_idempotency_rls_hardening/migration.sql',
-    );
-    if (fs.existsSync(migrationPath)) {
-      const sql = fs.readFileSync(migrationPath, 'utf8');
-      await pool.query(sql);
-    }
   }, 45_000);
 
   afterAll(async () => {

@@ -5,11 +5,16 @@ import { mapNotification } from '../../../../src/modules/buyer/infrastructure/ro
 import { mockNotification, mockBuyerId } from '../fixtures';
 import type { IDbClient } from '../../../../src/modules/buyer/infrastructure/db-client';
 
-class MockDbClient {
-  public queries: { sql: string; params: any[] }[] = [];
-  public customHandler?: (sql: string, params: any[]) => Promise<any>;
+const isPgConstraintError = (error: unknown, code: string, constraint: string): boolean =>
+  error instanceof Error
+  && 'code' in error && error.code === code
+  && 'constraint' in error && error.constraint === constraint;
 
-  async query(sql: string, params: any[] = []): Promise<{ rows: any[]; rowCount: number }> {
+class MockDbClient {
+  public queries: { sql: string; params: unknown[] }[] = [];
+  public customHandler?: (sql: string, params: unknown[]) => Promise<{ rows: Record<string, unknown>[]; rowCount: number }>;
+
+  async query(sql: string, params: unknown[] = []): Promise<{ rows: Record<string, unknown>[]; rowCount: number }> {
     this.queries.push({ sql: sql.trim(), params });
     if (this.customHandler) {
       return this.customHandler(sql, params);
@@ -101,6 +106,25 @@ describe('Phase 5 — PostgresNotificationRepository (SOLID: S, L, D)', () => {
       assert.ok(client.queries[0].sql.includes('INSERT INTO notifications'));
     });
 
+    it('[T3] createForEvent: uses the database unique event_id as the cross-instance idempotency boundary', async () => {
+      const client = new MockDbClient();
+      client.customHandler = async (_sql, params) => ({
+        rows: [{
+          notification_id: params[0], recipient_id: params[1], type: params[2],
+          title: params[3], content: params[4], is_read: false,
+          created_at: new Date(mockNotification.createdAt), read_at: null,
+        }],
+        rowCount: 1,
+      });
+
+      const repo = new PostgresNotificationRepository(client as IDbClient);
+      await repo.createForEvent(mockNotification, 'event-t3-001');
+
+      assert.ok(client.queries[0].sql.includes('event_id'));
+      assert.ok(client.queries[0].sql.includes('ON CONFLICT (event_id)'));
+      assert.strictEqual(client.queries[0].params[8], 'event-t3-001');
+    });
+
     it('[TEST-INT-18] markAsRead: cập nhật is_read = TRUE và read_at = now() hoặc readAt được truyền vào', async () => {
       const customReadTime = '2026-09-17T15:30:00.000Z';
       const client = new MockDbClient();
@@ -139,7 +163,7 @@ describe('Phase 5 — PostgresNotificationRepository (SOLID: S, L, D)', () => {
       const repo = new PostgresNotificationRepository(client as IDbClient);
       await assert.rejects(
         () => repo.create({ ...mockNotification, isRead: true, readAt: null }),
-        (err: any) => err.code === '23514' && err.constraint === 'ck_notifications__read_at'
+        (err: unknown) => isPgConstraintError(err, '23514', 'ck_notifications__read_at')
       );
     });
   });

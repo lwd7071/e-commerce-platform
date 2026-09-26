@@ -1,6 +1,6 @@
 import type { Pool, PoolClient } from 'pg';
-import type { IOrderRepository } from '../domain/repositories.ts';
-import type { OrderActor, OrderStatus } from '../domain/types.ts';
+import type { IOrderRepository, OrderRecord } from '../domain/repositories.ts';
+import type { OrderActor, OrderStatus, OrderTransitionCommand } from '../domain/types.ts';
 import { transitionOrder } from '../domain/order-state-machine.ts';
 import { createOrderStatusHistoryRecord } from '../domain/order-snapshot.ts';
 import { OrderDomainError } from '../domain/errors.ts';
@@ -49,7 +49,7 @@ export class OrderLifecycleService {
       }
 
       // Check transition eligibility via state machine
-      const transition = transitionOrder(
+      transitionOrder(
         { status: order.status, buyerId: order.buyerId, shopId: order.shopId },
         { to: 'CANCELLED', actor, reason: trimmedReason },
       );
@@ -83,6 +83,102 @@ export class OrderLifecycleService {
   }
 
   /**
+   * Confirms a pending order by SELLER (matching shop) or ADMIN (QD11, QD13).
+   */
+  public async confirmOrder(orderId: UUID, actor: OrderActor): Promise<OrderRecord> {
+    const executeConfirm = async (client?: PoolClient): Promise<OrderRecord> => {
+      const order = await this.orderRepo.findById(orderId, client);
+      if (!order) {
+        throw new OrderDomainError('RESOURCE_NOT_FOUND', 'Order was not found.');
+      }
+      if (actor.kind === 'SELLER' && actor.shopId !== order.shopId) {
+        throw new OrderDomainError('RESOURCE_FORBIDDEN', 'Seller cannot confirm order of another shop.');
+      }
+
+      transitionOrder(
+        { status: order.status, buyerId: order.buyerId, shopId: order.shopId },
+        { to: 'CONFIRMED', actor, processingEligible: true },
+      );
+
+      const history = createOrderStatusHistoryRecord({
+        orderId,
+        oldStatus: order.status,
+        newStatus: 'CONFIRMED',
+        changedBy: 'userId' in actor ? actor.userId : null,
+      });
+
+      await this.orderRepo.updateStatus(orderId, 'CONFIRMED', history, client);
+      const updated = await this.orderRepo.findById(orderId, client);
+      return updated ?? { ...order, status: 'CONFIRMED' };
+    };
+
+    if (this.pool) {
+      return await withTransaction(this.pool, (client) => executeConfirm(client));
+    }
+    return await executeConfirm();
+  }
+
+  /**
+   * Advances order status according to full state machine rules and options.
+   */
+  public async transitionOrder(
+    orderId: UUID,
+    actor: OrderActor,
+    options: {
+      to: OrderStatus;
+      reason?: string;
+      processingEligible?: boolean;
+      exceptionalCancellation?: boolean;
+      shipmentStatus?: OrderTransitionCommand['shipmentStatus'];
+    },
+  ): Promise<OrderRecord> {
+    const executeTransition = async (client?: PoolClient): Promise<OrderRecord> => {
+      const order = await this.orderRepo.findById(orderId, client);
+      if (!order) {
+        throw new OrderDomainError('RESOURCE_NOT_FOUND', 'Order was not found.');
+      }
+
+      const decision = transitionOrder(
+        { status: order.status, buyerId: order.buyerId, shopId: order.shopId },
+        {
+          to: options.to,
+          actor,
+          reason: options.reason,
+          processingEligible: options.processingEligible ?? true,
+          exceptionalCancellation: options.exceptionalCancellation,
+          shipmentStatus: options.shipmentStatus,
+        },
+      );
+
+      const history = createOrderStatusHistoryRecord({
+        orderId,
+        oldStatus: order.status,
+        newStatus: decision.to,
+        changedBy: 'userId' in actor ? actor.userId : null,
+        reason: decision.reason ?? null,
+      });
+
+      await this.orderRepo.updateStatus(orderId, decision.to, history, client);
+
+      // If cancelled, restock if needed
+      if (decision.to === 'CANCELLED' && this.restockHandler) {
+        const items = await this.orderRepo.findItemsByOrderId(orderId, client);
+        for (const item of items) {
+          await this.restockHandler(item.variantId, item.quantity, client);
+        }
+      }
+
+      const updated = await this.orderRepo.findById(orderId, client);
+      return updated ?? { ...order, status: decision.to };
+    };
+
+    if (this.pool) {
+      return await withTransaction(this.pool, (client) => executeTransition(client));
+    }
+    return await executeTransition();
+  }
+
+  /**
    * Advances order status according to state machine rules.
    */
   public async transitionStatus(
@@ -92,32 +188,10 @@ export class OrderLifecycleService {
     reason?: string,
     processingEligible?: boolean,
   ): Promise<void> {
-    const executeTransition = async (client?: PoolClient): Promise<void> => {
-      const order = await this.orderRepo.findById(orderId, client);
-      if (!order) {
-        throw new OrderDomainError('RESOURCE_NOT_FOUND', 'Order was not found.');
-      }
-
-      transitionOrder(
-        { status: order.status, buyerId: order.buyerId, shopId: order.shopId },
-        { to: newStatus, actor, reason, processingEligible },
-      );
-
-      const history = createOrderStatusHistoryRecord({
-        orderId,
-        oldStatus: order.status,
-        newStatus,
-        changedBy: 'userId' in actor ? actor.userId : null,
-        reason: reason || null,
-      });
-
-      await this.orderRepo.updateStatus(orderId, newStatus, history, client);
-    };
-
-    if (this.pool) {
-      await withTransaction(this.pool, (client) => executeTransition(client));
-    } else {
-      await executeTransition();
-    }
+    await this.transitionOrder(orderId, actor, {
+      to: newStatus,
+      reason,
+      processingEligible,
+    });
   }
 }

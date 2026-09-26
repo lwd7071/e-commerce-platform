@@ -66,7 +66,7 @@ function requireRole(...roles: Role[]): (req: Request, _res: Response, next: Nex
   };
 }
 
-function implementation<T extends (...args: any[]) => Promise<any>>(method: T | undefined, receiver?: unknown): T {
+function implementation<T extends (...args: never[]) => Promise<unknown>>(method: T | undefined, receiver?: unknown): T {
   if (method) return receiver === undefined ? method : method.bind(receiver) as T;
   return (async () => {
     throw new NotFoundError('T1 application handler is not configured');

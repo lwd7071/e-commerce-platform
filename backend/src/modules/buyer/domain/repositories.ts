@@ -55,5 +55,6 @@ export interface INotificationRepository {
   findById(notificationId: UUID): Promise<Notification | null>;
   findByRecipientId(recipientId: UUID, isRead?: boolean): Promise<Notification[]>;
   create(notification: Notification): Promise<Notification>;
+  createForEvent?(notification: Notification, eventId: string): Promise<Notification | null>;
   markAsRead(notificationId: UUID, readAt?: string): Promise<Notification>;
 }

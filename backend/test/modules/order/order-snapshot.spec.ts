@@ -62,7 +62,7 @@ describe('Order T2 Domain Services — Snapshot, History, Query & Events', () =>
             unitPrice: '10000.00',
             quantity: 1,
           }),
-        (err: any) => err instanceof OrderDomainError && err.code === 'VALIDATION_FAILED',
+        (err: unknown) => err instanceof OrderDomainError && err.code === 'VALIDATION_FAILED',
       );
 
       assert.throws(
@@ -76,7 +76,7 @@ describe('Order T2 Domain Services — Snapshot, History, Query & Events', () =>
             unitPrice: '10000.00',
             quantity: 1,
           }),
-        (err: any) => err instanceof OrderDomainError && err.code === 'VALIDATION_FAILED',
+        (err: unknown) => err instanceof OrderDomainError && err.code === 'VALIDATION_FAILED',
       );
     });
 
@@ -92,7 +92,7 @@ describe('Order T2 Domain Services — Snapshot, History, Query & Events', () =>
             unitPrice: '10000.00',
             quantity: 0,
           }),
-        (err: any) => err instanceof OrderDomainError && err.code === 'VALIDATION_FAILED',
+        (err: unknown) => err instanceof OrderDomainError && err.code === 'VALIDATION_FAILED',
       );
 
       assert.throws(
@@ -106,7 +106,7 @@ describe('Order T2 Domain Services — Snapshot, History, Query & Events', () =>
             unitPrice: '10000.00',
             quantity: 1.5,
           }),
-        (err: any) => err instanceof OrderDomainError && err.code === 'VALIDATION_FAILED',
+        (err: unknown) => err instanceof OrderDomainError && err.code === 'VALIDATION_FAILED',
       );
     });
 
@@ -122,7 +122,7 @@ describe('Order T2 Domain Services — Snapshot, History, Query & Events', () =>
             unitPrice: '0.00',
             quantity: 1,
           }),
-        (err: any) => err instanceof OrderDomainError && err.code === 'ORDER_TOTAL_INVALID',
+        (err: unknown) => err instanceof OrderDomainError && err.code === 'ORDER_TOTAL_INVALID',
       );
 
       assert.throws(
@@ -136,7 +136,7 @@ describe('Order T2 Domain Services — Snapshot, History, Query & Events', () =>
             unitPrice: 'invalid-price',
             quantity: 1,
           }),
-        (err: any) => err instanceof OrderDomainError && err.code === 'ORDER_TOTAL_INVALID',
+        (err: unknown) => err instanceof OrderDomainError && err.code === 'ORDER_TOTAL_INVALID',
       );
     });
   });
@@ -168,7 +168,7 @@ describe('Order T2 Domain Services — Snapshot, History, Query & Events', () =>
             ward: 'Linh Chiểu',
             deliveryAddress: '1 Võ Văn Ngân',
           }),
-        (err: any) => err instanceof OrderDomainError && err.code === 'VALIDATION_FAILED',
+        (err: unknown) => err instanceof OrderDomainError && err.code === 'VALIDATION_FAILED',
       );
     });
   });
@@ -200,7 +200,7 @@ describe('Order T2 Domain Services — Snapshot, History, Query & Events', () =>
             newStatus: 'CANCELLED',
             reason: '',
           }),
-        (err: any) => err instanceof OrderDomainError && err.code === 'REASON_REQUIRED',
+        (err: unknown) => err instanceof OrderDomainError && err.code === 'REASON_REQUIRED',
       );
 
       assert.doesNotThrow(() =>
@@ -249,7 +249,7 @@ describe('Order T2 Domain Services — Snapshot, History, Query & Events', () =>
     });
 
     it('releases in-progress claim on rollback', async () => {
-      const adapter = new InMemoryIdempotencyAdapter<any>();
+      const adapter = new InMemoryIdempotencyAdapter<{ orderId: string }>();
       const scope = {
         user_id: 'user-1',
         endpoint: '/api/v1/orders',

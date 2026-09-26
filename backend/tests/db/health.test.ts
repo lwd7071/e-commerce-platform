@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Pool, PoolClient } from 'pg';
 import { checkDatabaseHealth } from '../../db/health.js';

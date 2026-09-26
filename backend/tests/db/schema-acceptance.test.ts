@@ -41,6 +41,21 @@ remoteDescribe('Schema Freeze v1 migration acceptance', () => {
     expect(index.rows).toEqual([{ indexname: 'idx_api_idempotency_records__expires_at' }]);
   }, 15_000);
 
+  it('enforces cross-instance notification event idempotency', async () => {
+    if (!pool) throw new Error('Pool was not initialized');
+    const column = await pool.query<{ column_name: string; data_type: string }>(
+      "SELECT column_name, data_type FROM information_schema.columns WHERE table_schema='public' AND table_name='notifications' AND column_name='event_id'",
+    );
+    expect(column.rows).toEqual([{ column_name: 'event_id', data_type: 'character varying' }]);
+
+    const index = await pool.query<{ indexname: string; indexdef: string }>(
+      "SELECT indexname, indexdef FROM pg_indexes WHERE schemaname='public' AND indexname='uq_notifications__event_id'",
+    );
+    expect(index.rows).toHaveLength(1);
+    expect(index.rows[0].indexdef.toLowerCase()).toContain('unique index');
+    expect(index.rows[0].indexdef.toLowerCase()).toContain('where (event_id is not null)');
+  }, 15_000);
+
   it('enables RLS and has no direct grants or policies on business tables', async () => {
     if (!pool) throw new Error('Pool was not initialized');
     const rls = await pool.query<{ count: string }>(
