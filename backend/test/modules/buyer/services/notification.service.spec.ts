@@ -374,4 +374,98 @@ describe('NotificationService Tests (TDD - Ownership, Idempotency & TransactionD
       assert.equal(list.length, 1);
     });
   });
+
+  describe('Notification Event Idempotency & Concurrency Hardening (T3 Phase 2)', () => {
+    it('Tự động wire PostgresEventIdempotencyStore khi repository có db property', async () => {
+      let queryCalled = false;
+      const mockDb = {
+        async query<T = Record<string, unknown>>(_sql: string, _params?: unknown[]) {
+          queryCalled = true;
+          return { rows: [] as T[], rowCount: 0 };
+        },
+      };
+
+      const repoWithDb: INotificationRepository & { db: typeof mockDb } = {
+        db: mockDb,
+        async findById() { return null; },
+        async findByRecipientId() { return []; },
+        async create(n: Notification) { return n; },
+        async createForEvent(n: Notification) { return n; },
+        async markAsRead(_id: UUID) { throw new Error('Not implemented'); },
+      };
+
+      const service = new NotificationService(repoWithDb);
+      const event: TransactionDomainEvent = {
+        eventId: 'evt-auto-wire-1',
+        type: 'ORDER_STATUS_CHANGED',
+        orderId: '00000000-0000-0000-0000-000000000001',
+        buyerId: mockBuyerId,
+        shopId: '00000000-0000-0000-0000-000000000002',
+        oldStatus: 'SHIPPING',
+        newStatus: 'COMPLETED',
+        occurredAt: new Date().toISOString(),
+      };
+
+      await service.handleDomainEvent(event);
+      assert.equal(queryCalled, true, 'Store phải tự động query qua mockDb của repository');
+    });
+
+    it('Đồng thời thực sự (Concurrent Race Test với Promise.all): chỉ 1 service insert thành công, service thua nhận null và không trigger side-effect', async () => {
+      // Mock Atomic Repository mô phỏng hành vi PostgreSQL ON CONFLICT (event_id) DO NOTHING
+      const committedEvents = new Set<string>();
+      const createdNotifications: Notification[] = [];
+      let sideEffectCallCount = 0;
+
+      const onNotificationCreatedSideEffect = () => {
+        sideEffectCallCount++;
+      };
+
+      class MockAtomicDbNotificationRepository implements INotificationRepository {
+        async findById() { return null; }
+        async findByRecipientId() { return createdNotifications; }
+        async create(n: Notification) { return n; }
+        async markAsRead() { throw new Error('Not implemented'); }
+
+        async createForEvent(notification: Notification, eventId: string): Promise<Notification | null> {
+          // Atomic simulate: nếu đã có eventId thì conflict -> return null
+          if (committedEvents.has(eventId)) {
+            return null;
+          }
+          committedEvents.add(eventId);
+          createdNotifications.push(notification);
+          onNotificationCreatedSideEffect();
+          return notification;
+        }
+      }
+
+      const repo1 = new MockAtomicDbNotificationRepository();
+      const repo2 = new MockAtomicDbNotificationRepository();
+
+      // 2 service độc lập, mỗi service có store riêng
+      const service1 = new NotificationService(repo1);
+      const service2 = new NotificationService(repo2);
+
+      const event: TransactionDomainEvent = {
+        eventId: 'evt-concurrent-race-1',
+        type: 'ORDER_STATUS_CHANGED',
+        orderId: '00000000-0000-0000-0000-000000000001',
+        buyerId: mockBuyerId,
+        shopId: '00000000-0000-0000-0000-000000000002',
+        oldStatus: 'SHIPPING',
+        newStatus: 'COMPLETED',
+        occurredAt: new Date().toISOString(),
+      };
+
+      // Chạy đồng thời cả 2 service
+      await Promise.all([
+        service1.handleDomainEvent(event),
+        service2.handleDomainEvent(event),
+      ]);
+
+      // Assertions
+      assert.equal(createdNotifications.length, 1, 'Chỉ được lưu duy nhất 1 notification');
+      assert.equal(committedEvents.size, 1);
+      assert.equal(sideEffectCallCount, 1, 'Side-effect chỉ được kích hoạt đúng 1 lần cho winner');
+    });
+  });
 });
