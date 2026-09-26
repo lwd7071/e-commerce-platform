@@ -135,7 +135,12 @@ export class InMemoryProductRepository implements IProductRepository {
     });
   }
 
-  async create(product: Product, variants: ProductVariant[], images: ProductImage[] = []): Promise<Product> {
+  async create(
+    product: Product,
+    variants: ProductVariant[],
+    images: ProductImage[] = [],
+    _client?: unknown,
+  ): Promise<Product> {
     this.products.set(product.productId, { ...product });
     for (const v of variants) {
       await this.variantRepo.create(v);
