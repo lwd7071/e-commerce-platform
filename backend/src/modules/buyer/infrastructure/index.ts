@@ -6,3 +6,4 @@ export * from './postgres-cart.repository';
 export * from './postgres-voucher.repository';
 export * from './postgres-review.repository';
 export * from './postgres-notification.repository';
+export * from './postgres-event-idempotency.store';
