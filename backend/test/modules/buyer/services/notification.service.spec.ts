@@ -424,7 +424,7 @@ describe('NotificationService Tests (TDD - Ownership, Idempotency & TransactionD
         async findById() { return null; }
         async findByRecipientId() { return createdNotifications; }
         async create(n: Notification) { return n; }
-        async markAsRead() { throw new Error('Not implemented'); }
+        async markAsRead(_id: UUID, _readAt?: string): Promise<Notification> { throw new Error('Not implemented'); }
 
         async createForEvent(notification: Notification, eventId: string): Promise<Notification | null> {
           // Atomic simulate: nếu đã có eventId thì conflict -> return null
