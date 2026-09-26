@@ -93,7 +93,9 @@ export class PaymentService {
     paidAt?: string,
   ): Promise<PaymentRecord> {
     const executeSettle = async (client?: PoolClient): Promise<PaymentRecord> => {
-      const payment = await this.paymentRepo.findById(paymentId, client);
+      const payment = client
+        ? await this.paymentRepo.lockById(paymentId, client)
+        : await this.paymentRepo.findById(paymentId);
       if (!payment) {
         throw new NotFoundError('Payment was not found.');
       }

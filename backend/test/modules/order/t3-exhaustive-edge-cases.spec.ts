@@ -88,7 +88,7 @@ test('[T3-EDGE-01] Amount mismatch when settling payment throws PAYMENT_AMOUNT_I
     async () => {
       await paymentService.settlePayment(paymentId, 'SUCCESS', '2026-09-25T12:00:00Z');
     },
-    (err: any) => {
+    (err: unknown) => {
       assert(err instanceof PaymentDomainError);
       assert.equal(err.code, 'PAYMENT_AMOUNT_INVALID');
       return true;
@@ -162,7 +162,7 @@ test('[T3-EDGE-02] Duplicate cancel retry is rejected and restocks variants exac
         'Try cancel again',
       );
     },
-    (err: any) => {
+    (err: unknown) => {
       assert(err instanceof OrderDomainError);
       assert.equal(err.code, 'ORDER_CANCELLATION_NOT_ALLOWED');
       return true;
@@ -178,7 +178,7 @@ test('[T3-EDGE-02] Duplicate cancel retry is rejected and restocks variants exac
         'Seller retry cancel',
       );
     },
-    (err: any) => {
+    (err: unknown) => {
       assert(err instanceof OrderDomainError);
       assert.equal(err.code, 'ORDER_INVALID_TRANSITION');
       return true;
@@ -214,7 +214,7 @@ test('[T3-EDGE-03] Exceptional cancellation guard when order is in PREPARING sta
         exceptionalCancellation: false,
       });
     },
-    (err: any) => {
+    (err: unknown) => {
       assert(err instanceof OrderDomainError);
       assert.equal(err.code, 'ORDER_CANCELLATION_NOT_ALLOWED');
       return true;
@@ -259,7 +259,7 @@ test('[T3-EDGE-04] Shipment state machine edge cases and terminal state guards',
         shipmentStatus: 'PENDING',
       });
     },
-    (err: any) => {
+    (err: unknown) => {
       assert(err instanceof OrderDomainError);
       assert.equal(err.code, 'ORDER_INVALID_TRANSITION');
       return true;
@@ -282,7 +282,7 @@ test('[T3-EDGE-04] Shipment state machine edge cases and terminal state guards',
         shipmentStatus: 'SHIPPING', // Not DELIVERED
       });
     },
-    (err: any) => {
+    (err: unknown) => {
       assert(err instanceof OrderDomainError);
       assert.equal(err.code, 'ORDER_INVALID_TRANSITION');
       return true;
@@ -303,7 +303,7 @@ test('[T3-EDGE-04] Shipment state machine edge cases and terminal state guards',
         reason: 'Attempt cancel completed order',
       });
     },
-    (err: any) => {
+    (err: unknown) => {
       assert(err instanceof OrderDomainError);
       assert.equal(err.code, 'ORDER_INVALID_TRANSITION');
       return true;
@@ -340,7 +340,7 @@ test('[T3-EDGE-05] Payment retry and settle edge cases', async () => {
     async () => {
       await paymentService.retryPayment(order.orderId, order.buyerId, 'ONLINE');
     },
-    (err: any) => {
+    (err: unknown) => {
       assert(err instanceof PaymentDomainError);
       assert.equal(err.code, 'PAYMENT_ALREADY_COMPLETED');
       return true;
@@ -352,7 +352,7 @@ test('[T3-EDGE-05] Payment retry and settle edge cases', async () => {
     async () => {
       await paymentService.settlePayment(initialPayment.paymentId, 'SUCCESS', '2026-09-25T11:00:00Z');
     },
-    (err: any) => {
+    (err: unknown) => {
       assert(err instanceof PaymentDomainError);
       assert.equal(err.code, 'PAYMENT_STATE_INVALID');
       return true;
@@ -367,7 +367,7 @@ test('[T3-EDGE-05] Payment retry and settle edge cases', async () => {
     async () => {
       await paymentService.retryPayment(cancelledOrder.orderId, cancelledOrder.buyerId, 'COD');
     },
-    (err: any) => {
+    (err: unknown) => {
       assert(err instanceof PaymentDomainError);
       assert.equal(err.code, 'PAYMENT_STATE_INVALID');
       return true;

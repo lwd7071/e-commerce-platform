@@ -4,7 +4,6 @@ import request from 'supertest';
 import express from 'express';
 import { createApp } from '../../src/platform/http/app.ts';
 import { createLayeredRateLimiter } from '../../src/platform/http/middlewares/rate-limiter.ts';
-import { RateLimitExceededError } from '../../src/platform/errors/app-error.ts';
 import { errorHandlerMiddleware } from '../../src/platform/http/middlewares/error-handler.ts';
 
 describe('Layered Rate Limiter Middleware (Phase 2)', () => {

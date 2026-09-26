@@ -122,7 +122,7 @@ test('[QD19] Invalid report date filters throw REPORT_FILTER_INVALID', async () 
     async () => {
       await reportingService.getShopRevenueReport('shop-1', { from: 'invalid-date' });
     },
-    (err: any) => {
+    (err: unknown) => {
       assert(err instanceof ReportingDomainError);
       assert.equal(err.code, 'REPORT_FILTER_INVALID');
       return true;
@@ -137,7 +137,7 @@ test('[QD19] Invalid report date filters throw REPORT_FILTER_INVALID', async () 
         to: '2026-09-01T00:00:00Z',
       });
     },
-    (err: any) => {
+    (err: unknown) => {
       assert(err instanceof ReportingDomainError);
       assert.equal(err.code, 'REPORT_FILTER_INVALID');
       return true;

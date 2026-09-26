@@ -1,5 +1,6 @@
 import type { IPaymentRepository, PaymentRecord, UUID } from '../domain/repositories.ts';
 import type { PaymentStatus } from '../domain/types.ts';
+import type { DatabaseExecutor } from '../../../../db/types.ts';
 
 export class InMemoryPaymentRepository implements IPaymentRepository {
   private payments = new Map<UUID, PaymentRecord>();
@@ -12,6 +13,10 @@ export class InMemoryPaymentRepository implements IPaymentRepository {
   public async findById(paymentId: UUID): Promise<PaymentRecord | null> {
     const payment = this.payments.get(paymentId);
     return payment ? { ...payment } : null;
+  }
+
+  public async lockById(paymentId: UUID, _client: DatabaseExecutor): Promise<PaymentRecord | null> {
+    return this.findById(paymentId);
   }
 
   public async findByOrderId(orderId: UUID): Promise<PaymentRecord[]> {

@@ -10,7 +10,7 @@
   },
   "packageManager": "npm@11.12.1",
   "scripts": {
-    "lint": "eslint src db test tests prisma.config.ts",
+    "lint": "eslint src db scripts test tests prisma.config.ts vitest.config.ts --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "build": "esbuild src/platform/http/app.ts --bundle --platform=node --format=esm --packages=external --alias:@=./src --outfile=dist/app.js",
     "test:node": "tsx --test \"test/**/*.spec.ts\" \"tests/modules/buyer/*.test.ts\"",
@@ -19,6 +19,8 @@
     "test:cross-platform": "node scripts/run-tests.js",
     "db:ci:bootstrap": "node scripts/ci-bootstrap-auth.mjs",
     "db:ci:migrate": "prisma migrate deploy",
+    "db:storage:deploy": "tsx scripts/deploy-storage-policies.ts",
+    "test:storage": "tsx scripts/storage-policy-smoke.ts",
     "test:auth-smoke": "tsx scripts/auth-smoke.ts",
     "test:watch": "vitest"
   },

@@ -10,6 +10,7 @@ import { ConflictError, ForbiddenError, NotFoundError, ValidationFailedError } f
 import type { CheckoutCommand } from '../contracts/checkout-command.ts';
 import type { CheckoutResult } from '../contracts/checkout-result.ts';
 import { transitionOrder } from '../../order/domain/order-state-machine.ts';
+import type { OrderStatus, OrderTransitionCommand } from '../../order/domain/types.ts';
 
 type CheckoutRow = {
   cart_item_id: string; variant_id: string; quantity: number; price: string; stock_quantity: number;
@@ -25,7 +26,7 @@ export class PgCheckoutService implements OrderHttpApplication {
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
         return await withTransaction(this.pool, (client) => this.persistCheckout(client, context, command, fingerprint), { isolationLevel: 'READ COMMITTED' });
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (!isSerializationError(error) || attempt === 3) throw error;
         await this.sleep(attempt === 1 ? 25 : 50);
       }
@@ -117,7 +118,19 @@ export class PgCheckoutService implements OrderHttpApplication {
     const current = await this.pool.query('SELECT o.*, s.owner_id FROM orders o JOIN shops s ON s.shop_id=o.shop_id WHERE o.order_id=$1', [orderId]);
     const row = current.rows[0]; if (!row) throw new NotFoundError('Order not found.');
     const actor = context.role === 'ADMIN' ? { kind: 'ADMIN' as const, userId: context.user_id } : { kind: 'SELLER' as const, userId: context.user_id, shopId: context.shop_id ?? '' };
-    const decision = transitionOrder({ status: row.status, buyerId: row.buyer_id, shopId: row.shop_id }, { to: input.to as any, actor, reason: input.reason as string | undefined, processingEligible: true, exceptionalCancellation: input.exceptional_cancellation === true, shipmentStatus: input.shipment_status as any });
+    const to = parseOrderStatus(input.to);
+    const shipmentStatus = parseShipmentStatus(input.shipment_status);
+    const decision = transitionOrder(
+      { status: row.status, buyerId: row.buyer_id, shopId: row.shop_id },
+      {
+        to,
+        actor,
+        reason: typeof input.reason === 'string' ? input.reason : undefined,
+        processingEligible: true,
+        exceptionalCancellation: input.exceptional_cancellation === true,
+        shipmentStatus,
+      },
+    );
     const result = await this.pool.query('UPDATE orders SET status=$1,updated_at=now(),cancel_reason=$2 WHERE order_id=$3 RETURNING *', [decision.to, decision.reason ?? null, orderId]);
     await this.pool.query('INSERT INTO order_status_history (history_id,order_id,old_status,new_status,changed_by,reason) VALUES ($1,$2,$3,$4,$5,$6)', [crypto.randomUUID(), orderId, decision.from, decision.to, context.user_id, decision.reason ?? null]);
     return result.rows[0];
@@ -131,4 +144,25 @@ export class PgCheckoutService implements OrderHttpApplication {
   }
 }
 
-function isSerializationError(error: { code?: string }): boolean { return error.code === '40001' || error.code === '40P01'; }
+function isSerializationError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null || !('code' in error)) return false;
+  const code = (error as { code?: unknown }).code;
+  return code === '40001' || code === '40P01';
+}
+
+const orderStatuses: readonly OrderStatus[] = [
+  'PENDING_CONFIRMATION', 'CONFIRMED', 'PREPARING', 'SHIPPING', 'COMPLETED', 'CANCELLED', 'DELIVERY_FAILED',
+];
+type ShipmentStatus = NonNullable<OrderTransitionCommand['shipmentStatus']>;
+const shipmentStatuses: readonly ShipmentStatus[] = ['PENDING', 'HANDED_OVER', 'SHIPPING', 'DELIVERED', 'FAILED'];
+
+function parseOrderStatus(value: unknown): OrderStatus {
+  if (typeof value === 'string' && orderStatuses.includes(value as OrderStatus)) return value as OrderStatus;
+  throw new ValidationFailedError('Invalid order status.');
+}
+
+function parseShipmentStatus(value: unknown): ShipmentStatus | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value === 'string' && shipmentStatuses.includes(value as ShipmentStatus)) return value as ShipmentStatus;
+  throw new ValidationFailedError('Invalid shipment status.');
+}

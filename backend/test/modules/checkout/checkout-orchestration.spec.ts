@@ -5,8 +5,11 @@ import type { CheckoutCommand } from '../../../src/modules/checkout/contracts/ch
 import type { ICartPort, SelectedCartItemSnapshot } from '../../../src/modules/buyer/ports/cart.port.ts';
 import type { ICatalogPort, VariantPriceAndStockDTO, LockVariantResultDTO } from '../../../src/modules/catalog/ports/catalog.port.ts';
 import type { IVoucherPort, EvaluateVoucherContext, VoucherEvaluationResult } from '../../../src/modules/buyer/ports/voucher.port.ts';
-import type { IdempotencyPort, IdempotencyScope, IdempotencyClaim } from '../../../src/modules/checkout/contracts/idempotency.port.ts';
+import type { IdempotencyPort, IdempotencyClaim } from '../../../src/modules/checkout/contracts/idempotency.port.ts';
 import type { CheckoutResult } from '../../../src/modules/checkout/contracts/checkout-result.ts';
+
+const hasErrorCode = (error: unknown, code: string): boolean =>
+  error instanceof Error && 'code' in error && error.code === code;
 
 // Test Fixtures & Helpers
 const BUYER_ID = '11111111-1111-4111-8111-111111111111';
@@ -88,11 +91,11 @@ function createMockCatalogPort(options?: {
 function createMockVoucherPort(options?: {
   discountAmount?: string;
   failEvaluation?: boolean;
-}): IVoucherPort & { consumedVouchers: any[] } {
-  const consumedVouchers: any[] = [];
+}): IVoucherPort & { consumedVouchers: Parameters<IVoucherPort['consumeVoucher']>[0][] } {
+  const consumedVouchers: Parameters<IVoucherPort['consumeVoucher']>[0][] = [];
   return {
     consumedVouchers,
-    async evaluateVoucher(context: EvaluateVoucherContext): Promise<VoucherEvaluationResult> {
+    async evaluateVoucher(_context: EvaluateVoucherContext): Promise<VoucherEvaluationResult> {
       if (options?.failEvaluation) {
         return {
           isValid: false,
@@ -270,7 +273,7 @@ test('[QD07/RB-LQH06] Insufficient stock rejects checkout with INVENTORY_INSUFFI
         voucherPort,
         shopResolver: () => SHOP_1,
       }),
-    (err: any) => err.code === 'INVENTORY_INSUFFICIENT',
+    (err: unknown) => hasErrorCode(err, 'INVENTORY_INSUFFICIENT'),
   );
 
   // Cart must NOT be cleared on failure
@@ -307,7 +310,7 @@ test('[QD06/RB-MG12] Inactive variant rejects checkout with VALIDATION_FAILED', 
         voucherPort,
         shopResolver: () => SHOP_1,
       }),
-    (err: any) => err.code === 'VALIDATION_FAILED',
+    (err: unknown) => hasErrorCode(err, 'VALIDATION_FAILED'),
   );
 });
 
@@ -337,7 +340,7 @@ test('[Order Workflow §4] Inactive shop rejects checkout with VALIDATION_FAILED
         voucherPort,
         shopResolver: () => SHOP_1,
       }),
-    (err: any) => err.code === 'VALIDATION_FAILED',
+    (err: unknown) => hasErrorCode(err, 'VALIDATION_FAILED'),
   );
 });
 
@@ -363,7 +366,7 @@ test('[Cart Invariant] Empty cart selection rejects checkout with VALIDATION_FAI
         voucherPort,
         shopResolver: () => SHOP_1,
       }),
-    (err: any) => err.code === 'VALIDATION_FAILED',
+    (err: unknown) => hasErrorCode(err, 'VALIDATION_FAILED'),
   );
 });
 
@@ -430,7 +433,7 @@ test('[Idempotency §6] Replay returns cached result immediately; conflict throw
         shopResolver: () => SHOP_1,
         idempotencyPort: mockIdempotencyPort,
       }),
-    (err: any) => err.code === 'IDEMPOTENCY_KEY_REUSED',
+    (err: unknown) => hasErrorCode(err, 'IDEMPOTENCY_KEY_REUSED'),
   );
 
   // Now test in_progress
@@ -446,7 +449,7 @@ test('[Idempotency §6] Replay returns cached result immediately; conflict throw
         shopResolver: () => SHOP_1,
         idempotencyPort: mockIdempotencyPort,
       }),
-    (err: any) => err.code === 'REQUEST_IN_PROGRESS',
+    (err: unknown) => hasErrorCode(err, 'REQUEST_IN_PROGRESS'),
   );
 });
 
@@ -501,7 +504,7 @@ test('[Negative: Idempotency in_progress] Rejects with REQUEST_IN_PROGRESS and t
         shopResolver: () => SHOP_1,
         idempotencyPort: mockIdempotencyPort,
       }),
-    (err: any) => err.code === 'REQUEST_IN_PROGRESS',
+    (err: unknown) => hasErrorCode(err, 'REQUEST_IN_PROGRESS'),
   );
 
   assert.equal(cartCalled, false, 'CartPort must not be called when idempotency is in_progress');
@@ -532,7 +535,7 @@ test('[Negative: Voucher rejected] Voucher evaluation failure aborts before inve
         voucherPort,
         shopResolver: () => SHOP_1,
       }),
-    (err: any) => err.code === 'VOUCHER_NOT_APPLICABLE',
+    (err: unknown) => hasErrorCode(err, 'VOUCHER_NOT_APPLICABLE'),
   );
 
   assert.equal(catalogPort.lockedVariants.length, 0, 'No variant should be locked when voucher fails');
@@ -548,8 +551,7 @@ test('[Negative: Downstream Catalog Error] Catalog error propagates and halts ex
   const failingCatalogPort: ICatalogPort = {
     async getVariantPriceAndStock() {
       const err = new Error('Database connection failed');
-      (err as any).code = 'DATABASE_ERROR';
-      throw err;
+      throw Object.assign(err, { code: 'DATABASE_ERROR' });
     },
     async lockVariant() {
       throw new Error('Should not reach lockVariant');
@@ -578,7 +580,7 @@ test('[Negative: Downstream Catalog Error] Catalog error propagates and halts ex
         voucherPort,
         shopResolver: () => SHOP_1,
       }),
-    (err: any) => err.code === 'DATABASE_ERROR',
+    (err: unknown) => hasErrorCode(err, 'DATABASE_ERROR'),
   );
 
   assert.equal(cartPort.clearedCartItemIds.length, 0, 'Cart must remain intact on downstream error');
@@ -604,8 +606,7 @@ test('[Negative: Lock failure isolation] If lockVariant throws, voucher is not c
     },
     async lockVariant() {
       const err = new Error('Lock acquisition timeout');
-      (err as any).code = 'LOCK_TIMEOUT';
-      throw err;
+      throw Object.assign(err, { code: 'LOCK_TIMEOUT' });
     },
     async checkShopActive() {
       return true;
@@ -631,7 +632,7 @@ test('[Negative: Lock failure isolation] If lockVariant throws, voucher is not c
         voucherPort,
         shopResolver: () => SHOP_1,
       }),
-    (err: any) => err.code === 'LOCK_TIMEOUT',
+    (err: unknown) => hasErrorCode(err, 'LOCK_TIMEOUT'),
   );
 
   assert.equal(voucherPort.consumedVouchers.length, 0, 'Voucher must NOT be consumed if lockVariant fails');

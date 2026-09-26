@@ -2,7 +2,7 @@ export type UUID = string;
 
 import type { CheckoutCommand } from '../contracts/checkout-command.ts';
 import type { CheckoutResult, CheckoutOrderResult } from '../contracts/checkout-result.ts';
-import type { ICartPort, SelectedCartItemSnapshot } from '../../buyer/ports/cart.port.ts';
+import type { ICartPort } from '../../buyer/ports/cart.port.ts';
 import type { ICatalogPort, VariantPriceAndStockDTO } from '../../catalog/ports/catalog.port.ts';
 import type { IVoucherPort } from '../../buyer/ports/voucher.port.ts';
 import type { IdempotencyPort, IdempotencyScope } from '../contracts/idempotency.port.ts';

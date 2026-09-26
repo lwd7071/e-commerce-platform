@@ -2,10 +2,9 @@ import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
 import express from 'express';
-import { MetricsCollector, metricsCollector } from '../../src/platform/observability/metrics.ts';
+import { MetricsCollector } from '../../src/platform/observability/metrics.ts';
 import { createMetricsMiddleware } from '../../src/platform/observability/metrics-middleware.ts';
 import { errorHandlerMiddleware } from '../../src/platform/http/middlewares/error-handler.ts';
-import { DependencyUnavailableError } from '../../src/platform/errors/app-error.ts';
 
 describe('Metrics Collector & Observability (Phase 4A)', () => {
   let collector: MetricsCollector;

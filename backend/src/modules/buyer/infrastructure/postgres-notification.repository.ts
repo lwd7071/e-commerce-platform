@@ -55,6 +55,30 @@ export class PostgresNotificationRepository implements INotificationRepository {
     return mapNotification(result.rows[0]);
   }
 
+  async createForEvent(notification: Notification, eventId: string): Promise<Notification | null> {
+    const sql = `
+      INSERT INTO notifications (
+        notification_id, recipient_id, type, title, content, is_read, created_at, read_at, event_id
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7::timestamptz, now()), $8::timestamptz, $9)
+      ON CONFLICT (event_id) WHERE event_id IS NOT NULL DO NOTHING
+      RETURNING notification_id, recipient_id, type, title, content, is_read, created_at, read_at
+    `;
+    const params = [
+      notification.notificationId,
+      notification.recipientId,
+      notification.type,
+      notification.title,
+      notification.content,
+      notification.isRead ?? false,
+      notification.createdAt ?? null,
+      notification.readAt ?? null,
+      eventId,
+    ];
+    const result = await this.db.query(sql, params);
+    return result.rows[0] ? mapNotification(result.rows[0]) : null;
+  }
+
   async markAsRead(notificationId: UUID, readAt?: string): Promise<Notification> {
     const sql = `
       UPDATE notifications

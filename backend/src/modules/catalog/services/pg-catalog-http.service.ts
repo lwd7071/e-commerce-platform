@@ -11,6 +11,8 @@ import {
 } from '../domain/errors.ts';
 
 const decimal = /^\d+(\.\d{1,2})?$/;
+const objectValue = (value: unknown): Record<string, unknown> =>
+  typeof value === 'object' && value !== null ? value as Record<string, unknown> : {};
 
 export class PgCatalogHttpService {
   private readonly products: PgProductRepository;
@@ -114,15 +116,16 @@ export class PgCatalogHttpService {
     if (!context.shop_id) {
       throw new ForbiddenError('Seller shop is required');
     }
-    const rawVariants = Array.isArray(input.variants) ? input.variants : [];
+    const rawVariants: unknown[] = Array.isArray(input.variants) ? input.variants : [];
     if (!rawVariants.length) {
       throw new ValidationError('At least one variant is required');
     }
 
     // RB-LB11: Check duplicate SKU within request payload
     const payloadSkus = new Set<string>();
-    for (const raw of rawVariants) {
-      const sku = String(raw?.sku ?? '').trim();
+    for (const value of rawVariants) {
+      const raw = objectValue(value);
+      const sku = String(raw.sku ?? '').trim();
       if (!sku) {
         throw new ValidationError('Variant SKU is required');
       }
@@ -144,18 +147,6 @@ export class PgCatalogHttpService {
       }
     }
 
-    // RB-LB11: Check duplicate SKU in the same shop (cross-shop allowed)
-    const existingSkuRes = await this.pool.query(
-      `SELECT v.sku 
-       FROM product_variants v 
-       JOIN products p ON v.product_id = p.product_id 
-       WHERE p.shop_id = $1 AND v.sku = ANY($2::text[])`,
-      [context.shop_id, Array.from(payloadSkus)],
-    );
-    if (existingSkuRes.rows.length > 0) {
-      throw new SkuConflictError(`SKU '${existingSkuRes.rows[0].sku}' already exists in this shop`);
-    }
-
     const now = new Date().toISOString();
     const productId = crypto.randomUUID();
     const product: Product = {
@@ -169,7 +160,9 @@ export class PgCatalogHttpService {
       updatedAt: now,
     };
 
-    const variants: ProductVariant[] = rawVariants.map((raw: any) => ({
+    const variants: ProductVariant[] = rawVariants.map((value) => {
+      const raw = objectValue(value);
+      return ({
       variantId: crypto.randomUUID(),
       productId,
       variantName: String(raw.variant_name),
@@ -180,12 +173,14 @@ export class PgCatalogHttpService {
       status: 'ACTIVE',
       createdAt: now,
       updatedAt: now,
-    }));
+      });
+    });
 
-    const rawImages = Array.isArray(input.images) ? input.images : [];
-    const images: ProductImage[] = rawImages.map((img: any, index: number) => {
-      const url = typeof img === 'string' ? img : String(img?.image_url ?? '');
-      const sortOrder = typeof img === 'object' && img?.sort_order !== undefined ? Number(img.sort_order) : index;
+    const rawImages: unknown[] = Array.isArray(input.images) ? input.images : [];
+    const images: ProductImage[] = rawImages.map((img, index: number) => {
+      const image = objectValue(img);
+      const url = typeof img === 'string' ? img : String(image.image_url ?? '');
+      const sortOrder = image.sort_order !== undefined ? Number(image.sort_order) : index;
       if (!Number.isInteger(sortOrder) || sortOrder < 0) {
         throw new ValidationError('Image sortOrder must be a non-negative integer');
       }

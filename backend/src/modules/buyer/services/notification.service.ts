@@ -137,7 +137,11 @@ export class NotificationService {
         readAt: null,
       };
 
-      await this.notificationRepo.create(notification);
+      if (this.notificationRepo.createForEvent) {
+        await this.notificationRepo.createForEvent(notification, event.eventId);
+      } else {
+        await this.notificationRepo.create(notification);
+      }
     } catch (err) {
       // Khi DB thất bại tạm thời hoặc có lỗi, giải phóng claim để lần replay/retry tiếp theo xử lý lại
       await this.idempotencyStore.release(event.eventId);

@@ -6,6 +6,9 @@ import { InMemoryIdempotencyAdapter } from '../../../src/modules/checkout/domain
 import { InMemoryOrderRepository } from '../../../src/modules/order/repositories/in-memory-order.repository.ts';
 import { InMemoryPaymentRepository } from '../../../src/modules/payment/repositories/in-memory-payment.repository.ts';
 import { settlePendingPayment } from '../../../src/modules/payment/domain/payment-state-machine.ts';
+
+const errorCode = (error: unknown): unknown =>
+  error instanceof Error && 'code' in error ? error.code : undefined;
 import type { PaymentAttempt } from '../../../src/modules/payment/domain/types.ts';
 import type { ICartPort } from '../../../src/modules/buyer/ports/cart.port.ts';
 import type { ICatalogPort } from '../../../src/modules/catalog/ports/catalog.port.ts';
@@ -125,8 +128,8 @@ describe('T3 Concurrency & Transaction Boundary Hardening (Mốc T3 - Người 5
           }),
         });
         return { success: true, orderId: res.orders[0].order_id };
-      } catch (err: any) {
-        return { success: false, error: err.message };
+      } catch (err: unknown) {
+        return { success: false, error: err instanceof Error ? err.message : undefined };
       }
     });
 
@@ -191,13 +194,11 @@ describe('T3 Concurrency & Transaction Boundary Hardening (Mốc T3 - Người 5
         attempts += 1;
         try {
           if (attempt < 3) {
-            const serializationErr: any = new Error('deadlock detected');
-            serializationErr.code = '40001';
-            throw serializationErr;
+            throw Object.assign(new Error('deadlock detected'), { code: '40001' });
           }
           return { success: true, attemptCount: attempt };
-        } catch (error: any) {
-          if ((error.code === '40001' || error.code === '40P01') && attempt < 3) {
+        } catch (error: unknown) {
+          if ((errorCode(error) === '40001' || errorCode(error) === '40P01') && attempt < 3) {
             await mockSleep(attempt === 1 ? 25 : 50);
             continue;
           }
@@ -245,8 +246,8 @@ describe('T3 Concurrency & Transaction Boundary Hardening (Mốc T3 - Người 5
           orderTotal: '500000.00',
           paidAt: '2026-09-25T12:00:05.000Z',
         }),
-      (err: any) => {
-        assert.strictEqual(err.code, 'PAYMENT_STATE_INVALID');
+      (err: unknown) => {
+        assert.strictEqual(errorCode(err), 'PAYMENT_STATE_INVALID');
         return true;
       },
       'Second callback must be rejected because payment is no longer PENDING',

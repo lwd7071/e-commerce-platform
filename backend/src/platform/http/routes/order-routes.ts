@@ -1,6 +1,6 @@
 import { Router, type Request, type Response, type NextFunction, type RequestHandler } from 'express';
 import { buildSuccessEnvelope } from '../envelope.ts';
-import { ForbiddenError, NotFoundError, ReasonRequiredError, UnauthorizedError, ValidationFailedError } from '../../errors/app-error.ts';
+import { ForbiddenError, NotFoundError, ReasonRequiredError, UnauthorizedError } from '../../errors/app-error.ts';
 import { parseCheckoutCommand } from '../../../modules/checkout/contracts/checkout-command.ts';
 import type { RequestContext } from '../../context/request-context.ts';
 import type { OrderLifecycleService } from '../../../modules/order/services/order-lifecycle.service.ts';

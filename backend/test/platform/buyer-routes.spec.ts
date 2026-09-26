@@ -146,7 +146,9 @@ function createMockBuyerServices() {
         status: 'ACTIVE',
       };
     },
-    async lockVariant() { return {} as any; },
+    async lockVariant(variantId: string, quantity: number) {
+      return { variantId, requestedQuantity: quantity, priceSnapshot: '50000', remainingStock: 9 };
+    },
     async checkShopActive() { return true; },
   };
 

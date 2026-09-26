@@ -8,46 +8,49 @@ import type {
 } from '../domain/repositories.ts';
 import type { OrderStatusHistoryRecord } from '../domain/order-snapshot.ts';
 
-export const mapOrderRow = (row: any): OrderRecord => ({
-  orderId: row.order_id,
-  buyerId: row.buyer_id,
-  shopId: row.shop_id,
-  recipientName: row.recipient_name,
-  recipientPhone: row.recipient_phone,
-  province: row.province,
-  district: row.district,
-  ward: row.ward,
-  deliveryAddress: row.delivery_address,
+type DatabaseRow = Record<string, unknown>;
+const isoString = (value: unknown): string => value instanceof Date ? value.toISOString() : String(value);
+
+export const mapOrderRow = (row: DatabaseRow): OrderRecord => ({
+  orderId: String(row.order_id),
+  buyerId: String(row.buyer_id),
+  shopId: String(row.shop_id),
+  recipientName: String(row.recipient_name),
+  recipientPhone: String(row.recipient_phone),
+  province: String(row.province),
+  district: String(row.district),
+  ward: String(row.ward),
+  deliveryAddress: String(row.delivery_address),
   subtotal: typeof row.subtotal === 'string' ? row.subtotal : Number(row.subtotal).toFixed(2),
   discountAmount: typeof row.discount_amount === 'string' ? row.discount_amount : Number(row.discount_amount).toFixed(2),
   shippingFee: typeof row.shipping_fee === 'string' ? row.shipping_fee : Number(row.shipping_fee).toFixed(2),
   totalAmount: typeof row.total_amount === 'string' ? row.total_amount : Number(row.total_amount).toFixed(2),
   status: row.status as OrderStatus,
-  cancelReason: row.cancel_reason,
-  createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
-  updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
+  cancelReason: row.cancel_reason == null ? null : String(row.cancel_reason),
+  createdAt: isoString(row.created_at),
+  updatedAt: isoString(row.updated_at),
 });
 
-export const mapOrderItemRow = (row: any): OrderItemRecord => ({
-  orderItemId: row.order_item_id,
-  orderId: row.order_id,
-  productId: row.product_id,
-  variantId: row.variant_id,
-  productNameSnapshot: row.product_name_snapshot,
-  variantSnapshot: row.variant_snapshot,
+export const mapOrderItemRow = (row: DatabaseRow): OrderItemRecord => ({
+  orderItemId: String(row.order_item_id),
+  orderId: String(row.order_id),
+  productId: String(row.product_id),
+  variantId: String(row.variant_id),
+  productNameSnapshot: String(row.product_name_snapshot),
+  variantSnapshot: String(row.variant_snapshot),
   unitPrice: typeof row.unit_price === 'string' ? row.unit_price : Number(row.unit_price).toFixed(2),
   quantity: Number(row.quantity),
   lineTotal: typeof row.line_total === 'string' ? row.line_total : Number(row.line_total).toFixed(2),
 });
 
-export const mapStatusHistoryRow = (row: any): OrderStatusHistoryRecord => ({
-  historyId: row.history_id,
-  orderId: row.order_id,
+export const mapStatusHistoryRow = (row: DatabaseRow): OrderStatusHistoryRecord => ({
+  historyId: String(row.history_id),
+  orderId: String(row.order_id),
   oldStatus: row.old_status as OrderStatus | null,
   newStatus: row.new_status as OrderStatus,
-  changedBy: row.changed_by,
-  reason: row.reason,
-  changedAt: row.changed_at instanceof Date ? row.changed_at.toISOString() : String(row.changed_at),
+  changedBy: row.changed_by == null ? null : String(row.changed_by),
+  reason: row.reason == null ? null : String(row.reason),
+  changedAt: isoString(row.changed_at),
 });
 
 export class PgOrderRepository implements IOrderRepository {

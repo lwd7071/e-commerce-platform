@@ -1,9 +1,6 @@
--- Supabase Storage Buckets & Policies Specification
--- Cung cấp bởi Người 2 (Database & Supabase) cho Mốc T2
-
--- 1. Tạo Buckets nếu chưa tồn tại
+-- Supabase Storage buckets and ownership policies. Safe to replay on the test project.
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES 
+VALUES
   ('product-media', 'product-media', true, 5242880, ARRAY['image/jpeg', 'image/png', 'image/webp']),
   ('review-media', 'review-media', true, 5242880, ARRAY['image/jpeg', 'image/png', 'image/webp'])
 ON CONFLICT (id) DO UPDATE SET
@@ -11,7 +8,17 @@ ON CONFLICT (id) DO UPDATE SET
   file_size_limit = EXCLUDED.file_size_limit,
   allowed_mime_types = EXCLUDED.allowed_mime_types;
 
--- 2. Chính sách SELECT: Cho phép công chúng đọc ảnh sản phẩm và ảnh đánh giá (Public Read)
+DROP POLICY IF EXISTS "Public Access Product Media" ON storage.objects;
+DROP POLICY IF EXISTS "Public Access Review Media" ON storage.objects;
+DROP POLICY IF EXISTS "Seller Upload Product Media" ON storage.objects;
+DROP POLICY IF EXISTS "Buyer Upload Review Media" ON storage.objects;
+DROP POLICY IF EXISTS "Seller Insert Product Media" ON storage.objects;
+DROP POLICY IF EXISTS "Seller Update Product Media" ON storage.objects;
+DROP POLICY IF EXISTS "Seller Delete Product Media" ON storage.objects;
+DROP POLICY IF EXISTS "Buyer Insert Review Media" ON storage.objects;
+DROP POLICY IF EXISTS "Buyer Update Review Media" ON storage.objects;
+DROP POLICY IF EXISTS "Buyer Delete Review Media" ON storage.objects;
+
 CREATE POLICY "Public Access Product Media"
 ON storage.objects FOR SELECT
 USING (bucket_id = 'product-media');
@@ -20,26 +27,186 @@ CREATE POLICY "Public Access Review Media"
 ON storage.objects FOR SELECT
 USING (bucket_id = 'review-media');
 
--- 3. Chính sách INSERT Product Media:
--- Chỉ người bán sở hữu Shop mới được upload vào thư mục shops/{shop_id}/...
-CREATE POLICY "Seller Upload Product Media"
-ON storage.objects FOR INSERT
-TO authenticated
+CREATE POLICY "Seller Insert Product Media"
+ON storage.objects FOR INSERT TO authenticated
 WITH CHECK (
-  bucket_id = 'product-media' AND
-  EXISTS (
+  bucket_id = 'product-media'
+  AND (storage.foldername(name))[1] = 'shops'
+  AND EXISTS (
     SELECT 1 FROM public.shops s
     WHERE s.owner_id = auth.uid()
-      AND (storage.foldername(name))[2] = s.shop_id::text
+      AND s.shop_id = CASE
+        WHEN (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
+        THEN (storage.foldername(name))[2]::uuid
+      END
+      AND (
+        name ~* '^shops/[0-9a-f-]{36}/logo\.(jpg|jpeg|png|webp)$'
+        OR (
+          (storage.foldername(name))[3] = 'products'
+          AND EXISTS (
+            SELECT 1 FROM public.products p
+            WHERE p.shop_id = s.shop_id
+              AND p.product_id = CASE
+                WHEN (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
+                THEN (storage.foldername(name))[4]::uuid
+              END
+          )
+        )
+      )
   )
 );
 
--- 4. Chính sách INSERT Review Media:
--- Chỉ người mua mới được upload vào thư mục users/{user_id}/...
-CREATE POLICY "Buyer Upload Review Media"
-ON storage.objects FOR INSERT
-TO authenticated
+CREATE POLICY "Seller Update Product Media"
+ON storage.objects FOR UPDATE TO authenticated
+USING (
+  bucket_id = 'product-media'
+  AND owner_id = auth.uid()::text
+  AND (storage.foldername(name))[1] = 'shops'
+  AND EXISTS (
+    SELECT 1 FROM public.shops s
+    WHERE s.owner_id = auth.uid()
+      AND s.shop_id = CASE
+        WHEN (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
+        THEN (storage.foldername(name))[2]::uuid
+      END
+      AND (
+        name ~* '^shops/[0-9a-f-]{36}/logo\.(jpg|jpeg|png|webp)$'
+        OR (
+          (storage.foldername(name))[3] = 'products'
+          AND EXISTS (
+            SELECT 1 FROM public.products p
+            WHERE p.shop_id = s.shop_id
+              AND p.product_id = CASE
+                WHEN (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
+                THEN (storage.foldername(name))[4]::uuid
+              END
+          )
+        )
+      )
+  )
+)
 WITH CHECK (
-  bucket_id = 'review-media' AND
-  (storage.foldername(name))[2] = auth.uid()::text
+  bucket_id = 'product-media'
+  AND owner_id = auth.uid()::text
+  AND (storage.foldername(name))[1] = 'shops'
+  AND EXISTS (
+    SELECT 1 FROM public.shops s
+    WHERE s.owner_id = auth.uid()
+      AND s.shop_id = CASE
+        WHEN (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
+        THEN (storage.foldername(name))[2]::uuid
+      END
+      AND (
+        name ~* '^shops/[0-9a-f-]{36}/logo\.(jpg|jpeg|png|webp)$'
+        OR (
+          (storage.foldername(name))[3] = 'products'
+          AND EXISTS (
+            SELECT 1 FROM public.products p
+            WHERE p.shop_id = s.shop_id
+              AND p.product_id = CASE
+                WHEN (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
+                THEN (storage.foldername(name))[4]::uuid
+              END
+          )
+        )
+      )
+  )
+);
+
+CREATE POLICY "Seller Delete Product Media"
+ON storage.objects FOR DELETE TO authenticated
+USING (
+  bucket_id = 'product-media'
+  AND owner_id = auth.uid()::text
+  AND (storage.foldername(name))[1] = 'shops'
+  AND EXISTS (
+    SELECT 1 FROM public.shops s
+    WHERE s.owner_id = auth.uid()
+      AND s.shop_id = CASE
+        WHEN (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
+        THEN (storage.foldername(name))[2]::uuid
+      END
+      AND (
+        name ~* '^shops/[0-9a-f-]{36}/logo\.(jpg|jpeg|png|webp)$'
+        OR (
+          (storage.foldername(name))[3] = 'products'
+          AND EXISTS (
+            SELECT 1 FROM public.products p
+            WHERE p.shop_id = s.shop_id
+              AND p.product_id = CASE
+                WHEN (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
+                THEN (storage.foldername(name))[4]::uuid
+              END
+          )
+        )
+      )
+  )
+);
+
+CREATE POLICY "Buyer Insert Review Media"
+ON storage.objects FOR INSERT TO authenticated
+WITH CHECK (
+  bucket_id = 'review-media'
+  AND (storage.foldername(name))[1] = 'users'
+  AND (storage.foldername(name))[2] = auth.uid()::text
+  AND (storage.foldername(name))[3] = 'reviews'
+  AND EXISTS (
+    SELECT 1 FROM public.reviews r
+    WHERE r.buyer_id = auth.uid()
+      AND r.review_id = CASE
+        WHEN (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
+        THEN (storage.foldername(name))[4]::uuid
+      END
+  )
+);
+
+CREATE POLICY "Buyer Update Review Media"
+ON storage.objects FOR UPDATE TO authenticated
+USING (
+  bucket_id = 'review-media'
+  AND owner_id = auth.uid()::text
+  AND (storage.foldername(name))[1] = 'users'
+  AND (storage.foldername(name))[2] = auth.uid()::text
+  AND (storage.foldername(name))[3] = 'reviews'
+  AND EXISTS (
+    SELECT 1 FROM public.reviews r
+    WHERE r.buyer_id = auth.uid()
+      AND r.review_id = CASE
+        WHEN (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
+        THEN (storage.foldername(name))[4]::uuid
+      END
+  )
+)
+WITH CHECK (
+  bucket_id = 'review-media'
+  AND owner_id = auth.uid()::text
+  AND (storage.foldername(name))[1] = 'users'
+  AND (storage.foldername(name))[2] = auth.uid()::text
+  AND (storage.foldername(name))[3] = 'reviews'
+  AND EXISTS (
+    SELECT 1 FROM public.reviews r
+    WHERE r.buyer_id = auth.uid()
+      AND r.review_id = CASE
+        WHEN (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
+        THEN (storage.foldername(name))[4]::uuid
+      END
+  )
+);
+
+CREATE POLICY "Buyer Delete Review Media"
+ON storage.objects FOR DELETE TO authenticated
+USING (
+  bucket_id = 'review-media'
+  AND owner_id = auth.uid()::text
+  AND (storage.foldername(name))[1] = 'users'
+  AND (storage.foldername(name))[2] = auth.uid()::text
+  AND (storage.foldername(name))[3] = 'reviews'
+  AND EXISTS (
+    SELECT 1 FROM public.reviews r
+    WHERE r.buyer_id = auth.uid()
+      AND r.review_id = CASE
+        WHEN (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
+        THEN (storage.foldername(name))[4]::uuid
+      END
+  )
 );

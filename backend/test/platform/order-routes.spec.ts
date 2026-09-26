@@ -9,6 +9,8 @@ import { OrderQueryService } from '../../src/modules/order/services/order-query.
 import type { IOrderRepository, OrderRecord, OrderItemRecord } from '../../src/modules/order/domain/repositories.ts';
 import { InMemoryPaymentRepository } from '../../src/modules/payment/repositories/in-memory-payment.repository.ts';
 import { PaymentService } from '../../src/modules/payment/services/payment.service.ts';
+import type { RequestContext } from '../../src/platform/context/request-context.ts';
+import type { CheckoutCommand } from '../../src/modules/checkout/contracts/checkout-command.ts';
 
 const BUYER_ID = '11111111-1111-4111-8111-111111111111';
 const OTHER_BUYER_ID = '99999999-9999-4999-8999-999999999999';
@@ -40,15 +42,6 @@ const otherSellerAuth: RequestHandler = (req, _res, next) => {
     user_id: 'seller-user-0002',
     shop_id: OTHER_SHOP_ID,
     role: 'SELLER',
-  });
-  next();
-};
-
-const adminAuth: RequestHandler = (req, _res, next) => {
-  req.context = createRequestContext({
-    request_id: req.requestId ?? 'req_order_test_admin',
-    user_id: 'admin-user-0001',
-    role: 'ADMIN',
   });
   next();
 };
@@ -131,10 +124,8 @@ function createMockOrderServices() {
       return orders.filter(o => o.shopId === shopId);
     },
     async updateStatus(orderId, status, _history) {
-      const order = orders.find(o => o.orderId === orderId);
-      if (order) {
-        (order as any).status = status;
-      }
+      const index = orders.findIndex(o => o.orderId === orderId);
+      if (index >= 0) orders[index] = { ...orders[index], status };
     },
     async findHistoryByOrderId(_orderId) {
       return [];
@@ -157,7 +148,7 @@ function createMockOrderServices() {
   });
 
   const checkoutService = {
-    async createOrder(_context: any, command: any) {
+    async createOrder(_context: RequestContext, command: CheckoutCommand) {
       return {
         orders: [
           {

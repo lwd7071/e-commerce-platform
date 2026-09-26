@@ -1,6 +1,6 @@
 import type { Pool, PoolClient } from 'pg';
 import type { IOrderRepository, OrderRecord } from '../domain/repositories.ts';
-import type { OrderActor, OrderStatus } from '../domain/types.ts';
+import type { OrderActor, OrderStatus, OrderTransitionCommand } from '../domain/types.ts';
 import { transitionOrder } from '../domain/order-state-machine.ts';
 import { createOrderStatusHistoryRecord } from '../domain/order-snapshot.ts';
 import { OrderDomainError } from '../domain/errors.ts';
@@ -129,7 +129,7 @@ export class OrderLifecycleService {
       reason?: string;
       processingEligible?: boolean;
       exceptionalCancellation?: boolean;
-      shipmentStatus?: 'PENDING' | 'HANDED_OVER' | 'SHIPPING' | 'DELIVERED' | 'FAILED' | 'CANCELLED';
+      shipmentStatus?: OrderTransitionCommand['shipmentStatus'];
     },
   ): Promise<OrderRecord> {
     const executeTransition = async (client?: PoolClient): Promise<OrderRecord> => {
@@ -146,7 +146,7 @@ export class OrderLifecycleService {
           reason: options.reason,
           processingEligible: options.processingEligible ?? true,
           exceptionalCancellation: options.exceptionalCancellation,
-          shipmentStatus: options.shipmentStatus as any,
+          shipmentStatus: options.shipmentStatus,
         },
       );
 

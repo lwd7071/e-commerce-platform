@@ -101,6 +101,19 @@ describe('Phase 5 — PostgresNotificationRepository (SOLID: S, L, D)', () => {
       assert.ok(client.queries[0].sql.includes('INSERT INTO notifications'));
     });
 
+    it('createForEvent: atomically ignores a replayed cross-instance event', async () => {
+      const client = new MockDbClient();
+      client.customHandler = async () => ({ rows: [], rowCount: 0 });
+      const repo = new PostgresNotificationRepository(client as IDbClient);
+
+      const created = await repo.createForEvent(mockNotification, 'evt-order-completed-1');
+
+      assert.strictEqual(created, null);
+      assert.match(client.queries[0].sql, /event_id/);
+      assert.match(client.queries[0].sql, /ON CONFLICT \(event_id\).*DO NOTHING/s);
+      assert.equal(client.queries[0].params.at(-1), 'evt-order-completed-1');
+    });
+
     it('[TEST-INT-18] markAsRead: cập nhật is_read = TRUE và read_at = now() hoặc readAt được truyền vào', async () => {
       const customReadTime = '2026-09-17T15:30:00.000Z';
       const client = new MockDbClient();

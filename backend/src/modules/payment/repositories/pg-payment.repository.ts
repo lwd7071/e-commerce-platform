@@ -1,17 +1,20 @@
 import type { Pool, PoolClient } from 'pg';
 import type { IPaymentRepository, PaymentRecord, UUID } from '../domain/repositories.ts';
 import type { PaymentStatus, PaymentMethod } from '../domain/types.ts';
+import type { DatabaseExecutor } from '../../../../db/types.ts';
 
-export const mapPaymentRow = (row: any): PaymentRecord => ({
-  paymentId: row.payment_id,
-  orderId: row.order_id,
-  transactionCode: row.transaction_code,
+type PaymentRow = Record<string, unknown>;
+
+export const mapPaymentRow = (row: PaymentRow): PaymentRecord => ({
+  paymentId: String(row.payment_id),
+  orderId: String(row.order_id),
+  transactionCode: row.transaction_code == null ? null : String(row.transaction_code),
   method: row.method as PaymentMethod,
   amount: typeof row.amount === 'string' ? row.amount : Number(row.amount).toFixed(2),
   status: row.status as PaymentStatus,
   createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
   paidAt: row.paid_at ? (row.paid_at instanceof Date ? row.paid_at.toISOString() : String(row.paid_at)) : null,
-  note: row.note,
+  note: row.note == null ? null : String(row.note),
 });
 
 export class PgPaymentRepository implements IPaymentRepository {
@@ -21,7 +24,7 @@ export class PgPaymentRepository implements IPaymentRepository {
     this.pool = pool;
   }
 
-  private getExecutor(client?: PoolClient): Pool | PoolClient {
+  private getExecutor(client?: DatabaseExecutor): DatabaseExecutor {
     return client ?? this.pool;
   }
 
@@ -53,6 +56,11 @@ export class PgPaymentRepository implements IPaymentRepository {
     const result = await executor.query('SELECT * FROM payments WHERE payment_id = $1;', [paymentId]);
     if (result.rows.length === 0) return null;
     return mapPaymentRow(result.rows[0]);
+  }
+
+  public async lockById(paymentId: UUID, client: DatabaseExecutor): Promise<PaymentRecord | null> {
+    const result = await client.query('SELECT * FROM payments WHERE payment_id = $1 FOR UPDATE;', [paymentId]);
+    return result.rows[0] ? mapPaymentRow(result.rows[0]) : null;
   }
 
   public async findByOrderId(orderId: UUID, client?: PoolClient): Promise<PaymentRecord[]> {

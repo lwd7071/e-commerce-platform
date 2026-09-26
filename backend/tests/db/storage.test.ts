@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import {
   STORAGE_BUCKETS,
   ALLOWED_IMAGE_EXTENSIONS,
@@ -66,5 +68,27 @@ describe('Storage Path Builder and Validation', () => {
       imageId,
       extension: 'webp',
     });
+  });
+
+  it('keeps the replayable SQL policy set aligned with all ownership operations', () => {
+    const policyPath = fileURLToPath(new URL('../../db/storage-policies.sql', import.meta.url));
+    const policySql = readFileSync(policyPath, 'utf8');
+    const policyNames = [
+      'Seller Insert Product Media',
+      'Seller Update Product Media',
+      'Seller Delete Product Media',
+      'Buyer Insert Review Media',
+      'Buyer Update Review Media',
+      'Buyer Delete Review Media',
+    ];
+
+    for (const policyName of policyNames) {
+      expect(policySql).toContain(`DROP POLICY IF EXISTS "${policyName}"`);
+      expect(policySql).toContain(`CREATE POLICY "${policyName}"`);
+    }
+
+    expect(policySql).toContain('FROM public.products p');
+    expect(policySql).toContain('FROM public.reviews r');
+    expect(policySql).toContain('owner_id = auth.uid()::text');
   });
 });

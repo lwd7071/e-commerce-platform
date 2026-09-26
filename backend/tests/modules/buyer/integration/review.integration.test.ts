@@ -5,11 +5,16 @@ import { mapReview, mapReviewImage } from '../../../../src/modules/buyer/infrast
 import { mockReview, mockBuyerId } from '../fixtures';
 import type { IDbClient } from '../../../../src/modules/buyer/infrastructure/db-client';
 
-class MockDbClient {
-  public queries: { sql: string; params: any[] }[] = [];
-  public customHandler?: (sql: string, params: any[]) => Promise<any>;
+const isPgConstraintError = (error: unknown, code: string, constraint: string): boolean =>
+  error instanceof Error
+  && 'code' in error && error.code === code
+  && 'constraint' in error && error.constraint === constraint;
 
-  async query(sql: string, params: any[] = []): Promise<{ rows: any[]; rowCount: number }> {
+class MockDbClient {
+  public queries: { sql: string; params: unknown[] }[] = [];
+  public customHandler?: (sql: string, params: unknown[]) => Promise<{ rows: Record<string, unknown>[]; rowCount: number }>;
+
+  async query(sql: string, params: unknown[] = []): Promise<{ rows: Record<string, unknown>[]; rowCount: number }> {
     this.queries.push({ sql: sql.trim(), params });
     if (this.customHandler) {
       return this.customHandler(sql, params);
@@ -154,7 +159,7 @@ describe('Phase 4 — PostgresReviewRepository (SOLID: S, L, D)', () => {
       const repo = new PostgresReviewRepository(client as IDbClient);
       await assert.rejects(
         () => repo.create({ ...mockReview, rating: 6 }),
-        (err: any) => err.code === '23514' && err.constraint === 'ck_reviews__rating'
+        (err: unknown) => isPgConstraintError(err, '23514', 'ck_reviews__rating')
       );
     });
 
@@ -169,7 +174,7 @@ describe('Phase 4 — PostgresReviewRepository (SOLID: S, L, D)', () => {
       const repo = new PostgresReviewRepository(client as IDbClient);
       await assert.rejects(
         () => repo.create(mockReview),
-        (err: any) => err.code === '23505' && err.constraint === 'uq_reviews__order_item_id'
+        (err: unknown) => isPgConstraintError(err, '23505', 'uq_reviews__order_item_id')
       );
     });
   });

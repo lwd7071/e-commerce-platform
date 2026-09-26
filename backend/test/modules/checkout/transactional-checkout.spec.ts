@@ -9,11 +9,12 @@ import type { ICartPort } from '../../../src/modules/buyer/ports/cart.port.ts';
 import type { ICatalogPort } from '../../../src/modules/catalog/ports/catalog.port.ts';
 import type { IVoucherPort } from '../../../src/modules/buyer/ports/voucher.port.ts';
 import type { CheckoutCommand } from '../../../src/modules/checkout/contracts/checkout-command.ts';
+import type { CheckoutResult } from '../../../src/modules/checkout/contracts/checkout-result.ts';
 
 describe('Transactional Checkout & Order Lifecycle Integration Tests', () => {
   let orderRepo: InMemoryOrderRepository;
   let paymentRepo: InMemoryPaymentRepository;
-  let idempotencyPort: InMemoryIdempotencyAdapter<any>;
+  let idempotencyPort: InMemoryIdempotencyAdapter<CheckoutResult>;
 
   const buyerId = 'buyer-001';
   const shopId = 'shop-001';
@@ -25,7 +26,7 @@ describe('Transactional Checkout & Order Lifecycle Integration Tests', () => {
   let consumedVouchers: string[] = [];
 
   const mockCartPort: ICartPort = {
-    async getSelectedItems(bId: string) {
+    async getSelectedItems(_bId: string) {
       return [
         {
           cartItemId: 'cart-item-1',
@@ -65,13 +66,13 @@ describe('Transactional Checkout & Order Lifecycle Integration Tests', () => {
         remainingStock: currentStock,
       };
     },
-    async checkShopActive(sId: string) {
+    async checkShopActive(_sId: string) {
       return true;
     },
   };
 
   const mockVoucherPort: IVoucherPort = {
-    async evaluateVoucher(ctx) {
+    async evaluateVoucher(_ctx) {
       return {
         isValid: true,
         voucherId: 'vouch-999',
@@ -105,7 +106,7 @@ describe('Transactional Checkout & Order Lifecycle Integration Tests', () => {
   beforeEach(() => {
     orderRepo = new InMemoryOrderRepository();
     paymentRepo = new InMemoryPaymentRepository();
-    idempotencyPort = new InMemoryIdempotencyAdapter<any>();
+    idempotencyPort = new InMemoryIdempotencyAdapter<CheckoutResult>();
     currentStock = 10;
     clearedCartItemIds = [];
     consumedVouchers = [];

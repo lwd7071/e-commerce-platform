@@ -17,44 +17,48 @@ import type { INotificationRepository } from '../../../src/modules/buyer/domain/
 import type { CheckoutCommand } from '../../../src/modules/checkout/contracts/checkout-command.ts';
 import type { TransactionDomainEvent } from '../../../src/modules/order/contracts/order-events.contract.ts';
 import type { ITransactionEventPort } from '../../../src/modules/buyer/ports/buyer-event.port.ts';
+import type { Review, Notification } from '../../../src/modules/buyer/domain/types.ts';
+import type { CheckoutResult } from '../../../src/modules/checkout/contracts/checkout-result.ts';
 
 // In-Memory Review Repository
 class MockReviewRepository implements IReviewRepository {
-  private reviews: any[] = [];
+  private reviews: Review[] = [];
 
-  async create(review: any): Promise<any> {
+  async create(review: Review): Promise<Review> {
     this.reviews.push({ ...review });
     return review;
   }
-  async findById(reviewId: string): Promise<any | null> {
+  async findById(reviewId: string): Promise<Review | null> {
     return this.reviews.find(r => r.reviewId === reviewId) ?? null;
   }
-  async findByOrderItemId(orderItemId: string): Promise<any | null> {
+  async findByOrderItemId(orderItemId: string): Promise<Review | null> {
     return this.reviews.find(r => r.orderItemId === orderItemId) ?? null;
   }
-  async findByProductId(productId: string): Promise<any[]> {
+  async findByProductId(productId: string): Promise<Review[]> {
     return this.reviews.filter(r => r.productId === productId);
   }
 }
 
 // In-Memory Notification Repository
 class MockNotificationRepository implements INotificationRepository {
-  private notifications: any[] = [];
+  private notifications: Notification[] = [];
 
-  async create(notification: any): Promise<any> {
+  async create(notification: Notification): Promise<Notification> {
     this.notifications.push({ ...notification });
     return notification;
   }
-  async findById(notificationId: string): Promise<any | null> {
+  async findById(notificationId: string): Promise<Notification | null> {
     return this.notifications.find(n => n.notificationId === notificationId) ?? null;
   }
-  async findByRecipientId(recipientId: string, isRead?: boolean): Promise<any[]> {
+  async findByRecipientId(recipientId: string, isRead?: boolean): Promise<Notification[]> {
     return this.notifications.filter(n => n.recipientId === recipientId && (isRead === undefined || n.isRead === isRead));
   }
-  async markAsRead(notificationId: string): Promise<any> {
+  async markAsRead(notificationId: string): Promise<Notification> {
     const noti = this.notifications.find(n => n.notificationId === notificationId);
-    if (noti) (noti as any).isRead = true;
-    return noti!;
+    if (!noti) throw new Error('Notification not found');
+    const updated = { ...noti, isRead: true, readAt: noti.readAt ?? new Date().toISOString() };
+    this.notifications = this.notifications.map((item) => item.notificationId === notificationId ? updated : item);
+    return updated;
   }
 }
 
@@ -76,7 +80,7 @@ class MockEventBus implements ITransactionEventPort {
 describe('End-to-End Happy Path Integration Test Suite (MVP Mốc T2 - All 5 Members)', () => {
   let orderRepo: InMemoryOrderRepository;
   let paymentRepo: InMemoryPaymentRepository;
-  let idempotencyPort: InMemoryIdempotencyAdapter<any>;
+  let idempotencyPort: InMemoryIdempotencyAdapter<CheckoutResult>;
   let orderLifecycleService: OrderLifecycleService;
   let orderQueryService: OrderQueryService;
   let paymentService: PaymentService;
@@ -84,7 +88,6 @@ describe('End-to-End Happy Path Integration Test Suite (MVP Mốc T2 - All 5 Mem
   let reviewService: ReviewService;
   let notiRepo: MockNotificationRepository;
   let eventBus: MockEventBus;
-  let notiService: NotificationService;
 
   const buyerId = '11111111-1111-4111-8111-111111111111';
   const sellerShopId = '22222222-2222-4222-8222-222222222222';
@@ -98,7 +101,7 @@ describe('End-to-End Happy Path Integration Test Suite (MVP Mốc T2 - All 5 Mem
   let consumedVouchers: string[] = [];
 
   const cartPort: ICartPort = {
-    async getSelectedItems(bId: string) {
+    async getSelectedItems(_bId: string) {
       return cartItems.filter(c => c.isSelected);
     },
     async clearCheckedOutItems(bId: string, itemIds: string[]) {
@@ -135,7 +138,7 @@ describe('End-to-End Happy Path Integration Test Suite (MVP Mốc T2 - All 5 Mem
   };
 
   const voucherPort: IVoucherPort = {
-    async evaluateVoucher(params) {
+    async evaluateVoucher(_params) {
       return {
         isValid: true,
         voucherId,
@@ -182,7 +185,7 @@ describe('End-to-End Happy Path Integration Test Suite (MVP Mốc T2 - All 5 Mem
 
     notiRepo = new MockNotificationRepository();
     eventBus = new MockEventBus();
-    notiService = new NotificationService(notiRepo, eventBus, orderQueryService);
+    new NotificationService(notiRepo, eventBus, orderQueryService);
   });
 
   it('Happy Path: Cart -> Checkout (ACID) -> Settle Payment -> Seller Confirm -> Transition Shipping -> Completed -> Review & Notification', async () => {

@@ -1,4 +1,5 @@
 import type { PaymentStatus, PaymentMethod } from './types.ts';
+import type { DatabaseExecutor } from '../../../../db/types.ts';
 
 export type UUID = string;
 export type DecimalString = string;
@@ -19,17 +20,20 @@ export interface IPaymentRepository {
   /**
    * Persists a payment attempt.
    */
-  createPayment(payment: PaymentRecord, client?: any): Promise<PaymentRecord>;
+  createPayment(payment: PaymentRecord, client?: DatabaseExecutor): Promise<PaymentRecord>;
 
   /**
    * Finds a payment by payment ID.
    */
-  findById(paymentId: UUID, client?: any): Promise<PaymentRecord | null>;
+  findById(paymentId: UUID, client?: DatabaseExecutor): Promise<PaymentRecord | null>;
+
+  /** Locks one payment attempt until the surrounding transaction completes. */
+  lockById(paymentId: UUID, client: DatabaseExecutor): Promise<PaymentRecord | null>;
 
   /**
    * Finds all payments belonging to an order.
    */
-  findByOrderId(orderId: UUID, client?: any): Promise<PaymentRecord[]>;
+  findByOrderId(orderId: UUID, client?: DatabaseExecutor): Promise<PaymentRecord[]>;
 
   /**
    * Updates payment status, paidAt, and optional note.
@@ -39,6 +43,6 @@ export interface IPaymentRepository {
     status: PaymentStatus,
     paidAt?: string | null,
     note?: string | null,
-    client?: any,
+    client?: DatabaseExecutor,
   ): Promise<void>;
 }

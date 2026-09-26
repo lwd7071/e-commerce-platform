@@ -1,12 +1,7 @@
 import crypto from 'node:crypto';
-import type { QueryResult, QueryResultRow } from 'pg';
+import type { DatabaseExecutor } from './types.ts';
 
-export interface Queryable {
-  query<R extends QueryResultRow = QueryResultRow, I extends unknown[] = unknown[]>(
-    queryText: string,
-    values?: I,
-  ): Promise<QueryResult<R>>;
-}
+export type Queryable = DatabaseExecutor;
 
 export interface ColumnMetadata {
   tableName: string;
@@ -41,6 +36,29 @@ export interface IndexMetadata {
   isUnique: boolean;
 }
 
+export interface RlsMetadata {
+  tableName: string;
+  enabled: boolean;
+  forced: boolean;
+}
+
+export interface PolicyMetadata {
+  tableName: string;
+  policyName: string;
+  permissive: string;
+  roles: string[];
+  command: string;
+  qualification: string | null;
+  withCheck: string | null;
+}
+
+export interface GrantMetadata {
+  tableName: string;
+  grantee: string;
+  privilegeType: string;
+  isGrantable: boolean;
+}
+
 export interface SchemaSnapshotMetadata {
   tables: string[];
   columns: ColumnMetadata[];
@@ -48,6 +66,9 @@ export interface SchemaSnapshotMetadata {
   foreignKeys: ForeignKeyMetadata[];
   checkConstraints: CheckConstraintMetadata[];
   indexes: IndexMetadata[];
+  rls: RlsMetadata[];
+  policies: PolicyMetadata[];
+  grants: GrantMetadata[];
 }
 
 export interface SchemaDiffResult {
@@ -191,6 +212,47 @@ export async function extractSchemaSnapshotMetadata(
     isUnique: r.indisunique,
   }));
 
+  const rlsRes = await client.query<{ table_name: string; enabled: boolean; forced: boolean }>(
+    `SELECT c.relname AS table_name, c.relrowsecurity AS enabled, c.relforcerowsecurity AS forced
+     FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE n.nspname = $1 AND c.relkind = 'r' ORDER BY c.relname`,
+    [schema],
+  );
+  const rls: RlsMetadata[] = rlsRes.rows.map((r) => ({
+    tableName: r.table_name, enabled: r.enabled, forced: r.forced,
+  }));
+
+  const policyRes = await client.query<{
+    tablename: string; policyname: string; permissive: string; roles: string[];
+    cmd: string; qual: string | null; with_check: string | null;
+  }>(
+    `SELECT tablename, policyname, permissive, roles, cmd, qual, with_check
+     FROM pg_policies WHERE schemaname = $1 ORDER BY tablename, policyname`,
+    [schema],
+  );
+  const policies: PolicyMetadata[] = policyRes.rows.map((r) => ({
+    tableName: r.tablename, policyName: r.policyname, permissive: r.permissive,
+    roles: [...r.roles].sort(), command: r.cmd, qualification: r.qual, withCheck: r.with_check,
+  }));
+
+  const grantRes = await client.query<{
+    table_name: string; grantee: string; privilege_type: string; is_grantable: boolean;
+  }>(
+    `SELECT c.relname AS table_name,
+            COALESCE(grantee.rolname, 'PUBLIC') AS grantee,
+            acl.privilege_type, acl.is_grantable
+     FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+     CROSS JOIN LATERAL aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) acl
+     LEFT JOIN pg_roles grantee ON grantee.oid = acl.grantee
+     WHERE n.nspname = $1 AND c.relkind = 'r'
+     ORDER BY c.relname, grantee, acl.privilege_type`,
+    [schema],
+  );
+  const grants: GrantMetadata[] = grantRes.rows.map((r) => ({
+    tableName: r.table_name, grantee: r.grantee,
+    privilegeType: r.privilege_type, isGrantable: r.is_grantable,
+  }));
+
   return {
     tables,
     columns,
@@ -198,6 +260,9 @@ export async function extractSchemaSnapshotMetadata(
     foreignKeys,
     checkConstraints,
     indexes,
+    rls,
+    policies,
+    grants,
   };
 }
 
@@ -212,6 +277,11 @@ export function computeSchemaFingerprint(metadata: SchemaSnapshotMetadata): stri
     foreignKeys: [...metadata.foreignKeys].sort((a, b) => a.constraintName.localeCompare(b.constraintName)),
     checkConstraints: [...metadata.checkConstraints].sort((a, b) => a.constraintName.localeCompare(b.constraintName)),
     indexes: [...metadata.indexes].sort((a, b) => a.indexName.localeCompare(b.indexName)),
+    rls: [...metadata.rls].sort((a, b) => a.tableName.localeCompare(b.tableName)),
+    policies: [...metadata.policies].map((p) => ({ ...p, roles: [...p.roles].sort() }))
+      .sort((a, b) => `${a.tableName}.${a.policyName}`.localeCompare(`${b.tableName}.${b.policyName}`)),
+    grants: [...metadata.grants].sort((a, b) =>
+      `${a.tableName}.${a.grantee}.${a.privilegeType}`.localeCompare(`${b.tableName}.${b.grantee}.${b.privilegeType}`)),
   });
 
   return crypto.createHash('sha256').update(normalized, 'utf8').digest('hex');
@@ -274,6 +344,10 @@ export function compareSchemaSnapshots(
 
   for (const idx of missingIndexes) {
     violations.push(`Missing index in candidate schema: ${idx}`);
+  }
+
+  if (computeSchemaFingerprint(baseline) !== computeSchemaFingerprint(candidate)) {
+    violations.push('Schema fingerprint differs, including structural or security definitions');
   }
 
   return {

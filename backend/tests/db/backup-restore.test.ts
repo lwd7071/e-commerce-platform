@@ -26,6 +26,9 @@ describe('Backup & Restore Verification (T3 Unit)', () => {
     indexes: [
       { tableName: 'app_users', indexName: 'idx_app_users__email', isUnique: true },
     ],
+    rls: [{ tableName: 'app_users', enabled: true, forced: false }],
+    policies: [],
+    grants: [],
   };
 
   it('computes identical fingerprint for identical metadata regardless of insertion order', () => {
@@ -36,6 +39,9 @@ describe('Backup & Restore Verification (T3 Unit)', () => {
       foreignKeys: [],
       checkConstraints: [],
       indexes: [...dummyBaseline.indexes],
+      rls: [...dummyBaseline.rls],
+      policies: [],
+      grants: [],
     };
 
     const hash1 = computeSchemaFingerprint(dummyBaseline);
@@ -56,6 +62,9 @@ describe('Backup & Restore Verification (T3 Unit)', () => {
       foreignKeys: [],
       checkConstraints: [],
       indexes: [], // Thiếu index
+      rls: [...dummyBaseline.rls],
+      policies: [],
+      grants: [],
     };
 
     const diff = compareSchemaSnapshots(dummyBaseline, deficientCandidate);
@@ -70,6 +79,24 @@ describe('Backup & Restore Verification (T3 Unit)', () => {
     const diff = compareSchemaSnapshots(dummyBaseline, dummyBaseline);
     expect(diff.isIdentical).toBe(true);
     expect(diff.violations).toHaveLength(0);
+  });
+
+  it('detects changes to RLS, policies and table grants', () => {
+    const candidates: SchemaSnapshotMetadata[] = [
+      { ...dummyBaseline, rls: [{ tableName: 'app_users', enabled: false, forced: false }] },
+      { ...dummyBaseline, policies: [{
+        tableName: 'app_users', policyName: 'allow_all', permissive: 'PERMISSIVE',
+        roles: ['PUBLIC'], command: 'ALL', qualification: 'true', withCheck: null,
+      }] },
+      { ...dummyBaseline, grants: [{
+        tableName: 'app_users', grantee: 'anon', privilegeType: 'SELECT', isGrantable: false,
+      }] },
+    ];
+
+    for (const candidate of candidates) {
+      expect(computeSchemaFingerprint(candidate)).not.toBe(computeSchemaFingerprint(dummyBaseline));
+      expect(compareSchemaSnapshots(dummyBaseline, candidate).isIdentical).toBe(false);
+    }
   });
 });
 
@@ -102,6 +129,8 @@ remoteDescribe('Live Schema Snapshot & Restore Verification (T3 Remote)', () => 
     // Kiểm tra có đầy đủ primary keys và indexes
     expect(metadata.primaryKeys.length).toBeGreaterThanOrEqual(22);
     expect(metadata.indexes.length).toBeGreaterThan(0);
+    expect(metadata.rls.length).toBeGreaterThanOrEqual(22);
+    expect(metadata.grants.length).toBeGreaterThan(0);
 
     const fingerprint = computeSchemaFingerprint(metadata);
     expect(fingerprint).toMatch(/^[0-9a-f]{64}$/);

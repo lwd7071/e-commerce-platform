@@ -2,7 +2,6 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
 import { createApp } from '../../src/platform/http/app.ts';
-import { createSecurityHeadersMiddleware, createCorsMiddleware } from '../../src/platform/http/middlewares/security-headers.ts';
 
 describe('Security Headers & CORS Policy Middleware (Phase 1)', () => {
   it('[SEC-HDR-01]: response carries required OWASP security headers', async () => {

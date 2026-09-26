@@ -1,6 +1,4 @@
 import 'dotenv/config';
-import fs from 'node:fs';
-import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
 import { loadDatabaseConfig, parseRunRemoteDbTests } from '../../db/config.js';
@@ -26,10 +24,6 @@ remoteDescribe('T2 Performance Indexes Acceptance Integration', () => {
     const config = loadDatabaseConfig(process.env);
     pool = createDatabasePool({ databaseUrl: config.directUrl, pool: { ...config.pool, max: 1 } });
 
-    // Apply T2 migration SQL to database idempotently
-    const migrationPath = path.resolve(__dirname, '../../prisma/migrations/20260922120000_t2_performance_indexes/migration.sql');
-    const sql = fs.readFileSync(migrationPath, 'utf8');
-    await pool.query(sql);
   }, 45_000);
 
   afterAll(async () => {

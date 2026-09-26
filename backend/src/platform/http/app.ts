@@ -3,7 +3,7 @@ import type { Pool } from 'pg';
 import { requestIdMiddleware } from './middlewares/request-id.ts';
 import { errorHandlerMiddleware } from './middlewares/error-handler.ts';
 import { createHealthRouter } from '../routes/health.ts';
-import { createCatalogRouter, type CatalogHttpApplication, type BuyerHttpApplication, type OrderHttpApplication, type T1RouteApplications } from './routes/t1-routes.ts';
+import { createCatalogRouter, type T1RouteApplications } from './routes/t1-routes.ts';
 import { createBuyerDomainRouter, type BuyerServices } from './routes/buyer-routes.ts';
 import { createOrderDomainRouter, type OrderServices } from './routes/order-routes.ts';
 import { createAdminRouter } from './routes/admin-routes.ts';

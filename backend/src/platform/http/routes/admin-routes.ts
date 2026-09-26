@@ -28,7 +28,7 @@ function requestId(req: Request): string {
   return req.requestId ?? 'req_unknown';
 }
 
-function implementation<T extends (...args: any[]) => Promise<any>>(method: T | undefined, receiver?: unknown): T {
+function implementation<T extends (...args: never[]) => Promise<unknown>>(method: T | undefined, receiver?: unknown): T {
   if (method) return receiver === undefined ? method : (method.bind(receiver) as T);
   return (async () => {
     throw new NotFoundError('Admin moderation handler is not configured');

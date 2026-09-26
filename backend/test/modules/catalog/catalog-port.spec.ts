@@ -57,7 +57,7 @@ describe('Catalog Port Contract (Bàn giao cho Người 5 - Transaction Core)', 
     it('Yêu cầu biến thể không tồn tại phải ném ValidationError (RESOURCE_NOT_FOUND)', async () => {
       await assert.rejects(
         async () => await catalogService.getVariantPriceAndStock('variant-non-existent'),
-        (err: any) => err instanceof ValidationError
+        (err: unknown) => err instanceof ValidationError
       );
     });
   });
@@ -73,14 +73,14 @@ describe('Catalog Port Contract (Bàn giao cho Người 5 - Transaction Core)', 
     it('[QD07] Đặt số lượng 15 khi kho chỉ có 10 -> ném InventoryInsufficientError (INVENTORY_INSUFFICIENT)', async () => {
       await assert.rejects(
         async () => await catalogService.lockVariant('variant-101', 15),
-        (err: any) => err instanceof InventoryInsufficientError && err.code === 'INVENTORY_INSUFFICIENT'
+        (err: unknown) => err instanceof InventoryInsufficientError && err.code === 'INVENTORY_INSUFFICIENT'
       );
     });
 
     it('[QD07] Đặt số lượng âm (-2) phải bị từ chối với ValidationError và KHÔNG làm tăng tồn kho', async () => {
       await assert.rejects(
         async () => await catalogService.lockVariant('variant-102', -2),
-        (err: any) => err instanceof ValidationError
+        (err: unknown) => err instanceof ValidationError
       );
       // Kiểm tra tồn kho vẫn là 5, không bị tăng thành 7
       const info = await catalogService.getVariantPriceAndStock('variant-102');
@@ -90,11 +90,11 @@ describe('Catalog Port Contract (Bàn giao cho Người 5 - Transaction Core)', 
     it('[QD07] Đặt số lượng lẻ (0.5) hoặc bằng 0 phải bị từ chối với ValidationError', async () => {
       await assert.rejects(
         async () => await catalogService.lockVariant('variant-102', 0.5),
-        (err: any) => err instanceof ValidationError
+        (err: unknown) => err instanceof ValidationError
       );
       await assert.rejects(
         async () => await catalogService.lockVariant('variant-102', 0),
-        (err: any) => err instanceof ValidationError
+        (err: unknown) => err instanceof ValidationError
       );
       const info = await catalogService.getVariantPriceAndStock('variant-102');
       assert.equal(info.stockQuantity, 5);
