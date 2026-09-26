@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { randomUUID } from 'node:crypto';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import pg from 'pg';
 import { loadDatabaseConfig } from '../db/config.ts';
 import { assertStoragePolicyDeploymentAllowed } from '../db/storage-policy-safety.ts';
@@ -12,8 +13,13 @@ import {
   createFixtureShop,
   createFixtureUser,
   createFixtureVariant,
-  ensureAuthUser,
 } from '../tests/db/fixtures/database-fixtures.ts';
+
+const required = (name: string): string => {
+  const value = process.env[name]?.trim();
+  if (!value) throw new Error(`${name} is required for Storage smoke`);
+  return value;
+};
 
 const config = loadDatabaseConfig(process.env);
 const projectRef = config.supabaseUrl.hostname.split('.')[0];
@@ -24,138 +30,122 @@ assertStoragePolicyDeploymentAllowed({
   allowStoragePolicyDeploy: process.env.ALLOW_STORAGE_POLICY_DEPLOY,
 }, projectRef);
 
+const admin = createClient(config.supabaseUrl.toString(), required('SUPABASE_TEST_SECRET_KEY'), {
+  auth: { autoRefreshToken: false, persistSession: false },
+});
+const publishableKey = required('SUPABASE_TEST_PUBLISHABLE_KEY');
 const pool = new pg.Pool({ connectionString: config.directUrl.toString(), max: 1 });
-const client = await pool.connect();
-
-const setAuthenticatedUser = async (userId: string): Promise<void> => {
-  await client.query('SET LOCAL ROLE authenticated');
-  await client.query(
-    "SELECT set_config('request.jwt.claim.sub', $1, true), set_config('request.jwt.claims', $2, true)",
-    [userId, JSON.stringify({ sub: userId, role: 'authenticated' })],
-  );
-};
-
-const resetRole = async (): Promise<void> => {
-  await client.query('RESET ROLE');
-};
-
-const expectRlsRejection = async (operation: () => Promise<unknown>): Promise<void> => {
-  await client.query('SAVEPOINT storage_rejection');
-  try {
-    await operation();
-    throw new Error('Expected Storage RLS to reject the operation');
-  } catch (error: unknown) {
-    const code = error instanceof Error && 'code' in error ? error.code : undefined;
-    if (code !== '42501') throw error;
-    await client.query('ROLLBACK TO SAVEPOINT storage_rejection');
-  }
-};
+const db = await pool.connect();
+const createdUsers: string[] = [];
+const uploaded: Array<{ bucket: string; path: string }> = [];
 
 const createUser = async (role: 'BUYER' | 'SELLER') => {
-  const userId = randomUUID();
-  const email = `${role.toLowerCase()}_${userId.slice(0, 8)}@storage-smoke.test`;
-  await ensureAuthUser(client, userId, email);
-  return createFixtureUser(client, { userId, email, role });
+  const email = `${role.toLowerCase()}_${randomUUID()}@storage-smoke.test`;
+  const password = `Storage-${randomUUID()}-Aa1!`;
+  const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+  if (error || !data.user) throw error ?? new Error('Supabase did not create the Storage smoke user');
+  const userId = data.user.id;
+  createdUsers.push(userId);
+  const fixture = await createFixtureUser(db, { userId, email, role });
+  const user = createClient(config.supabaseUrl.toString(), publishableKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const signIn = await user.auth.signInWithPassword({ email, password });
+  if (signIn.error) throw signIn.error;
+  return { userId, fixture, client: user };
+};
+
+const expectDenied = async (operation: () => Promise<unknown>): Promise<void> => {
+  try {
+    await operation();
+  } catch {
+    return;
+  }
+  throw new Error('Expected Storage RLS to reject the operation');
+};
+
+const upload = async (user: SupabaseClient, bucket: string, path: string): Promise<void> => {
+  const { error } = await user.storage.from(bucket).upload(path, new Uint8Array([1, 2, 3]), {
+    contentType: 'image/png',
+  });
+  if (error) throw error;
+  uploaded.push({ bucket, path });
 };
 
 try {
-  await client.query('BEGIN');
-  const policies = await client.query<{ policyname: string }>(
-    `SELECT policyname FROM pg_policies
-      WHERE schemaname = 'storage' AND tablename = 'objects'
-        AND policyname = ANY($1::text[])`,
-    [[
-      'Public Access Product Media', 'Public Access Review Media',
-      'Seller Insert Product Media', 'Seller Update Product Media', 'Seller Delete Product Media',
-      'Buyer Insert Review Media', 'Buyer Update Review Media', 'Buyer Delete Review Media',
-    ]],
-  );
-  if (policies.rowCount !== 8) throw new Error(`Expected 8 Storage policies, found ${policies.rowCount}`);
-
+  await db.query('BEGIN');
   const seller = await createUser('SELLER');
   const otherSeller = await createUser('SELLER');
   const buyer = await createUser('BUYER');
   const otherBuyer = await createUser('BUYER');
-  const shop = await createFixtureShop(client, seller.userId);
-  const category = await createFixtureCategory(client);
-  const product = await createFixtureProduct(client, shop.shopId, category.categoryId);
-  const variant = await createFixtureVariant(client, product.productId);
-  const order = await createFixtureOrder(client, buyer.userId, shop.shopId, { status: 'COMPLETED' });
-  const item = await createFixtureOrderItem(client, order.orderId, product.productId, variant.variantId);
-  const review = await createFixtureReview(client, buyer.userId, product.productId, item.orderItemId);
-  const productObjectId = randomUUID();
-  const reviewObjectId = randomUUID();
-  const productPath = `shops/${shop.shopId}/products/${product.productId}/${productObjectId}.webp`;
-  const reviewPath = `users/${buyer.userId}/reviews/${review.reviewId}/${reviewObjectId}.jpg`;
-  const updatedProductPath = `shops/${shop.shopId}/products/${product.productId}/${randomUUID()}.png`;
-  const updatedReviewPath = `users/${buyer.userId}/reviews/${review.reviewId}/${randomUUID()}.webp`;
+  const shop = await createFixtureShop(db, seller.userId);
+  const category = await createFixtureCategory(db);
+  const product = await createFixtureProduct(db, shop.shopId, category.categoryId);
+  const variant = await createFixtureVariant(db, product.productId);
+  const order = await createFixtureOrder(db, buyer.userId, shop.shopId, { status: 'COMPLETED' });
+  const item = await createFixtureOrderItem(db, order.orderId, product.productId, variant.variantId);
+  const review = await createFixtureReview(db, buyer.userId, product.productId, item.orderItemId);
 
-  await setAuthenticatedUser(seller.userId);
-  await client.query(
-    'INSERT INTO storage.objects (id, bucket_id, name, owner, owner_id) VALUES ($1, $2, $3, $4, $5)',
-    [productObjectId, 'product-media', productPath, seller.userId, seller.userId],
+  const productPath = `shops/${shop.shopId}/products/${product.productId}/${randomUUID()}.png`;
+  await upload(seller.client, 'product-media', productPath);
+  const movedProductPath = `shops/${shop.shopId}/products/${product.productId}/${randomUUID()}.png`;
+  const productMove = await seller.client.storage.from('product-media').move(productPath, movedProductPath);
+  if (productMove.error) throw productMove.error;
+  uploaded.splice(uploaded.findIndex((object) => object.path === productPath), 1, {
+    bucket: 'product-media', path: movedProductPath,
+  });
+  await expectDenied(() => otherSeller.client.storage.from('product-media').move(
+    movedProductPath,
+    `shops/${shop.shopId}/products/${product.productId}/${randomUUID()}.png`,
+  ));
+  await expectDenied(() => upload(otherSeller.client, 'product-media', productPath.replace(/[^/]+$/, `${randomUUID()}.png`)));
+  await expectDenied(() => upload(seller.client, 'review-media', productPath));
+  const { error: productDeleteDenied } = await otherSeller.client.storage.from('product-media').remove([movedProductPath]);
+  if (productDeleteDenied) throw productDeleteDenied;
+  const productCheck = await seller.client.storage.from('product-media').list(
+    `shops/${shop.shopId}/products/${product.productId}`,
   );
-  await client.query('UPDATE storage.objects SET name = $1 WHERE id = $2', [updatedProductPath, productObjectId]);
-  await expectRlsRejection(() => client.query(
-    'UPDATE storage.objects SET name = $1 WHERE id = $2',
-    [`shops/${otherSeller.userId}/logo.png`, productObjectId],
-  ));
-  await resetRole();
+  if (productCheck.error || !productCheck.data.some((object) => object.name === movedProductPath.split('/').at(-1))) {
+    throw productCheck.error ?? new Error('Non-owner unexpectedly removed product media');
+  }
+  const { error: productDeleteError } = await seller.client.storage.from('product-media').remove([movedProductPath]);
+  if (productDeleteError) throw productDeleteError;
 
-  await setAuthenticatedUser(otherSeller.userId);
-  await expectRlsRejection(() => client.query(
-    'INSERT INTO storage.objects (bucket_id, name, owner, owner_id) VALUES ($1, $2, $3, $4)',
-    ['product-media', productPath.replace(productObjectId, randomUUID()), otherSeller.userId, otherSeller.userId],
+  const reviewPath = `users/${buyer.userId}/reviews/${review.reviewId}/${randomUUID()}.png`;
+  await upload(buyer.client, 'review-media', reviewPath);
+  const movedReviewPath = `users/${buyer.userId}/reviews/${review.reviewId}/${randomUUID()}.png`;
+  const reviewMove = await buyer.client.storage.from('review-media').move(reviewPath, movedReviewPath);
+  if (reviewMove.error) throw reviewMove.error;
+  uploaded.splice(uploaded.findIndex((object) => object.path === reviewPath), 1, {
+    bucket: 'review-media', path: movedReviewPath,
+  });
+  await expectDenied(() => otherBuyer.client.storage.from('review-media').move(
+    movedReviewPath,
+    `users/${otherBuyer.userId}/reviews/${review.reviewId}/${randomUUID()}.png`,
   ));
-  const deniedProductDelete = await client.query('DELETE FROM storage.objects WHERE id = $1', [productObjectId]);
-  if (deniedProductDelete.rowCount !== 0) throw new Error('Non-owner unexpectedly deleted product media');
-  await resetRole();
-
-  await setAuthenticatedUser(buyer.userId);
-  await client.query(
-    'INSERT INTO storage.objects (id, bucket_id, name, owner, owner_id) VALUES ($1, $2, $3, $4, $5)',
-    [reviewObjectId, 'review-media', reviewPath, buyer.userId, buyer.userId],
+  await expectDenied(() => upload(otherBuyer.client, 'review-media', reviewPath.replace(/[^/]+$/, `${randomUUID()}.png`)));
+  await expectDenied(() => upload(buyer.client, 'product-media', reviewPath));
+  const { error: reviewDeleteDenied } = await otherBuyer.client.storage.from('review-media').remove([movedReviewPath]);
+  if (reviewDeleteDenied) throw reviewDeleteDenied;
+  const reviewCheck = await buyer.client.storage.from('review-media').list(
+    `users/${buyer.userId}/reviews/${review.reviewId}`,
   );
-  await client.query('UPDATE storage.objects SET name = $1 WHERE id = $2', [updatedReviewPath, reviewObjectId]);
-  await expectRlsRejection(() => client.query(
-    'UPDATE storage.objects SET name = $1 WHERE id = $2',
-    [`users/${otherBuyer.userId}/reviews/${review.reviewId}/${randomUUID()}.jpg`, reviewObjectId],
-  ));
-  await expectRlsRejection(() => client.query(
-    'INSERT INTO storage.objects (bucket_id, name, owner, owner_id) VALUES ($1, $2, $3, $4)',
-    ['product-media', reviewPath, buyer.userId, buyer.userId],
-  ));
-  await resetRole();
+  if (reviewCheck.error || !reviewCheck.data.some((object) => object.name === movedReviewPath.split('/').at(-1))) {
+    throw reviewCheck.error ?? new Error('Non-owner unexpectedly removed review media');
+  }
+  const { error: reviewDeleteError } = await buyer.client.storage.from('review-media').remove([movedReviewPath]);
+  if (reviewDeleteError) throw reviewDeleteError;
 
-  await setAuthenticatedUser(otherBuyer.userId);
-  await expectRlsRejection(() => client.query(
-    'INSERT INTO storage.objects (bucket_id, name, owner, owner_id) VALUES ($1, $2, $3, $4)',
-    ['review-media', reviewPath.replace(reviewObjectId, randomUUID()), otherBuyer.userId, otherBuyer.userId],
-  ));
-  await resetRole();
-
-  await setAuthenticatedUser(otherBuyer.userId);
-  const deniedDelete = await client.query('DELETE FROM storage.objects WHERE id = $1', [reviewObjectId]);
-  if (deniedDelete.rowCount !== 0) throw new Error('Non-owner unexpectedly deleted review media');
-  await resetRole();
-
-  await setAuthenticatedUser(buyer.userId);
-  const ownerDelete = await client.query('DELETE FROM storage.objects WHERE id = $1', [reviewObjectId]);
-  if (ownerDelete.rowCount !== 1) throw new Error('Review owner could not delete review media');
-  await resetRole();
-
-  await setAuthenticatedUser(seller.userId);
-  const productOwnerDelete = await client.query('DELETE FROM storage.objects WHERE id = $1', [productObjectId]);
-  if (productOwnerDelete.rowCount !== 1) throw new Error('Product owner could not delete product media');
-  await resetRole();
-
-  await client.query('ROLLBACK');
+  await db.query('ROLLBACK');
   process.stdout.write(`Storage ownership smoke passed for test project ${projectRef}.\n`);
 } catch (error) {
-  await resetRole().catch(() => undefined);
-  await client.query('ROLLBACK').catch(() => undefined);
+  for (const object of uploaded) {
+    await admin.storage.from(object.bucket).remove([object.path]).catch(() => undefined);
+  }
+  await db.query('ROLLBACK').catch(() => undefined);
   throw error;
 } finally {
-  client.release();
+  for (const userId of createdUsers) await admin.auth.admin.deleteUser(userId).catch(() => undefined);
+  db.release();
   await pool.end();
 }
