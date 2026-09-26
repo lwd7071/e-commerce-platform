@@ -136,27 +136,15 @@ USING (
   bucket_id = 'product-media'
   AND owner_id = auth.uid()::text
   AND (storage.foldername(name))[1] = 'shops'
-  AND EXISTS (
-    SELECT 1 FROM public.shops s
-    WHERE s.owner_id = auth.uid()
-      AND s.shop_id = CASE
+  AND (
+    (name ~* '^shops/[0-9a-f-]{36}/logo\.(jpg|jpeg|png|webp)$'
+      AND public.can_manage_shop_media(CASE
         WHEN (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
-        THEN (storage.foldername(name))[2]::uuid
-      END
-      AND (
-        name ~* '^shops/[0-9a-f-]{36}/logo\.(jpg|jpeg|png|webp)$'
-        OR (
-          (storage.foldername(name))[3] = 'products'
-          AND EXISTS (
-            SELECT 1 FROM public.products p
-            WHERE p.shop_id = s.shop_id
-              AND p.product_id = CASE
-                WHEN (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
-                THEN (storage.foldername(name))[4]::uuid
-              END
-          )
-        )
-      )
+        THEN (storage.foldername(name))[2]::uuid END))
+    OR ((storage.foldername(name))[3] = 'products'
+      AND public.can_manage_product_media(
+        CASE WHEN (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$' THEN (storage.foldername(name))[2]::uuid END,
+        CASE WHEN (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$' THEN (storage.foldername(name))[4]::uuid END))
   )
 );
 
