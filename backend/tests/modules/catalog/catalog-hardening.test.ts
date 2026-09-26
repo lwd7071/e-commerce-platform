@@ -54,7 +54,7 @@ remoteDescribe('Catalog Domain Hardening & Security Tests (Mốc T3)', () => {
     const config = loadDatabaseConfig(process.env);
     pool = createDatabasePool({
       databaseUrl: config.directUrl,
-      pool: { ...config.pool, max: 2 },
+      pool: { ...config.pool, max: 5 },
     });
 
     catalogHttpService = new PgCatalogHttpService(pool);
@@ -341,6 +341,117 @@ interface VariantStockUpdateResponse {
       expect(shop2Product).toBeDefined();
       expect(shop2Product.shop_id).toBe(shop2Id);
       expect(shop2Product.variants[0].sku).toBe('MOUSE-GAMING-01');
+    }, 30_000);
+
+    it('blocks concurrent createProduct requests with identical Shop and SKU (T3-P3-01)', async () => {
+      const concurrentSku = `CONCURRENT-SKU-${Date.now()}`;
+      const payload = {
+        category_id: categoryActiveId,
+        product_name: 'Bàn phím cơ Concurrency Test',
+        variants: [
+          {
+            variant_name: 'Blue Switch',
+            sku: concurrentSku,
+            price: '1200000.00',
+            stock_quantity: 25,
+          },
+        ],
+      };
+
+      // Two simultaneous createProduct requests for Seller 1 (same shop & SKU)
+      const results = await Promise.allSettled([
+        catalogHttpService.createProduct(contextSeller1, payload),
+        catalogHttpService.createProduct(contextSeller1, payload),
+      ]);
+
+      const fulfilled = results.filter((r) => r.status === 'fulfilled');
+      const rejected = results.filter((r) => r.status === 'rejected');
+
+      // Exactly one succeeds, the other receives SKU_CONFLICT
+      expect(fulfilled).toHaveLength(1);
+      expect(rejected).toHaveLength(1);
+
+      const rejectedReason = (rejected[0] as PromiseRejectedResult).reason;
+      expect(rejectedReason).toBeInstanceOf(SkuConflictError);
+      expect(rejectedReason.code).toBe('SKU_CONFLICT');
+      expect(rejectedReason.message).toMatch(/already exists in this shop/);
+
+      // Verify in PostgreSQL DB that exactly ONE variant with this SKU exists in Shop 1
+      const countRes = await pool!.query(
+        `SELECT COUNT(*) AS count
+         FROM product_variants v
+         JOIN products p ON v.product_id = p.product_id
+         WHERE p.shop_id = $1 AND v.sku = $2`,
+        [shop1Id, concurrentSku],
+      );
+      expect(Number(countRes.rows[0].count)).toBe(1);
+    }, 30_000);
+
+    it('verifies PostgreSQL concurrency synchronization using two distinct PoolClients (T3-P3-01)', async () => {
+      const client1 = await pool!.connect();
+      const client2 = await pool!.connect();
+      const poolSku = `POOLCLIENT-SKU-${Date.now()}`;
+      const payload = {
+        category_id: categoryActiveId,
+        product_name: 'Chuột Concurrency PoolClient',
+        variants: [
+          {
+            variant_name: 'Pool Edition',
+            sku: poolSku,
+            price: '350000.00',
+            stock_quantity: 15,
+          },
+        ],
+      };
+
+      try {
+        await client1.query('BEGIN');
+        await client2.query('BEGIN');
+
+        const p1 = (catalogHttpService.createProduct(contextSeller1, payload, client1) as Promise<ProductCreatedResponse>)
+          .then(async (res) => {
+            await client1.query('COMMIT');
+            return res;
+          })
+          .catch(async (err) => {
+            await client1.query('ROLLBACK');
+            throw err;
+          });
+
+        const p2 = (catalogHttpService.createProduct(contextSeller1, payload, client2) as Promise<ProductCreatedResponse>)
+          .then(async (res) => {
+            await client2.query('COMMIT');
+            return res;
+          })
+          .catch(async (err) => {
+            await client2.query('ROLLBACK');
+            throw err;
+          });
+
+        const results = await Promise.allSettled([p1, p2]);
+        const fulfilled = results.filter((r) => r.status === 'fulfilled');
+        const rejected = results.filter((r) => r.status === 'rejected');
+
+        expect(fulfilled).toHaveLength(1);
+        expect(rejected).toHaveLength(1);
+
+        const rejectedReason = (rejected[0] as PromiseRejectedResult).reason;
+        expect(rejectedReason).toBeInstanceOf(SkuConflictError);
+        expect(rejectedReason.code).toBe('SKU_CONFLICT');
+
+        // Confirm exactly one variant created in DB
+        const countRes = await pool!.query(
+          `SELECT COUNT(*) AS count
+           FROM product_variants v
+           JOIN products p ON v.product_id = p.product_id
+           WHERE p.shop_id = $1 AND v.sku = $2`,
+          [shop1Id, poolSku],
+        );
+        expect(Number(countRes.rows[0].count)).toBe(1);
+      } finally {
+        client1.release();
+        client2.release();
+      }
     }, 30_000);
   });
 

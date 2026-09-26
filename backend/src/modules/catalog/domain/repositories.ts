@@ -58,7 +58,7 @@ export interface IProductRepository {
   findById(productId: UUID): Promise<Product | null>;
   findByShopId(shopId: UUID, filter?: ProductFilter): Promise<Product[]>;
   queryPublic(filter: PublicProductFilter): Promise<{ items: PublicProductSummary[]; total: number; nextCursor?: string | null }>;
-  create(product: Product, variants: ProductVariant[], images?: ProductImage[]): Promise<Product>;
+  create(product: Product, variants: ProductVariant[], images?: ProductImage[], client?: unknown): Promise<Product>;
   updateStatus(productId: UUID, status: ProductStatus): Promise<Product>;
 }
 

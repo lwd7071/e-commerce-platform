@@ -266,11 +266,13 @@ export class PgProductRepository implements IProductRepository {
     return res.rows.map(mapProductRow);
   }
 
-  async create(product: Product, variants: ProductVariant[], images: ProductImage[] = []): Promise<Product> {
-    const client = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
-
+  async create(
+    product: Product,
+    variants: ProductVariant[],
+    images: ProductImage[] = [],
+    client?: PoolClient,
+  ): Promise<Product> {
+    if (client) {
       const productQuery = `
         INSERT INTO products (product_id, shop_id, category_id, product_name, description, status, created_at, updated_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -302,7 +304,7 @@ export class PgProductRepository implements IProductRepository {
             v.status,
             v.createdAt,
             v.updatedAt,
-          ]
+          ],
         );
       }
 
@@ -310,17 +312,67 @@ export class PgProductRepository implements IProductRepository {
         await client.query(
           `INSERT INTO product_images (image_id, product_id, image_url, sort_order)
            VALUES ($1, $2, $3, $4)`,
-          [img.imageId, product.productId, img.imageUrl, img.sortOrder]
+          [img.imageId, product.productId, img.imageUrl, img.sortOrder],
         );
       }
 
-      await client.query('COMMIT');
+      return mapProductRow(res.rows[0]);
+    }
+
+    const conn = await this.pool.connect();
+    try {
+      await conn.query('BEGIN');
+
+      const productQuery = `
+        INSERT INTO products (product_id, shop_id, category_id, product_name, description, status, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING *
+      `;
+      const res = await conn.query(productQuery, [
+        product.productId,
+        product.shopId,
+        product.categoryId,
+        product.productName,
+        product.description,
+        product.status,
+        product.createdAt,
+        product.updatedAt,
+      ]);
+
+      for (const v of variants) {
+        await conn.query(
+          `INSERT INTO product_variants (variant_id, product_id, variant_name, variant_value, sku, price, stock_quantity, status, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+          [
+            v.variantId,
+            product.productId,
+            v.variantName,
+            v.variantValue,
+            v.sku,
+            v.price,
+            v.stockQuantity,
+            v.status,
+            v.createdAt,
+            v.updatedAt,
+          ],
+        );
+      }
+
+      for (const img of images) {
+        await conn.query(
+          `INSERT INTO product_images (image_id, product_id, image_url, sort_order)
+           VALUES ($1, $2, $3, $4)`,
+          [img.imageId, product.productId, img.imageUrl, img.sortOrder],
+        );
+      }
+
+      await conn.query('COMMIT');
       return mapProductRow(res.rows[0]);
     } catch (err) {
-      await client.query('ROLLBACK');
+      await conn.query('ROLLBACK');
       throw err;
     } finally {
-      client.release();
+      conn.release();
     }
   }
 

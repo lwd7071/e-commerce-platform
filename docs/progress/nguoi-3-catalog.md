@@ -3,11 +3,33 @@
 ## Trạng thái hiện tại
 
 - Mốc: T3 (Hardening & Nghiệm thu)
-- Cập nhật lần cuối: 2026-09-25
-- Đang làm: Đã hoàn tất 100% các hạng mục của Mốc T3: Negative Testing & Cross-Shop Ownership (QD04, RB-LQH07), Status Visibility Matrix (RB-MG12), SKU Conflict Isolation per Shop (RB-LB11), Media Validation (RB-MG11), Dataset Benchmark & Triệt tiêu N+1 Query, Soft Deactivation (QD16). Quality gates đạt 100% (Typecheck 0 lỗi, Lint 0 lỗi, Node runner 518/518 tests pass, Vitest catalog 62/62 tests pass).
-- Bị block bởi: Không (Sẵn sàng mở PR T3 để merge vào dev).
+- Cập nhật lần cuối: 2026-09-26
+- Đang làm: Đã hoàn tất 100% các hạng mục của Mốc T3 và khắc phục triệt để lỗi T3-P3-01 (P1 - Đồng bộ giao dịch SKU và kiểm chứng đồng thời 2 PoolClient trên PostgreSQL thật). Toàn bộ quality gates đạt chuẩn xuất sắc: Typecheck 0 lỗi, Lint 0 lỗi, Node native runner 522/522 tests pass, Vitest catalog 68/68 tests pass (16/16 hardening pass, 4/4 benchmark siêu tốc pass).
+- Bị block bởi: Không (Sẵn sàng để Lead merge vào nhánh dev).
 
 ## Nhật ký theo ngày
+
+### 2026-09-26 (Khắc phục T3-P3-01: Đồng bộ Concurrency SKU per Shop & Integration Tests 2 PoolClients trên PostgreSQL thật)
+
+- Đã làm:
+  - **Khắc phục lỗi T3-P3-01 (P1 — Đồng bộ kiểm tra và tạo SKU theo Shop):**
+    - **Vấn đề trước đó:** `createProduct()` kiểm tra SKU trùng ở ngoài transaction, sau đó mới tạo sản phẩm; giữa hai bước không có đồng bộ nên hai request đồng thời cùng Shop/SKU đều qua kiểm tra và tạo trùng biến thể (do DB chỉ có normal index, không có unique constraint per shop vì Schema Freeze v1).
+    - **Giải pháp đồng bộ bằng Giao dịch & Khóa hàng (Transaction Scope & Row Lock):**
+      - Gói toàn bộ chu trình kiểm tra SKU trùng và chèn sản phẩm / biến thể / hình ảnh vào cùng một transaction duy nhất thông qua `withTransaction(this.pool, async (client) => { ... })`.
+      - Khóa hàng Shop tương ứng ngay đầu giao dịch: `SELECT shop_id FROM shops WHERE shop_id = $1 FOR UPDATE`. Cơ chế này tuần tự hóa (serialize) các request đồng thời trên cùng một Shop, triệt tiêu race condition mà không block các Seller/Shop khác nhau (zero contention across shops).
+      - Tuân thủ 100% Schema Freeze v1: Không cần sửa đổi bất kỳ DDL migration nào hay thêm constraint chưa duyệt vào DB.
+      - Nâng cấp `IProductRepository.create(product, variants, images, client?: unknown)` và `PgProductRepository.create` cho phép truyền `client?: PoolClient` để tái sử dụng transaction client từ tầng service, đồng thời giữ nguyên fallback độc lập cho các caller khác.
+  - **Bổ sung 2 Integration Tests trên PostgreSQL thật (`catalog-hardening.test.ts`):**
+    - `blocks concurrent createProduct requests with identical Shop and SKU (T3-P3-01)`: Kích hoạt đồng thời 2 request `createProduct` cùng Shop/SKU; chứng minh đúng 1 request thành công, request còn lại nhận `SkuConflictError` (`SKU_CONFLICT`, 409), DB chỉ lưu duy nhất 1 SKU.
+    - `verifies PostgreSQL concurrency synchronization using two distinct PoolClients (T3-P3-01)`: Kết nối trực tiếp 2 `PoolClient` riêng biệt thực thi hai transaction đồng thời; kiểm chứng client 1 giữ khóa `FOR UPDATE` cho đến khi commit, client 2 đợi giải phóng khóa rồi thấy SKU đã tồn tại và rollback với `SKU_CONFLICT`.
+- Kết quả kiểm thử:
+  - `tests/modules/catalog/catalog-hardening.test.ts`: **16/16 tests PASS** trên PostgreSQL Supabase thật (trước đó 14/14).
+  - `tests/modules/catalog/catalog-benchmark.integration.test.ts`: **4/4 tests PASS** (siêu tốc ~8s).
+  - Vitest catalog toàn bộ: **8/8 files PASS, 68/68 tests PASS 100%**.
+  - `npm run test:node`: **155/155 test suites PASS, 522/522 tests PASS 100%**.
+  - `npm run typecheck`: **0 lỗi biên dịch**.
+  - `npm run lint`: **0 errors**.
+  - `npm run build`: bundle thành công `dist/app.js` (136.0kb trong 56ms).
 
 ### 2026-09-25 (Hoàn thành Toàn diện Mốc T3 — Hardening, Negative Testing & Performance Tuning)
 
