@@ -27,32 +27,73 @@ CREATE POLICY "Public Access Review Media"
 ON storage.objects FOR SELECT
 USING (bucket_id = 'review-media');
 
+-- Storage policies must validate ownership without granting authenticated users
+-- direct table access (the application schema intentionally defaults to deny).
+CREATE OR REPLACE FUNCTION public.can_manage_product_media(target_shop_id uuid, target_product_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.shops s
+    WHERE s.shop_id = target_shop_id
+      AND s.owner_id = auth.uid()
+      AND EXISTS (
+        SELECT 1 FROM public.products p
+        WHERE p.shop_id = s.shop_id AND p.product_id = target_product_id
+      )
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.can_manage_review_media(target_review_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.reviews r
+    WHERE r.review_id = target_review_id AND r.buyer_id = auth.uid()
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION public.can_manage_shop_media(target_shop_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.shops s
+    WHERE s.shop_id = target_shop_id AND s.owner_id = auth.uid()
+  );
+$$;
+
+REVOKE ALL ON FUNCTION public.can_manage_product_media(uuid, uuid) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.can_manage_review_media(uuid) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.can_manage_shop_media(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.can_manage_product_media(uuid, uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.can_manage_review_media(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.can_manage_shop_media(uuid) TO authenticated;
+
 CREATE POLICY "Seller Insert Product Media"
 ON storage.objects FOR INSERT TO authenticated
 WITH CHECK (
   bucket_id = 'product-media'
   AND (storage.foldername(name))[1] = 'shops'
-  AND EXISTS (
-    SELECT 1 FROM public.shops s
-    WHERE s.owner_id = auth.uid()
-      AND s.shop_id = CASE
+  AND (
+    (name ~* '^shops/[0-9a-f-]{36}/logo\.(jpg|jpeg|png|webp)$'
+      AND public.can_manage_shop_media(CASE
         WHEN (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
-        THEN (storage.foldername(name))[2]::uuid
-      END
-      AND (
-        name ~* '^shops/[0-9a-f-]{36}/logo\.(jpg|jpeg|png|webp)$'
-        OR (
-          (storage.foldername(name))[3] = 'products'
-          AND EXISTS (
-            SELECT 1 FROM public.products p
-            WHERE p.shop_id = s.shop_id
-              AND p.product_id = CASE
-                WHEN (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
-                THEN (storage.foldername(name))[4]::uuid
-              END
-          )
-        )
-      )
+        THEN (storage.foldername(name))[2]::uuid END))
+    OR ((storage.foldername(name))[3] = 'products'
+      AND public.can_manage_product_media(
+        CASE WHEN (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$' THEN (storage.foldername(name))[2]::uuid END,
+        CASE WHEN (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$' THEN (storage.foldername(name))[4]::uuid END))
   )
 );
 
@@ -62,54 +103,30 @@ USING (
   bucket_id = 'product-media'
   AND owner_id = auth.uid()::text
   AND (storage.foldername(name))[1] = 'shops'
-  AND EXISTS (
-    SELECT 1 FROM public.shops s
-    WHERE s.owner_id = auth.uid()
-      AND s.shop_id = CASE
+  AND (
+    (name ~* '^shops/[0-9a-f-]{36}/logo\.(jpg|jpeg|png|webp)$'
+      AND public.can_manage_shop_media(CASE
         WHEN (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
-        THEN (storage.foldername(name))[2]::uuid
-      END
-      AND (
-        name ~* '^shops/[0-9a-f-]{36}/logo\.(jpg|jpeg|png|webp)$'
-        OR (
-          (storage.foldername(name))[3] = 'products'
-          AND EXISTS (
-            SELECT 1 FROM public.products p
-            WHERE p.shop_id = s.shop_id
-              AND p.product_id = CASE
-                WHEN (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
-                THEN (storage.foldername(name))[4]::uuid
-              END
-          )
-        )
-      )
+        THEN (storage.foldername(name))[2]::uuid END))
+    OR ((storage.foldername(name))[3] = 'products'
+      AND public.can_manage_product_media(
+        CASE WHEN (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$' THEN (storage.foldername(name))[2]::uuid END,
+        CASE WHEN (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$' THEN (storage.foldername(name))[4]::uuid END))
   )
 )
 WITH CHECK (
   bucket_id = 'product-media'
   AND owner_id = auth.uid()::text
   AND (storage.foldername(name))[1] = 'shops'
-  AND EXISTS (
-    SELECT 1 FROM public.shops s
-    WHERE s.owner_id = auth.uid()
-      AND s.shop_id = CASE
+  AND (
+    (name ~* '^shops/[0-9a-f-]{36}/logo\.(jpg|jpeg|png|webp)$'
+      AND public.can_manage_shop_media(CASE
         WHEN (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$'
-        THEN (storage.foldername(name))[2]::uuid
-      END
-      AND (
-        name ~* '^shops/[0-9a-f-]{36}/logo\.(jpg|jpeg|png|webp)$'
-        OR (
-          (storage.foldername(name))[3] = 'products'
-          AND EXISTS (
-            SELECT 1 FROM public.products p
-            WHERE p.shop_id = s.shop_id
-              AND p.product_id = CASE
-                WHEN (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
-                THEN (storage.foldername(name))[4]::uuid
-              END
-          )
-        )
-      )
+        THEN (storage.foldername(name))[2]::uuid END))
+    OR ((storage.foldername(name))[3] = 'products'
+      AND public.can_manage_product_media(
+        CASE WHEN (storage.foldername(name))[2] ~* '^[0-9a-f-]{36}$' THEN (storage.foldername(name))[2]::uuid END,
+        CASE WHEN (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$' THEN (storage.foldername(name))[4]::uuid END))
   )
 );
 
@@ -150,14 +167,9 @@ WITH CHECK (
   AND (storage.foldername(name))[1] = 'users'
   AND (storage.foldername(name))[2] = auth.uid()::text
   AND (storage.foldername(name))[3] = 'reviews'
-  AND EXISTS (
-    SELECT 1 FROM public.reviews r
-    WHERE r.buyer_id = auth.uid()
-      AND r.review_id = CASE
-        WHEN (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
-        THEN (storage.foldername(name))[4]::uuid
-      END
-  )
+  AND public.can_manage_review_media(CASE
+    WHEN (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
+    THEN (storage.foldername(name))[4]::uuid END)
 );
 
 CREATE POLICY "Buyer Update Review Media"
@@ -168,14 +180,9 @@ USING (
   AND (storage.foldername(name))[1] = 'users'
   AND (storage.foldername(name))[2] = auth.uid()::text
   AND (storage.foldername(name))[3] = 'reviews'
-  AND EXISTS (
-    SELECT 1 FROM public.reviews r
-    WHERE r.buyer_id = auth.uid()
-      AND r.review_id = CASE
-        WHEN (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
-        THEN (storage.foldername(name))[4]::uuid
-      END
-  )
+  AND public.can_manage_review_media(CASE
+    WHEN (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
+    THEN (storage.foldername(name))[4]::uuid END)
 )
 WITH CHECK (
   bucket_id = 'review-media'
@@ -183,14 +190,9 @@ WITH CHECK (
   AND (storage.foldername(name))[1] = 'users'
   AND (storage.foldername(name))[2] = auth.uid()::text
   AND (storage.foldername(name))[3] = 'reviews'
-  AND EXISTS (
-    SELECT 1 FROM public.reviews r
-    WHERE r.buyer_id = auth.uid()
-      AND r.review_id = CASE
-        WHEN (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
-        THEN (storage.foldername(name))[4]::uuid
-      END
-  )
+  AND public.can_manage_review_media(CASE
+    WHEN (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
+    THEN (storage.foldername(name))[4]::uuid END)
 );
 
 CREATE POLICY "Buyer Delete Review Media"
@@ -201,12 +203,7 @@ USING (
   AND (storage.foldername(name))[1] = 'users'
   AND (storage.foldername(name))[2] = auth.uid()::text
   AND (storage.foldername(name))[3] = 'reviews'
-  AND EXISTS (
-    SELECT 1 FROM public.reviews r
-    WHERE r.buyer_id = auth.uid()
-      AND r.review_id = CASE
-        WHEN (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
-        THEN (storage.foldername(name))[4]::uuid
-      END
-  )
+  AND public.can_manage_review_media(CASE
+    WHEN (storage.foldername(name))[4] ~* '^[0-9a-f-]{36}$'
+    THEN (storage.foldername(name))[4]::uuid END)
 );
