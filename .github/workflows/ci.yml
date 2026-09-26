@@ -282,6 +282,9 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
+      - name: Pin npm
+        run: npm install --global npm@11.12.1
+
       - name: Install backend dependencies
         run: npm ci
 
