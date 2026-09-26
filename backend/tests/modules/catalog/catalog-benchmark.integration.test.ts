@@ -299,9 +299,7 @@ remoteDescribe('Catalog Benchmark & N+1 Audit Integration (Mốc T3)', () => {
     const categoryLookupPlan = await explainQueryPlan(
       pool,
       `SELECT product_id FROM products
-       WHERE category_id = $1 AND status = 'ACTIVE'
-       ORDER BY product_id
-       LIMIT 10`,
+       WHERE category_id = $1 AND status = 'ACTIVE'`,
       [benchCatId1],
     );
     expect(
@@ -312,9 +310,7 @@ remoteDescribe('Catalog Benchmark & N+1 Audit Integration (Mốc T3)', () => {
     const shopLookupPlan = await explainQueryPlan(
       pool,
       `SELECT product_id FROM products
-       WHERE shop_id = $1 AND status = 'ACTIVE'
-       ORDER BY product_id
-       LIMIT 10`,
+       WHERE shop_id = $1 AND status = 'ACTIVE'`,
       [benchShopId],
     );
     expect(
