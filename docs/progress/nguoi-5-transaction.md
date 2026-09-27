@@ -3,11 +3,21 @@
 ## Trạng thái hiện tại
 
 - Mốc: T3
-- Cập nhật lần cuối: 2026-09-25
-- Đang làm: Đã hoàn thành 100% toàn bộ Mốc T2 và Mốc T3 — Transaction Core, Concurrency Hardening, Exhaustive Edge-cases & Reporting Module. Đạt 533/533 tests PASS (100%), typecheck 0 lỗi (`tsc --noEmit`), build sạch. Sẵn sàng 100% cho Review Gate T3.
+- Cập nhật lần cuối: 2026-09-27
+- Trạng thái: Đã xử lý T3-P5-01/02/03/04 và xác minh bằng 32/32 test PostgreSQL thật (không skip). Typecheck/build pass; lint 0 error. Xem [bằng chứng và giới hạn kiểm chứng](t3-p5-postgresql.md).
 - Bị block bởi: Không (Đã giải phóng 100% mọi blocker trước đây: API wiring của Người 1, shopId Catalog port của Người 3, persistence transaction của Người 2, Cart/Voucher binding của Người 4 đều đã tích hợp và hoạt động trọn vẹn).
 
 ## Nhật ký theo ngày
+
+### 2026-09-27 — Đóng bốn finding T3-P5 bằng PostgreSQL integration tests
+
+- `cancelOrder()` khóa Order/OrderItems/variants, hoàn kho đúng một lần và ghi status/history trong cùng transaction. Nhánh hủy qua `transitionOrder()` dùng chung xử lý này.
+- `retryPayment()` khóa Order/Payment và guard trạng thái trước khi tạo attempt; chặn terminal Order, SUCCESS/PENDING và retry đồng thời.
+- `confirmOrder()` bổ sung history; confirm/transition rollback trạng thái nếu ghi history thất bại.
+- Thêm `npm run test:transaction:pg`: gọi `PgCheckoutService` thật trên schema riêng, dùng migration/fixture và concurrency harness của Người 2. Kiểm tra overselling, duplicate key, deadlock thật, serialization và rollback từng bước/từng shop/voucher.
+- Trước sửa: 12 test fail, 10 pass. Sau sửa: **32/32 PostgreSQL pass, 0 skip**, PostgreSQL 17.6; thời gian 401.89 giây trên kết nối remote.
+- Regression bổ sung: 533 Node tests pass qua esbuild do lỗi môi trường `tsx` trên Windows; 89 Vitest pass (59 remote test khác không chạy trong lượt này). Typecheck/build pass; lint toàn backend 0 error, 219 warning ngoài các file sửa.
+- Đính chính nhật ký 2026-09-25: các test mutex/in-memory/mock retry khi đó chỉ chứng minh logic mô phỏng, chưa phải bằng chứng ACID/lock của `PgCheckoutService`. Kết quả PostgreSQL mới ở trên thay thế kết luận đó cho bốn finding T3-P5.
 
 ### 2026-09-25 — Hoàn thành 100% Mốc T3: Transaction Hardening, Concurrency Harness, Edge Cases & Reporting Module
 

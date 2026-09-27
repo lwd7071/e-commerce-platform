@@ -10,7 +10,9 @@ import { ConflictError, ForbiddenError, NotFoundError, ValidationFailedError } f
 import type { CheckoutCommand } from '../contracts/checkout-command.ts';
 import type { CheckoutResult } from '../contracts/checkout-result.ts';
 import { transitionOrder } from '../../order/domain/order-state-machine.ts';
-import type { OrderStatus, OrderTransitionCommand } from '../../order/domain/types.ts';
+import type { OrderStatus, OrderTransition, OrderTransitionCommand } from '../../order/domain/types.ts';
+import { createPaymentRetry } from '../../payment/domain/payment-state-machine.ts';
+import type { PaymentAttempt } from '../../payment/domain/types.ts';
 
 type CheckoutRow = {
   cart_item_id: string; variant_id: string; quantity: number; price: string; stock_quantity: number;
@@ -83,7 +85,8 @@ export class PgCheckoutService implements OrderHttpApplication {
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'0.00',$12,'PENDING_CONFIRMATION')`,
         [orderId, context.user_id, shopId, address.rows[0].recipient_name, address.rows[0].phone, address.rows[0].province, address.rows[0].district, address.rows[0].ward, address.rows[0].detail_address, totals.subtotal, totals.discount_amount, totals.total_amount]);
       for (const row of rows) {
-        await client.query('UPDATE product_variants SET stock_quantity=stock_quantity-$1,updated_at=now() WHERE variant_id=$2 AND stock_quantity >= $1', [row.quantity, row.variant_id]);
+        const inventory = await client.query('UPDATE product_variants SET stock_quantity=stock_quantity-$1,updated_at=now() WHERE variant_id=$2 AND stock_quantity >= $1', [row.quantity, row.variant_id]);
+        if (inventory.rowCount !== 1) throw new ConflictError('INVENTORY_INSUFFICIENT', `Insufficient stock for variant ${row.variant_id}.`);
         const snapshot = (row.variant_value ? `${row.variant_name}: ${row.variant_value}` : row.variant_name).trim().slice(0, 255);
         await client.query('INSERT INTO order_items (order_item_id,order_id,product_id,variant_id,product_name_snapshot,variant_snapshot,unit_price,quantity,line_total) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)', [crypto.randomUUID(), orderId, row.product_id, row.variant_id, row.product_name, snapshot, row.price, row.quantity, (Number(row.price) * row.quantity).toFixed(2)]);
         await client.query('DELETE FROM cart_items WHERE cart_item_id=$1', [row.cart_item_id]);
@@ -102,45 +105,89 @@ export class PgCheckoutService implements OrderHttpApplication {
   async cancelOrder(context: RequestContext, orderId: string, input: Record<string, unknown>): Promise<unknown> {
     const reason = typeof input.reason === 'string' ? input.reason.trim() : '';
     if (!reason) throw new ValidationFailedError('Cancellation reason is required.');
-    const result = await this.pool.query("UPDATE orders SET status='CANCELLED',cancel_reason=$1,updated_at=now() WHERE order_id=$2 AND (buyer_id=$3 OR $4='ADMIN') AND status='PENDING_CONFIRMATION' RETURNING *", [reason, orderId, context.user_id, context.role]);
-    if (!result.rows[0]) throw new NotFoundError('Order was not found or cannot be cancelled.');
-    await this.pool.query("INSERT INTO order_status_history (history_id,order_id,old_status,new_status,changed_by,reason) VALUES ($1,$2,'PENDING_CONFIRMATION','CANCELLED',$3,$4)", [crypto.randomUUID(), orderId, context.user_id, reason]);
-    return result.rows[0];
+    return withTransaction(this.pool, async client => {
+      const current = await client.query("SELECT status FROM orders WHERE order_id=$1 AND (buyer_id=$2 OR $3='ADMIN') FOR UPDATE", [orderId, context.user_id, context.role]);
+      if (!current.rows[0]) throw new NotFoundError('Order was not found.');
+      if (current.rows[0].status !== 'PENDING_CONFIRMATION') {
+        throw new ConflictError('ORDER_CANCELLATION_NOT_ALLOWED', 'Order cannot be cancelled.');
+      }
+      return this.persistTransition(client, context, orderId, { from: 'PENDING_CONFIRMATION', to: 'CANCELLED', reason });
+    });
   }
 
   async confirmOrder(context: RequestContext, orderId: string): Promise<unknown> {
-    const result = await this.pool.query("UPDATE orders o SET status='CONFIRMED',updated_at=now() FROM shops s WHERE o.shop_id=s.shop_id AND o.order_id=$1 AND o.status='PENDING_CONFIRMATION' AND ($2='ADMIN' OR s.owner_id=$3) RETURNING o.*", [orderId, context.role, context.user_id]);
-    if (!result.rows[0]) throw new ForbiddenError('ORDER_CONFIRM_FORBIDDEN', 'Order cannot be confirmed by this actor.');
-    return result.rows[0];
+    return withTransaction(this.pool, async client => {
+      const current = await client.query("SELECT o.status FROM orders o JOIN shops s ON o.shop_id=s.shop_id WHERE o.order_id=$1 AND ($2='ADMIN' OR ($2='SELLER' AND s.owner_id=$3)) FOR UPDATE OF o", [orderId, context.role, context.user_id]);
+      if (!current.rows[0]) throw new ForbiddenError('ORDER_CONFIRM_FORBIDDEN', 'Order cannot be confirmed by this actor.');
+      if (current.rows[0].status !== 'PENDING_CONFIRMATION') {
+        throw new ConflictError('ORDER_INVALID_TRANSITION', 'Order cannot be confirmed in its current state.');
+      }
+      return this.persistTransition(client, context, orderId, { from: 'PENDING_CONFIRMATION', to: 'CONFIRMED' });
+    });
   }
 
   async transitionOrder(context: RequestContext, orderId: string, input: Record<string, unknown>): Promise<unknown> {
-    const current = await this.pool.query('SELECT o.*, s.owner_id FROM orders o JOIN shops s ON s.shop_id=o.shop_id WHERE o.order_id=$1', [orderId]);
-    const row = current.rows[0]; if (!row) throw new NotFoundError('Order not found.');
-    const actor = context.role === 'ADMIN' ? { kind: 'ADMIN' as const, userId: context.user_id } : { kind: 'SELLER' as const, userId: context.user_id, shopId: context.shop_id ?? '' };
-    const to = parseOrderStatus(input.to);
-    const shipmentStatus = parseShipmentStatus(input.shipment_status);
-    const decision = transitionOrder(
-      { status: row.status, buyerId: row.buyer_id, shopId: row.shop_id },
-      {
-        to,
-        actor,
-        reason: typeof input.reason === 'string' ? input.reason : undefined,
-        processingEligible: true,
-        exceptionalCancellation: input.exceptional_cancellation === true,
-        shipmentStatus,
-      },
-    );
-    const result = await this.pool.query('UPDATE orders SET status=$1,updated_at=now(),cancel_reason=$2 WHERE order_id=$3 RETURNING *', [decision.to, decision.reason ?? null, orderId]);
-    await this.pool.query('INSERT INTO order_status_history (history_id,order_id,old_status,new_status,changed_by,reason) VALUES ($1,$2,$3,$4,$5,$6)', [crypto.randomUUID(), orderId, decision.from, decision.to, context.user_id, decision.reason ?? null]);
+    return withTransaction(this.pool, async client => {
+      const current = await client.query('SELECT o.*, s.owner_id FROM orders o JOIN shops s ON s.shop_id=o.shop_id WHERE o.order_id=$1 FOR UPDATE OF o', [orderId]);
+      const row = current.rows[0]; if (!row) throw new NotFoundError('Order not found.');
+      if (context.role !== 'ADMIN' && (context.role !== 'SELLER' || row.owner_id !== context.user_id)) {
+        throw new ForbiddenError('RESOURCE_FORBIDDEN', 'Order cannot be changed by this actor.');
+      }
+      const actor = context.role === 'ADMIN' ? { kind: 'ADMIN' as const, userId: context.user_id } : { kind: 'SELLER' as const, userId: context.user_id, shopId: context.shop_id ?? '' };
+      const to = parseOrderStatus(input.to);
+      const shipmentStatus = parseShipmentStatus(input.shipment_status);
+      const decision = transitionOrder(
+        { status: row.status, buyerId: row.buyer_id, shopId: row.shop_id },
+        {
+          to,
+          actor,
+          reason: typeof input.reason === 'string' ? input.reason : undefined,
+          processingEligible: true,
+          exceptionalCancellation: input.exceptional_cancellation === true,
+          shipmentStatus,
+        },
+      );
+      return this.persistTransition(client, context, orderId, decision);
+    });
+  }
+
+  /** Caller holds the Order lock; stock, status and history commit together. */
+  private async persistTransition(client: PoolClient, context: RequestContext, orderId: string, decision: OrderTransition): Promise<unknown> {
+    if (decision.to === 'CANCELLED') {
+      const items = await client.query<{ variant_id: string; quantity: number }>(
+        'SELECT variant_id,quantity FROM order_items WHERE order_id=$1 ORDER BY variant_id,order_item_id FOR UPDATE', [orderId]);
+      // Match checkout's stable variant lock order, including multi-item orders.
+      await client.query('SELECT variant_id FROM product_variants WHERE variant_id=ANY($1::uuid[]) ORDER BY variant_id FOR UPDATE', [items.rows.map(item => item.variant_id)]);
+      for (const item of items.rows) {
+        const restored = await client.query('UPDATE product_variants SET stock_quantity=stock_quantity+$1,updated_at=now() WHERE variant_id=$2', [item.quantity, item.variant_id]);
+        if (restored.rowCount !== 1) throw new ConflictError('INVENTORY_RESTORE_FAILED', 'Ordered variant was not found.');
+      }
+    }
+    const result = await client.query('UPDATE orders SET status=$1,updated_at=now(),cancel_reason=$2 WHERE order_id=$3 AND status=$4 RETURNING *', [decision.to, decision.to === 'CANCELLED' ? decision.reason : null, orderId, decision.from]);
+    if (!result.rows[0]) throw new ConflictError('ORDER_INVALID_TRANSITION', 'Order state changed.');
+    await client.query('INSERT INTO order_status_history (history_id,order_id,old_status,new_status,changed_by,reason) VALUES ($1,$2,$3,$4,$5,$6)', [crypto.randomUUID(), orderId, decision.from, decision.to, context.user_id, decision.reason ?? null]);
     return result.rows[0];
   }
 
   async retryPayment(context: RequestContext, orderId: string, input: Record<string, unknown>): Promise<unknown> {
-    const order = await this.pool.query('SELECT total_amount FROM orders WHERE order_id=$1 AND buyer_id=$2', [orderId, context.user_id]);
-    if (!order.rows[0]) throw new NotFoundError('Order not found.');
-    const result = await this.pool.query("INSERT INTO payments (payment_id,order_id,method,amount,status,note) VALUES ($1,$2,$3,$4,'PENDING','retry') RETURNING *", [crypto.randomUUID(), orderId, input.payment_method ?? 'ONLINE', order.rows[0].total_amount]);
-    return result.rows[0];
+    return withTransaction(this.pool, async client => {
+      const order = await client.query('SELECT status,total_amount FROM orders WHERE order_id=$1 AND buyer_id=$2 FOR UPDATE', [orderId, context.user_id]);
+      if (!order.rows[0]) throw new NotFoundError('Order not found.');
+      if (['CANCELLED', 'COMPLETED', 'DELIVERY_FAILED'].includes(order.rows[0].status)) {
+        throw new ConflictError('PAYMENT_STATE_INVALID', 'Cannot retry payment for a terminal order.');
+      }
+      const payments = await client.query<PaymentAttempt>(
+        'SELECT payment_id AS "paymentId",order_id AS "orderId",status,method,amount::text,paid_at AS "paidAt" FROM payments WHERE order_id=$1 ORDER BY payment_id FOR UPDATE', [orderId]);
+      if (payments.rows.length === 0 || payments.rows.some(payment => payment.status === 'PENDING')) {
+        throw new ConflictError('PAYMENT_STATE_INVALID', 'Retry requires failed attempts and no pending payment.');
+      }
+      const retry = createPaymentRetry(payments.rows, {
+        paymentId: crypto.randomUUID(), orderId, orderTotal: order.rows[0].total_amount,
+        method: (input.payment_method ?? 'ONLINE') as PaymentAttempt['method'],
+      });
+      const result = await client.query("INSERT INTO payments (payment_id,order_id,method,amount,status,note) VALUES ($1,$2,$3,$4,'PENDING','retry') RETURNING *", [retry.paymentId, orderId, retry.method, retry.amount]);
+      return result.rows[0];
+    });
   }
 }
 
