@@ -1,4 +1,4 @@
-import type { Pool } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 import type { RequestContext } from '../../../contracts/request-context.contract.ts';
 import { PgProductRepository, PgProductVariantRepository } from '../repositories/pg-catalog.repository.ts';
 import type { Product, ProductImage, ProductVariant } from '../domain/types.ts';
@@ -9,6 +9,7 @@ import {
   SkuConflictError,
   StockInvalidError,
 } from '../domain/errors.ts';
+import { withTransaction } from '../../../../db/transaction.ts';
 
 const decimal = /^\d+(\.\d{1,2})?$/;
 const objectValue = (value: unknown): Record<string, unknown> =>
@@ -112,7 +113,11 @@ export class PgCatalogHttpService {
     };
   }
 
-  async createProduct(context: RequestContext, input: Record<string, unknown>): Promise<unknown> {
+  async createProduct(
+    context: RequestContext,
+    input: Record<string, unknown>,
+    client?: PoolClient,
+  ): Promise<unknown> {
     if (!context.shop_id) {
       throw new ForbiddenError('Seller shop is required');
     }
@@ -192,24 +197,52 @@ export class PgCatalogHttpService {
       };
     });
 
-    await this.products.create(product, variants, images);
-    return {
-      product_id: product.productId,
-      shop_id: product.shopId,
-      category_id: product.categoryId,
-      product_name: product.productName,
-      description: product.description,
-      status: product.status,
-      variants: variants.map((v) => ({
-        variant_id: v.variantId,
-        variant_name: v.variantName,
-        variant_value: v.variantValue,
-        sku: v.sku,
-        price: v.price,
-        stock_quantity: v.stockQuantity,
-        status: v.status,
-      })),
+    const executeInTx = async (txClient: PoolClient) => {
+      // Synchronize per shop to prevent concurrent SKU insertion race condition (T3-P3-01)
+      const shopLock = await txClient.query(
+        'SELECT shop_id FROM shops WHERE shop_id = $1 FOR UPDATE',
+        [context.shop_id],
+      );
+      if (shopLock.rows.length === 0) {
+        throw new ResourceNotFoundError(`Shop ${context.shop_id} not found`);
+      }
+
+      // Check duplicate SKU in the same shop (cross-shop allowed)
+      const existingSkuRes = await txClient.query(
+        `SELECT v.sku 
+         FROM product_variants v 
+         JOIN products p ON v.product_id = p.product_id 
+         WHERE p.shop_id = $1 AND v.sku = ANY($2::text[])`,
+        [context.shop_id, Array.from(payloadSkus)],
+      );
+      if (existingSkuRes.rows.length > 0) {
+        throw new SkuConflictError(`SKU '${existingSkuRes.rows[0].sku}' already exists in this shop`);
+      }
+
+      await this.products.create(product, variants, images, txClient);
+      return {
+        product_id: product.productId,
+        shop_id: product.shopId,
+        category_id: product.categoryId,
+        product_name: product.productName,
+        description: product.description,
+        status: product.status,
+        variants: variants.map((v) => ({
+          variant_id: v.variantId,
+          variant_name: v.variantName,
+          variant_value: v.variantValue,
+          sku: v.sku,
+          price: v.price,
+          stock_quantity: v.stockQuantity,
+          status: v.status,
+        })),
+      };
     };
+
+    if (client) {
+      return await executeInTx(client);
+    }
+    return await withTransaction(this.pool, executeInTx);
   }
 
   async updateVariantStock(

@@ -273,21 +273,23 @@ export class PgProductRepository implements IProductRepository {
     return res.rows.map(mapProductRow);
   }
 
-  async create(product: Product, variants: ProductVariant[], images: ProductImage[] = []): Promise<Product> {
-    const client = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
-
+  async create(
+    product: Product,
+    variants: ProductVariant[],
+    images: ProductImage[] = [],
+    client?: PoolClient,
+  ): Promise<Product> {
+    const persist = async (runner: PoolClient) => {
       const skus = [...new Set(variants.map((variant) => variant.sku))].sort();
       for (const sku of skus) {
         const lockScope = JSON.stringify(['catalog-sku-v1', product.shopId, sku]);
-        await client.query(
+        await runner.query(
           'SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
           [lockScope],
         );
       }
 
-      const existingSku = await client.query<{ sku: string }>(
+      const existingSku = await runner.query<{ sku: string }>(
         `SELECT v.sku
            FROM product_variants v
            JOIN products p ON p.product_id = v.product_id
@@ -304,7 +306,7 @@ export class PgProductRepository implements IProductRepository {
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING *
       `;
-      const res = await client.query(productQuery, [
+      const res = await runner.query(productQuery, [
         product.productId,
         product.shopId,
         product.categoryId,
@@ -316,7 +318,7 @@ export class PgProductRepository implements IProductRepository {
       ]);
 
       for (const v of variants) {
-        await client.query(
+        await runner.query(
           `INSERT INTO product_variants (variant_id, product_id, variant_name, variant_value, sku, price, stock_quantity, status, created_at, updated_at)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
           [
@@ -330,25 +332,36 @@ export class PgProductRepository implements IProductRepository {
             v.status,
             v.createdAt,
             v.updatedAt,
-          ]
+          ],
         );
       }
 
       for (const img of images) {
-        await client.query(
+        await runner.query(
           `INSERT INTO product_images (image_id, product_id, image_url, sort_order)
            VALUES ($1, $2, $3, $4)`,
-          [img.imageId, product.productId, img.imageUrl, img.sortOrder]
+          [img.imageId, product.productId, img.imageUrl, img.sortOrder],
         );
       }
 
-      await client.query('COMMIT');
       return mapProductRow(res.rows[0]);
+    };
+
+    if (client) {
+      return await persist(client);
+    }
+
+    const conn = await this.pool.connect();
+    try {
+      await conn.query('BEGIN');
+      const created = await persist(conn);
+      await conn.query('COMMIT');
+      return created;
     } catch (err) {
-      await client.query('ROLLBACK');
+      await conn.query('ROLLBACK');
       throw err;
     } finally {
-      client.release();
+      conn.release();
     }
   }
 
