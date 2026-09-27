@@ -175,7 +175,7 @@ function createMockOrderServices() {
     },
   };
 
-  const retryPayment = async (_context: any, orderId: string, input: any) => {
+  const retryPayment = async (_context: RequestContext, orderId: string, input?: Record<string, unknown>) => {
     const order = orders.find(o => o.orderId === orderId);
     if (!order) return null;
     return {
@@ -315,6 +315,17 @@ describe('Order & Checkout Domain Routes Integration (/api/v1/...) [Mốc T2]', 
   it('POST /api/v1/orders/:id/confirm: seller of matching shop confirms order successfully', async () => {
     const services = createMockOrderServices();
     const app = createApp({ auth: sellerAuth, orderServices: services });
+
+    const res = await request(app)
+      .post('/api/v1/orders/00000000-0000-4000-8000-000000000001/confirm')
+      .expect(200);
+
+    assert.strictEqual(res.body.data.status, 'CONFIRMED');
+  });
+
+  it('POST /api/v1/orders/:id/confirm: admin confirms order successfully', async () => {
+    const services = createMockOrderServices();
+    const app = createApp({ auth: adminAuth, orderServices: services });
 
     const res = await request(app)
       .post('/api/v1/orders/00000000-0000-4000-8000-000000000001/confirm')

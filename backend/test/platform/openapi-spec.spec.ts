@@ -1,13 +1,25 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
+import type { Application } from 'express';
 import { createApp } from '../../src/platform/http/app.ts';
 import { generateOpenApiSpec, resolveOperationUrl } from '../../src/platform/openapi/openapi-spec.ts';
 
-function getRegisteredExpressRoutes(app: any): Set<string> {
-  const routes = new Set<string>();
+interface ExpressRouterLayer {
+  route?: { path: string };
+  handle?: { stack?: ExpressRouterLayer[] };
+  regexp: { source: string };
+}
 
-  for (const layer of app._router.stack) {
+interface ExpressWithRouter {
+  _router: { stack: ExpressRouterLayer[] };
+}
+
+function getRegisteredExpressRoutes(app: Application): Set<string> {
+  const routes = new Set<string>();
+  const routerApp = app as unknown as ExpressWithRouter;
+
+  for (const layer of routerApp._router.stack) {
     if (layer.route) {
       routes.add(layer.route.path);
     } else if (layer.handle?.stack) {

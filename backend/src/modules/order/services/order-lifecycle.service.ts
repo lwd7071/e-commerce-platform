@@ -85,7 +85,7 @@ export class OrderLifecycleService {
   /**
    * Confirms a pending order by SELLER (matching shop) or ADMIN (QD11, QD13).
    */
-  public async confirmOrder(orderId: UUID, actor: OrderActor): Promise<OrderRecord> {
+  public async confirmOrder(orderId: UUID, actor: OrderActor, reason?: string): Promise<OrderRecord> {
     const executeConfirm = async (client?: PoolClient): Promise<OrderRecord> => {
       const order = await this.orderRepo.findById(orderId, client);
       if (!order) {
@@ -97,7 +97,7 @@ export class OrderLifecycleService {
 
       transitionOrder(
         { status: order.status, buyerId: order.buyerId, shopId: order.shopId },
-        { to: 'CONFIRMED', actor, processingEligible: true },
+        { to: 'CONFIRMED', actor, processingEligible: true, reason: reason ?? (actor.kind === 'ADMIN' ? 'Admin confirmed order' : undefined) },
       );
 
       const history = createOrderStatusHistoryRecord({
@@ -105,6 +105,7 @@ export class OrderLifecycleService {
         oldStatus: order.status,
         newStatus: 'CONFIRMED',
         changedBy: 'userId' in actor ? actor.userId : null,
+        reason: reason ?? (actor.kind === 'ADMIN' ? 'Admin confirmed order' : undefined),
       });
 
       await this.orderRepo.updateStatus(orderId, 'CONFIRMED', history, client);

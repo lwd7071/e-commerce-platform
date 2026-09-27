@@ -69,7 +69,7 @@ export function createOrderDomainRouter(
 ): Router {
   const router = Router();
 
-  const isLegacyApp = servicesOrApp && 'confirmOrder' in servicesOrApp && typeof (servicesOrApp as any).confirmOrder === 'function' && !('orderRepo' in servicesOrApp || 'orderLifecycleService' in servicesOrApp);
+  const isLegacyApp = servicesOrApp && 'confirmOrder' in servicesOrApp && typeof (servicesOrApp as { confirmOrder?: unknown }).confirmOrder === 'function' && !('orderRepo' in servicesOrApp || 'orderLifecycleService' in servicesOrApp);
   const legacyApp = isLegacyApp ? (servicesOrApp as OrderHttpApplication) : undefined;
   const services = (!isLegacyApp ? servicesOrApp : undefined) as OrderServices | undefined;
 
@@ -196,6 +196,8 @@ export function createOrderDomainRouter(
   router.post('/orders/:order_id/confirm', ...guards(auth, 'SELLER', 'ADMIN'), asyncRoute(async (req, res) => {
     const ctx = context(req);
     const orderId = req.params.order_id;
+    const rawReason = req.body?.reason;
+    const reason = typeof rawReason === 'string' ? rawReason.trim() : undefined;
 
     if (orderLifecycleService) {
       let actor: OrderActor;
@@ -205,7 +207,7 @@ export function createOrderDomainRouter(
         actor = { kind: 'ADMIN', userId: ctx.user_id };
       }
 
-      const result = await orderLifecycleService.confirmOrder(orderId, actor);
+      const result = await orderLifecycleService.confirmOrder(orderId, actor, reason);
       res.json(buildSuccessEnvelope(result, requestId(req)));
       return;
     }
