@@ -21,6 +21,9 @@ export interface OrderServices {
   orderQueryService?: OrderQueryService;
   orderRepo?: IOrderRepository;
   paymentService?: PaymentService;
+  confirmOrder?(context: RequestContext, orderId: string): Promise<unknown>;
+  transitionOrder?(context: RequestContext, orderId: string, input: Record<string, unknown>): Promise<unknown>;
+  retryPayment?(context: RequestContext, orderId: string, input: Record<string, unknown>): Promise<unknown>;
 }
 
 function guards(auth: RequestHandler | undefined, ...roles: Role[]): RequestHandler[] {
@@ -66,7 +69,7 @@ export function createOrderDomainRouter(
 ): Router {
   const router = Router();
 
-  const isLegacyApp = servicesOrApp && 'confirmOrder' in servicesOrApp && typeof servicesOrApp.confirmOrder === 'function';
+  const isLegacyApp = servicesOrApp && 'confirmOrder' in servicesOrApp && typeof (servicesOrApp as any).confirmOrder === 'function' && !('orderRepo' in servicesOrApp || 'orderLifecycleService' in servicesOrApp);
   const legacyApp = isLegacyApp ? (servicesOrApp as OrderHttpApplication) : undefined;
   const services = (!isLegacyApp ? servicesOrApp : undefined) as OrderServices | undefined;
 
@@ -75,6 +78,10 @@ export function createOrderDomainRouter(
   const orderQueryService = services?.orderQueryService;
   const orderRepo = services?.orderRepo;
   const paymentService = services?.paymentService;
+
+  const confirmHandler = (services?.confirmOrder ?? legacyApp?.confirmOrder)?.bind(services ?? legacyApp);
+  const transitionHandler = (services?.transitionOrder ?? legacyApp?.transitionOrder)?.bind(services ?? legacyApp);
+  const retryPaymentHandler = (services?.retryPayment ?? legacyApp?.retryPayment)?.bind(services ?? legacyApp);
 
   // ==========================================
   // 1. CHECKOUT / CREATE ORDER
@@ -203,11 +210,18 @@ export function createOrderDomainRouter(
       return;
     }
 
+    if (confirmHandler) {
+      const result = await confirmHandler(ctx, orderId);
+      res.json(buildSuccessEnvelope(result, requestId(req)));
+      return;
+    }
+
     if (legacyApp?.confirmOrder) {
       const result = await legacyApp.confirmOrder(ctx, orderId);
       res.json(buildSuccessEnvelope(result, requestId(req)));
       return;
     }
+
     throw new NotFoundError('Order confirm handler is not configured');
   }));
 
@@ -240,11 +254,19 @@ export function createOrderDomainRouter(
       return;
     }
 
+    const input = (req.body ?? {}) as Record<string, unknown>;
+    if (transitionHandler) {
+      const result = await transitionHandler(ctx, orderId, input);
+      res.json(buildSuccessEnvelope(result, requestId(req)));
+      return;
+    }
+
     if (legacyApp?.transitionOrder) {
       const result = await legacyApp.transitionOrder(ctx, orderId, req.body as Record<string, unknown>);
       res.json(buildSuccessEnvelope(result, requestId(req)));
       return;
     }
+
     throw new NotFoundError('Order transition handler is not configured');
   }));
 
@@ -256,6 +278,13 @@ export function createOrderDomainRouter(
       const rawMethod = req.body?.payment_method ?? req.body?.method ?? 'ONLINE';
       const method = rawMethod === 'COD' ? 'COD' : 'ONLINE';
       const result = await paymentService.retryPayment(orderId, ctx.user_id, method);
+      res.status(201).json(buildSuccessEnvelope(result, requestId(req)));
+      return;
+    }
+
+    const input = (req.body ?? {}) as Record<string, unknown>;
+    if (retryPaymentHandler) {
+      const result = await retryPaymentHandler(ctx, orderId, input);
       res.status(201).json(buildSuccessEnvelope(result, requestId(req)));
       return;
     }

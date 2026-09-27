@@ -13,6 +13,19 @@ export interface OpenApiSpec {
   paths: Record<string, Record<string, unknown>>;
 }
 
+/**
+ * Resolves the canonical URL for an OpenAPI operation given a server URL and path.
+ * Guarantees no duplicate base path prefixes (e.g. avoids `/api/v1/api/v1/...`).
+ */
+export function resolveOperationUrl(serverUrl: string, path: string): string {
+  const base = serverUrl.replace(/\/+$/, '');
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  if (base && (cleanPath === base || cleanPath.startsWith(`${base}/`))) {
+    return cleanPath;
+  }
+  return `${base}${cleanPath}`;
+}
+
 export function generateOpenApiSpec(): OpenApiSpec {
   return {
     openapi: '3.1.0',
@@ -81,7 +94,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
       },
     },
     paths: {
-      '/api/v1/health': {
+      '/health': {
         get: {
           summary: 'Platform Health Check',
           description: 'Checks status of platform and PostgreSQL database pool connectivity.',
@@ -105,7 +118,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
           },
         },
       },
-      '/api/v1/addresses': {
+      '/addresses': {
         get: {
           summary: 'List Buyer Addresses',
           description: 'Retrieve all addresses for the authenticated buyer (canonical route, no /buyer prefix).',
@@ -153,7 +166,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
           },
         },
       },
-      '/api/v1/addresses/{address_id}': {
+      '/addresses/{address_id}': {
         patch: {
           summary: 'Update Buyer Address',
           security: [{ BearerAuth: [] }],
@@ -199,7 +212,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
           },
         },
       },
-      '/api/v1/cart': {
+      '/cart': {
         get: {
           summary: 'Get Buyer Cart',
           security: [{ BearerAuth: [] }],
@@ -215,7 +228,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
           },
         },
       },
-      '/api/v1/cart/items': {
+      '/cart/items': {
         post: {
           summary: 'Add Item to Cart',
           security: [{ BearerAuth: [] }],
@@ -231,7 +244,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
           },
         },
       },
-      '/api/v1/checkout': {
+      '/checkout': {
         post: {
           summary: 'Execute Checkout',
           description: 'Place an order atomically from selected cart items.',
@@ -256,7 +269,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
           },
         },
       },
-      '/api/v1/orders': {
+      '/orders': {
         get: {
           summary: 'List Orders',
           security: [{ BearerAuth: [] }],
@@ -287,7 +300,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
           },
         },
       },
-      '/api/v1/orders/{order_id}': {
+      '/orders/{order_id}': {
         get: {
           summary: 'Get Order Detail',
           security: [{ BearerAuth: [] }],
@@ -319,7 +332,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
           },
         },
       },
-      '/api/v1/orders/{order_id}/cancel': {
+      '/orders/{order_id}/cancel': {
         post: {
           summary: 'Cancel Order',
           description: 'Cancel an order with a mandatory reason (RB-LTT08).',
@@ -360,7 +373,172 @@ export function generateOpenApiSpec(): OpenApiSpec {
           },
         },
       },
-      '/api/v1/order-items/{order_item_id}/review': {
+      '/orders/{order_id}/confirm': {
+        post: {
+          summary: 'Confirm Order',
+          description: 'Seller or Admin confirms a pending order (transitions status to CONFIRMED).',
+          security: [{ BearerAuth: [] }],
+          parameters: [
+            {
+              name: 'order_id',
+              in: 'path',
+              required: true,
+              schema: { type: 'string', format: 'uuid' },
+            },
+          ],
+          responses: {
+            '200': {
+              description: 'Order confirmed successfully',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/SuccessEnvelope' },
+                },
+              },
+            },
+            '403': {
+              description: 'Access forbidden for non-seller/admin or seller not owning shop',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+                },
+              },
+            },
+            '404': {
+              description: 'Order not found',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+                },
+              },
+            },
+          },
+        },
+      },
+      '/orders/{order_id}/transition': {
+        post: {
+          summary: 'Transition Order Status',
+          description: 'Seller or Admin advances order status through state machine.',
+          security: [{ BearerAuth: [] }],
+          parameters: [
+            {
+              name: 'order_id',
+              in: 'path',
+              required: true,
+              schema: { type: 'string', format: 'uuid' },
+            },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['to'],
+                  properties: {
+                    to: {
+                      type: 'string',
+                      enum: ['PENDING_CONFIRMATION', 'PREPARING', 'SHIPPING', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'RETURNED'],
+                      example: 'PREPARING',
+                    },
+                    reason: { type: 'string', example: 'Stock ready for dispatch' },
+                    exceptional_cancellation: { type: 'boolean' },
+                    shipment_status: { type: 'string' },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            '200': {
+              description: 'Order status updated successfully',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/SuccessEnvelope' },
+                },
+              },
+            },
+            '403': {
+              description: 'Access forbidden',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+                },
+              },
+            },
+            '404': {
+              description: 'Order not found',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+                },
+              },
+            },
+            '409': {
+              description: 'Invalid order transition or conflict',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+                },
+              },
+            },
+          },
+        },
+      },
+      '/orders/{order_id}/payments': {
+        post: {
+          summary: 'Retry Order Payment',
+          description: 'Buyer initiates a payment attempt for an existing order.',
+          security: [{ BearerAuth: [] }],
+          parameters: [
+            {
+              name: 'order_id',
+              in: 'path',
+              required: true,
+              schema: { type: 'string', format: 'uuid' },
+            },
+          ],
+          requestBody: {
+            required: false,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    payment_method: { type: 'string', example: 'ONLINE' },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            '200': {
+              description: 'Payment record created/retried successfully',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/SuccessEnvelope' },
+                },
+              },
+            },
+            '403': {
+              description: 'Access forbidden - buyer role required',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+                },
+              },
+            },
+            '404': {
+              description: 'Order not found',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+                },
+              },
+            },
+          },
+        },
+      },
+      '/order-items/{order_item_id}/review': {
         post: {
           summary: 'Create Order Item Review',
           description: 'Submit a product review for a completed order item (api-conventions.md §7).',
@@ -401,7 +579,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
           },
         },
       },
-      '/api/v1/vouchers': {
+      '/vouchers': {
         get: {
           summary: 'List Active Vouchers',
           description: 'Retrieve active vouchers applicable to buyer or shop.',
@@ -446,7 +624,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
           },
         },
       },
-      '/api/v1/vouchers/evaluate': {
+      '/vouchers/evaluate': {
         post: {
           summary: 'Evaluate & Preview Voucher',
           description: 'Preview voucher discount amount for given subtotal and context.',
@@ -488,7 +666,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
           },
         },
       },
-      '/api/v1/notifications': {
+      '/notifications': {
         get: {
           summary: 'List Buyer Notifications',
           description: 'Retrieve recipient notifications with optional read status filter.',
@@ -521,7 +699,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
           },
         },
       },
-      '/api/v1/notifications/{notification_id}/read': {
+      '/notifications/{notification_id}/read': {
         patch: {
           summary: 'Mark Notification As Read',
           description: 'Mark specific notification as read (RB-LTT07).',

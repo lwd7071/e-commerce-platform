@@ -16,6 +16,8 @@ const BUYER_ID = '11111111-1111-4111-8111-111111111111';
 const OTHER_BUYER_ID = '99999999-9999-4999-8999-999999999999';
 const SELLER_SHOP_ID = '00000000-0000-4000-8000-000000000002';
 const OTHER_SHOP_ID = '00000000-0000-4000-8000-000000000009';
+const SELLER_ID = '22222222-2222-4222-8222-222222222222';
+const ADMIN_ID = '33333333-3333-4333-8333-333333333333';
 
 const buyerAuth: RequestHandler = (req, _res, next) => {
   req.context = createRequestContext({
@@ -28,8 +30,8 @@ const buyerAuth: RequestHandler = (req, _res, next) => {
 
 const sellerAuth: RequestHandler = (req, _res, next) => {
   req.context = createRequestContext({
-    request_id: req.requestId ?? 'req_order_test_seller',
-    user_id: 'seller-user-0001',
+    request_id: req.requestId ?? 'req_seller_test',
+    user_id: SELLER_ID,
     shop_id: SELLER_SHOP_ID,
     role: 'SELLER',
   });
@@ -42,6 +44,15 @@ const otherSellerAuth: RequestHandler = (req, _res, next) => {
     user_id: 'seller-user-0002',
     shop_id: OTHER_SHOP_ID,
     role: 'SELLER',
+  });
+  next();
+};
+
+const adminAuth: RequestHandler = (req, _res, next) => {
+  req.context = createRequestContext({
+    request_id: req.requestId ?? 'req_admin_test',
+    user_id: ADMIN_ID,
+    role: 'ADMIN',
   });
   next();
 };
@@ -164,6 +175,18 @@ function createMockOrderServices() {
     },
   };
 
+  const retryPayment = async (_context: any, orderId: string, input: any) => {
+    const order = orders.find(o => o.orderId === orderId);
+    if (!order) return null;
+    return {
+      payment_id: '00000000-0000-4000-8000-000000000042',
+      order_id: orderId,
+      method: input?.payment_method ?? 'ONLINE',
+      amount: order.totalAmount,
+      status: 'PENDING',
+    };
+  };
+
   return {
     orderRepo,
     paymentRepo,
@@ -171,6 +194,7 @@ function createMockOrderServices() {
     orderLifecycleService,
     orderQueryService,
     checkoutService,
+    retryPayment,
     getRestockCalled: () => restockCalled,
   };
 }
@@ -354,6 +378,18 @@ describe('Order & Checkout Domain Routes Integration (/api/v1/...) [Mốc T2]', 
     assert.strictEqual(res.body.error.code, 'ORDER_INVALID_TRANSITION');
   });
 
+  it('POST /api/v1/orders/:id/transition: rejects BUYER with 403 ROLE_REQUIRED', async () => {
+    const services = createMockOrderServices();
+    const app = createApp({ auth: buyerAuth, orderServices: services });
+
+    const res = await request(app)
+      .post('/api/v1/orders/00000000-0000-4000-8000-000000000001/transition')
+      .send({ to: 'PREPARING' })
+      .expect(403);
+
+    assert.strictEqual(res.body.error.code, 'ROLE_REQUIRED');
+  });
+
   // ==========================================
   // RETRY PAYMENT TESTS (Workflow §7)
   // ==========================================
@@ -402,5 +438,17 @@ describe('Order & Checkout Domain Routes Integration (/api/v1/...) [Mốc T2]', 
       .expect(409);
 
     assert.strictEqual(res.body.error.code, 'PAYMENT_STATE_INVALID');
+  });
+
+  it('POST /api/v1/orders/:id/payments: rejects SELLER with 403 ROLE_REQUIRED', async () => {
+    const services = createMockOrderServices();
+    const app = createApp({ auth: sellerAuth, orderServices: services });
+
+    const res = await request(app)
+      .post('/api/v1/orders/00000000-0000-4000-8000-000000000001/payments')
+      .send({ payment_method: 'ONLINE' })
+      .expect(403);
+
+    assert.strictEqual(res.body.error.code, 'ROLE_REQUIRED');
   });
 });

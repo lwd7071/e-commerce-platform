@@ -3,11 +3,47 @@
 ## Trạng thái hiện tại
 
 - Mốc: T3
-- Cập nhật lần cuối: 2026-09-25
-- Đang làm: Đã xử lý triệt để lỗ hổng Rate Limiter spoofing bypass qua X-Forwarded-For, cơ chế fail-safe 400 không gây DoS chéo, bắt buộc cấu hình TRUST_PROXY ở production, bổ sung 4 canonical paths vào OpenAPI 3.1 và làm rõ trạng thái legacy alias routes. Đạt 514/514 tests pass trên toàn hệ thống (0 fail), sạch 100% typecheck và build.
+- Cập nhật lần cuối: 2026-09-26
+- Đang làm: Đã hoàn tất ticket T3-P1-01 (P1): Thống nhất khai báo server/path trong OpenAPI 3.1 loại bỏ triệt để lỗi double prefix /api/v1/api/v1, audit và bổ sung OpenAPI spec + route tests cho 3 Order operations (confirm, transition, payments), thêm test kiểm tra URL cuối cùng và đối chiếu route registry Express. Đạt 522/522 tests pass trên toàn hệ thống (0 fail), sạch 100% typecheck và build.
 - Bị block bởi: Không
 
 ## Nhật ký theo ngày
+
+### 2026-09-26 (Hoàn tất T3-P1-01: Khắc phục Lỗi URL OpenAPI & Bổ sung Spec/Test cho Order Confirm/Transition/Payments)
+
+- **Mục tiêu & Yêu cầu:**
+  - Giải quyết ticket `T3-P1-01 (P1)`: OpenAPI tạo URL sai do ghép `servers[0].url = '/api/v1'` với path cũng chứa `/api/v1`, tạo thành `/api/v1/api/v1/health` khiến các probe tool nhận 404.
+  - Xóa đánh dấu cố ý bỏ qua cho các route `confirm`, `transition`, `payments` của Order trong `openapi-spec.spec.ts:82-89`.
+  - Thống nhất cách khai báo server/path, bổ sung spec OpenAPI và route test cho các route đã audit.
+  - Thêm test kiểm tra URL cuối cùng và đối chiếu route Express với OpenAPI, đảm bảo probe không bị 404.
+
+- **Đã làm:**
+  1. **Thống nhất Khai báo Server & Path trong OpenAPI 3.1 (`openapi-spec.ts`):**
+     - Đặt `servers[0].url` chuẩn hóa là `'/api/v1'`.
+     - Chuyển toàn bộ keys trong `paths` sang path tương đối theo chuẩn OpenAPI (`/health`, `/addresses`, `/orders`, `/vouchers`, v.v.), loại bỏ hoàn toàn tiền tố lặp `/api/v1/`.
+     - Cung cấp và export hàm `resolveOperationUrl(serverUrl, path)`: chuẩn hóa ghép nối URL, tự động loại bỏ duplicate base prefix fail-safe.
+  2. **Audit và Bổ sung OpenAPI Spec cho Order Routes (`openapi-spec.ts`):**
+     - `POST /orders/{order_id}/confirm`: Xác nhận đơn hàng (Role: `SELLER`, `ADMIN`), cập nhật status sang `CONFIRMED`, trả về `SuccessEnvelope`.
+     - `POST /orders/{order_id}/transition`: Chuyển đổi trạng thái đơn hàng (Role: `SELLER`, `ADMIN`), validate body schema `{ to, reason, exceptional_cancellation, shipment_status }`, trả về `SuccessEnvelope` (hoặc 409 khi vi phạm state machine).
+     - `POST /orders/{order_id}/payments`: Khởi tạo/thử lại thanh toán (Role: `BUYER`), body `{ payment_method }`, trả về `SuccessEnvelope`.
+  3. **Tối ưu Hóa Route Handlers & Hỗ trợ Service linh hoạt (`order-routes.ts`):**
+     - Mở rộng interface `OrderServices` hỗ trợ `confirmOrder`, `transitionOrder`, `retryPayment`.
+     - Cung cấp fallback tự động tới `orderLifecycleService.transitionStatus`: khi gọi `/confirm`, tự động truyền `processingEligible: true` theo đúng quy định của `order-state-machine.ts`.
+     - Giữ nguyên tính tương thích ngược với `OrderHttpApplication` (`PgCheckoutService`).
+  4. **Bổ sung Bộ Route Integration Tests (`order-routes.spec.ts`):**
+     - Bổ sung mock `sellerAuth`, `adminAuth`, `retryPayment`.
+     - Thêm 6 test cases mới kiểm thử happy path (200 OK) và phân quyền chặt chẽ (403 `ROLE_REQUIRED`) cho `POST /orders/:order_id/confirm`, `POST /orders/:order_id/transition`, `POST /orders/:order_id/payments`.
+  5. **Bổ sung OpenAPI Verification, Route Reconciliation & Probe Tests (`openapi-spec.spec.ts`):**
+     - Cập nhật `[OAS-02]` kiểm tra đầy đủ các canonical paths tương đối và 3 Order endpoints mới.
+     - Cập nhật `[OAS-03]` gỡ bỏ các exclusion của `confirm`, `transition`, `payments`.
+     - Bổ sung `[OAS-05]`: Duyệt toàn bộ `spec.paths`, kiểm tra `resolveOperationUrl` khớp với `${server.url}${path}`, đảm bảo không URL nào chứa `/api/v1/api/v1`, và đối chiếu 1-1 với toàn bộ routes đã mount trên Express `app._router.stack`.
+     - Bổ sung `[OAS-06]`: Gửi probe HTTP trực tiếp tới các URL cuối cùng trên Express app, kiểm tra không có endpoint nào bị 404 Route Not Found.
+
+- **Quality Gates:**
+  - `npm run typecheck`: Pass (0 error).
+  - `npm run lint`: Pass (0 error, 195 warnings).
+  - `npm run build`: Pass (`dist/app.js` 142.5kb).
+  - `npm run test:node`: **522/522 tests PASS** (148 suites, 0 fail - tăng từ 514 lên 522).
 
 ### 2026-09-25 (Khắc phục Lỗ hổng Bảo mật Rate Limiter Bypass & Bổ sung OpenAPI 3.1 Spec)
 
