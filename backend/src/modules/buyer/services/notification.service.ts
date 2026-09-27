@@ -4,6 +4,8 @@ import type { ITransactionEventPort, TransactionDomainEvent } from '../ports/buy
 import type { IOrderQueryPort } from '../ports/order-query.port';
 import type { IEventIdempotencyStore } from '../ports/event-idempotency.port';
 import { InMemoryEventIdempotencyStore } from '../ports/event-idempotency.port';
+import { PostgresEventIdempotencyStore } from '../infrastructure/postgres-event-idempotency.store';
+import type { IDbClient } from '../infrastructure/db-client';
 import type { Notification, NotificationType, UUID } from '../domain/types';
 import { ResourceNotFoundError } from '../domain/errors';
 import { markNotificationAsRead } from '../domain/notification';
@@ -15,6 +17,9 @@ import { markNotificationAsRead } from '../domain/notification';
  * - [auth-rbac-rls.md §3]: Trả về 404 RESOURCE_NOT_FOUND khi caller không sở hữu notification.
  * - IEventIdempotencyStore: Chống trùng lặp nguyên tử (atomic claim/release) và chịu lỗi (fault-tolerant retry)
  *   khi replay domain event xuyên nhiều instances (ticket DEP-P4-P2-01).
+ *   + Tier 1: tryClaim (early-exit filter tra cứu nhanh CSDL).
+ *   + Tier 2: createForEvent (atomic check ON CONFLICT DO NOTHING tại PostgreSQL).
+ *   + Side-effects chỉ chạy sau khi insert thành công (created !== null).
  * - Tích hợp TransactionDomainEvent từ Người 5: Tự động phân loại và phát sinh thông báo khi:
  *   + ORDER_STATUS_CHANGED chuyển sang COMPLETED (lấy buyerId trực tiếp từ event).
  *   + PAYMENT_STATUS_CHANGED chuyển sang SUCCESS (tra cứu buyerId qua IOrderQueryPort.getOrderSummary).
@@ -30,7 +35,19 @@ export class NotificationService {
     private readonly orderQueryPort?: IOrderQueryPort,
     idempotencyStore?: IEventIdempotencyStore
   ) {
-    this.idempotencyStore = idempotencyStore ?? new InMemoryEventIdempotencyStore();
+    if (idempotencyStore) {
+      this.idempotencyStore = idempotencyStore;
+    } else if (
+      'db' in this.notificationRepo &&
+      (this.notificationRepo as { db?: IDbClient }).db
+    ) {
+      this.idempotencyStore = new PostgresEventIdempotencyStore(
+        (this.notificationRepo as { db: IDbClient }).db
+      );
+    } else {
+      this.idempotencyStore = new InMemoryEventIdempotencyStore();
+    }
+
     if (eventPort) {
       eventPort.subscribe(async (event: TransactionDomainEvent) => {
         await this.handleDomainEvent(event);
@@ -137,11 +154,21 @@ export class NotificationService {
         readAt: null,
       };
 
+      let created: Notification | null = null;
       if (this.notificationRepo.createForEvent) {
-        await this.notificationRepo.createForEvent(notification, event.eventId);
+        created = await this.notificationRepo.createForEvent(notification, event.eventId);
       } else {
-        await this.notificationRepo.create(notification);
+        created = await this.notificationRepo.create(notification);
       }
+
+      if (!created) {
+        // Unique conflict on event_id at DB level (thua cuộc đua race condition đồng thời)
+        // Dừng lại an toàn và không thực hiện bất kỳ side-effect nào
+        return;
+      }
+
+      // MỌI SIDE-EFFECTS (push notification, websocket, webhook, email...)
+      // BẮT BUỘC ĐẶT TẠI ĐÂY — SAU KHI INSERT THÀNH CÔNG VÀ RECORD THỰC SỰ ĐƯỢC COMMIT (created !== null)
     } catch (err) {
       // Khi DB thất bại tạm thời hoặc có lỗi, giải phóng claim để lần replay/retry tiếp theo xử lý lại
       await this.idempotencyStore.release(event.eventId);

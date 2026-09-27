@@ -3,15 +3,63 @@
 ## Trạng thái hiện tại
 
 - Mốc: T3
-- Cập nhật lần cuối: 2026-09-25
+- Cập nhật lần cuối: 2026-09-26
 - Đang làm: Đã hoàn tất 100% các hạng mục T3 Hardening & Nghiệm thu của Người 4 (Buyer Supporting Domain):
-  1. Khắc phục triệt để lỗi Notification Idempotency & Fault Tolerance qua `IEventIdempotencyStore` với API nguyên tử `tryClaim()` và `release()` khi DB fail tạm thời, bảo đảm không nuốt chửng domain events khi replay/retry.
-  2. PostgreSQL Concurrency Hardening: Kiểm thử thực tế trên PostgreSQL thật với 2 `PoolClient` độc lập (chống serialize giả), bảo đảm race condition đặt default address (`RB-LB05`) và race condition claim voucher còn 1 lượt (`QD09`) vận hành chuẩn xác.
-  3. Negative & Edge-case Hardening: Bổ sung 26 bài test biên và negative sâu rộng cho Cart, Review, Address, Voucher.
-  4. Diagnose toàn diện: 540/540 tests native node runner PASS 100%, 147/147 tests vitest runner PASS 100%, 0 lỗi typecheck, 0 errors/0 warnings ESLint trên mã nguồn T3 Người 4, build thành công (exit code 0).
-- Bị block bởi: Ticket `DEP-P4-P2-01` (bổ sung cột `event_id VARCHAR(100) UNIQUE` trong bảng `notifications`) đang chờ Người 2 bàn giao migration. Tầng logic Người 4 đã hoàn tất phòng vệ qua `IEventIdempotencyStore` (Singleton DI) và test contract atomic claim giữa các worker instances.
+  1. Triển khai `PostgresEventIdempotencyStore` theo kiến trúc phòng vệ 2 tầng (Two-Tier Defense): Tier-1 tryClaim early-exit filter qua CSDL + Tier-2 atomic ground truth tại `PostgresNotificationRepository` (`ON CONFLICT (event_id) WHERE event_id IS NOT NULL DO NOTHING`). Bảo đảm mọi side-effects chỉ chạy sau khi insert thành công (`created !== null`), instance thua cuộc nhận `null` và thoát an toàn.
+  2. Xử lý an toàn kịch bản Crash Recovery: `release()` được thiết kế là no-op có chủ đích (không có lock tạm thời cần dọn dẹp); khi tiến trình chết giữa chừng trước khi commit INSERT, CSDL không lưu bản ghi rác -> lần retry/replay tiếp theo `tryClaim` vẫn trả về `true` (không bị nuốt chửng event).
+  3. Kiểm thử tích hợp đa tiến trình trên PostgreSQL thật với 2 connection riêng biệt (`PoolClient`) chạy song song bằng `Promise.all`: Đạt 100% cho 3 kịch bản: Concurrent Multi-Instance, Restart & Replay Idempotency, Crash Recovery.
+  4. Bàn giao Ma trận kiểm thử (Test Handover Matrix — T3-P4-02) phân định rõ giữa Production Flow trên PostgreSQL thật và In-Memory Mocks cho Người 1 triệu tập Review cuối T3.
+  5. Diagnose toàn diện: 588/588 tests native runner PASS 100%, 181/181 tests vitest PASS 100%, 0 lỗi typecheck, 0 errors/0 warnings ESLint, build thành công exit code 0.
+- Bị block bởi: Không còn blocker. ĐÃ ĐÓNG TICKET `DEP-P4-P2-01` (Người 2 đã hoàn tất và merge migration `20260926100000_t3_cross_domain_hardening` bổ sung cột `event_id VARCHAR(100)` và partial unique index `uq_notifications__event_id`). Toàn bộ luồng Buyer Supporting Domain đã được unblock và nghiệm thu hoàn tất.
 
 ## Nhật ký theo ngày
+
+### 2026-09-26 (Mốc T3 — Triển khai PostgresEventIdempotencyStore, Chống Trùng Cross-Instance, Crash Recovery & Bàn giao Ma trận Kiểm thử)
+
+- **Đã làm:**
+  - **Phase 1: Triển khai `PostgresEventIdempotencyStore` theo chuẩn TDD:**
+    - Tạo `src/modules/buyer/infrastructure/postgres-event-idempotency.store.ts` implement `IEventIdempotencyStore` với constructor injection `IDbClient` (SOLID: D).
+    - `tryClaim(eventId)`: Truy vấn `SELECT 1 FROM notifications WHERE event_id = $1 LIMIT 1` (Tier-1 early exit filter).
+    - `release(_eventId)`: No-op an toàn kèm docstrings chi tiết, bảo đảm tính chịu lỗi khi crash mà không giữ lock rác.
+    - Viết bộ unit/contract tests: `test/modules/buyer/services/postgres-event-idempotency-store.spec.ts` (Fresh Claim, Duplicate Reject, Crash Resilience & Release No-op) -> 3/3 tests PASS.
+    - Commit: `690c5b3 feat(buyer): implement PostgresEventIdempotencyStore and contract unit tests`.
+  - **Phase 2: Nâng cấp `NotificationService` & Concurrency Test tại Service Level:**
+    - Cập nhật `NotificationService` tự động liên kết `PostgresEventIdempotencyStore` khi inject repository có `db`.
+    - Thiết lập ranh giới side-effect nghiêm ngặt: Kiểm tra kết quả `createForEvent`; nếu trả về `null` (thua cuộc đua race condition), thoát an toàn ngay lập tức; mọi side-effect chỉ chạy khi `created !== null`.
+    - Viết unit concurrency test với `Promise.all` mô phỏng 2 service đồng thời gọi `handleDomainEvent` qua mock atomic repository -> chỉ 1 bản ghi được lưu, side-effect chỉ kích hoạt đúng 1 lần cho winner.
+    - Commit: `044f4d4 feat(buyer): wire persistent idempotency store and protect side-effects on conflict` và `82ac721 test(buyer): add explicit return type to MockAtomicDbNotificationRepository`.
+  - **Phase 3: Integration Test Cross-Instance & Crash Recovery trên PostgreSQL Thật:**
+    - Cập nhật `tests/db/t3-notification-idempotency.integration.test.ts` kiểm thử trực tiếp trên PostgreSQL với 2 kết nối `PoolClient` riêng biệt:
+      - *Kịch bản 1 (Concurrent Multi-Instance)*: 2 service instances với 2 connections riêng biệt cùng consume 1 event qua `Promise.all` -> đúng 1 notification được lưu trong DB (`count = 1`).
+      - *Kịch bản 2 (Restart & Replay Idempotency)*: Tạo mới instance service (mô phỏng tiến trình restart) -> Replay lại event cũ -> bị chặn ngay từ Tier-1 `tryClaim` của DB store -> số lượng notification trong DB vẫn là 1.
+      - *Kịch bản 3 (Crash Recovery)*: Tiến trình chết sau `tryClaim` nhưng trước khi commit `INSERT` -> Lần replay sau restart không bị nuốt event, tạo thành công 1 notification (`count = 1`).
+    - Chạy Vitest trên PostgreSQL thật: 3/3 tests PASS 100%.
+    - Commit: `f2281d5 test(buyer): add multi-instance restart replay and crash recovery integration tests on postgresql`.
+  - **Phase 4: Bàn giao Ma trận kiểm thử (Test Handover Matrix — T3-P4-02):**
+    - Phân định rạch ròi 2 nhóm kiểm thử phục vụ Người 1 triệu tập Review cuối T3:
+      - **Nhóm A: Production Flow / PostgreSQL Integration Tests (Chạy trên PostgreSQL thật):**
+        + `buyer-concurrency.integration.test.ts`: [QD09] Tranh chấp voucher còn 1 lượt cuối với 2 `PoolClient` riêng -> đúng 1 client thành công, số lượng = 0, không âm; [RB-LB05] Tranh chấp đặt default address với 2 `PoolClient` -> partial unique index chặn duplicate, đúng 1 địa chỉ default.
+        + `t3-notification-idempotency.integration.test.ts`: [testing-quality-gates.md §8] Chống trùng lặp notification giữa 2 instances với 2 connections riêng; Replay sau restart tiến trình; Phục hồi an toàn khi tiến trình chết giữa lúc claim và ghi notification.
+        + `order-query-review.integration.spec.ts`: [QD14, RB-LB09, RB-LQH05] Đấu nối kiểm tra điều kiện đánh giá đơn COMPLETED giữa Review và Order thật.
+        + `user-profile-address.integration.test.ts`, `cart.integration.test.ts`, `voucher.integration.test.ts`, `review.integration.test.ts`, `notification.integration.test.ts`: Kiểm thử 6 Repositories với 9 bảng PostgreSQL theo Schema Freeze v1.
+      - **Nhóm B: Unit / In-Memory Mock Tests (Nghiệp vụ Domain & Boundary Tests):**
+        + `buyer-negative-edge-cases.spec.ts`: 26 negative edge cases cho Cart, Review, Address, Voucher ([QD09], [QD14], [QD15], [RB-LB05], [RB-LB09], [RB-LQH05], [RB-MG08], [RB-MG09], [RB-LTT03,04,05], [auth-rbac-rls.md §3]).
+        + `notification.service.spec.ts`: Concurrent race test với `Promise.all` (mock atomic repo), tự động wire store, kiểm tra triệt tiêu side-effects khi thua race.
+        + `notification-fault-tolerance.spec.ts`: Transient error recovery, release atomic claim và retry loop.
+        + `postgres-event-idempotency-store.spec.ts`: Unit test contract cho `PostgresEventIdempotencyStore`.
+        + `voucher.spec.ts`, `cart.spec.ts`, `address.spec.ts`, `review.spec.ts`, `notification.spec.ts`: Pure domain business logic unit tests.
+  - **Phase 5: Chẩn đoán toàn diện (Diagnose & Quality Gates):**
+    - `npm run typecheck` (`tsc --noEmit`): Exit code 0, 0 errors.
+    - `npx eslint src/modules/buyer test/modules/buyer tests/modules/buyer`: 0 errors, 0 warnings.
+    - `npm run build` (`esbuild`): Hoàn thành bundle `dist/app.js` (144.5kb) exit code 0.
+    - `npm run test:node`: **588 / 588 tests PASS 100%** (168 test suites, 0 fail, 0 skipped).
+    - `npm run test:vitest`: **181 / 181 tests PASS 100%** (31 test files, bao gồm toàn bộ PostgreSQL acceptance tests).
+- **Quyết định kỹ thuật:**
+  - Mô hình Two-Tier Defense cho Event Idempotency: Tier 1 (tryClaim) là bộ lọc tối ưu hóa (early-exit optimization), Tier 2 (PostgresNotificationRepository INSERT ON CONFLICT DO NOTHING) là nguồn chân lý nguyên tử (atomic ground truth).
+  - Vị trí Side-effects: Mọi side-effects bắt buộc nằm sau bước INSERT thành công (`created !== null`), triệt tiêu hoàn toàn nguy cơ lặp side-effects khi có race condition đồng thời.
+  - Ngữ nghĩa `release()`: Là no-op có chủ đích vì không giữ lock tạm thời, bảo đảm khả năng phục hồi khi crash mà không sợ nuốt chửng domain events.
+- **Contract/Port thay đổi:** Không thay đổi public contracts dùng chung.
+- **Blocker:** Không còn blocker. Ticket `DEP-P4-P2-01` chính thức hoàn thành và đóng lại.
 
 ### 2026-09-25 (Mốc T3 — Hardening, Chống trùng Event Idempotent, Concurrency Multi-Connection & Nghiệm thu)
 
