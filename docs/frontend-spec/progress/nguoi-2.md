@@ -4,12 +4,29 @@
 
 - Phase/ticket: Phase 0 D-001–003; Phase 2 U-201–206; Phase 6 P-602/P-604–605/P-607b (UI mock/gated); Q-802/Q-803 scoped QA
 - Cập nhật lần cuối: 2026-09-28
-- Đang làm: U-201–206 và QA độc lập cho shared shell/profile/notifications đã hoàn tất; P-604/P-605/P-607b vẫn gated theo readiness backend
-- Nhánh/PR: Chưa có
+- Đang làm: U-201–206 và QA độc lập cho shared shell/profile/notifications đã hoàn tất; chuẩn bị PR0a/0b và PR A/B/C trên nhánh tách riêng; P-604/P-605/P-607b vẫn gated theo readiness backend
+- Nhánh/PR: `codex/node-24-runtime` (PR0a), `codex/frontend-ci-workspace` (PR0b), `codex/member2-pr-a`, `codex/member2-pr-b`, `codex/member2-pr-c` (đã push; PR GitHub chưa tạo vì GitHub CLI credential invalid)
 - Bị block bởi: PR0a cần Người 1 và backend owner review trước merge; local PostgreSQL smoke chưa chạy được do worktree không có `DIRECT_URL`/DB test, chờ PostgreSQL service CI xanh. D-004 chờ page mẫu checkout (Người 4), seller orders và admin dashboard (Người 5); P-601/P-603/P-606 chờ backend contract/runtime (GAP-07/GAP-01/GAP-09). Contrast ở login/register cần Người 1 và màu trạng thái seller cần Người 3 xử lý tại page của họ.
 - Việc tiếp theo: Hoàn thành migration Node 24.15.0/npm 11.12.1 và ghi evidence mới; ghi nhận/nhận handoff contrast từ Người 1/3; tiếp tục D-004 khi checkout, seller orders và admin dashboard có page mẫu.
 
 ## Nhật ký theo ngày
+
+### 2026-09-29 — PR C implementation sau test contract
+
+- Commit test-only `9a58181` được tạo trước helper/implementation; lúc đó suite đỏ do module navigation helper chưa tồn tại. Sau đó tách helper và nối lại consumer; full suite chuyển xanh.
+- Ma trận nav tách thành pure helper dùng chung desktop/mobile; notification filter/count/mark-one/bulk tách thành pure state helper và giữ max 20 visible unread, không mutate input.
+- SSR unit test riêng xác nhận `ProtectedPage` buyer-only không render notification content cho Seller và có CTA an toàn, còn Buyer render được. Đây không thay thế browser direct-URL smoke; browser automation chưa chạy được trong môi trường này.
+- Route helper `ROUTE_RULES` đang thiếu role cho `/notifications`, dù route UI truyền `allowedRoles=["BUYER"]`; handoff Người 1 cần bổ sung/đồng bộ auth route metadata hoặc xác nhận helper không còn là source dùng. Không sửa chéo owner.
+- Frontend Node `24.15.0`/npm `11.12.1`: typecheck pass; Vitest 15 files / 74 tests pass; build pass; lint pass.
+
+### 2026-09-29 — PR C navigation/notifications helpers (provisional)
+
+- Viết contract tests trước implementation: test đỏ ban đầu do chưa có helper; sau khi tách role navigation items và notification view-state helper, tests xanh.
+- Ma trận Guest/Buyer/Seller/Admin, notification filter/unread count, mark-one, bulk tối đa 20 và tính bất biến input được kiểm tra riêng. Direct-role UI test xác nhận seller mở content buyer-only nhận unauthorized state/CTA, Buyer được render content.
+- `NotificationsPageContent` vẫn giữ `ProtectedPage allowedRoles={["BUYER"]}`; production tiếp tục hiển thị gated state, không gọi API 501. Không thêm test/helper API notification chưa có contract.
+- Frontend trên Node `24.15.0`/npm `11.12.1`: typecheck pass; Vitest 15 files / 74 tests pass; production build pass; lint pass.
+- Browser direct-URL smoke không hoàn tất: CUA không khởi tạo được và `playwright` không có trong npm cache. Vì vậy role guard chỉ có SSR/unit evidence, không ghi browser evidence đạt. Route helper `ROUTE_RULES` vẫn thiếu `allowedRoles: ["BUYER"]` cho `/notifications`; đây là auth contract thuộc Người 1, đã để nguyên và cần handoff/owner xác nhận.
+- Metadata `/profile` và `/notifications` hiện khai báo base title; root template `%s | Dino` đã tạo kết quả chuẩn. Không cần metadata diff cho hai route Người 2; metadata bất nhất ở page người khác để đúng owner xử lý, không sửa chéo.
 
 ### 2026-09-29 — PR B shared component hardening (provisional)
 
