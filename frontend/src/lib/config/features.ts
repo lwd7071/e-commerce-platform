@@ -24,8 +24,8 @@ export const features = {
    */
   domains: {
     catalogLive: (): boolean => !envConfig.useMock,
-    cartMock: (): boolean => envConfig.useMock || true, // Default to mock until GAP-03 closed
-    checkoutMock: (): boolean => envConfig.useMock,
+    cartMock: (): boolean => Boolean(envConfig.useMock),
+    checkoutMock: (): boolean => Boolean(envConfig.useMock),
     ordersMock: (): boolean => envConfig.useMock || true, // Default to mock until GAP-01 closed
     adminMock: (): boolean => envConfig.useMock || true, // Default to mock until GAP-08 closed
   },

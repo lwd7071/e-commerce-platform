@@ -60,7 +60,7 @@ const INITIAL_MOCK_ITEMS: CartItem[] = [
 
 const STORAGE_KEY = "dino_cart_items_v1";
 
-class MockCartRepository implements ICartRepository {
+export class MockCartRepository implements ICartRepository {
   private getStoredItems(): CartItem[] {
     if (typeof window === "undefined") {
       return [...INITIAL_MOCK_ITEMS];
@@ -119,7 +119,7 @@ class MockCartRepository implements ICartRepository {
   }
 }
 
-class ApiCartRepository implements ICartRepository {
+export class ApiCartRepository implements ICartRepository {
   private mockFallback = new MockCartRepository();
 
   async getCart(): Promise<CartItem[]> {

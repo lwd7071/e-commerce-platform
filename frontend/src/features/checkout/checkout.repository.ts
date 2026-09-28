@@ -70,7 +70,7 @@ const INITIAL_VOUCHERS: CheckoutVoucher[] = [
 const ADDRESS_STORAGE_KEY = "dino_user_addresses_v1";
 const memoryAddressStore = new Map<string, string>();
 
-class MockCheckoutRepository implements ICheckoutRepository {
+export class MockCheckoutRepository implements ICheckoutRepository {
   private getStoredAddresses(): CheckoutAddress[] {
     let data: string | null = null;
     if (typeof window !== "undefined" && window.sessionStorage) {
@@ -197,7 +197,7 @@ class MockCheckoutRepository implements ICheckoutRepository {
   }
 }
 
-class ApiCheckoutRepository implements ICheckoutRepository {
+export class ApiCheckoutRepository implements ICheckoutRepository {
   private mockFallback = new MockCheckoutRepository();
 
   async getAddresses(): Promise<CheckoutAddress[]> {
