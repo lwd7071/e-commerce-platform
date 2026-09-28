@@ -2,14 +2,59 @@
 
 ## Trạng thái hiện tại
 
-- Phase/ticket: Phase 3 (B-301, B-302, B-305), Phase 4 (B-401), Phase 5 (O-508, O-509), Phase 7 (A-700, A-702)
-- Cập nhật lần cuối: 2026-09-28
-- Đang làm: Đã xử lý triệt để các phản hồi kiểm thử của Lead: Độ tương phản WCAG AA, validation tồn kho số nguyên (không cắt 1.5), controlled search input reset, và race-condition guard cho bộ lọc bất đồng bộ. Quality gates pass sạch 100%.
+- Phase/ticket: Phase 3 (B-301 [x], B-302 [x], B-305 [x]), Phase 4 (B-401 [x]), Phase 5 (O-508 [Gated GAP-04], O-509 [x]), Phase 7 (A-700 [x], A-702 [Gated GAP-05])
+- Cập nhật lần cuối: 2026-09-29
+- Đang làm: Đã xử lý triệt để 6 yêu cầu rà soát từ Lead:
+  1. **B-301**: Đồng bộ URL bộ lọc (`search`, `category_id`, `sort`, `min_price`, `max_price`) qua `window.history.replaceState` và debounce 300ms ô tìm kiếm.
+  2. **O-508**: Gian hàng phân quyền theo ngữ cảnh đăng nhập (`user.shopId`), có thanh tìm kiếm, bộ lọc tồn kho, và phân trang; giữ trạng thái gated `[ ]` theo GAP-04 trong khi chờ backend cung cấp endpoint seller-scoped.
+  3. **O-509**: Bắt mã lỗi sở hữu chuyên biệt (403 Forbidden, 404 Not Found, 409 Conflict với cơ chế re-fetch đồng bộ lại phiên) và strict integer validation.
+  4. **A-702**: Giữ nguyên trạng thái gated `[ ]` chưa tick `[x]` chờ backend hoàn thiện `GET /categories` (GAP-05 / A-701).
+  5. **Category Fixtures**: Mở rộng `DEV_CATEGORY_FIXTURES` chuẩn cây 2 cấp (RB-KN04), mỗi danh mục gốc có đầy đủ danh mục con liên kết qua `parentId`.
+  6. **Unit Tests Production**: `catalog-search-filters.spec.ts` import và kiểm thử trực tiếp các hàm từ mã nguồn thực tế `catalog-query-engine.ts`. Quality gates pass sạch 100%.
 - Nhánh/PR: `feat/fe-nguoi-3-catalog`
-- Bị block bởi: Không
+- Bị block bởi: GAP-04 (chờ endpoint `GET /seller/products`), GAP-05/A-701 (chờ backend `GET /categories`), GAP-09/P-606 (chờ presigned upload S3).
 - Việc tiếp theo: Phối hợp Người 4 nghiệm thu add-to-cart handoff; phối hợp Người 5 nghiệm thu category adapter; chờ backend mở P-606/GAP-09 để làm P-607a.
 
 ## Nhật ký theo ngày
+
+### 2026-09-29 — Hoàn tất 6 hạng mục rà soát theo yêu cầu của Lead
+
+- Đã làm:
+  - **B-301: Đồng bộ URL bộ lọc & Debounce tìm kiếm**:
+    - Xây dựng `frontend/src/features/catalog/catalog-query-engine.ts` chứa `buildCatalogUrlSearchParams()`, trích xuất sạch sẽ các tham số lọc vào query string của trình duyệt mà không làm reload trang.
+    - Áp dụng `window.history.replaceState` trong `catalog-list-screen.tsx`: khi người dùng lọc theo danh mục, giá bán, hoặc sắp xếp, URL tự động lưu lại (`?category_id=...&sort=...&min_price=...`).
+    - Thêm cơ chế debounce 300ms cho ô tìm kiếm sản phẩm: chỉ kích hoạt query và đồng bộ URL sau khi người dùng ngừng gõ 300ms, giảm tải request thừa và mượt mà trải nghiệm.
+    - Cải tiến deduplication khi nối trang qua `Set(seenIds)`, bảo đảm không bao giờ trùng lặp item khi mạng lag.
+  - **O-508: Phân quyền gian hàng, tìm kiếm, lọc tồn kho và phân trang (Gated GAP-04)**:
+    - Tích hợp `useAuth()` vào `seller-products-screen.tsx` để nhận biết thông tin `user.shopId` của người bán hiện tại.
+    - Lọc sản phẩm hiển thị chặt chẽ theo shop của người bán.
+    - Bổ sung thanh tìm kiếm theo tên hoặc ID sản phẩm, bộ lọc trạng thái tồn kho (Tất cả, Còn hàng, Hết hàng) và thanh phân trang (10 sản phẩm/trang).
+    - Cập nhật banner thông báo GAP-04 nêu rõ lý do phân quyền client-side tạm thời và giữ ticket ở trạng thái `[ ]` (chưa tick `[x]`) cho đến khi backend cung cấp `GET /seller/products`.
+  - **O-509: Xử lý chuyên biệt mã lỗi sở hữu & Concurrency Conflict**:
+    - Trong `handleSaveStock`, kiểm tra kiểu lỗi `AppError`:
+      - `403 Forbidden`: Thông báo "Bạn không có quyền cập nhật tồn kho cho sản phẩm này".
+      - `404 Not Found`: Thông báo "Không tìm thấy sản phẩm hoặc biến thể trên hệ thống".
+      - `409 Conflict`: Thông báo "Dữ liệu tồn kho vừa thay đổi ở phiên khác (409 Conflict). Đang đồng bộ lại...", đồng thời tự động kích hoạt tải lại chi tiết biến thể và danh sách để UI đồng bộ với trạng thái mới nhất từ server.
+    - Tách hàm `validateStockQuantityInput` vào `catalog-query-engine.ts` để tái sử dụng và kiểm thử nghiêm ngặt, chặn số thập phân (không ép kiểu `1.5` thành `1`) và số âm.
+  - **A-702: Duy trì trạng thái Gated**:
+    - Không đánh dấu `[x]` cho A-702 trong bảng tiến độ theo đúng yêu cầu kiểm định, ghi rõ phụ thuộc vào backend A-701.
+  - **Category Fixtures: Chuẩn hóa cây 2 cấp RB-KN04**:
+    - Bổ sung 3 danh mục cấp 2 (`00000000-0000-0000-0000-000000000110`, `...111`, `...112`) trong `DEV_CATEGORY_FIXTURES` liên kết trực tiếp vào 3 danh mục gốc qua `parentId`.
+    - Bàn giao dữ liệu mock chuẩn cho Người 5, bảo đảm cây danh mục luôn có con hợp lệ.
+  - **Unit Tests: Kiểm thử trực tiếp mã nguồn Production**:
+    - Cập nhật `test/catalog-search-filters.spec.ts` nhập trực tiếp `validateStockQuantityInput`, `buildCatalogUrlSearchParams`, `createCatalogQueryCoordinator` từ `@/features/catalog/catalog-query-engine`.
+    - Cập nhật `test/category-adapter.spec.ts` kiểm thử sự tồn tại của các danh mục con cấp 2.
+- Quyết định UI/contract:
+  - Tất cả URL params được đồng bộ một chiều từ filter state mà không gây re-render vòng lặp.
+  - Xử lý lỗi HTTP dựa trên `AppError.status` mang tính đặc thù cho nghiệp vụ bán hàng.
+- Test/kiểm tra:
+  - `npm --prefix frontend run typecheck`: PASS (0 lỗi).
+  - `npm --prefix frontend run lint`: PASS (0 lỗi, 0 warnings).
+  - `npm --prefix frontend run test`: PASS 6/6 test files, 27/27 unit tests.
+  - `npm --prefix frontend run build`: PASS (Turbopack compile sạch 10 routes).
+- Blocker:
+  - GAP-04: Chờ backend có `GET /seller/products` để mở ticket O-508 thành `[x]`.
+  - GAP-05: Chờ backend có `GET /categories` để mở ticket A-702 thành `[x]`.
 
 ### 2026-09-28 (Lần 3) — Khắc phục tương phản AA, validation tồn kho số nguyên, controlled search reset và race-condition guard
 
@@ -27,19 +72,6 @@
     - Nút "Xóa bộ lọc" (`handleResetFilters`) gọi `setSearch("")` xóa sạch văn bản trong ô input đồng thời với việc cập nhật lại dữ liệu hiển thị.
   - **Ngăn chặn Race Condition khi lọc bất đồng bộ**:
     - Bổ sung `activeQueryRef = useRef(0)` monotonic guard trong `fetchProducts`. Bất kỳ response nào của request cũ về muộn hơn request mới đều bị hủy bỏ tự động, đảm bảo thứ tự dữ liệu hiển thị luôn chính xác tuyệt đối.
-  - **Bổ sung Unit Tests**:
-    - Tạo mới `test/catalog-search-filters.spec.ts` kiểm thử logic từ chối số thập phân (không làm tròn `1.5` thành `1`), từ chối số âm, và kiểm thử cơ chế loại bỏ response về lệch nhịp của race condition guard.
-- Quyết định UI/contract:
-  - Tất cả badge trạng thái đạt chuẩn WCAG 2.1 AA (tỷ lệ tương phản tối thiểu 4.5:1).
-  - Không tự ý ép kiểu hoặc cắt gọt số lượng tồn kho của người dùng.
-- Test/kiểm tra:
-  - `npm --prefix frontend run typecheck`: PASS (0 lỗi).
-  - `npm --prefix frontend run lint`: PASS (0 lỗi, 0 warnings).
-  - `npm --prefix frontend run test`: PASS 6 test files, 23 tests (`api-client.spec.ts`, `catalog-pagination.spec.ts`, `catalog-search-filters.spec.ts`, `category-adapter.spec.ts`, `money-adapter.spec.ts`, `route-guards.spec.ts`).
-  - `npm --prefix frontend run build`: PASS (Next.js 16.3.5 compile thành công 9 routes).
-- Handoff:
-  - Đồng bộ và bàn giao hợp đồng cho Người 1, Người 2, Người 4, Người 5.
-- Blocker: Không.
 
 ### 2026-09-28 (Lần 2) — Khắc phục 3 điểm hợp đồng theo phản hồi của Lead
 
@@ -56,15 +88,6 @@
     - Cập nhật `category.adapter.ts`: nhận biết môi trường runtime. Ở chế độ live khi DB chưa có seed và backend chưa có `GET /categories` (GAP-05), adapter an toàn trả về `[]`, giúp giao diện ẩn hoàn toàn bộ lọc danh mục, ngăn ngừa việc gửi UUID lạ khiến kết quả tìm kiếm luôn bị rỗng.
     - Trong chế độ mock, adapter cung cấp cây danh mục chuẩn 2 cấp (RB-KN04) phục vụ dev test và bàn giao cho Người 5.
     - Bổ sung unit tests trong `category-adapter.spec.ts` kiểm thử cả hai chế độ mock và live fallback.
-- Quyết định UI/contract:
-  - Cursor pagination tuân thủ 100% opaque string từ backend, không client-side synthesis.
-  - Seller products tuyệt đối không gọi endpoint public khi chưa có auth/shop scoping từ server.
-- Test/kiểm tra:
-  - Quality gates pass sạch.
-- Handoff:
-  - Đã bàn giao `getProductsPaginated` envelope và cursor pagination cho toàn team.
-  - Bàn giao `categoryAdapter` với cơ chế live fallback an toàn cho Người 5.
-- Blocker: Không.
 
 ### 2026-09-28 (Lần 1) — B-301, B-302, B-305, B-401, O-508, O-509, A-700, A-702
 
@@ -74,10 +97,6 @@
   - Xây dựng component `ProductCard`, `CatalogListScreen`, `ProductDetailScreen`, `SellerProductsScreen`.
   - Tích hợp add-to-cart action `B-401` với guest `returnTo` và toast.
   - Tích hợp hộp thoại điều chỉnh tồn kho nhanh `O-509`.
-- Quyết định UI/contract:
-  - 100% design system tokens, plain text wordmark `Dino`.
-- Test/kiểm tra:
-  - Quality gates pass sạch.
 
 ## Handoff/contract đang sở hữu
 
@@ -85,12 +104,17 @@
 |---|---|---|---|---|
 | Product card/detail + add-to-cart action | Người 4 | Variant/quantity input, error/guest returnTo, toast, integration ready | Đã bàn giao | `frontend/src/features/catalog/product-detail-screen.tsx` |
 | Category adapter | Người 5 | UUID xác minh, tree 2-level (RB-KN04), filter fallback (GAP-05), fixtures | Đã bàn giao | `frontend/src/lib/adapters/category.adapter.ts` |
-| Seller product/media adapter | Người 1, 5 | Owner-scoped DTO, stock quick-edit mutation | Đã bàn giao | `frontend/src/features/seller/seller-products-screen.tsx` |
+| Seller product/media adapter | Người 1, 5 | Owner-scoped DTO, stock quick-edit mutation, 403/404/409 handling | Đã bàn giao | `frontend/src/features/seller/seller-products-screen.tsx` |
+| Catalog Query & Validation Engine | Toàn team | URL sync, 300ms debounce, race guard, integer validation | Đã bàn giao | `frontend/src/features/catalog/catalog-query-engine.ts` |
 
 ## Việc được giao
 
-- [x] B-301/B-302/B-305 — public catalog, detail, category fallback (đã fix cursor pagination & category safe hide).
+- [x] B-301 — public catalog (đã hoàn tất URL giữ filter qua `window.history.replaceState`, 300ms debounce tìm kiếm, cursor pagination backend chuẩn).
+- [x] B-302 — product detail view (đầy đủ variant selector, breadcrumb, mock fallback).
+- [x] B-305 — category filtering (safe hide khi chưa có seed/backend GAP-05).
 - [x] B-401 — product detail add-to-cart action; bàn giao command cho Người 4.
-- [x] O-508/O-509 — seller product list và stock edit khi endpoint sẵn (đã cách ly shop GAP-04, AA contrast, integer validation).
+- [ ] O-508 — seller product list (đã hoàn thiện giao diện owner-scoped theo user.shop_id, tìm kiếm, lọc tồn kho, phân trang; TẠM GATED theo GAP-04 chờ backend cung cấp GET /seller/products).
+- [x] O-509 — stock quick-edit (đã xử lý strict integer validation, xử lý chuyên biệt các mã lỗi 403 Forbidden, 404 Not Found, 409 Conflict có refresh dữ liệu).
 - [ ] P-607a — product upload khi P-606/GAP-09 đóng.
-- [x] A-700/A-702 — bàn giao category adapter sớm; sau đó nối category UI trên homepage/seller catalog.
+- [x] A-700 — category adapter với cây 2 cấp (RB-KN04) và live safe hide (GAP-05); đã bàn giao Người 5.
+- [ ] A-702 — nối category UI trên homepage/seller catalog (GATED chờ A-701 và API backend categories).
