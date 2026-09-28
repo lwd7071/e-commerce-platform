@@ -1,29 +1,40 @@
 import { apiClient } from "./client";
+import type { OrderStatus } from "@/components/ui/status-badge";
+
+export interface WireOrderItem {
+  id: string;
+  product_id?: string;
+  variant_id?: string;
+  product_name: string;
+  variant_name: string;
+  price: string;
+  quantity: number;
+  subtotal: string;
+  image_url?: string;
+}
 
 export interface WireOrder {
   id: string;
   order_code: string;
   buyer_id: string;
   shop_id: string;
-  status: "PENDING" | "CONFIRMED" | "PROCESSING" | "SHIPPED" | "DELIVERED" | "COMPLETED" | "CANCELLED";
+  shop_name?: string;
+  status: OrderStatus;
   total_amount: string;
   shipping_fee: string;
   discount_amount: string;
   final_amount: string;
+  cancel_reason?: string | null;
   created_at: string;
-  items?: Array<{
-    id: string;
-    product_name: string;
-    variant_name: string;
-    price: string;
-    quantity: number;
-    subtotal: string;
-  }>;
+  items?: WireOrderItem[];
 }
 
 export const orderApi = {
   getOrders: (params?: { status?: string }) => apiClient.get<WireOrder[]>("/orders", { params }),
   getOrderById: (id: string) => apiClient.get<WireOrder>(`/orders/${id}`),
+
+  cancelOrder: (id: string, reason: string) =>
+    apiClient.post<WireOrder>(`/orders/${id}/cancel`, { reason }),
 
   confirmOrder: (id: string, reason?: string) =>
     apiClient.post<WireOrder>(`/orders/${id}/confirm`, { reason }),

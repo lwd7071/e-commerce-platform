@@ -2,14 +2,44 @@
 
 ## Trạng thái hiện tại
 
-- Phase/ticket: FE Planning & Spec Reconciliation
+- Phase/ticket: Phase 5 — O-502 & O-503 hoàn tất
 - Cập nhật lần cuối: 2026-09-28
-- Đang làm: Đã hoàn tất đóng Mốc T3 Backend. Đã rà soát đặc tả FE (02-pages-and-user-flow, 05-api-contract, 08-implementation-plan) cho các trang Orders (`/orders`), Chi tiết & Review (`/orders/[id]/review`), Cancel/Transition flows, và Admin Categories / Seller KPI.
+- Đang làm: Đã hoàn thành 100% Ticket O-502 (Buyer Order Center `/orders`) và O-503 (Cancel Order Dialog). Đã tích hợp kiểm thử đơn vị `frontend/test/orders.spec.ts` (4/4 pass). Đảm bảo chuẩn UI/UX tokens và WCAG AA.
 - Nhánh/PR: thanh-vien-5
 - Bị block bởi: Không
-- Việc tiếp theo: Triển khai O-502/O-504/O-505 (buyer/seller orders timeline, cancel reason modal, transition actions) kết nối với API contract đã khóa.
+- Việc tiếp theo: Triển khai O-504 / O-505 (Seller orders table, confirm & transition actions tuần tự) tại `/seller/orders`.
 
 ## Nhật ký theo ngày
+
+### 2026-09-28 (Hoàn thành O-502 Buyer Order Center và O-503 Cancel Order)
+
+- **Đã làm:**
+  - **1. Triển khai O-502 (Buyer Order Center tại `frontend/src/app/orders/page.tsx` và `frontend/src/features/orders/`):**
+    - Cấu hình route `/orders` bọc trong `ProtectedPage allowedRoles={["BUYER"]}`, metadata chuẩn "Đơn hàng của tôi - Dino".
+    - Xây dựng thanh lọc 8 tabs gồm "Tất cả" và 7 trạng thái chuẩn Backend (`PENDING_CONFIRMATION`, `CONFIRMED`, `PREPARING`, `SHIPPING`, `COMPLETED`, `CANCELLED`, `DELIVERY_FAILED`) dùng `.filter-tabs` và `.filter-tab` có `aria-pressed`.
+    - Component `OrderCard`: Trình bày mã đơn bằng `Geist Mono`, ngày đặt, gian hàng, badge trạng thái `StatusBadge`, danh sách sản phẩm (tên, phân loại, giá, số lượng), chi tiết thanh toán (tiền hàng, giảm giá, phí ship 0₫ theo contract, tổng thanh toán).
+    - Xử lý liên kết với Người 4: Đọc query param `?created=<ids>` từ trang `/checkout` chuyển sang để highlight đơn hàng vừa đặt và hiển thị banner thông báo chúc mừng.
+    - Đầy đủ các trạng thái giao diện theo quy chuẩn: Skeleton khi tải, `EmptyState` khi không có đơn kèm nút điều hướng đến `/products`, `ErrorState` khi lỗi kèm nút thử lại.
+  - **2. Triển khai O-503 (Cancel Order Modal & Validation):**
+    - Modal `CancelOrderDialog` dùng component `<Dialog>` chuẩn accessible: Danh sách lý do hủy định sẵn + ô nhập chi tiết khi chọn "Lý do khác".
+    - Bắt buộc nhập `reason` hợp lệ (không để trống) theo quy tắc RB-LTT08.
+    - Xử lý trường hợp 409 Conflict / `ORDER_CANCELLATION_NOT_ALLOWED`: Thông báo rõ ràng cho người dùng khi đơn hàng đã bị đổi trạng thái từ phía seller và tự động làm mới danh sách.
+  - **3. Cập nhật Repository & Mock Contract:**
+    - Cập nhật `order.api.ts`: Chuẩn hóa `WireOrder` dùng `OrderStatus`, bổ sung endpoint `cancelOrder(id, reason)`.
+    - Cập nhật `types.ts` và `repository-factory.ts`: Thêm `cancelOrder` vào `IOrderRepository`, xây dựng `inMemoryMockOrders` phong phú với dữ liệu mẫu nhiều trạng thái, hỗ trợ cập nhật status sang `CANCELLED`.
+  - **4. Kiểm thử chất lượng (Quality Gates):**
+    - Viết `frontend/test/orders.spec.ts` kiểm tra bộ tabs, lọc theo trạng thái, hủy đơn thành công và chặn hủy đơn 409 khi đơn đã xác nhận (4/4 tests PASS).
+    - Chạy full test suite frontend: **30/30 tests PASS (100%)**.
+    - Typecheck frontend: **0 errors** (`tsc --noEmit`).
+- **Quyết định kỹ thuật:**
+  - Áp dụng triệt để nguyên tắc Ponytail: Tối đa hóa tái sử dụng các component có sẵn (`ProtectedPage`, `Dialog`, `Button`, `StatusBadge`, `FormField`, `TextArea`, `EmptyState`, `Skeleton`, `moneyAdapter`), diff gọn gàng, ít file.
+  - Sử dụng Suspense bọc `OrdersScreen` tại `app/orders/page.tsx` để xử lý `useSearchParams` an toàn theo chuẩn Next.js App Router.
+- **Contract/port thay đổi:**
+  - Bổ sung `cancelOrder(id: string, reason: string)` vào `orderApi` và `IOrderRepository`.
+- **Blocker phát sinh:**
+  - Không.
+- **Test đã viết:**
+  - `frontend/test/orders.spec.ts` — Kiểm thử Orders Center & Cancel Lifecycle — Kết quả: 4/4 PASS.
 
 ### 2026-09-28 (Khởi động FE & Đối soát Đặc tả Frontend Người 5)
 
@@ -32,7 +62,10 @@
 
 ## Việc được giao
 
-- [ ] O-502–505/O-507 — buyer/seller orders, cancel, transition, review UI.
+- [x] O-502 — Buyer order center (`/orders`), tabs 7 trạng thái, order card, loading/empty/error states.
+- [x] O-503 — Cancel order dialog, bắt buộc nhập lý do (RB-LTT08), xử lý 409 conflict tự động làm mới.
+- [ ] O-504/O-505 — Seller orders table, confirm & transition actions tuần tự (`/seller/orders`).
+- [ ] O-507 — Review form UI (`/orders/[id]/review`).
 - [ ] A-704/A-705/A-708 — admin dashboard, user lock/unlock, seller KPI khi API sẵn.
 - [ ] A-709 — admin categories page, tiêu thụ category adapter A-700 của Người 3; nối API sau A-701.
 - [ ] P-607c — review media UI khi P-606/GAP-09 đóng.
