@@ -25,7 +25,7 @@ export function SellerProductsScreen() {
   const [productDetail, setProductDetail] = useState<WireCatalogProductDetail | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [editingVariant, setEditingVariant] = useState<WireProductVariant | null>(null);
-  const [stockInput, setStockInput] = useState<number>(0);
+  const [stockInput, setStockInput] = useState<string>("0");
   const [isUpdatingStock, setIsUpdatingStock] = useState(false);
 
   useEffect(() => {
@@ -71,7 +71,7 @@ export function SellerProductsScreen() {
       setProductDetail(detail);
       if (detail.variants && detail.variants.length > 0) {
         setEditingVariant(detail.variants[0]);
-        setStockInput(detail.variants[0].stock_quantity);
+        setStockInput(String(detail.variants[0].stock_quantity));
       }
     } catch {
       showToast("Không thể tải thông tin biến thể sản phẩm", "error");
@@ -82,29 +82,42 @@ export function SellerProductsScreen() {
 
   const handleSelectVariantForEdit = (variant: WireProductVariant) => {
     setEditingVariant(variant);
-    setStockInput(variant.stock_quantity);
+    setStockInput(String(variant.stock_quantity));
   };
 
   const handleSaveStock = async () => {
     const catalogRepo = repositories.catalog();
     if (!editingVariant || !catalogRepo.updateStock) return;
-    if (stockInput < 0 || isNaN(stockInput)) {
-      showToast("Số lượng tồn kho phải là số nguyên không âm", "error");
+
+    const trimmed = stockInput.trim();
+    if (!trimmed || isNaN(Number(trimmed))) {
+      showToast("Vui lòng nhập số lượng tồn kho hợp lệ", "error");
+      return;
+    }
+
+    const parsed = Number(trimmed);
+    if (!Number.isInteger(parsed)) {
+      showToast("Số lượng tồn kho phải là số nguyên (không được chứa phần thập phân)", "error");
+      return;
+    }
+
+    if (parsed < 0) {
+      showToast("Số lượng tồn kho không được âm", "error");
       return;
     }
 
     setIsUpdatingStock(true);
     try {
-      await catalogRepo.updateStock(editingVariant.variant_id, stockInput);
-      showToast(`Đã cập nhật tồn kho thành ${stockInput}`, "success", "Cập nhật thành công");
+      await catalogRepo.updateStock(editingVariant.variant_id, parsed);
+      showToast(`Đã cập nhật tồn kho thành ${parsed}`, "success", "Cập nhật thành công");
 
       // Update local detail state
       if (productDetail) {
         const updatedVariants = productDetail.variants.map((v) =>
-          v.variant_id === editingVariant.variant_id ? { ...v, stock_quantity: stockInput } : v
+          v.variant_id === editingVariant.variant_id ? { ...v, stock_quantity: parsed } : v
         );
         setProductDetail({ ...productDetail, variants: updatedVariants });
-        setEditingVariant({ ...editingVariant, stock_quantity: stockInput });
+        setEditingVariant({ ...editingVariant, stock_quantity: parsed });
       }
 
       // Refresh list
@@ -206,12 +219,12 @@ export function SellerProductsScreen() {
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         <span
-                          className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                          className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold border ${
                             item.total_stock > 10
-                              ? "bg-[var(--success-surface)] text-[var(--success)]"
+                              ? "bg-[#edfbf2] text-[#126239] border-[#b2e5c8]"
                               : item.total_stock > 0
-                              ? "bg-[var(--warning-surface)] text-[var(--warning)]"
-                              : "bg-[var(--danger-surface)] text-[var(--danger)]"
+                              ? "bg-[#fff7e8] text-[#794600] border-[#f3dfb6]"
+                              : "bg-[#fff0f2] text-[#8e2638] border-[#f0c2ca]"
                           }`}
                         >
                           {item.total_stock > 0 ? item.total_stock : "Hết hàng"}
@@ -320,15 +333,16 @@ export function SellerProductsScreen() {
                 <FormField
                   id="variant-stock-input"
                   label="Số lượng tồn kho mới"
-                  helpText="Nhập số lượng thực tế trong kho sẵn sàng để giao bán."
+                  helpText="Nhập số lượng thực tế trong kho sẵn sàng để giao bán (số nguyên không âm)."
                   required
                 >
                   <TextInput
                     id="variant-stock-input"
                     type="number"
+                    step="1"
                     min="0"
                     value={stockInput}
-                    onChange={(e) => setStockInput(parseInt(e.target.value, 10) || 0)}
+                    onChange={(e) => setStockInput(e.target.value)}
                   />
                 </FormField>
               </div>
