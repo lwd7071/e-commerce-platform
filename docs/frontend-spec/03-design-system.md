@@ -5,35 +5,38 @@
 
 ## 1. Art direction
 
-Phong cách **Matte Velvet Luxury** dùng nền sáng trung tính, bề mặt mờ, sắc hồng làm điểm nhấn và chuyển động nhẹ. Hiệu ứng không được làm giảm độ tương phản hoặc khả năng thao tác.
+Phong cách nền sáng trung tính, bề mặt mờ và sắc hồng làm điểm nhấn. Quy chuẩn token, typography, stack và handoff UI/UX nằm ở [09-ui-ux-rules.md](./09-ui-ux-rules.md). Không dùng glow/aura; tương phản và khả năng thao tác được ưu tiên khi chọn cặp màu.
 
 ## 2. Tokens
 
-Các token hiện có trong `ecommerce-web/src/app/globals.css`:
+Token đích của U-201 (xem bộ CSS đầy đủ và ngoại lệ contrast ở file 09). `globals.css` hiện là CSS prototype; Người 2 phải đồng bộ trước khi xem nó là source of truth của UI mới.
 
 | Token | Giá trị | Dùng cho |
 |---|---:|---|
-| `--primary` | `#FF7AAC` | CTA, active icon |
-| `--primary-hover` | `#E85D94` | Hover |
-| `--primary-active` | `#D4437D` | Pressed |
+| `--primary` | `#FF7AAC` | Icon/điểm nhấn, không dùng làm chữ nhỏ trên nền trắng |
+| `--primary-btn` | `#E85D94` | Sắc hồng brand, không ghép chữ trắng cỡ thường |
+| `--primary-hover` | `#D4437D` | Hover |
+| `--primary-active` | `#BF3A6F` | Pressed hoặc CTA chữ trắng cỡ thường |
 | `--primary-surface` | `#FFF0F6` | Selected surface |
 | `--primary-border` | `#FFD1E3` | Focus/selected border |
-| `--primary-glow` | `rgba(255,122,172,.28)` | Glow có kiểm soát |
 | `--background` | `#FBF8F9` | Page background |
 | `--foreground` | `#221C1F` | Primary text |
-| `--card-bg` | `#FFFFFF` | Card/dialog |
-| `--card-matte` | `#FAF6F8` | Secondary surface |
-| `--card-border` | `#F0E6EA` | Border |
-| `--subtext` | `#82757B` | Secondary text |
+| `--card` | `#FFFFFF` | Card/dialog |
+| `--card-muted` | `#FAF6F8` | Secondary surface |
+| `--border` | `#F0E6EA` | Border |
+| `--subtext` | `#75686E` | Secondary text |
+| `--radius` | `12px` | Radius mặc định |
+| `--shadow` | `0 1px 2px rgba(34, 28, 31, 0.06)` | Shadow nhẹ, không glow |
+| `--button-primary-bg` / `--button-primary-fg` | `#BF3A6F` / `#FFFFFF` | Cặp màu nút chính thống nhất |
 
-Tên class hiện hành là `.btn-matte-primary`, `.btn-matte-secondary`, `.matte-card`, `.matte-glass`, `.matte-dock`. Không dùng `.velvet-button` trừ khi class này được thêm chính thức.
+Các class `.btn-matte-primary`, `.btn-matte-secondary`, `.matte-card`, `.matte-glass`, `.matte-dock` hiện thuộc prototype. Người 2 di chuyển component dùng chung sang token mới trong U-201/U-202; page mới không sao chép hardcoded color/glow từ class cũ.
 
-Khi cấu hình Tailwind `@theme`, giữ CSS variables làm source of truth và map sang utility `bg-primary`, `text-primary`, `border-card`, `shadow-glow`.
+Khi cấu hình Tailwind `@theme`, dùng CSS variables làm nguồn chung và map utility theo vai trò (`bg-background`, `bg-card`, `text-foreground`, `border-border`, v.v.). Không tạo utility glow.
 
 ## 3. Typography và layout
 
-- Font stack: `Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`.
-- Body: 15–16px, line-height tối thiểu 1.5.
+- Font stack: Geist Sans qua `next/font`, fallback `Arial, sans-serif`; Geist Mono chỉ dùng cho nội dung kỹ thuật.
+- Body: 16px, line-height tối thiểu 1.5.
 - Caption: tối thiểu 12px; nội dung nghiệp vụ không dùng 11px.
 - Container: `max-w-7xl`, padding ngang 16px mobile, 24px tablet, 32px desktop.
 - Breakpoints theo Tailwind: `sm 640`, `md 768`, `lg 1024`, `xl 1280`, `2xl 1536`.
@@ -43,7 +46,7 @@ Khi cấu hình Tailwind `@theme`, giữ CSS variables làm source of truth và 
 
 ### Button
 
-Variants: `primary | secondary | ghost | danger`. States bắt buộc: default, hover, active, focus-visible, disabled, loading. Khi loading phải giữ nguyên chiều rộng và có `aria-busy`.
+Variants: `primary | secondary | ghost | danger`. States bắt buộc: default, hover, active, focus-visible, disabled, loading. Khi loading phải giữ nguyên chiều rộng và có `aria-busy`. Mọi nút primary dùng cặp `--button-primary-bg`/`--button-primary-fg` theo file 09; không tạo biến thể CTA khác theo page.
 
 ### Form controls
 

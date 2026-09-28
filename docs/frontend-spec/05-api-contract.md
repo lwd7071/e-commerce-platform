@@ -7,7 +7,7 @@
 
 - Base URL: `/api/v1`.
 - Authenticated route dùng `Authorization: Bearer <supabase_access_token>`.
-- JSON keys dùng snake_case.
+- Request và response phần lớn dùng snake_case; một số response runtime Address/Voucher trả domain object camelCase. Schema ngoại lệ được ghi tại endpoint tương ứng; không áp dụng casing transform toàn cục.
 - `request_id` phải được log/copy khi báo lỗi hỗ trợ.
 - `204 No Content` không được parse JSON.
 - Timeout/retry: chỉ tự retry GET an toàn; mutation chỉ retry khi có idempotency contract.
@@ -23,36 +23,38 @@ type PaginatedEnvelope<T> = {
 };
 type ErrorEnvelope = {
   error: { code: string; message: string; details?: unknown };
-  request_id: string;
+  request_id?: string;
 };
 ```
 
 Backend không trả field `success`.
+
+**Phòng thủ parser:** runtime hiện chuẩn hóa lỗi chưa được triển khai thành HTTP 501 `NOT_IMPLEMENTED` theo ErrorEnvelope. Client vẫn cần kiểm tra shape ở runtime, chịu được body rỗng/không phải JSON, `request_id` vắng mặt và error code chưa biết; không giả định TypeScript type đảm bảo payload mạng hợp lệ.
 
 ## 2. Runtime readiness
 
 | Domain | Endpoint | Role | Status | Ghi chú |
 |---|---|---|---|---|
 | System | `GET /health` | Public | `AVAILABLE` | Health check |
-| System | `GET /openapi.json` | Public | `AVAILABLE` | OpenAPI hiện chưa mô tả đầy đủ catalog/admin |
+| System | `GET /openapi.json` | Public | `AVAILABLE` | Kiểm tra method+path hai chiều; schema cụ thể tiếp tục được hoàn thiện theo backend |
 | Catalog | `GET /products` | Public | `AVAILABLE` | Cursor pagination |
 | Catalog | `GET /products/:product_id` | Public | `PARTIAL` | Thiếu images/shop/reviews/metrics |
 | Catalog | `POST /products` | Seller | `AVAILABLE` | Chỉ nhận URL ảnh đã upload |
 | Catalog | `PATCH /product-variants/:variant_id/stock` | Seller | `AVAILABLE` | Body `{ quantity }` |
 | Address | `GET /addresses` | Buyer | `AVAILABLE` | Runtime legacy service |
 | Address | `POST /addresses` | Buyer | `AVAILABLE` | Runtime legacy service |
-| Address | detail/update/delete/default | Buyer | `RUNTIME_BLOCKED` | Service chưa được inject đầy đủ |
+| Address | detail/update/default/delete | Buyer | `RUNTIME_BLOCKED` | Trả 501 `NOT_IMPLEMENTED` theo ErrorEnvelope; chưa có service runtime |
 | Cart | `GET /cart` | Buyer | `PARTIAL` | Thiếu joined display data |
 | Cart | add/update/delete item | Buyer | `AVAILABLE` | Update hỗ trợ `is_selected` |
-| Cart | `DELETE /cart/selected` | Buyer | `RUNTIME_BLOCKED` | Runtime legacy path trả 204 nhưng không xóa |
+| Cart | `DELETE /cart/selected` | Buyer | `AVAILABLE` | Xóa item đang chọn trong cart của buyer; trả 204 |
 | Voucher | list/evaluate | Buyer | `AVAILABLE` | Dùng `code`, `order_subtotal`, `shop_id` |
 | Checkout | `POST /checkout` | Buyer | `AVAILABLE` | Bắt buộc Idempotency-Key |
 | Orders | `GET /orders` | Buyer/Seller/Admin | `RUNTIME_BLOCKED` | Runtime trả `[]` vì chưa có orderRepo |
 | Orders | `GET /orders/:id` | Buyer/Seller/Admin | `RUNTIME_BLOCKED` | Chưa trả detail thực |
 | Orders | cancel/confirm/transition | Theo route | `AVAILABLE` | Payload xem bên dưới |
 | Payment | `POST /orders/:id/payments` | Buyer | `PARTIAL` | Retry payment; không tạo QR/link |
-| Review | `POST /order-items/:id/review` | Buyer | `RUNTIME_BLOCKED` | Runtime trả 501 |
-| Notification | list/detail/read | Buyer | `RUNTIME_BLOCKED` | Runtime trả 501 |
+| Review | `POST /order-items/:id/review`, alias `POST /reviews` | Buyer | `RUNTIME_BLOCKED` | Trả 501 `NOT_IMPLEMENTED` đến khi wire service |
+| Notification | list/detail/read | Buyer | `RUNTIME_BLOCKED` | Trả 501 `NOT_IMPLEMENTED` đến khi wire service |
 | Admin | lock/unlock user | Admin | `AVAILABLE` | Reason bắt buộc theo nghiệp vụ |
 | Profile/Categories/Admin reads | — | — | `MISSING` | Xem gap analysis |
 
@@ -191,7 +193,7 @@ Role `BUYER`; response `201` envelope với object cùng camelCase shape như tr
 }
 ```
 
-Không gửi `address_id`, `user_id`, timestamp hoặc field UI khác trong request. Backend tự gán ID/user/timestamp. `GET /addresses/:id`, `PATCH`, `DELETE` và set-default chưa sẵn sàng production; xem readiness matrix.
+Không gửi `address_id`, `user_id`, timestamp hoặc field UI khác trong request. Backend tự gán ID/user/timestamp. `GET /addresses/:id`, `PATCH`, `DELETE` và set-default chưa sẵn sàng production; hiện trả 501 `NOT_IMPLEMENTED` theo ErrorEnvelope. Xem readiness matrix.
 
 ## 5. Cart
 
@@ -214,13 +216,15 @@ Không gửi `address_id`, `user_id`, timestamp hoặc field UI khác trong requ
 ### Delete
 
 - `DELETE /cart/items/:cart_item_id` → `204`.
-- `DELETE /cart/selected` có semantics xóa item đang `is_selected=true`, nhưng chưa hoạt động trong runtime production hiện tại.
+- `DELETE /cart/selected` xóa item đang `is_selected=true` trong cart của buyer hiện tại.
 
 ## 6. Voucher
 
 ### List
 
 `GET /vouchers` hoặc `/vouchers/applicable` với query `scope`, `shop_id`, `now`.
+
+Response `200`: `data` là mảng `VoucherRuntimeDTO` camelCase (xem [04-data-model.md](04-data-model.md)); đây là domain object runtime, không phải DTO snake_case. Các field gồm `voucherId`, `code`, `voucherName`, `scope`, `shopId`, `discountType`, `discountValue`, `maxDiscount`, `minOrderValue`, `quantity`, `startAt`, `endAt`, `status`, `createdAt`, `updatedAt`.
 
 ### Evaluate
 
@@ -235,6 +239,21 @@ Không gửi `address_id`, `user_id`, timestamp hoặc field UI khác trong requ
 ```
 
 Không gửi `items` hoặc `voucher_code`.
+
+Response `200` tại runtime hiện tại là kết quả union của `VoucherPortService`; nó **không** chứa object `voucher` lồng bên trong:
+
+```json
+{
+  "data": {
+    "isValid": true,
+    "voucherId": "uuid",
+    "discountAmount": "50000.00"
+  },
+  "request_id": "req_..."
+}
+```
+
+Khi không áp dụng được, service trả `data: { "isValid": false, "errorCode": "VOUCHER_NOT_APPLICABLE", "errorMessage": "..." }`. FE cần xử lý hai nhánh; để render chi tiết ưu đãi, lấy voucher từ list endpoint và ghép theo `voucherId` (hoặc `code` nếu cần), không trông chờ evaluate trả toàn bộ voucher. Các field trong cả hai nhánh là camelCase.
 
 ## 7. Checkout
 
@@ -365,6 +384,7 @@ Không dùng `to_status` hoặc `note`.
 | `USER_LOCKED` | 403 | sign out và hiển thị trạng thái tài khoản |
 | `RESOURCE_NOT_FOUND` | 404 | not-found/refresh list |
 | `VALIDATION_FAILED` | 422 | map `details` vào field; giữ form |
+| `REASON_REQUIRED` | 422 | map `details.field` vào ô `reason`; giữ form và không retry tự động |
 | `INVALID_REQUEST` | 400 | báo request không hợp lệ |
 | `INVENTORY_INSUFFICIENT` | 409 | refresh cart/stock |
 | `ORDER_INVALID_TRANSITION`, `ORDER_CANCELLATION_NOT_ALLOWED` | 409 | refresh order và vô hiệu action |

@@ -17,11 +17,11 @@
 | Change quantity | `cartRepository.update` | `PATCH /cart/items/:id` | quantity | `AVAILABLE` | optimistic + rollback |
 | Select cart item | `cartRepository.update` | `PATCH /cart/items/:id` | is_selected | `AVAILABLE` | server state |
 | Delete item | `cartRepository.remove` | `DELETE /cart/items/:id` | — | `AVAILABLE` | 204, không parse JSON |
-| Delete selected | `cartRepository.removeSelected` | `DELETE /cart/selected` | không body | `RUNTIME_BLOCKED` | không bật production |
+| Delete selected | `cartRepository.removeSelected` | `DELETE /cart/selected` | không body | `AVAILABLE` | 204; invalidate cart |
 | Address list/create | `addressRepository` | `GET/POST /addresses` | address DTO | `AVAILABLE` | tích hợp thật |
 | Address edit/default/delete | `addressRepository` | address item routes | address DTO | `RUNTIME_BLOCKED` | mock/disable |
-| Voucher list | `voucherRepository.list` | `GET /vouchers/applicable` | scope/shop_id/now | `AVAILABLE` | tích hợp thật |
-| Voucher preview | `voucherRepository.evaluate` | `POST /vouchers/evaluate` | code/order_subtotal/shop_id | `AVAILABLE` | tích hợp thật |
+| Voucher list | `voucherRepository.list` | `GET /vouchers/applicable` | scope/shop_id/now | `AVAILABLE` | runtime camelCase; adapter map rõ theo `VoucherRuntimeDTO` |
+| Voucher preview | `voucherRepository.evaluate` | `POST /vouchers/evaluate` | code/order_subtotal/shop_id | `AVAILABLE` | runtime union camelCase `{isValid, voucherId, discountAmount}` / `{isValid, errorCode, errorMessage}`; không có voucher lồng |
 | Checkout | `checkoutRepository.create` | `POST /checkout` | address/payment/vouchers + header | `AVAILABLE` | tích hợp thật sau cart selection |
 | Order list/detail | `orderRepository` | `GET /orders`, `/orders/:id` | role lấy từ token | `RUNTIME_BLOCKED` | mock/feature flag |
 | Cancel order | `orderRepository.cancel` | `POST /orders/:id/cancel` | reason | `AVAILABLE` | bật khi có order query |
@@ -89,6 +89,8 @@ Không lưu access token trong query key, log hoặc error details.
 | `reason` | `reason` | không gửi `note` |
 
 `rejectUnknown` làm request DTO nhạy với field thừa: serialize object request riêng theo endpoint; không gửi spread view-model chứa `id`, timestamp hoặc `stock`.
+
+Parser lỗi phải xác nhận payload là JSON object và `error` là object trước khi đọc `code`/`message`; vẫn chịu được body rỗng/không JSON, thiếu `request_id` và code chưa biết để UI không crash. Runtime 501 hiện trả ErrorEnvelope `NOT_IMPLEMENTED`.
 
 ## 5. Checkout intent and idempotency
 

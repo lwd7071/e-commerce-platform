@@ -52,7 +52,7 @@ Nguyên tắc:
 - Component không gọi `fetch` trực tiếp.
 - Wire DTO giữ nguyên snake_case; UI dùng camelCase view-model.
 - Không dùng converter snake_case đệ quy toàn cục vì dễ làm sai field động; viết adapter theo endpoint.
-- Error được chuẩn hóa thành `AppError { status, code, message, details, requestId }`.
+- Error được chuẩn hóa thành `AppError { status, code, message, details, requestId? }`; parser phải chịu được error body sai shape, body rỗng/không phải JSON, thiếu request ID và unknown error code. Không đọc `.code` trước khi xác nhận `error` là object.
 - Auth guard ở FE chỉ phục vụ UX; backend vẫn là nơi thực thi bảo mật.
 
 ## 4. Authentication và onboarding
@@ -108,6 +108,8 @@ Error:
 ```
 
 Không dựa vào field `success`; client phải dựa vào HTTP status và sự hiện diện của `data`/`error`.
+
+Các lỗi runtime, kể cả 501 `NOT_IMPLEMENTED`, dùng `{ error: { code, message, details? }, request_id }`. API client vẫn phải chịu được body rỗng/không phải JSON, `request_id` vắng mặt và mã mới mà không crash.
 
 ## 7. Checkout invariant quan trọng
 

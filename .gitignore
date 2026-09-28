@@ -11,3 +11,4 @@ backend/.env
 backend/.env.*
 !.env.example
 !backend/.env.example
+!ecommerce-web/.env.example

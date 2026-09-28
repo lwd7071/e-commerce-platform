@@ -7,7 +7,7 @@
 
 Không dùng một interface cho DB, API và UI.
 
-1. **Wire DTO:** đúng JSON backend, snake_case, money là decimal string khi backend trả PostgreSQL `NUMERIC`.
+1. **Wire DTO:** đúng JSON backend; đa số contract dùng snake_case, nhưng phải theo schema từng endpoint vì một số runtime legacy/domain response dùng camelCase. Money là decimal string khi backend trả PostgreSQL `NUMERIC`.
 2. **View-model:** camelCase, phù hợp component; được tạo bởi adapter theo endpoint.
 3. **Client state:** loading, selected UI, optimistic state; không trộn vào wire DTO.
 
@@ -232,20 +232,37 @@ export interface CreateAddressRequestDTO {
   is_default?: boolean;
 }
 
-export interface VoucherDTO {
-  voucher_id: UUID;
+// GET /vouchers(/applicable) hiện trả domain object camelCase.
+export interface VoucherRuntimeDTO {
+  voucherId: UUID;
   code: string;
-  voucher_name: string;
+  voucherName: string;
   scope: "PLATFORM" | "SHOP";
-  shop_id: UUID | null;
-  discount_type: "PERCENT" | "FIXED";
-  discount_value: DecimalString;
-  max_discount: DecimalString | null;
-  min_order_value: DecimalString;
+  shopId: UUID | null;
+  discountType: "PERCENT" | "FIXED";
+  discountValue: DecimalString;
+  maxDiscount: DecimalString | null;
+  minOrderValue: DecimalString;
   quantity: number;
-  start_at: ISODateTime;
-  end_at: ISODateTime;
+  startAt: ISODateTime;
+  endAt: ISODateTime;
   status: "ACTIVE" | "INACTIVE";
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
+// POST /vouchers/evaluate runtime hiện dùng VoucherPortService; không trả VoucherDTO.
+export type VoucherEvaluationRuntimeDTO =
+  | { isValid: true; voucherId: UUID; discountAmount: DecimalString }
+  | { isValid: false; errorCode: string; errorMessage: string };
+
+// View-model cho UI có thể chuẩn hóa sang camelCase theo adapter.
+export interface VoucherViewModel {
+  id: UUID;
+  code: string;
+  name: string;
+  discountType: "PERCENT" | "FIXED";
+  discountValue: DecimalString;
 }
 
 export interface ReviewDTO {

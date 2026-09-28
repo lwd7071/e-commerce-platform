@@ -43,7 +43,7 @@ Mỗi route tải dữ liệu phải có:
 
 **API:** `GET /products?search=&category_id=&sort=&cursor=&limit=`.
 
-**Lưu ý:** category API chưa có; dùng config tĩnh chứa UUID hợp lệ theo môi trường hoặc ẩn filter. Không hiển thị rating/sold count giả. Add-to-cart nhanh chỉ bật khi item có thể chọn variant; nếu nhiều variant thì đi tới detail.
+**Lưu ý:** category API chưa có; chỉ bật filter tĩnh khi có category UUID lấy từ seed/DB thật của đúng môi trường. Không tự sinh hoặc tự đặt UUID (category_id được lọc trực tiếp trong DB nên UUID giả sẽ luôn cho danh sách rỗng); nếu chưa có fixture xác thực thì ẩn filter. Không hiển thị rating/sold count giả. Add-to-cart nhanh chỉ bật khi item có thể chọn variant; nếu nhiều variant thì đi tới detail.
 
 **Acceptance:** search debounce; URL giữ filter; load more không trùng item; empty/error/retry đầy đủ.
 
@@ -141,7 +141,7 @@ Mỗi route tải dữ liệu phải có:
 
 **API:** `POST /products` với `stock_quantity`, `variant_name`, `variant_value`, `sort_order`.
 
-**Blockers:** category API và media upload chưa có. Development có thể dùng category config tĩnh và trường URL; production cần category/media contract trước khi bật.
+**Blockers:** category API và media upload chưa có. Development chỉ dùng category config tĩnh với UUID xác thực từ DB/seed của môi trường; tuyệt đối không tự bịa UUID. Production cần category/media contract trước khi bật.
 
 ### 3.13. Admin `/admin`
 

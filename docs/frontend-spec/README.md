@@ -27,6 +27,14 @@ Không được tích hợp một tính năng `RUNTIME_BLOCKED` hoặc `MISSING`
 6. [FE–BE mapping](./06-fe-be-mapping.md) — ánh xạ action → API → adapter → trạng thái sẵn sàng.
 7. [Gap analysis](./07-gap-analysis.md) — blocker và quyết định cần thực hiện.
 8. [Implementation plan](./08-implementation-plan.md) — backlog theo phase, dependency và acceptance criteria.
+9. [UI/UX rules](./09-ui-ux-rules.md) — màu, font, stack, interaction, responsive và design handoff.
+10. [Progress FE](./progress/README.md) — nhật ký và bằng chứng bàn giao của 5 người.
+
+## Bắt đầu làm FE
+
+Mỗi người đọc lần lượt README này → file 01–09 (ưu tiên kỹ file 02/03/05/07/08/09 cho ticket của mình) → [phân công 5 người](./08-implementation-plan.md#phân-công-5-người-fe) → [quy tắc progress](./progress/README.md). Trước khi sửa code Next.js, đọc thêm `ecommerce-web/AGENTS.md` và guide phù hợp trong `ecommerce-web/node_modules/next/dist/docs/` theo rule của repo. Chọn ticket có owner và backend readiness rõ, cập nhật file progress của mình, rồi mới bắt đầu code.
+
+Người 2 chốt D-001–003 và U-201 trước khi UI mới dùng token chung; D-004 soát các page mẫu trước khi nhân rộng style. Feature chưa có API runtime dùng mock repository theo cùng interface và tắt ở production. Không biến prototype hoặc dữ liệu giả thành contract.
 
 ## Source of truth
 
@@ -54,6 +62,6 @@ Một feature chỉ được coi là sẵn sàng triển khai khi:
 ## Quy ước tiền tệ và thời gian
 
 - Wire API giữ số tiền dạng decimal string nếu backend trả từ PostgreSQL `NUMERIC`.
-- Convention chung là snake_case; một số response legacy như `GET/POST /addresses` hiện trả camelCase và được ghi rõ trong contract/adapters.
+- Convention chung là snake_case; các ngoại lệ runtime camelCase gồm response Address và Voucher (list/evaluate), được ghi theo endpoint trong contract/adapters. Lỗi 501 cũng dùng ErrorEnvelope chuẩn; parser vẫn phải chịu được body rỗng/không phải JSON và code chưa biết.
 - Adapter FE chuyển sang integer VND hoặc một money type thống nhất trước khi render/tính toán; không tính tiền trực tiếp bằng floating point.
 - Timestamp truyền bằng ISO 8601 UTC, hiển thị theo locale `vi-VN` và timezone người dùng.

@@ -16,7 +16,7 @@ Không dùng phần trăm cảm tính. Mỗi capability nhận một trạng th�
 ### GAP-01 — Runtime service wiring
 
 - **Severity:** BLOCKER.
-- **Hiện trạng:** order reads trả rỗng/stub; review, notification và phần lớn address item routes trả 501 hoặc no-op do production composition chưa inject service/repository tương ứng.
+- **Hiện trạng:** order reads trả rỗng/stub; review, notification và address item routes chưa có service runtime (trả 501 `NOT_IMPLEMENTED`). `DELETE /addresses/:id` trước đây trả 204 no-op; runtime hiện trả 501 để không báo thành công giả. `DELETE /cart/selected` đã được wire cho PostgreSQL runtime.
 - **Ảnh hưởng:** `/orders`, review, notifications, seller fulfillment không thể chạy end-to-end.
 - **Giải pháp:** wire concrete repositories/services vào `createRuntimeApp()`, thêm integration test gọi đúng runtime composition, sau đó cập nhật OpenAPI.
 - **Đóng gap khi:** test list/detail order, review create, notification list/read, address CRUD pass trên database test.
@@ -46,7 +46,7 @@ Không dùng phần trăm cảm tính. Mỗi capability nhận một trạng th�
 - **Severity:** BLOCKER cho seller create/admin category; MEDIUM cho homepage.
 - **Hiện trạng:** có bảng DB nhưng không có route.
 - **Giải pháp:** public `GET /categories`; admin create/update/status với validation parent cycle và active status.
-- **Fallback:** static config chỉ dùng development và phải chứa UUID theo environment.
+- **Fallback:** static config chỉ dùng development và chỉ chứa category UUID sao chép/xác minh từ seed hoặc DB thật của đúng environment. Không tự bịa/generate UUID: product filter so khớp trực tiếp `category_id` trong DB nên UUID không tồn tại trả mảng rỗng. Nếu chưa xác minh được ID thì ẩn filter.
 
 ### GAP-06 — Authentication onboarding
 
@@ -82,8 +82,8 @@ Không dùng phần trăm cảm tính. Mỗi capability nhận một trạng th�
 ### GAP-11 — Error/OpenAPI drift
 
 - **Severity:** HIGH.
-- **Hiện trạng:** error codes và một số enum trong OpenAPI/tài liệu có nguy cơ lệch runtime; OpenAPI chưa liệt kê đầy đủ catalog/admin.
-- **Giải pháp:** contract tests snapshot `/openapi.json`; shared error registry; CI fail khi route/parser và spec lệch.
+- **Hiện trạng:** OpenAPI có kiểm thử hai chiều theo từng method với route Express đang mount; response DTO cụ thể vẫn cần được mở rộng khi endpoint được wire.
+- **Giải pháp:** giữ kiểm thử method+path hai chiều trong CI; bổ sung response schemas cụ thể và contract fixtures khi backend hoàn thành từng gap.
 
 ### GAP-12 — Seller analytics
 
