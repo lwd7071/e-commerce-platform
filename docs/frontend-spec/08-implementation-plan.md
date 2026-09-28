@@ -1,11 +1,11 @@
 # 08. Implementation plan
 
-> **Phiên bản:** 1.1.0  
+> **Phiên bản:** 1.2.0
 > **Trạng thái:** READY TO EXECUTE
 
 ## 1. Chiến lược
 
-Triển khai theo vertical slice nhưng không giả vờ các backend blocker đã sẵn sàng:
+Triển khai theo vertical slice trong workspace `frontend/`; `ecommerce-web/` chỉ là prototype test-only, không tiếp tục sửa. Không giả vờ backend blocker đã sẵn sàng:
 
 - Phase 0–2 có thể bắt đầu ngay.
 - Product list/detail core có thể dùng API thật.
@@ -38,18 +38,20 @@ Mỗi ticket có đúng một owner FE chịu trách nhiệm tích hợp và ngh
 | Người | Phạm vi và file sở hữu chính | Ticket FE chính | Làm ngay, không chờ người khác | Điểm bàn giao / điều kiện nối thật |
 |---|---|---|---|---|
 | 1 — FE platform/integration | `src/lib/api`, `src/lib/auth`, `src/lib/config`, `src/lib/repositories` (shared), `/login`, `/register`, config/CI | C-001, C-003–005, F-101–107, B-303–304, Q-801, Q-806–808 | Chốt type/error parser, env/feature flags, repository interface, auth shell; dùng fake token/session trong test | Bàn giao API client, auth guard, mock/API switch và contract test cho 3/4/5. Chỉ bật auth thật khi Supabase/env được kiểm chứng. |
-| 2 — UI/UX và account | `src/app/globals.css`, `src/app/layout.tsx`, `src/components/ui`, shared navigation, `/profile`, `/notifications` | D-001–004, U-201–206, P-602, P-604–605, P-607b, Q-802–803 | Khóa screen inventory, states, token/font/responsive rules; dựng component + shell với fixture | Bàn giao token, component API và shell cho 3/4/5. Profile/notification chỉ nối thật sau P-601/P-603 và contract test; P-605 chờ GAP-10. |
+| 2 — UI/UX và account | `frontend/src/app/globals.css`, `layout.tsx`, `components/ui`, `components/navigation`, `features/profile`, `features/notifications`, routes `/profile` `/notifications` | D-001–004, U-201–206, P-602, P-604–605, P-607b, Q-802–803 | D-001–003 handoff tại file 10; shared primitives và account UI dựng trong `frontend/` | Token, component API và shell cho 3/4/5. Profile/notification chỉ nối thật sau P-601/P-603 và contract test; P-605 không gọi bulk endpoint chưa tồn tại; P-607b gated. Build/visual QA chờ Người 1 scaffold. |
 | 3 — Catalog/seller catalog | `/`, `/products/[id]`, `/seller/products/new`, feature catalog/seller product/category/media | B-301–302, B-305, B-401, O-508–509, P-607a, A-700/A-702 | Làm list/detail với API catalog sẵn có; dựng seller form và category view bằng adapter/mock đúng trạng thái readiness | Bàn giao selection/add-to-cart UI contract cho 4. O-508 chờ GAP-04; category API chờ A-701/GAP-05; upload chờ P-606/GAP-09. |
 | 4 — Buyer cart/checkout | `/cart`, `/checkout`, feature cart/address/voucher/checkout | B-402–408, Q-804 | Dựng cart và checkout states/form bằng repository mock; viết contract fixture, money/idempotency cases | Nhận API client từ 1 và add-to-cart contract từ 3; cart full data chờ GAP-03. B-408 chạy với backend/test DB thật. |
 | 5 — Orders/review/admin | `/orders`, `/orders/[id]/review`, `/seller` (order/dashboard), `/admin`, `/admin/categories`, feature orders/review/admin/stats | O-502–505, O-507, P-607c, A-704–705, A-708–709, Q-805 | Dựng order timeline, seller transition, review/admin states bằng mock adapter; viết transition/RBAC cases | Order read chờ O-501/GAP-01; review submit chờ O-506; admin reads chờ A-703/GAP-08; seller KPI chờ A-707/GAP-12. |
+
+Các đường dẫn `src/...` trong bảng ownership dưới đây tính tương đối từ `frontend/`; tất cả page/component FE triển khai phải nằm trong workspace này.
 
 `D-*` là đầu ra thiết kế cần chốt trước khi biến prototype thành màn hình mới:
 
 | ID | Owner | Task | Acceptance criteria |
 |---|---|---|---|
-| D-001 | Người 2 | Screen inventory và luồng Buyer/Seller/Admin dựa trên file 02; đối chiếu `sodoUI.md` như tài liệu tham khảo | đủ route, role, navigation, loading/empty/error/unauthorized và mobile/desktop state; mỗi màn hình có owner, chỗ lệch sitemap được ghi rõ |
-| D-002 | Người 2 | Khóa [UI/UX rules](./09-ui-ux-rules.md) và component contract | token/font/breakpoint/CTA contrast được kiểm tra; người 3/4/5 xác nhận handoff |
-| D-003 | Người 2 | UX handoff cho 3/4/5 | mỗi vertical slice có bố cục/interaction/state checklist; link hoặc mô tả wireframe trong ticket, không lấy prototype làm contract |
+| D-001 | Người 2 | Screen inventory và luồng Buyer/Seller/Admin dựa trên file 02 | Đủ 14 route, role, owner, navigation, loading/empty/error/unauthorized và mobile/desktop state; [handoff 10](./10-ui-ux-handoff.md) |
+| D-002 | Người 2 | Khóa [UI/UX rules](./09-ui-ux-rules.md) và component contract | token/font/breakpoint/CTA contrast đã chốt; stack/scaffold limitation nêu rõ; component contract ở file 10 |
+| D-003 | Người 2 | UX handoff cho 3/4/5 | Mỗi vertical slice có bố cục/interaction/state/data readiness checklist tại file 10; prototype không phải contract |
 | D-004 | Người 2 | Sau U-201 và các page mẫu, soát trang chủ, checkout, seller order, admin dashboard ở 360/1280px | thống nhất hierarchy/spacing/CTA/ảnh/trạng thái và contrast trước khi nhân rộng style; Người 3/4/5 cung cấp page mẫu, không phải chờ để viết fixture/mock |
 
 ### Ranh giới file và cách bàn giao
@@ -63,9 +65,9 @@ Mỗi ticket có đúng một owner FE chịu trách nhiệm tích hợp và ngh
 
 ## Bắt đầu ngay
 
-Chạy Backend tại cổng `3001` và Next.js tại `3000` (CORS dev đã cho phép hai origin localhost mặc định). Sao chép `ecommerce-web/.env.example` thành `.env.local`, điền URL và publishable key của Supabase; không đưa secret/service-role key vào biến `NEXT_PUBLIC_*`. Khởi động từ thư mục `ecommerce-web` bằng `npm install` rồi `npm run dev`. Contract OpenAPI có ở `http://localhost:3001/api/v1/openapi.json`.
+FE mới làm việc trong `frontend/`. Hiện folder chưa có package/scaffold nên chưa thể chạy lint/build/dev server; Người 1 phải tạo `package.json`, lockfile, env example và app bootstrap ở đây trước. Không chạy `npm install`, `npm run dev` trong `ecommerce-web/` cho feature triển khai. Khi scaffold sẵn, Người 1 cấu hình `NEXT_PUBLIC_API_BASE_URL` trỏ backend `http://localhost:3001/api/v1` và Supabase URL/publishable key; không đưa secret/service-role key vào biến `NEXT_PUBLIC_*`. OpenAPI backend ở `http://localhost:3001/api/v1/openapi.json`.
 
-Thứ tự tích hợp: Người 1 làm F-102 API client + test parser/envelope/204 → F-103/F-104 adapters; Người 2 làm D-001–003 và Phase 2 song song; Người 3/4/5 làm UI states, fixture và mock repository trong phạm vi riêng ngay từ đầu. D-004 là lượt soát visual sau khi có các page mẫu, trước khi nhân rộng style. Catalog public B-301/B-302 có thể nối API sau F-102. Cart/address/voucher/checkout chỉ nối sau contract tests; order center, review, notifications, profile, category/admin reads vẫn dùng mock interface cho đến khi gap đóng. Màn hình giao diện hiện tại là prototype, không phải nguồn dữ liệu hay hành vi nghiệp vụ.
+Thứ tự tích hợp: Người 1 bootstrap `frontend/` và làm F-102 API client + test parser/envelope/204 → F-103/F-104 adapters; Người 2 làm D-001–003 và Phase 2; Người 3/4/5 chuẩn bị fixture/mock interface trong phạm vi riêng. D-004 là lượt soát visual sau page mẫu, trước nhân rộng style. Catalog public B-301/B-302 nối API sau F-102. Cart/address/voucher/checkout chỉ nối sau contract tests; order center, review, notifications, profile, category/admin reads vẫn gated/mock cho đến khi gap đóng. `ecommerce-web/` không phải nguồn dữ liệu hay hành vi nghiệp vụ.
 
 ## 2. Phase 0 — Contract freeze và guardrails
 
@@ -101,16 +103,16 @@ Thứ tự tích hợp: Người 1 làm F-102 API client + test parser/envelope/
 
 **Ponytail:** `@ponytail` khi triển khai; `@ponytail-review` khi rà diff của phase.
 
-**Owner:** Người 2. D-002 và [UI/UX rules](./09-ui-ux-rules.md) là đầu vào của U-201; component được bàn giao theo prop/state contract cho 3/4/5.
+**Owner:** Người 2. D-002 và [UI/UX rules](./09-ui-ux-rules.md) là đầu vào của U-201; prop/state contract ở [handoff 10](./10-ui-ux-handoff.md). Nguồn code đều ở `frontend/`; chưa compile-verified cho đến khi Người 1 thêm scaffold.
 
 | ID | Depends | Task | Acceptance criteria |
 |---|---|---|---|
-| U-201 | — | Đồng bộ Tailwind tokens với CSS variables | không đổi visual ngoài ý muốn |
-| U-202 | U-201 | Button/form controls | focus-visible, error, disabled, loading, ARIA |
-| U-203 | U-201 | Dialog/toast | focus trap, ESC, return focus, live region |
-| U-204 | U-201 | StatusBadge | đủ 7 order states, không chỉ dùng màu |
+| U-201 | — | Đồng bộ tokens tại `frontend/src/app/globals.css` | palette user; CTA đạt contrast; light theme/reduced motion |
+| U-202 | U-201 | Button/form controls tại `frontend/src/components/ui/` | focus-visible, error, disabled, loading, ARIA |
+| U-203 | U-201 | Dialog/toast | modal containment, ESC, return focus, live region |
+| U-204 | U-201 | StatusBadge | đủ 7 order states, có text không chỉ dùng màu |
 | U-205 | U-201 | Skeleton/Empty/Error | dùng lại được trên mọi data screen |
-| U-206 | U-202 | Header/mobile dock | responsive, safe area, auth-aware navigation |
+| U-206 | U-202 | Header/mobile dock | responsive, safe area; auth wiring thuộc F-105/F-106 Người 1 |
 
 ## 5. Phase 3 — Public catalog và auth
 
@@ -170,10 +172,10 @@ Thứ tự tích hợp: Người 1 làm F-102 API client + test parser/envelope/
 | ID | Depends | Task | Backend dependency | Acceptance criteria |
 |---|---|---|---|---|
 | P-601 | C-005 | Implement profile API | GAP-07 | GET/PATCH scoped to caller |
-| P-602 | P-601 | Profile screen | profile API | email read-only; edit/refetch |
+| P-602 | P-601 | Profile screen | profile API | metadata view có thể read-only trước; edit/refetch chỉ bật khi profile API sẵn |
 | P-603 | C-002 | Wire notification runtime | GAP-01 | list/detail/read integration tests |
 | P-604 | P-603 | Notification center | REST ready | filters, optimistic read, no realtime claim |
-| P-605 | P-603 | Bulk mark-read API/UI | GAP-10 | bounded, idempotent behavior |
+| P-605 | P-603 | Bulk mark-read UI; tối đa 20 item/call, không tự tạo API | GAP-10 | idempotent per-item khi runtime sẵn, partial failure rollback/report; production ẩn khi read API/mutation chưa sẵn |
 | P-606 | C-005 | Media upload contract | GAP-09 | ownership, MIME/size/count, cleanup tested |
 | P-607a | P-606 | Product upload UI (Người 3) | media API | progress, retry, remove, accessible preview |
 | P-607b | P-606 | Avatar upload UI (Người 2) | media API | progress, retry, remove, accessible preview |

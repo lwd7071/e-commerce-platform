@@ -1,28 +1,28 @@
 # 09. Quy chuẩn UI/UX khi triển khai Frontend
 
 > **Trạng thái:** Design handoff cho 5 owner FE
-> **Phạm vi:** `ecommerce-web` — Buyer, Seller, Admin
+> **Phạm vi:** `frontend/` — Buyer, Seller, Admin. `ecommerce-web/` chỉ là prototype tham khảo, không sửa.
 > **Owner:** Người 2; thay đổi ảnh hưởng domain cần owner page tương ứng duyệt
 
 ## 1. Nguồn quyết định
 
-File này khóa các rule hiển thị, tương tác và stack FE. [02](./02-pages-and-user-flow.md) xác định route/luồng, [03](./03-design-system.md) xác định component contract, [04–07](./README.md) xác định dữ liệu/API/readiness, [08](./08-implementation-plan.md) xác định owner và thứ tự triển khai. `sodoUI.md` ở gốc repo là sơ đồ tham khảo để Người 2 đối chiếu D-001; chức năng ngoài 14 route hoặc chưa có API phải ghi gap trước khi đưa vào plan. Prototype trong `ecommerce-web` chỉ là tham khảo bố cục; khi xung đột, token và hành vi ở tài liệu này được ưu tiên cho UI mới. Người 2 ghi quyết định thay đổi token/component trong progress; owner page ghi nơi tiêu thụ.
+File này khóa rule hiển thị, tương tác và stack dự kiến. [02](./02-pages-and-user-flow.md) xác định route/luồng, [03](./03-design-system.md) xác định component contract, [04–07](./README.md) xác định dữ liệu/API/readiness, [08](./08-implementation-plan.md) xác định owner và thứ tự triển khai, [10](./10-ui-ux-handoff.md) là handoff theo route. `sodoUI.md` ở gốc repo là sơ đồ tham khảo; chức năng ngoài 14 route hoặc chưa có API phải ghi gap trước khi đưa vào plan. `ecommerce-web/` chỉ tham khảo, không phải workspace hay contract; khi xung đột, token và hành vi ở tài liệu này được ưu tiên. Người 2 ghi quyết định token/component trong progress; owner page ghi nơi tiêu thụ.
 
 ## 2. Stack và ranh giới kỹ thuật
 
 | Hạng mục | Quy định |
 |---|---|
-| Framework hiện có | Next.js App Router 16.3.5, React 19.2.8, TypeScript strict. Đọc `ecommerce-web/AGENTS.md` và tài liệu Next cài trong `node_modules` trước khi sửa API framework. |
-| Styling hiện có | Tailwind CSS 4 + CSS variables trong `src/app/globals.css`. Token là nguồn chung; không hardcode hex trong page/component mới. |
-| Font/icon hiện có | `next/font` Geist Sans cho UI, Geist Mono chỉ cho mã/ID kỹ thuật; `lucide-react` cho icon. Không trộn bộ icon/font khác giữa các page. |
-| Auth và API dự kiến | Supabase Auth client + `Authorization: Bearer` và API client/repository/adapter của Người 1. Chưa có package Supabase trong `package.json`; F-101 cài và kiểm env trước khi nối thật. |
+| Framework mục tiêu | Next.js App Router 16.3.5, React 19.2.8, TypeScript strict theo baseline đã khảo sát. `frontend/` chưa có `package.json`/lockfile; Người 1 xác minh phiên bản và tạo scaffold tại đây. Không lấy config/node_modules hoặc sửa `ecommerce-web/`. |
+| Styling mục tiêu | Tailwind CSS 4 + CSS variables trong `frontend/src/app/globals.css`. Token là nguồn chung; không hardcode hex trong page/component mới. |
+| Font/icon | `next/font` Geist Sans cho UI, Geist Mono chỉ cho mã/ID kỹ thuật. Icon dùng SVG registry tại `frontend/src/components/ui/icon.tsx` để không thêm package ngoài ownership Người 1. Không trộn bộ icon/font khác giữa các page. |
+| Auth và API dự kiến | Supabase Auth client + `Authorization: Bearer` và API client/repository/adapter do Người 1 sở hữu. Chưa có package/scaffold trong `frontend/`; Người 1 xác minh package/env trước khi nối thật. |
 | Server data | Tách server state khỏi local UI state. Query/mutation, cache key và invalidation nằm trong feature hook/repository. Nếu nhóm chọn TanStack Query, Người 1 thêm dependency và chốt provider/cache convention ở F-102/F-107; hiện chưa có package đó. |
 | Form | Field validation phải khớp backend 05; lỗi server hiển thị tại field hoặc form. Không thêm form/schema package trước khi thống nhất dependency với Người 1. |
-| Test hiện có / cần bổ sung | Hiện có `npm run lint` và `npm run build`; unit/contract/E2E runner do Người 1 chốt tại Phase 1/8. Không ghi test là pass nếu chưa chạy. |
+| Test hiện có / cần bổ sung | Chưa thể chạy lint/build trong `frontend/` do chưa có package/scaffold. Người 1 chốt runner và scripts ở Phase 1/8. Không dùng scripts từ prototype, không ghi test là pass nếu chưa chạy. |
 
 ## 3. Màu và token bắt buộc
 
-Người 2 đưa bảng sau vào `globals.css` trong U-201. Đây là thiết kế đích; code CSS hiện tại vẫn còn token/class prototype cũ và phải được di chuyển dần trong Phase 2. Tên token không tự đổi ở từng feature.
+Người 2 đã đưa bảng sau vào `frontend/src/app/globals.css` trong U-201. Tên token không tự đổi ở từng feature.
 
 ```css
 :root {
@@ -74,7 +74,7 @@ Người 2 đưa bảng sau vào `globals.css` trong U-201. Đây là thiết k�
 | `--success`, `--danger`, `--warning`, `--info` | Icon/border/status surface. Text nhỏ phải được đo contrast riêng trên nền thực tế; có thể dùng `--foreground` hoặc thêm token `*-text` đậm hơn, không đổi token gốc. |
 | `--shadow` | Shadow mặc định cho card/popover; không glow, aura hồng, gradient nền trang hoặc bóng lớn cho UI mới. |
 
-**Chốt CTA cho cả 5 người:** `#E85D94` với chữ trắng chỉ khoảng **3.27:1**, không đạt WCAG AA cho nhãn nút cỡ thông thường (cần 4.5:1). Nút chính dùng `--button-primary-bg` (`#BF3A6F`) và `--button-primary-fg` (trắng), khoảng **5.19:1**. Người 2 kiểm tra lại hover/disabled/focus khi U-201 làm CSS; không dùng màu như tín hiệu duy nhất. Thay đổi kiểu CTA chung phải qua Người 2 và được cập nhật ở đây trước khi áp dụng cho các page.
+**Chốt CTA cho cả 5 người:** `#E85D94` với chữ trắng chỉ khoảng **3.27:1**, không đạt WCAG AA cho nhãn nút cỡ thông thường (cần 4.5:1). Nút chính dùng `--button-primary-bg` (`#BF3A6F`) và `--button-primary-fg` (trắng), khoảng **5.19:1**. Source dùng màu này cho CTA và visible focus; kiểm tra hover/disabled/focus bằng browser vẫn là QA cần chạy sau khi có scaffold. Không dùng màu như tín hiệu duy nhất. Thay đổi kiểu CTA chung phải qua Người 2 và được cập nhật ở đây trước khi áp dụng cho các page.
 
 ## 4. Typography, spacing, layout
 
