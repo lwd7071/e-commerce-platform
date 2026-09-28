@@ -3,7 +3,7 @@
 ## Trạng thái hiện tại
 
 - Phase/ticket: Phase 0 D-001–003; Phase 2 U-201–206; Phase 6 P-602/P-604–605/P-607b (UI mock/gated); Q-802/Q-803 scoped QA
-- Cập nhật lần cuối: 2026-09-28
+- Cập nhật lần cuối: 2026-09-29
 - Đang làm: U-201–206 và QA độc lập cho shared shell/profile/notifications đã hoàn tất; chuẩn bị PR0a/0b và PR A/B/C trên nhánh tách riêng; P-604/P-605/P-607b vẫn gated theo readiness backend
 - Nhánh/PR: `codex/node-24-runtime` (PR0a), `codex/frontend-ci-workspace` (PR0b), `codex/member2-pr-a`, `codex/member2-pr-b`, `codex/member2-pr-c` (đã push; PR GitHub chưa tạo vì GitHub CLI credential invalid)
 - Bị block bởi: PR0a cần Người 1 và backend owner review trước merge; local PostgreSQL smoke chưa chạy được do worktree không có `DIRECT_URL`/DB test, chờ PostgreSQL service CI xanh. D-004 chờ page mẫu checkout (Người 4), seller orders và admin dashboard (Người 5); P-601/P-603/P-606 chờ backend contract/runtime (GAP-07/GAP-01/GAP-09). Contrast ở login/register cần Người 1 và màu trạng thái seller cần Người 3 xử lý tại page của họ.
