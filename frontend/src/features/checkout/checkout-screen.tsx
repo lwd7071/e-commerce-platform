@@ -72,36 +72,31 @@ export function CheckoutScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [successResult, setSuccessResult] = useState<CheckoutResult | null>(null);
-
-  // Load initial data
-  const loadInitialData = async () => {
-    setLoadingItems(true);
-    setSubmitError(null);
-    try {
-      const [allCart, addrs] = await Promise.all([
-        cartRepository.getCart(),
-        checkoutRepository.getAddresses(),
-      ]);
-
-      const selected = allCart.filter((i) => i.isSelected);
-      setItems(selected);
-
-      setAddresses(addrs);
-      const defaultAddr = addrs.find((a) => a.isDefault) || addrs[0];
-      if (defaultAddr) {
-        setSelectedAddressId(defaultAddr.addressId);
-      }
-    } catch {
-      setSubmitError("Không thể tải thông tin thanh toán. Vui lòng thử lại.");
-    } finally {
-      setLoadingItems(false);
-    }
-  };
-
   useEffect(() => {
-    void Promise.resolve().then(() => {
-      loadInitialData();
-    });
+    let ignore = false;
+    void Promise.resolve()
+      .then(() => Promise.all([cartRepository.getCart(), checkoutRepository.getAddresses()]))
+      .then(([allCart, addrs]) => {
+        if (!ignore) {
+          const selected = allCart.filter((i) => i.isSelected);
+          setItems(selected);
+          setAddresses(addrs);
+          const defaultAddr = addrs.find((a) => a.isDefault) || addrs[0];
+          if (defaultAddr) {
+            setSelectedAddressId(defaultAddr.addressId);
+          }
+          setLoadingItems(false);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setSubmitError("Không thể tải thông tin thanh toán. Vui lòng thử lại.");
+          setLoadingItems(false);
+        }
+      });
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   // Group items by shop

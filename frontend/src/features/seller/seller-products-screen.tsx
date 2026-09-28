@@ -159,6 +159,24 @@ export function SellerProductsScreen() {
           <strong>Chế độ cách ly gian hàng (GAP-04):</strong> Màn hình hiện đang hiển thị các sản phẩm thuộc sở hữu của shop bạn. Chưa kết nối trực tiếp với endpoint public <code>GET /products</code> để tránh hiển thị sản phẩm của shop khác trong khi chờ backend triển khai endpoint seller-scoped <code>GET /seller/products</code>.
         </div>
       </div>
+      {/* Sub-navigation tabs between Orders and Products */}
+      <nav aria-label="Điều hướng kênh người bán" className="border-b border-[var(--border)]">
+        <div className="flex gap-6 text-sm font-semibold">
+          <Link
+            href="/seller/orders"
+            className="pb-3 border-b-2 border-transparent text-[var(--subtext)] hover:text-[var(--foreground)]"
+          >
+            Đơn hàng cần xử lý
+          </Link>
+          <Link
+            href="/seller/products"
+            className="pb-3 border-b-2 border-[var(--primary-active)] text-[var(--primary-active)]"
+            aria-current="page"
+          >
+            Danh sách sản phẩm
+          </Link>
+        </div>
+      </nav>
 
       {isLoading ? (
         <div className="space-y-3 surface-card p-6">

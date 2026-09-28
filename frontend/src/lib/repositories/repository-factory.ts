@@ -40,6 +40,7 @@ const apiBuyerRepository: IBuyerRepository = {
 const apiOrderRepository: IOrderRepository = {
   getOrders: (params) => orderApi.getOrders(params),
   getOrderById: (id) => orderApi.getOrderById(id),
+  cancelOrder: (id, reason) => orderApi.cancelOrder(id, reason),
   confirmOrder: (id, reason) => orderApi.confirmOrder(id, reason),
   transitionOrder: (id, to, reason) => orderApi.transitionOrder(id, { to, reason }),
 };
@@ -262,57 +263,155 @@ const mockBuyerRepository: IBuyerRepository = {
   addToCart: async () => ({ success: true }),
 };
 
+const inMemoryMockOrders: WireOrder[] = [
+  {
+    id: "00000000-0000-0000-0000-000000000301",
+    order_code: "ORD-2026-0928-01",
+    buyer_id: "user_dev",
+    shop_id: "00000000-0000-0000-0000-000000000001",
+    shop_name: "Dino Beauty Official",
+    status: "PENDING_CONFIRMATION",
+    total_amount: "560000.00",
+    shipping_fee: "0.00",
+    discount_amount: "50000.00",
+    final_amount: "510000.00",
+    created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
+    items: [
+      {
+        id: "item_01",
+        product_name: "Serum Dưỡng Trắng & Cấp Ẩm Chuyên Sâu",
+        variant_name: "Chai 50ml",
+        price: "350000.00",
+        quantity: 1,
+        subtotal: "350000.00",
+      },
+      {
+        id: "item_02",
+        product_name: "Kem Chống Nắng Dịu Nhẹ Cho Da Nhạy Cảm",
+        variant_name: "Tuýp 60ml",
+        price: "210000.00",
+        quantity: 1,
+        subtotal: "210000.00",
+      },
+    ],
+  },
+  {
+    id: "00000000-0000-0000-0000-000000000302",
+    order_code: "ORD-2026-0927-02",
+    buyer_id: "user_dev",
+    shop_id: "00000000-0000-0000-0000-000000000001",
+    shop_name: "Dino Beauty Official",
+    status: "CONFIRMED",
+    total_amount: "420000.00",
+    shipping_fee: "0.00",
+    discount_amount: "0.00",
+    final_amount: "420000.00",
+    created_at: new Date(Date.now() - 86400000).toISOString(),
+    items: [
+      {
+        id: "item_03",
+        product_name: "Kem Chống Nắng Dịu Nhẹ Cho Da Nhạy Cảm",
+        variant_name: "Tuýp 60ml",
+        price: "210000.00",
+        quantity: 2,
+        subtotal: "420000.00",
+      },
+    ],
+  },
+  {
+    id: "00000000-0000-0000-0000-000000000303",
+    order_code: "ORD-2026-0926-03",
+    buyer_id: "user_dev",
+    shop_id: "00000000-0000-0000-0000-000000000002",
+    shop_name: "Dino Tech Store",
+    status: "SHIPPING",
+    total_amount: "890000.00",
+    shipping_fee: "0.00",
+    discount_amount: "0.00",
+    final_amount: "890000.00",
+    created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+    items: [
+      {
+        id: "item_04",
+        product_name: "Bàn Phím Cơ Không Dây Tri-Mode",
+        variant_name: "Linear Switch / Trắng",
+        price: "890000.00",
+        quantity: 1,
+        subtotal: "890000.00",
+      },
+    ],
+  },
+  {
+    id: "00000000-0000-0000-0000-000000000304",
+    order_code: "ORD-2026-0920-04",
+    buyer_id: "user_dev",
+    shop_id: "00000000-0000-0000-0000-000000000001",
+    shop_name: "Dino Beauty Official",
+    status: "COMPLETED",
+    total_amount: "280000.00",
+    shipping_fee: "0.00",
+    discount_amount: "0.00",
+    final_amount: "280000.00",
+    created_at: new Date(Date.now() - 86400000 * 8).toISOString(),
+    items: [
+      {
+        id: "item_05",
+        product_name: "Serum Dưỡng Trắng & Cấp Ẩm Chuyên Sâu",
+        variant_name: "Chai 30ml",
+        price: "280000.00",
+        quantity: 1,
+        subtotal: "280000.00",
+      },
+    ],
+  },
+];
+
 const mockOrderRepository: IOrderRepository = {
-  getOrders: async () => [
-    {
-      id: "order_01",
-      order_code: "ORD-2026-001",
-      buyer_id: "user_dev",
-      shop_id: "shop_01",
-      status: "PENDING",
-      total_amount: "560000.00",
-      shipping_fee: "30000.00",
-      discount_amount: "50000.00",
-      final_amount: "540000.00",
-      created_at: new Date().toISOString(),
-    },
-  ],
-  getOrderById: async (id) => ({
-    id,
-    order_code: "ORD-2026-001",
-    buyer_id: "user_dev",
-    shop_id: "shop_01",
-    status: "CONFIRMED",
-    total_amount: "560000.00",
-    shipping_fee: "30000.00",
-    discount_amount: "50000.00",
-    final_amount: "540000.00",
-    created_at: new Date().toISOString(),
-  }),
-  confirmOrder: async (id) => ({
-    id,
-    order_code: "ORD-2026-001",
-    buyer_id: "user_dev",
-    shop_id: "shop_01",
-    status: "CONFIRMED",
-    total_amount: "560000.00",
-    shipping_fee: "30000.00",
-    discount_amount: "50000.00",
-    final_amount: "540000.00",
-    created_at: new Date().toISOString(),
-  }),
-  transitionOrder: async (id, to) => ({
-    id,
-    order_code: "ORD-2026-001",
-    buyer_id: "user_dev",
-    shop_id: "shop_01",
-    status: to as WireOrder["status"],
-    total_amount: "560000.00",
-    shipping_fee: "30000.00",
-    discount_amount: "50000.00",
-    final_amount: "540000.00",
-    created_at: new Date().toISOString(),
-  }),
+  getOrders: async (params) => {
+    let result = [...inMemoryMockOrders];
+    if (params?.status) {
+      result = result.filter((o) => o.status === params.status);
+    }
+    if (params?.shop_id) {
+      result = result.filter((o) => o.shop_id === params.shop_id);
+    }
+    return result;
+  },
+  getOrderById: async (id) => {
+    const found = inMemoryMockOrders.find((o) => o.id === id);
+    if (!found) throw new Error("Không tìm thấy đơn hàng");
+    return { ...found };
+  },
+  cancelOrder: async (id, reason) => {
+    const found = inMemoryMockOrders.find((o) => o.id === id);
+    if (!found) throw new Error("Không tìm thấy đơn hàng");
+    if (found.status !== "PENDING_CONFIRMATION") {
+      const error = new Error("Đơn hàng không thể hủy ở trạng thái hiện tại.");
+      (error as unknown as { status: number }).status = 409;
+      throw error;
+    }
+    found.status = "CANCELLED";
+    found.cancel_reason = reason;
+    return { ...found };
+  },
+  confirmOrder: async (id) => {
+    const found = inMemoryMockOrders.find((o) => o.id === id);
+    if (!found) throw new Error("Không tìm thấy đơn hàng");
+    found.status = "CONFIRMED";
+    return { ...found };
+  },
+  transitionOrder: async (id, to, reason) => {
+    const found = inMemoryMockOrders.find((o) => o.id === id);
+    if (!found) throw new Error("Không tìm thấy đơn hàng");
+    if (["CANCELLED", "COMPLETED", "DELIVERY_FAILED"].includes(found.status)) {
+      const error = new Error("Đơn hàng không thể chuyển đổi trạng thái khi đã kết thúc chu trình.");
+      (error as unknown as { status: number }).status = 409;
+      throw error;
+    }
+    found.status = to as WireOrder["status"];
+    if (to === "CANCELLED") found.cancel_reason = reason;
+    return { ...found };
+  },
 };
 
 const mockVoucherRepository: IVoucherRepository = {

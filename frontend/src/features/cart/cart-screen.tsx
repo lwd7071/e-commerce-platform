@@ -51,9 +51,24 @@ export function CartScreen() {
   };
 
   useEffect(() => {
-    void Promise.resolve().then(() => {
-      loadCart();
-    });
+    let ignore = false;
+    void Promise.resolve()
+      .then(() => cartRepository.getCart())
+      .then((data) => {
+        if (!ignore) {
+          setItems(data);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setError("Không thể tải thông tin giỏ hàng. Vui lòng kiểm tra lại kết nối.");
+          setLoading(false);
+        }
+      });
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   // Group items by shop
