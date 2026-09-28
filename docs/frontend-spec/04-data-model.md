@@ -97,6 +97,8 @@ export interface CreateProductDTO {
 }
 ```
 
+**Tên field tồn kho phải giữ đúng theo endpoint:** create variant dùng `stock_quantity`; cập nhật tồn kho dùng `quantity` tại `PATCH /product-variants/:variant_id/stock`. `stock` chỉ được phép là tên trong view-model nội bộ, tuyệt đối không serialize nguyên view-model làm request body. Backend có route từ chối các field lạ.
+
 Upload file không nằm trong endpoint này; `image_url` phải được tạo bởi một media flow riêng hiện còn thiếu.
 
 ## 3. Cart DTO
@@ -148,6 +150,8 @@ export interface CheckoutResultDTO {
   orders: [CheckoutOrderDTO, ...CheckoutOrderDTO[]];
 }
 ```
+
+Phí vận chuyển hiện do backend tính cố định `0.00`; FE không gửi `shipping_fee` và không cộng phí mock vào `total_amount`.
 
 `Idempotency-Key` là HTTP header, không nằm trong body. Checkout lấy các cart item đang `is_selected=true` và thực hiện atomically cho tất cả shop.
 
@@ -202,18 +206,30 @@ Order query runtime hiện chưa trả DTO này đầy đủ; type trên là tar
 ## 6. Address, voucher, review và notification
 
 ```typescript
-export interface AddressDTO {
-  address_id: UUID;
-  user_id: UUID;
+// Current runtime response from GET/POST /addresses uses camelCase.
+export interface AddressResponseDTO {
+  addressId: UUID;
+  userId: UUID;
+  recipientName: string;
+  phone: string;
+  province: string;
+  district: string;
+  ward: string;
+  detailAddress: string;
+  isDefault: boolean;
+  createdAt: ISODateTime;
+  updatedAt: ISODateTime;
+}
+
+// Request fields for POST /addresses use snake_case.
+export interface CreateAddressRequestDTO {
   recipient_name: string;
   phone: string;
   province: string;
   district: string;
   ward: string;
   detail_address: string;
-  is_default: boolean;
-  created_at: ISODateTime;
-  updated_at: ISODateTime;
+  is_default?: boolean;
 }
 
 export interface VoucherDTO {

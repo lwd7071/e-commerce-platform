@@ -71,11 +71,11 @@ Mỗi route tải dữ liệu phải có:
 
 **Precondition:** Buyer authenticated, có address và cart item `is_selected=true`.
 
-**UI:** address selector, selected items summary, voucher per shop, payment `COD | ONLINE`, total do server xác nhận, submit.
+**UI:** address selector, selected items summary, voucher per shop, payment `COD | ONLINE`, phí vận chuyển `0₫` (backend hiện hardcode `shipping_fee=0.00`), total do server xác nhận, submit. Không cộng phí ship mock `25.000₫` hoặc cho client tự truyền phí ship.
 
 **API:** `GET /addresses`, `GET /vouchers/applicable`, `POST /vouchers/evaluate`, `POST /checkout`.
 
-**Submit:** tạo và giữ một UUID làm `Idempotency-Key` cho một checkout attempt; cùng attempt retry phải dùng lại key. Body chỉ gồm `address_id`, `payment_method`, `vouchers`.
+**Submit:** tạo và giữ một UUID làm `Idempotency-Key` gắn với snapshot request; cùng request retry sau timeout/mất mạng phải dùng lại key. Nếu đổi địa chỉ, phương thức thanh toán hoặc voucher thì tạo key mới. Nếu kết quả lần gửi trước chưa rõ, retry snapshot/key cũ để tránh tạo đơn trùng trước khi cho sửa intent. Body chỉ gồm `address_id`, `payment_method`, `vouchers`.
 
 **Success:** chuyển `/orders?created=<ids>` hoặc success screen. Không gọi payment retry ngay sau checkout; không hiển thị QR khi backend chưa có provider session.
 
@@ -205,12 +205,12 @@ flowchart LR
   A[PENDING_CONFIRMATION] -->|confirm| B[CONFIRMED]
   B -->|transition| C[PREPARING]
   C -->|transition| D[SHIPPING]
-  D -->|transition| E[COMPLETED]
+  D -->|Admin / shipment integration; shipment_status=DELIVERED| E[COMPLETED]
   A -->|buyer/admin cancel| X[CANCELLED]
-  D -->|delivery failure| F[DELIVERY_FAILED]
+  D -->|Admin / shipment integration; shipment_status=FAILED| F[DELIVERY_FAILED]
 ```
 
-Order list runtime phải được wire trước khi flow này có thể chạy end-to-end từ UI.
+Seller phải gọi `PREPARING` sau `CONFIRMED`, rồi mới gọi `SHIPPING` từ `PREPARING`. Seller không được chuyển sang `COMPLETED` hoặc `DELIVERY_FAILED`; UI Seller không hiển thị nút hoàn tất đơn. Order list runtime phải được wire trước khi flow này có thể chạy end-to-end từ UI.
 
 ### 4.4. Admin moderation
 

@@ -26,7 +26,7 @@
 | Order list/detail | `orderRepository` | `GET /orders`, `/orders/:id` | role lấy từ token | `RUNTIME_BLOCKED` | mock/feature flag |
 | Cancel order | `orderRepository.cancel` | `POST /orders/:id/cancel` | reason | `AVAILABLE` | bật khi có order query |
 | Confirm order | `orderRepository.confirm` | `POST /orders/:id/confirm` | optional reason | `AVAILABLE` | bật khi có order query |
-| Transition order | `orderRepository.transition` | `POST /orders/:id/transition` | to/reason/shipment_status | `AVAILABLE` | bật khi có order query |
+| Transition order | `orderRepository.transition` | `POST /orders/:id/transition` | tuần tự theo state; `to`/`reason`/`shipment_status` | `AVAILABLE` | Seller không được nhảy `CONFIRMED → SHIPPING` hoặc tự hoàn tất đơn |
 | Payment retry | `paymentRepository.retry` | `POST /orders/:id/payments` | payment_method | `PARTIAL` | không gọi trong checkout success |
 | Submit review | `reviewRepository.create` | `POST /order-items/:id/review` | product_id/rating/content/images | `RUNTIME_BLOCKED` | UI mock, submit off |
 | Notifications | `notificationRepository` | notification routes | is_read | `RUNTIME_BLOCKED` | mock/feature flag |
@@ -79,7 +79,7 @@ Không lưu access token trong query key, log hoặc error details.
 
 | Wire | View-model | Ghi chú |
 |---|---|---|
-| `stock_quantity` | `stockQuantity` | không dùng `stock` trong request API |
+| `stock_quantity` | `stockQuantity` | create variant dùng field này; PATCH stock dùng `quantity`, không gửi `stock` |
 | `is_selected` | `isSelected` | server state |
 | `variant_value` | `variantValue` | không có `attributes` object hiện tại |
 | `subtotal` | `subtotal` | decimal string → Money |
@@ -88,7 +88,18 @@ Không lưu access token trong query key, log hoặc error details.
 | `to` | `toStatus` trong UI | adapter đổi tên khi gửi request |
 | `reason` | `reason` | không gửi `note` |
 
-## 5. Feature flags
+`rejectUnknown` làm request DTO nhạy với field thừa: serialize object request riêng theo endpoint; không gửi spread view-model chứa `id`, timestamp hoặc `stock`.
+
+## 5. Checkout intent and idempotency
+
+- Key gắn với snapshot của `address_id`, `payment_method`, `vouchers`.
+- Retry cùng snapshot khi response mơ hồ thì giữ nguyên key.
+- Người dùng sửa địa chỉ, payment method hoặc voucher thì sinh key mới.
+- Nếu lần submit trước mơ hồ, resolve bằng retry key cũ trước khi gửi intent mới để tránh đơn trùng.
+- Một checkout thành công kết thúc intent; lần checkout mới dùng key mới.
+- Lưu key/snapshot qua reload (session storage) để không làm mất khả năng retry.
+
+## 6. Feature flags
 
 Đề xuất:
 

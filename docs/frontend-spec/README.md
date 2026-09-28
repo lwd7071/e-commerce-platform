@@ -54,5 +54,6 @@ Một feature chỉ được coi là sẵn sàng triển khai khi:
 ## Quy ước tiền tệ và thời gian
 
 - Wire API giữ số tiền dạng decimal string nếu backend trả từ PostgreSQL `NUMERIC`.
+- Convention chung là snake_case; một số response legacy như `GET/POST /addresses` hiện trả camelCase và được ghi rõ trong contract/adapters.
 - Adapter FE chuyển sang integer VND hoặc một money type thống nhất trước khi render/tính toán; không tính tiền trực tiếp bằng floating point.
 - Timestamp truyền bằng ISO 8601 UTC, hiển thị theo locale `vi-VN` và timezone người dùng.

@@ -66,7 +66,7 @@ Triển khai theo vertical slice nhưng không giả vờ các backend blocker �
 | B-404 | F-103 | Address list/create | available | validation + refetch |
 | B-405 | B-404 | Address edit/default/delete UI | GAP-01 | mock/disabled in production |
 | B-406 | B-402 | Voucher list/preview | available | per-shop preview, decimal-safe totals |
-| B-407 | B-403,B-404,B-406 | Checkout | available | unique key per attempt; same key on safe retry; no QR promise |
+| B-407 | B-403,B-404,B-406 | Checkout | available | phí ship hiển thị 0; key gắn snapshot; retry cùng payload dùng key cũ, đổi payload dùng key mới; resolve request mơ hồ trước intent mới |
 | B-408 | B-407 | Checkout E2E | test DB | creates one order/shop, clears selected items, prevents duplicate |
 
 ## 7. Phase 5 — Orders, seller và review
@@ -77,7 +77,7 @@ Triển khai theo vertical slice nhưng không giả vờ các backend blocker �
 | O-502 | O-501,F-107 | Buyer order center | order reads ready | filter, detail, empty/error |
 | O-503 | O-502 | Cancel order | available | reason required; 409 refreshes state |
 | O-504 | O-501 | Seller order table | order reads ready | only own shop orders |
-| O-505 | O-504 | Confirm/transition | available | state machine actions only; invalid transition handled |
+| O-505 | O-504 | Confirm/transition | available | tuần tự `PENDING_CONFIRMATION → CONFIRMED → PREPARING → SHIPPING`; Seller không được hoàn tất; xử lý 403/409 |
 | O-506 | C-002 | Wire review runtime | GAP-01 | create review integration test |
 | O-507 | O-502,O-506 | Review form | GAP-09 for images | text/rating works; images gated |
 | O-508 | B-301 | Seller product list API | GAP-04 | owner-scoped pagination/filter |
