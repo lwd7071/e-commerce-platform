@@ -52,9 +52,19 @@ TRUST_PROXY=1
 npm run dev
 ```
 
+### Khởi chạy Production Server
+```bash
+npm start
+```
+
 ### Chạy kiểm thử toàn bộ (All Native Tests)
 ```bash
 npm run test:node
+```
+
+### Chạy kiểm thử Transaction PostgreSQL thật
+```bash
+npm run test:transaction:pg
 ```
 
 ### Kiểm tra kiểu tĩnh (TypeScript Typecheck)
