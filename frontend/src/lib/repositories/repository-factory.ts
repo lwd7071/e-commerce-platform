@@ -20,6 +20,12 @@ const apiCatalogRepository: ICatalogRepository = {
   getProductById: (id) => catalogApi.getProductById(id),
   createProduct: (data) => catalogApi.createProduct(data),
   updateStock: (variantId, quantity) => catalogApi.updateVariantStock(variantId, quantity),
+  getSellerProducts: async () => {
+    // GAP-04 blocker: Backend does not have a seller-scoped GET /seller/products route yet.
+    // Public GET /products cannot be used because it leaks other shops' products and rejects shop_id.
+    // Fall back to isolated seller-scoped mock until GAP-04 is closed.
+    return mockCatalogRepository.getSellerProducts();
+  },
 };
 
 const apiBuyerRepository: IBuyerRepository = {
@@ -95,37 +101,74 @@ const mockCatalogRepository: ICatalogRepository = {
       created_at: new Date().toISOString(),
     },
   ],
-  getProductsPaginated: async () => ({
-    data: [
-      {
-        product_id: "00000000-0000-0000-0000-000000000101",
-        product_name: "Serum Dưỡng Trắng & Cấp Ẩm Chuyên Sâu",
-        shop_id: "00000000-0000-0000-0000-000000000001",
-        category_id: "00000000-0000-0000-0000-000000000010",
-        min_price: "280000.00",
-        max_price: "350000.00",
-        total_stock: 50,
-        image_url: "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=800",
-        created_at: new Date().toISOString(),
+  getProductsPaginated: async (params) => {
+    const isPage2 = params?.cursor === "mock_cursor_page_2";
+    if (isPage2) {
+      return {
+        data: [
+          {
+            product_id: "00000000-0000-0000-0000-000000000103",
+            product_name: "Áo Sơ Mi Linen Form Rộng Cao Cấp",
+            shop_id: "00000000-0000-0000-0000-000000000002",
+            category_id: "00000000-0000-0000-0000-000000000011",
+            min_price: "289000.00",
+            max_price: "320000.00",
+            total_stock: 75,
+            image_url: "https://images.unsplash.com/photo-1598033129183-c4f50c736f10?w=800",
+            created_at: new Date().toISOString(),
+          },
+          {
+            product_id: "00000000-0000-0000-0000-000000000104",
+            product_name: "Bàn Phím Cơ Không Dây 3 Chế Độ RGB",
+            shop_id: "00000000-0000-0000-0000-000000000003",
+            category_id: "00000000-0000-0000-0000-000000000012",
+            min_price: "850000.00",
+            max_price: "1250000.00",
+            total_stock: 30,
+            image_url: "https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=800",
+            created_at: new Date().toISOString(),
+          },
+        ],
+        meta: {
+          limit: 2,
+          has_more: false,
+          next_cursor: null,
+        },
+      };
+    }
+
+    return {
+      data: [
+        {
+          product_id: "00000000-0000-0000-0000-000000000101",
+          product_name: "Serum Dưỡng Trắng & Cấp Ẩm Chuyên Sâu",
+          shop_id: "00000000-0000-0000-0000-000000000001",
+          category_id: "00000000-0000-0000-0000-000000000010",
+          min_price: "280000.00",
+          max_price: "350000.00",
+          total_stock: 50,
+          image_url: "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=800",
+          created_at: new Date().toISOString(),
+        },
+        {
+          product_id: "00000000-0000-0000-0000-000000000102",
+          product_name: "Kem Chống Nắng Phổ Rộng SPF 50+ PA++++",
+          shop_id: "00000000-0000-0000-0000-000000000001",
+          category_id: "00000000-0000-0000-0000-000000000010",
+          min_price: "320000.00",
+          max_price: "320000.00",
+          total_stock: 120,
+          image_url: "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=800",
+          created_at: new Date().toISOString(),
+        },
+      ],
+      meta: {
+        limit: 2,
+        has_more: true,
+        next_cursor: "mock_cursor_page_2",
       },
-      {
-        product_id: "00000000-0000-0000-0000-000000000102",
-        product_name: "Kem Chống Nắng Phổ Rộng SPF 50+ PA++++",
-        shop_id: "00000000-0000-0000-0000-000000000001",
-        category_id: "00000000-0000-0000-0000-000000000010",
-        min_price: "320000.00",
-        max_price: "320000.00",
-        total_stock: 120,
-        image_url: "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=800",
-        created_at: new Date().toISOString(),
-      },
-    ],
-    meta: {
-      limit: 20,
-      has_more: false,
-      next_cursor: null,
-    },
-  }),
+    };
+  },
   getProductById: async (id) => ({
     product_id: id,
     shop_id: "00000000-0000-0000-0000-000000000001",
@@ -172,6 +215,11 @@ const mockCatalogRepository: ICatalogRepository = {
     })),
   }),
   updateStock: async (variantId, quantity) => ({ variant_id: variantId, quantity, success: true }),
+  getSellerProducts: async () => {
+    const all = await mockCatalogRepository.getProducts();
+    // Isolate products strictly belonging to the seller's shop (shop_id: ...0001)
+    return all.filter((p) => p.shop_id === "00000000-0000-0000-0000-000000000001");
+  },
 };
 
 const mockBuyerRepository: IBuyerRepository = {

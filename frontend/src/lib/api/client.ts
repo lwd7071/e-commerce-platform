@@ -129,8 +129,8 @@ export class ApiClient {
         throw AppError.fromHttp(response.status, responseData, headerRequestId);
       }
 
-      // Unwrap Success Envelope if standard { data, request_id } exists
-      if (responseData && typeof responseData === "object" && "data" in responseData) {
+      // Unwrap Success Envelope if standard { data, request_id } exists (unless rawEnvelope is requested)
+      if (!options.rawEnvelope && responseData && typeof responseData === "object" && "data" in responseData) {
         return (responseData as SuccessEnvelope<T> | PaginatedEnvelope<T>).data as T;
       }
 
@@ -153,6 +153,10 @@ export class ApiClient {
 
   get<T>(path: string, options?: RequestOptions): Promise<T> {
     return this.request<T>(path, { ...options, method: "GET" });
+  }
+
+  getPaginated<T>(path: string, options?: RequestOptions): Promise<PaginatedEnvelope<T>> {
+    return this.request<PaginatedEnvelope<T>>(path, { ...options, method: "GET", rawEnvelope: true });
   }
 
   post<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {

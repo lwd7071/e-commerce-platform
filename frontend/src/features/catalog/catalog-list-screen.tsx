@@ -28,6 +28,7 @@ export function CatalogListScreen({ initialSearch = "", initialCategoryId = "" }
   const [sort, setSort] = useState<SortOption>("created_at_desc");
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
+  const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
 
   const [, startTransition] = useTransition();
@@ -45,18 +46,18 @@ export function CatalogListScreen({ initialSearch = "", initialCategoryId = "" }
     setIsLoading(true);
     setError(null);
     try {
-      const data = await repositories.catalog().getProducts(params);
+      const envelope = await repositories.catalog().getProductsPaginated(params);
+      const items = envelope.data || [];
+      const meta = envelope.meta;
+
       if (append) {
-        setProducts((prev) => [...prev, ...data]);
+        setProducts((prev) => [...prev, ...items]);
       } else {
-        setProducts(data);
+        setProducts(items);
       }
-      // If we got limit items, next cursor might be the ID or created_at of last item
-      if (data.length >= (params.limit || 20)) {
-        setNextCursor(data[data.length - 1].product_id);
-      } else {
-        setNextCursor(null);
-      }
+
+      setNextCursor(meta?.next_cursor ?? null);
+      setHasMore(Boolean(meta?.has_more));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Không thể tải danh sách sản phẩm.";
       setError(msg);
@@ -96,7 +97,7 @@ export function CatalogListScreen({ initialSearch = "", initialCategoryId = "" }
   };
 
   const handleLoadMore = () => {
-    if (!nextCursor) return;
+    if (!hasMore || !nextCursor) return;
     const params: GetProductsParams = {
       limit: 20,
       sort,
@@ -258,8 +259,8 @@ export function CatalogListScreen({ initialSearch = "", initialCategoryId = "" }
             ))}
           </div>
 
-          {/* Load More Button */}
-          {nextCursor && (
+          {/* Load More Button - only displayed when backend indicates has_more and provides valid next_cursor */}
+          {hasMore && nextCursor && (
             <div className="flex justify-center pt-6">
               <Button
                 variant="secondary"
