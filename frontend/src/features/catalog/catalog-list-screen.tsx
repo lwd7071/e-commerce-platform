@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState, useRef, useTransition } from "react";
 import { repositories } from "@/lib/repositories/repository-factory";
 import { categoryAdapter, type CategoryItem } from "@/lib/adapters/category.adapter";
 import type { WireCatalogProductItem, GetProductsParams } from "@/lib/api/catalog.api";
@@ -31,6 +31,7 @@ export function CatalogListScreen({ initialSearch = "", initialCategoryId = "" }
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
 
+  const activeQueryRef = useRef(0);
   const [, startTransition] = useTransition();
 
   // Load verified categories on mount
@@ -43,10 +44,16 @@ export function CatalogListScreen({ initialSearch = "", initialCategoryId = "" }
   }, []);
 
   const fetchProducts = async (params: GetProductsParams, append = false) => {
+    const queryId = ++activeQueryRef.current;
     setIsLoading(true);
     setError(null);
     try {
       const envelope = await repositories.catalog().getProductsPaginated(params);
+      // Discard stale out-of-order response if another query was initiated
+      if (queryId !== activeQueryRef.current) {
+        return;
+      }
+
       const items = envelope.data || [];
       const meta = envelope.meta;
 
@@ -59,10 +66,15 @@ export function CatalogListScreen({ initialSearch = "", initialCategoryId = "" }
       setNextCursor(meta?.next_cursor ?? null);
       setHasMore(Boolean(meta?.has_more));
     } catch (err: unknown) {
+      if (queryId !== activeQueryRef.current) {
+        return;
+      }
       const msg = err instanceof Error ? err.message : "Không thể tải danh sách sản phẩm.";
       setError(msg);
     } finally {
-      setIsLoading(false);
+      if (queryId === activeQueryRef.current) {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -83,9 +95,6 @@ export function CatalogListScreen({ initialSearch = "", initialCategoryId = "" }
 
   const handleSearchSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const q = (formData.get("q") as string) || "";
-    setSearch(q);
   };
 
   const handleResetFilters = () => {
@@ -125,7 +134,8 @@ export function CatalogListScreen({ initialSearch = "", initialCategoryId = "" }
         <form onSubmit={handleSearchSubmit} className="relative flex-1 max-w-md">
           <input
             name="q"
-            defaultValue={search}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
             className="form-control pl-10 pr-4"
             placeholder="Tìm theo tên sản phẩm..."
             aria-label="Tìm theo tên sản phẩm"

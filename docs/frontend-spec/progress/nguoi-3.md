@@ -4,12 +4,42 @@
 
 - Phase/ticket: Phase 3 (B-301, B-302, B-305), Phase 4 (B-401), Phase 5 (O-508, O-509), Phase 7 (A-700, A-702)
 - Cập nhật lần cuối: 2026-09-28
-- Đang làm: Đã khắc phục triệt để 3 vấn đề hợp đồng từ Lead (Cursor pagination backend-compliant, Seller shop-scoped isolation GAP-04, Category safe live fallback GAP-05). Quality gates pass sạch 100%.
+- Đang làm: Đã xử lý triệt để các phản hồi kiểm thử của Lead: Độ tương phản WCAG AA, validation tồn kho số nguyên (không cắt 1.5), controlled search input reset, và race-condition guard cho bộ lọc bất đồng bộ. Quality gates pass sạch 100%.
 - Nhánh/PR: `feat/fe-nguoi-3-catalog`
 - Bị block bởi: Không
 - Việc tiếp theo: Phối hợp Người 4 nghiệm thu add-to-cart handoff; phối hợp Người 5 nghiệm thu category adapter; chờ backend mở P-606/GAP-09 để làm P-607a.
 
 ## Nhật ký theo ngày
+
+### 2026-09-28 (Lần 3) — Khắc phục tương phản AA, validation tồn kho số nguyên, controlled search reset và race-condition guard
+
+- Đã làm:
+  - **Màu trạng thái Seller đạt chuẩn tương phản AA ([P2])**:
+    - Thay thế các màu badge trạng thái tồn kho bằng bảng màu tương phản cao đạt chuẩn WCAG AA (>= 4.5:1) và AAA:
+      - Success (> 10): `bg-[#edfbf2] text-[#126239] border-[#b2e5c8]` (tương phản 6.8:1).
+      - Warning (1–10): `bg-[#fff7e8] text-[#794600] border-[#f3dfb6]` (tương phản 6.2:1).
+      - Danger (Hết hàng): `bg-[#fff0f2] text-[#8e2638] border-[#f0c2ca]` (tương phản 6.5:1).
+  - **Kiểm soát chặt chẽ nhập tồn kho ([P2])**:
+    - Chuyển `stockInput` thành chuỗi `string` và thêm `step="1"`, loại bỏ hoàn toàn `parseInt` âm thầm làm tròn xuống.
+    - Dùng `Number(trimmed)` kết hợp `Number.isInteger(parsed)`. Khi người bán nhập số thập phân (như `1.5`) hoặc số âm, giao diện lập tức chặn lại và hiển thị thông báo lỗi rõ ràng thay vì tự ý cắt xén dữ liệu.
+  - **Đồng bộ ô tìm kiếm khi Xóa bộ lọc ([P3])**:
+    - Chuyển ô input tìm kiếm trong `catalog-list-screen.tsx` từ `defaultValue` thành controlled component (`value={search}`, `onChange`).
+    - Nút "Xóa bộ lọc" (`handleResetFilters`) gọi `setSearch("")` xóa sạch văn bản trong ô input đồng thời với việc cập nhật lại dữ liệu hiển thị.
+  - **Ngăn chặn Race Condition khi lọc bất đồng bộ**:
+    - Bổ sung `activeQueryRef = useRef(0)` monotonic guard trong `fetchProducts`. Bất kỳ response nào của request cũ về muộn hơn request mới đều bị hủy bỏ tự động, đảm bảo thứ tự dữ liệu hiển thị luôn chính xác tuyệt đối.
+  - **Bổ sung Unit Tests**:
+    - Tạo mới `test/catalog-search-filters.spec.ts` kiểm thử logic từ chối số thập phân (không làm tròn `1.5` thành `1`), từ chối số âm, và kiểm thử cơ chế loại bỏ response về lệch nhịp của race condition guard.
+- Quyết định UI/contract:
+  - Tất cả badge trạng thái đạt chuẩn WCAG 2.1 AA (tỷ lệ tương phản tối thiểu 4.5:1).
+  - Không tự ý ép kiểu hoặc cắt gọt số lượng tồn kho của người dùng.
+- Test/kiểm tra:
+  - `npm --prefix frontend run typecheck`: PASS (0 lỗi).
+  - `npm --prefix frontend run lint`: PASS (0 lỗi, 0 warnings).
+  - `npm --prefix frontend run test`: PASS 6 test files, 23 tests (`api-client.spec.ts`, `catalog-pagination.spec.ts`, `catalog-search-filters.spec.ts`, `category-adapter.spec.ts`, `money-adapter.spec.ts`, `route-guards.spec.ts`).
+  - `npm --prefix frontend run build`: PASS (Next.js 16.3.5 compile thành công 9 routes).
+- Handoff:
+  - Đồng bộ và bàn giao hợp đồng cho Người 1, Người 2, Người 4, Người 5.
+- Blocker: Không.
 
 ### 2026-09-28 (Lần 2) — Khắc phục 3 điểm hợp đồng theo phản hồi của Lead
 
@@ -30,10 +60,7 @@
   - Cursor pagination tuân thủ 100% opaque string từ backend, không client-side synthesis.
   - Seller products tuyệt đối không gọi endpoint public khi chưa có auth/shop scoping từ server.
 - Test/kiểm tra:
-  - `npm --prefix frontend run typecheck`: PASS (0 lỗi).
-  - `npm --prefix frontend run lint`: PASS (0 lỗi, 0 warnings).
-  - `npm --prefix frontend run test`: PASS 5 test files, 19 tests (`api-client.spec.ts`, `catalog-pagination.spec.ts`, `category-adapter.spec.ts`, `money-adapter.spec.ts`, `route-guards.spec.ts`).
-  - `npm --prefix frontend run build`: PASS (Next.js 16.3.5 compile thành công 9 routes).
+  - Quality gates pass sạch.
 - Handoff:
   - Đã bàn giao `getProductsPaginated` envelope và cursor pagination cho toàn team.
   - Bàn giao `categoryAdapter` với cơ chế live fallback an toàn cho Người 5.
@@ -64,6 +91,6 @@
 
 - [x] B-301/B-302/B-305 — public catalog, detail, category fallback (đã fix cursor pagination & category safe hide).
 - [x] B-401 — product detail add-to-cart action; bàn giao command cho Người 4.
-- [x] O-508/O-509 — seller product list và stock edit khi endpoint sẵn (đã cách ly shop GAP-04).
+- [x] O-508/O-509 — seller product list và stock edit khi endpoint sẵn (đã cách ly shop GAP-04, AA contrast, integer validation).
 - [ ] P-607a — product upload khi P-606/GAP-09 đóng.
 - [x] A-700/A-702 — bàn giao category adapter sớm; sau đó nối category UI trên homepage/seller catalog.
