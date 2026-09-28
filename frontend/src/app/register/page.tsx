@@ -53,10 +53,8 @@ export default function RegisterPage() {
     <div className="min-h-screen flex items-center justify-center p-4 bg-[var(--background)]">
       <div className="w-full max-w-md bg-[var(--card)] border border-[var(--border)] rounded-2xl shadow-sm p-6 sm:p-8">
         <div className="text-center mb-6">
-          <Link href="/" className="inline-block mb-3 hover:opacity-90 transition-opacity">
-            <span className="text-3xl font-extrabold tracking-tight text-[var(--foreground)]">
-              Dino<span className="text-[var(--primary-active)]">.</span>
-            </span>
+          <Link href="/" className="brand-lockup text-3xl font-extrabold tracking-tight mb-3 inline-flex items-center text-[var(--foreground)]" aria-label="Dino - trang chủ">
+            <span>Dino</span>
           </Link>
           <h1 className="text-2xl font-bold tracking-tight text-[var(--foreground)]">
             Tạo tài khoản mới
@@ -67,7 +65,7 @@ export default function RegisterPage() {
         </div>
 
         {errorMsg && (
-          <div className="mb-5 p-3 rounded-xl bg-[var(--danger-surface)] border border-[var(--danger-border)] flex items-start gap-2 text-sm text-[var(--danger)]">
+          <div className="mb-5 p-3 rounded-xl bg-[var(--danger-surface)] border border-[var(--danger-border)] flex items-start gap-2 text-sm text-[var(--danger-text)] font-medium">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
             <span>{errorMsg}</span>
           </div>
