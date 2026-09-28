@@ -23,12 +23,14 @@
 
   /* Semantic */
   --success: #059669;
+  --success-text: #047857;
   --success-surface: #ecfdf5;
   --danger: #e11d48;
   --danger-surface: #fff1f2;
   --danger-border: #fecdd3;
   --danger-text: #8b1734;
   --warning: #d97706;
+  --warning-text: #92400e;
   --warning-surface: #fffbeb;
   --warning-border: #fde68a;
   --info: #0e7490;

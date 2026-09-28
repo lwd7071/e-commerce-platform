@@ -11,6 +11,13 @@
 
 ## Nhật ký theo ngày
 
+### 2026-09-29 — PR A token/contrast và SSR contract (provisional)
+
+- Thêm token mới `--success-text` và `--warning-text`, giữ nguyên giá trị mọi token palette gốc; dùng lại `--danger-text` đã có. Thêm test tính WCAG AA ≥4.5:1 cho semantic text/surface và chữ trắng trên CTA.
+- Thêm SSR characterization cho Button (variant/disabled/loading), FormField (label/help/error ARIA), EmptyState, ErrorState và StatusBadge; không thêm navigation/notification helper test ở PR A.
+- Frontend Node `24.15.0`/npm `11.12.1`: typecheck, lint, build pass; Vitest 12 files / 63 tests pass.
+- Evidence provisional trên nhánh dựa vào PR0a chưa merge; sau khi PR0a được duyệt/gộp phải rebase và chạy lại tất cả gate. `Toast`/`Dialog` interaction chưa có automated interaction test; Dialog mới có browser repro/evidence trong nhật ký QA.
+
 ### 2026-09-28 — PR0a Node 24 runtime migration (đang chuẩn bị, chưa merge)
 
 - Đã đồng bộ từ `origin/dev` mới nhất và làm trong worktree riêng; không mang theo hoặc sửa thay đổi local tại `ecommerce-web/`.
