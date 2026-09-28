@@ -116,7 +116,7 @@ Thứ tự tiếp tục: Người 1 duy trì nền F-102–107; Người 2 nghi�
 
 **Ponytail:** `@ponytail` khi triển khai; `@ponytail-review` khi rà diff của phase.
 
-**Owner:** Người 2. D-002 và [UI/UX rules](./09-ui-ux-rules.md) là đầu vào của U-201; prop/state contract ở [handoff 10](./10-ui-ux-handoff.md). Source ở `frontend/`; gate và evidence được ghi trong [progress Người 2](./progress/nguoi-2.md) và [QA report](./qa-nguoi-2-ui.md). D-004 vẫn chờ page samples.
+**Owner:** Người 2. D-002 và [UI/UX rules](./09-ui-ux-rules.md) là đầu vào của U-201; prop/state contract ở [handoff 10](./10-ui-ux-handoff.md). Source ở `frontend/`; gate/evidence được ghi trong [progress Người 2](./progress/nguoi-2.md). D-004 vẫn chờ page samples.
 
 | ID | Depends | Task | Acceptance criteria |
 |---|---|---|---|

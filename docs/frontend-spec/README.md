@@ -31,7 +31,7 @@ Không được tích hợp một tính năng `RUNTIME_BLOCKED` hoặc `MISSING`
 10. [UI/UX handoff](./10-ui-ux-handoff.md) — bố cục, trạng thái, navigation và owner cho từng route.
 11. [Progress FE](./progress/README.md) — nhật ký và bằng chứng bàn giao của 5 người.
 
-QA trong phạm vi Người 2: [UI QA report](./qa-nguoi-2-ui.md) — quality gates, browser/viewport, defects và handoff theo owner.
+QA trong phạm vi Người 2 được ghi ngay trong [progress Người 2](./progress/nguoi-2.md), không tách thành file riêng.
 
 ## Bắt đầu làm FE
 
