@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useTransition } from "react";
+import { useEffect, useState, useMemo, useTransition, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ProtectedPage } from "@/components/navigation/protected-page";
@@ -36,17 +36,31 @@ export function CartScreen() {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const loadCart = async () => {
+    if (!mountedRef.current) return;
     setLoading(true);
     setError(null);
     try {
       const data = await cartRepository.getCart();
-      setItems(data);
+      if (mountedRef.current) {
+        setItems(data);
+      }
     } catch {
-      setError("Không thể tải thông tin giỏ hàng. Vui lòng kiểm tra lại kết nối.");
+      if (mountedRef.current) {
+        setError("Không thể tải thông tin giỏ hàng. Vui lòng kiểm tra lại kết nối.");
+      }
     } finally {
-      setLoading(false);
+      if (mountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -55,13 +69,13 @@ export function CartScreen() {
     void Promise.resolve()
       .then(() => cartRepository.getCart())
       .then((data) => {
-        if (!ignore) {
+        if (!ignore && mountedRef.current) {
           setItems(data);
           setLoading(false);
         }
       })
       .catch(() => {
-        if (!ignore) {
+        if (!ignore && mountedRef.current) {
           setError("Không thể tải thông tin giỏ hàng. Vui lòng kiểm tra lại kết nối.");
           setLoading(false);
         }
