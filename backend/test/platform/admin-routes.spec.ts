@@ -187,6 +187,7 @@ describe('Phase 4 — Admin Lock & Unlock Endpoints (TDD Cycle 4.1 & 4.2)', () =
           async addCartItem() { return {}; },
           async updateCartItem() { return {}; },
           async deleteCartItem() {},
+          async clearSelectedCartItems() {},
           async applicableVouchers() { return []; },
           async evaluateVoucher() { return {}; },
         }

@@ -21,6 +21,7 @@ export interface BuyerHttpApplication {
   addCartItem(context: RequestContext, input: Record<string, unknown>): Promise<unknown>;
   updateCartItem(context: RequestContext, itemId: string, input: Record<string, unknown>): Promise<unknown>;
   deleteCartItem(context: RequestContext, itemId: string): Promise<void>;
+  clearSelectedCartItems(context: RequestContext): Promise<void>;
   applicableVouchers(context: RequestContext, input: Record<string, unknown>): Promise<unknown[]>;
   evaluateVoucher(context: RequestContext, input: Record<string, unknown>): Promise<unknown>;
 }
@@ -139,6 +140,10 @@ export function createBuyerRouter(application?: BuyerHttpApplication, auth?: Req
   }));
   router.delete('/cart/items/:cart_item_id', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
     await implementation(application?.deleteCartItem, application)(context(req), req.params.cart_item_id);
+    res.status(204).send();
+  }));
+  router.delete('/cart/selected', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
+    await implementation(application?.clearSelectedCartItems, application)(context(req));
     res.status(204).send();
   }));
   router.get('/vouchers/applicable', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {

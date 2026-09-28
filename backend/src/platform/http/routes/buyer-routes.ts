@@ -1,6 +1,6 @@
 import { Router, type Request, type Response, type NextFunction, type RequestHandler } from 'express';
 import { buildSuccessEnvelope } from '../envelope.ts';
-import { ForbiddenError, UnauthorizedError } from '../../errors/app-error.ts';
+import { ForbiddenError, NotImplementedError, UnauthorizedError } from '../../errors/app-error.ts';
 import type { RequestContext } from '../../context/request-context.ts';
 import type { AddressService } from '../../../modules/buyer/services/address.service.ts';
 import type { CartService } from '../../../modules/buyer/services/cart.service.ts';
@@ -107,8 +107,7 @@ export function createBuyerDomainRouter(
   router.get('/addresses/:address_id', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
     const ctx = context(req);
     if (!addressService) {
-      res.status(501).json({ error: 'AddressService not configured' });
-      return;
+      throw new NotImplementedError('Address detail is not available in the current runtime');
     }
     const data = await addressService.getAddressById(ctx.user_id, req.params.address_id);
     res.json(buildSuccessEnvelope(data, requestId(req)));
@@ -117,8 +116,7 @@ export function createBuyerDomainRouter(
   router.patch('/addresses/:address_id', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
     const ctx = context(req);
     if (!addressService) {
-      res.status(501).json({ error: 'AddressService not configured' });
-      return;
+      throw new NotImplementedError('Address update is not available in the current runtime');
     }
     const data = await addressService.updateAddress(ctx.user_id, req.params.address_id, req.body);
     res.json(buildSuccessEnvelope(data, requestId(req)));
@@ -127,8 +125,7 @@ export function createBuyerDomainRouter(
   router.delete('/addresses/:address_id', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
     const ctx = context(req);
     if (!addressService) {
-      res.status(204).send();
-      return;
+      throw new NotImplementedError('Address deletion is not available in the current runtime');
     }
     await addressService.deleteAddress(ctx.user_id, req.params.address_id);
     res.status(204).send();
@@ -137,8 +134,7 @@ export function createBuyerDomainRouter(
   router.patch('/addresses/:address_id/default', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
     const ctx = context(req);
     if (!addressService) {
-      res.status(501).json({ error: 'AddressService not configured' });
-      return;
+      throw new NotImplementedError('Setting a default address is not available in the current runtime');
     }
     await addressService.setDefault(ctx.user_id, req.params.address_id);
     res.json(buildSuccessEnvelope({ message: 'Default address updated successfully' }, requestId(req)));
@@ -204,6 +200,10 @@ export function createBuyerDomainRouter(
       if (selectedItemIds.length > 0) {
         await cartService.clearCheckedOutItems(ctx.user_id, selectedItemIds);
       }
+    } else if (legacyApp?.clearSelectedCartItems) {
+      await legacyApp.clearSelectedCartItems(ctx);
+    } else {
+      throw new NotImplementedError('Selected cart item deletion is not available in the current runtime');
     }
     res.status(204).send();
   }));
@@ -265,8 +265,7 @@ export function createBuyerDomainRouter(
   const handleCreateReview = asyncRoute(async (req, res) => {
     const ctx = context(req);
     if (!reviewService) {
-      res.status(501).json({ error: 'ReviewService not configured' });
-      return;
+      throw new NotImplementedError('Review submission is not available in the current runtime');
     }
     const orderItemId = req.params.order_item_id || req.body?.order_item_id || req.body?.orderItemId;
     const productId = req.body?.product_id || req.body?.productId;
@@ -291,8 +290,7 @@ export function createBuyerDomainRouter(
   router.get('/notifications', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
     const ctx = context(req);
     if (!notificationService) {
-      res.status(501).json({ error: 'NotificationService not configured' });
-      return;
+      throw new NotImplementedError('Notifications are not available in the current runtime');
     }
     let isRead: boolean | undefined = undefined;
     if (req.query.is_read !== undefined) {
@@ -305,8 +303,7 @@ export function createBuyerDomainRouter(
   router.get('/notifications/:notification_id', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
     const ctx = context(req);
     if (!notificationService) {
-      res.status(501).json({ error: 'NotificationService not configured' });
-      return;
+      throw new NotImplementedError('Notification details are not available in the current runtime');
     }
     const data = await notificationService.getNotificationById(ctx.user_id, req.params.notification_id);
     res.json(buildSuccessEnvelope(data, requestId(req)));
@@ -315,8 +312,7 @@ export function createBuyerDomainRouter(
   const handleMarkNotificationRead = asyncRoute(async (req, res) => {
     const ctx = context(req);
     if (!notificationService) {
-      res.status(501).json({ error: 'NotificationService not configured' });
-      return;
+      throw new NotImplementedError('Notification updates are not available in the current runtime');
     }
     const data = await notificationService.markAsRead(ctx.user_id, req.params.notification_id);
     res.json(buildSuccessEnvelope(data, requestId(req)));

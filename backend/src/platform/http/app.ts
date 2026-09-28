@@ -20,7 +20,7 @@ import { PgModerationTargetRepository } from '../../modules/moderation/repositor
 import { PgAuditRepository } from '../audit/pg-audit.repository.ts';
 import { PgTransactionManager } from '../database/pg-transaction-manager.ts';
 
-import { createSecurityHeadersMiddleware, createCorsMiddleware } from './middlewares/security-headers.ts';
+import { createSecurityHeadersMiddleware, createCorsMiddleware, type CorsOptions } from './middlewares/security-headers.ts';
 import { createLayeredRateLimiter } from './middlewares/rate-limiter.ts';
 import { createMetricsMiddleware } from '../observability/metrics-middleware.ts';
 import { generateOpenApiSpec } from '../openapi/openapi-spec.ts';
@@ -42,6 +42,7 @@ export interface PlatformApplications extends T1RouteApplications {
   orderServices?: OrderServices;
   rateLimiter?: RequestHandler | false;
   trustProxy?: boolean | string | number;
+  cors?: CorsOptions;
 }
 
 export function createApp(applications: PlatformApplications = {}): Application {
@@ -52,7 +53,7 @@ export function createApp(applications: PlatformApplications = {}): Application 
   }
 
   app.use(createSecurityHeadersMiddleware());
-  app.use(createCorsMiddleware());
+  app.use(createCorsMiddleware(applications.cors));
   app.use(createMetricsMiddleware());
   app.use(requestIdMiddleware);
   if (applications.rateLimiter !== false) {
@@ -108,6 +109,7 @@ export function createRuntimeApp(environment: NodeJS.ProcessEnv = process.env): 
     app: createApp({
       pool,
       trustProxy: envConfig.trustProxy,
+      cors: { allowedOrigins: envConfig.corsAllowedOrigins },
       auth: createAuthMiddleware(authRepository, verifier),
       catalog: new PgCatalogHttpService(pool),
       buyer: new PgBuyerHttpService(pool),

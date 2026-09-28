@@ -25,7 +25,7 @@ describe('Security Headers & CORS Policy Middleware (Phase 1)', () => {
   });
 
   it('[SEC-HDR-03]: CORS preflight request with allowed origin returns 204 with required CORS headers', async () => {
-    const app = createApp();
+    const app = createApp({ cors: { allowedOrigins: ['http://localhost:3000'] } });
     const res = await request(app)
       .options('/api/v1/health')
       .set('Origin', 'http://localhost:3000')
@@ -40,11 +40,17 @@ describe('Security Headers & CORS Policy Middleware (Phase 1)', () => {
   });
 
   it('[SEC-HDR-04]: request with disallowed foreign origin is rejected or denied CORS header', async () => {
-    const app = createApp();
+    const app = createApp({ cors: { allowedOrigins: ['http://localhost:3000'] } });
     const res = await request(app)
       .get('/api/v1/health')
       .set('Origin', 'http://malicious-site.com');
 
     assert.strictEqual(res.headers['access-control-allow-origin'], undefined);
+  });
+
+  it('[SEC-HDR-05]: CORS allowlist is passed through app composition', async () => {
+    const app = createApp({ cors: { allowedOrigins: ['https://shop.example'] } });
+    const res = await request(app).get('/api/v1/health').set('Origin', 'https://shop.example').expect(200);
+    assert.strictEqual(res.headers['access-control-allow-origin'], 'https://shop.example');
   });
 });

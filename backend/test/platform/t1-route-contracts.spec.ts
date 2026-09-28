@@ -46,6 +46,7 @@ describe('T1 HTTP route contracts', () => {
       async addCartItem(_context, input) { return input; },
       async updateCartItem(_context, _id, input) { return input; },
       async deleteCartItem() {},
+      async clearSelectedCartItems() {},
       async applicableVouchers() { return []; },
       async evaluateVoucher(_context, input) { return input; },
     } });
@@ -63,6 +64,7 @@ describe('T1 HTTP route contracts', () => {
       async addCartItem() { return {}; },
       async updateCartItem() { return {}; },
       async deleteCartItem() {},
+      async clearSelectedCartItems() {},
       async applicableVouchers() { return []; },
       async evaluateVoucher() { return {}; },
     };

@@ -26,6 +26,21 @@ export function resolveOperationUrl(serverUrl: string, path: string): string {
   return `${base}${cleanPath}`;
 }
 
+const successResponse = (description: string, schema = '#/components/schemas/SuccessEnvelope') => ({
+  description,
+  content: { 'application/json': { schema: { $ref: schema } } },
+});
+
+const errorResponse = (description: string) => ({
+  description,
+  content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } },
+});
+
+const jsonRequest = (schema: Record<string, unknown>) => ({
+  required: true,
+  content: { 'application/json': { schema } },
+});
+
 export function generateOpenApiSpec(): OpenApiSpec {
   return {
     openapi: '3.1.0',
@@ -94,6 +109,50 @@ export function generateOpenApiSpec(): OpenApiSpec {
       },
     },
     paths: {
+      '/products': {
+        get: {
+          summary: 'List public products',
+          parameters: [
+            ...['category_id', 'search', 'min_price', 'max_price', 'sort', 'limit', 'cursor'].map(name => ({
+              name, in: 'query', required: false,
+              schema: name === 'limit' ? { type: 'integer', minimum: 1, maximum: 100 }
+                : name === 'sort' ? { type: 'string', enum: ['price_asc', 'price_desc', 'created_at_desc'] }
+                  : { type: 'string' },
+            })),
+          ],
+          responses: { '200': successResponse('Product page', '#/components/schemas/PaginatedEnvelope'), '422': errorResponse('Invalid query') },
+        },
+        post: {
+          summary: 'Create product with variants',
+          security: [{ BearerAuth: [] }],
+          requestBody: jsonRequest({
+            type: 'object', required: ['category_id', 'product_name', 'variants'],
+            additionalProperties: false,
+            properties: {
+              category_id: { type: 'string', format: 'uuid' }, product_name: { type: 'string' }, description: { type: ['string', 'null'] },
+              images: { type: 'array', items: { type: 'object', required: ['image_url'], additionalProperties: false, properties: { image_url: { type: 'string' }, sort_order: { type: 'integer', minimum: 0 } } } },
+              variants: { type: 'array', minItems: 1, items: { type: 'object', required: ['variant_name', 'sku', 'price'], additionalProperties: false, properties: { variant_name: { type: 'string' }, variant_value: { type: ['string', 'null'] }, sku: { type: 'string' }, price: { type: 'string' }, stock_quantity: { type: 'integer', minimum: 0 } } } },
+            },
+          }),
+          responses: { '201': successResponse('Product created'), '401': errorResponse('Authentication required'), '403': errorResponse('Seller role required'), '422': errorResponse('Invalid product') },
+        },
+      },
+      '/products/{product_id}': {
+        get: {
+          summary: 'Get public product detail',
+          parameters: [{ name: 'product_id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: { '200': successResponse('Product detail'), '404': errorResponse('Product not found') },
+        },
+      },
+      '/product-variants/{variant_id}/stock': {
+        patch: {
+          summary: 'Update owned product variant stock',
+          security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'variant_id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: jsonRequest({ type: 'object', required: ['quantity'], additionalProperties: false, properties: { quantity: { type: 'integer', minimum: 0 } } }),
+          responses: { '200': successResponse('Stock updated'), '403': errorResponse('Seller does not own variant'), '422': errorResponse('Invalid quantity') },
+        },
+      },
       '/health': {
         get: {
           summary: 'Platform Health Check',
@@ -116,6 +175,12 @@ export function generateOpenApiSpec(): OpenApiSpec {
               },
             },
           },
+        },
+      },
+      '/openapi.json': {
+        get: {
+          summary: 'Get the OpenAPI contract',
+          responses: { '200': { description: 'OpenAPI 3.1 document', content: { 'application/json': { schema: { type: 'object', required: ['openapi', 'info', 'paths'] } } } } },
         },
       },
       '/addresses': {
@@ -146,6 +211,14 @@ export function generateOpenApiSpec(): OpenApiSpec {
           summary: 'Create Buyer Address',
           description: 'Create a new shipping address for the authenticated buyer.',
           security: [{ BearerAuth: [] }],
+          requestBody: jsonRequest({
+            type: 'object', required: ['recipient_name', 'phone', 'province', 'district', 'ward', 'detail_address'], additionalProperties: false,
+            properties: {
+              recipient_name: { type: 'string', minLength: 1 }, phone: { type: 'string', minLength: 1 },
+              detail_address: { type: 'string', minLength: 1 }, province: { type: 'string', minLength: 1 },
+              district: { type: 'string', minLength: 1 }, ward: { type: 'string', minLength: 1 }, is_default: { type: 'boolean' },
+            },
+          }),
           responses: {
             '201': {
               description: 'Address created',
@@ -167,6 +240,12 @@ export function generateOpenApiSpec(): OpenApiSpec {
         },
       },
       '/addresses/{address_id}': {
+        get: {
+          summary: 'Get Buyer Address',
+          security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'address_id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: { '200': successResponse('Address detail'), '404': errorResponse('Address not found'), '501': errorResponse('Address detail is not wired in the current runtime') },
+        },
         patch: {
           summary: 'Update Buyer Address',
           security: [{ BearerAuth: [] }],
@@ -201,15 +280,17 @@ export function generateOpenApiSpec(): OpenApiSpec {
             },
           ],
           responses: {
-            '200': {
-              description: 'Address deleted',
-              content: {
-                'application/json': {
-                  schema: { $ref: '#/components/schemas/SuccessEnvelope' },
-                },
-              },
-            },
+            '204': { description: 'Address deleted; no response body' },
+            '501': errorResponse('Address deletion is not available in the current runtime'),
           },
+        },
+      },
+      '/addresses/{address_id}/default': {
+        patch: {
+          summary: 'Set Buyer Default Address',
+          security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'address_id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: { '200': successResponse('Default address updated'), '404': errorResponse('Address not found'), '501': errorResponse('Address service is not wired in the current runtime') },
         },
       },
       '/cart': {
@@ -232,6 +313,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
         post: {
           summary: 'Add Item to Cart',
           security: [{ BearerAuth: [] }],
+          requestBody: jsonRequest({ type: 'object', required: ['variant_id', 'quantity'], additionalProperties: false, properties: { variant_id: { type: 'string', format: 'uuid' }, quantity: { type: 'integer', minimum: 1 } } }),
           responses: {
             '201': {
               description: 'Item added to cart',
@@ -244,11 +326,30 @@ export function generateOpenApiSpec(): OpenApiSpec {
           },
         },
       },
+      '/cart/items/{cart_item_id}': {
+        patch: {
+          summary: 'Update cart item quantity or selection',
+          security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'cart_item_id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: jsonRequest({ type: 'object', minProperties: 1, additionalProperties: false, properties: { quantity: { type: 'integer', minimum: 1 }, is_selected: { type: 'boolean' } } }),
+          responses: { '200': successResponse('Cart item updated'), '404': errorResponse('Cart item not found'), '409': errorResponse('Inventory insufficient'), '422': errorResponse('Invalid cart item') },
+        },
+        delete: {
+          summary: 'Delete cart item', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'cart_item_id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: { '204': { description: 'Cart item deleted; no response body' }, '404': errorResponse('Cart item not found') },
+        },
+      },
+      '/cart/selected': {
+        delete: { summary: 'Delete selected cart items', security: [{ BearerAuth: [] }], responses: { '204': { description: 'Selected cart items deleted; no response body' } } },
+      },
       '/checkout': {
         post: {
           summary: 'Execute Checkout',
           description: 'Place an order atomically from selected cart items.',
           security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'Idempotency-Key', in: 'header', required: true, schema: { type: 'string', minLength: 16, maxLength: 128 } }],
+          requestBody: jsonRequest({ type: 'object', required: ['address_id', 'payment_method'], additionalProperties: false, properties: { address_id: { type: 'string', format: 'uuid' }, payment_method: { type: 'string', enum: ['COD', 'ONLINE'] }, vouchers: { type: 'array', items: { type: 'object', required: ['shop_id', 'code'], additionalProperties: false, properties: { shop_id: { type: 'string', format: 'uuid' }, code: { type: 'string', maxLength: 50 } } } } } }),
           responses: {
             '201': {
               description: 'Order created successfully',
@@ -275,10 +376,10 @@ export function generateOpenApiSpec(): OpenApiSpec {
           security: [{ BearerAuth: [] }],
           responses: {
             '200': {
-              description: 'List of orders with pagination',
+              description: 'List of orders (runtime currently returns a plain array in the success envelope)',
               content: {
                 'application/json': {
-                  schema: { $ref: '#/components/schemas/PaginatedEnvelope' },
+                  schema: { $ref: '#/components/schemas/SuccessEnvelope' },
                 },
               },
             },
@@ -437,7 +538,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
                   properties: {
                     to: {
                       type: 'string',
-                      enum: ['PENDING_CONFIRMATION', 'PREPARING', 'SHIPPING', 'DELIVERED', 'COMPLETED', 'CANCELLED', 'RETURNED'],
+                      enum: ['PENDING_CONFIRMATION', 'CONFIRMED', 'PREPARING', 'SHIPPING', 'COMPLETED', 'DELIVERY_FAILED', 'CANCELLED'],
                       example: 'PREPARING',
                     },
                     reason: { type: 'string', example: 'Stock ready for dispatch' },
@@ -551,6 +652,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
               schema: { type: 'string', format: 'uuid' },
             },
           ],
+          requestBody: jsonRequest({ type: 'object', required: ['product_id', 'rating'], additionalProperties: false, properties: { product_id: { type: 'string', format: 'uuid' }, rating: { type: 'integer', minimum: 1, maximum: 5 }, content: { type: ['string', 'null'] }, comment: { type: ['string', 'null'] }, images: { type: 'array', items: { type: 'string' } } } }),
           responses: {
             '201': {
               description: 'Review created',
@@ -576,7 +678,15 @@ export function generateOpenApiSpec(): OpenApiSpec {
                 },
               },
             },
+            '501': errorResponse('Review service is not configured in runtime'),
           },
+        },
+      },
+      '/reviews': {
+        post: {
+          summary: 'Create Order Item Review (alias)', security: [{ BearerAuth: [] }],
+          requestBody: jsonRequest({ type: 'object', required: ['order_item_id', 'product_id', 'rating'], additionalProperties: false, properties: { order_item_id: { type: 'string', format: 'uuid' }, product_id: { type: 'string', format: 'uuid' }, rating: { type: 'integer', minimum: 1, maximum: 5 }, content: { type: ['string', 'null'] }, comment: { type: ['string', 'null'] }, images: { type: 'array', items: { type: 'string' } } } }),
+          responses: { '201': successResponse('Review created'), '501': errorResponse('Review service is not configured') },
         },
       },
       '/vouchers': {
@@ -624,6 +734,17 @@ export function generateOpenApiSpec(): OpenApiSpec {
           },
         },
       },
+      '/vouchers/applicable': {
+        get: {
+          summary: 'List applicable vouchers (alias)', security: [{ BearerAuth: [] }],
+          parameters: [
+            { name: 'scope', in: 'query', required: false, schema: { type: 'string', enum: ['PLATFORM', 'SHOP'] } },
+            { name: 'shop_id', in: 'query', required: false, schema: { type: 'string', format: 'uuid' } },
+            { name: 'now', in: 'query', required: false, schema: { type: 'string', format: 'date-time' } },
+          ],
+          responses: { '200': successResponse('Applicable voucher list'), '401': errorResponse('Authentication required') },
+        },
+      },
       '/vouchers/evaluate': {
         post: {
           summary: 'Evaluate & Preview Voucher',
@@ -666,6 +787,13 @@ export function generateOpenApiSpec(): OpenApiSpec {
           },
         },
       },
+      '/vouchers/preview': {
+        post: {
+          summary: 'Evaluate voucher (alias)', security: [{ BearerAuth: [] }],
+          requestBody: jsonRequest({ type: 'object', required: ['code', 'order_subtotal'], additionalProperties: false, properties: { code: { type: 'string' }, order_subtotal: { type: 'string' }, shop_id: { type: 'string', format: 'uuid' }, now: { type: 'string', format: 'date-time' } } }),
+          responses: { '200': successResponse('Voucher evaluation result'), '422': errorResponse('Voucher is not applicable') },
+        },
+      },
       '/notifications': {
         get: {
           summary: 'List Buyer Notifications',
@@ -696,6 +824,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
                 },
               },
             },
+            '501': errorResponse('Notification service is not configured in runtime'),
           },
         },
       },
@@ -738,6 +867,34 @@ export function generateOpenApiSpec(): OpenApiSpec {
               },
             },
           },
+        },
+      },
+      '/notifications/{notification_id}': {
+        get: {
+          summary: 'Get Buyer Notification', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'notification_id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: { '200': successResponse('Notification detail'), '404': errorResponse('Notification not found'), '501': errorResponse('Notification service is not wired in the current runtime') },
+        },
+        patch: {
+          summary: 'Mark Buyer Notification As Read (alias)', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'notification_id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: { '200': successResponse('Notification updated'), '404': errorResponse('Notification not found'), '501': errorResponse('Notification service is not wired in the current runtime') },
+        },
+      },
+      '/admin/users/{id}/lock': {
+        post: {
+          summary: 'Lock user account', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: jsonRequest({ type: 'object', required: ['reason'], additionalProperties: false, properties: { reason: { type: 'string', minLength: 1 } } }),
+          responses: { '200': successResponse('User locked'), '403': errorResponse('Admin role required'), '422': errorResponse('Reason required'), '501': errorResponse('Moderation service is not wired') },
+        },
+      },
+      '/admin/users/{id}/unlock': {
+        post: {
+          summary: 'Unlock user account', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: jsonRequest({ type: 'object', required: ['reason'], additionalProperties: false, properties: { reason: { type: 'string', minLength: 1 } } }),
+          responses: { '200': successResponse('User unlocked'), '403': errorResponse('Admin role required'), '422': errorResponse('Reason required'), '501': errorResponse('Moderation service is not wired') },
         },
       },
     },
