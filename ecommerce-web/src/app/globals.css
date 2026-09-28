@@ -1,49 +1,278 @@
 @import "tailwindcss";
 
 :root {
-  --background: #FFF9FB;
-  --foreground: #1E1B1D;
+  /* Màu hồng chủ đạo chính xác: #FF7AAC */
+  --primary: #FF7AAC;
+  --primary-hover: #E85D94;
+  --primary-active: #D4437D;
+  --primary-surface: #FFF0F6;
+  --primary-border: #FFD1E3;
+  --primary-glow: rgba(255, 122, 172, 0.28);
+  
+  /* Nền trắng đục nhung mịn (Matte Alabaster & Chalk Mist) */
+  --background: #FBF8F9;
+  --foreground: #221C1F;
   --card-bg: #FFFFFF;
-  --card-border: #FCE7F0;
-  --primary: #E83D6C;
-  --primary-hover: #CF2453;
-  --primary-surface: #FFF0F5;
-  --nav-primary: #FFFFFF;
-  --nav-secondary: #FFF3F7;
-  --accent-pink: #FDA4AF;
+  --card-matte: #FAF6F8;
+  --card-border: #F0E6EA;
+  --subtext: #82757B;
+
+  /* Điểm xuyết màu sắc bổ trợ */
+  --accent-gold: #F59E0B;
+  --accent-emerald: #10B981;
+  --accent-violet: #8B5CF6;
 }
 
-body {
-  background-color: var(--background);
-  color: var(--foreground);
-  -webkit-font-smoothing: antialiased;
+@layer base {
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-font-smoothing: antialiased;
+    letter-spacing: -0.015em;
+    overflow-x: hidden;
+    background-image: 
+      radial-gradient(rgba(255, 122, 172, 0.04) 1px, transparent 1px),
+      radial-gradient(rgba(34, 28, 31, 0.02) 1px, transparent 1px);
+    background-size: 28px 28px, 14px 14px;
+    background-position: 0 0, 14px 14px;
+  }
 }
 
-/* Custom scrollbar */
+/* Custom Matte Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: #FFF9FB;
+  background: #FBF8F9;
 }
 ::-webkit-scrollbar-thumb {
-  background: #FCE7F0;
+  background: #FFB3D1;
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #F9A8D4;
+  background: #FF7AAC;
 }
 
-/* Taste-skill double bezel effect */
-.bezel-card {
-  background: #FFFFFF;
-  border: 1px solid #FCE7F0;
-  box-shadow: 0 4px 16px -4px rgba(232, 61, 108, 0.04), 0 2px 4px -2px rgba(30, 27, 29, 0.02);
+/* ==========================================================================
+   MATTE VELVET LUXURY CARDS (TRẮNG ĐỤC SANG TRỌNG)
+   ========================================================================== */
+
+/* Thẻ Matte Card Nhung Mịn */
+.matte-card {
+  background-color: #FFFFFF;
+  border-radius: 20px;
+  border: 1px solid #F0E6EA;
+  box-shadow: 
+    0 4px 16px -2px rgba(34, 28, 31, 0.03),
+    0 12px 32px -4px rgba(255, 122, 172, 0.04);
+  position: relative;
+  overflow: hidden;
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.bezel-card:hover {
+
+.matte-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 10px 24px -4px rgba(232, 61, 108, 0.12), 0 4px 8px -2px rgba(232, 61, 108, 0.04);
-  border-color: #F472B6;
+  border-color: #FFD1E3;
+  box-shadow: 
+    0 6px 20px -2px rgba(34, 28, 31, 0.04),
+    0 16px 32px -4px rgba(255, 122, 172, 0.08);
+}
+
+/* Matte Glass Header */
+.matte-glass {
+  background: rgba(251, 248, 249, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid #F0E6EA;
+  box-shadow: 0 4px 20px -4px rgba(34, 28, 31, 0.02);
+}
+
+.matte-dock {
+  background: rgba(34, 28, 31, 0.92);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.4);
+}
+
+/* ==========================================================================
+   CHUẨN HÓA BUTTON DESIGN SYSTEM (ĐỒNG BỘ SIZE & TƯƠNG PHẢN CAO)
+   ========================================================================== */
+
+/* Button Primary (Hồng #FF7AAC) */
+.btn-matte-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background-color: #FF7AAC;
+  color: #FFFFFF;
+  font-weight: 700;
+  border-radius: 0.75rem; /* rounded-xl (12px) */
+  padding: 0.625rem 1.25rem;
+  box-shadow: 0 4px 12px 0 rgba(255, 122, 172, 0.3);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+  border: none;
+  line-height: 1.25;
+}
+
+.btn-matte-primary:hover {
+  background-color: #E85D94;
+  box-shadow: 0 6px 18px 0 rgba(255, 122, 172, 0.4);
+}
+
+.btn-matte-primary:active {
+  transform: scale(0.98);
+}
+
+/* Button Secondary (Màu nhã nhặn, viền nhẹ) */
+.btn-matte-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background-color: #FAF6F8;
+  color: #221C1F;
+  font-weight: 600;
+  border-radius: 0.75rem;
+  border: 1px solid #F0E6EA;
+  padding: 0.625rem 1.25rem;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  line-height: 1.25;
+}
+
+.btn-matte-secondary:hover {
+  background-color: #FFF0F6;
+  color: #FF7AAC;
+  border-color: #FFD1E3;
+}
+
+.btn-matte-secondary:active {
+  transform: scale(0.98);
+}
+
+/* Button Action Table (Chiều cao chuẩn 32px / h-8) */
+.btn-action-primary {
+  height: 2rem;
+  padding: 0 0.875rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border-radius: 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background-color: #FF7AAC;
+  color: #FFFFFF;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-action-primary:hover {
+  background-color: #E85D94;
+}
+
+.btn-action-secondary {
+  height: 2rem;
+  padding: 0 0.875rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border-radius: 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background-color: #FAF6F8;
+  color: #221C1F;
+  border: 1px solid #F0E6EA;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-action-secondary:hover {
+  background-color: #FFF0F6;
+  color: #FF7AAC;
+  border-color: #FFD1E3;
+}
+
+.btn-action-danger {
+  height: 2rem;
+  padding: 0 0.875rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border-radius: 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background-color: #FFF1F2;
+  color: #E11D48;
+  border: 1px solid #FECDD3;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-action-danger:hover {
+  background-color: #FFE4E6;
+  border-color: #FDA4AF;
+}
+
+.btn-action-success {
+  height: 2rem;
+  padding: 0 0.875rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  border-radius: 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background-color: #059669;
+  color: #FFFFFF;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-action-success:hover {
+  background-color: #047857;
+}
+
+/* Ambient Soft Aura */
+.ambient-matte-pink {
+  position: absolute;
+  width: 500px;
+  height: 500px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(255, 122, 172, 0.14) 0%, rgba(255, 122, 172, 0.03) 50%, transparent 70%);
+  filter: blur(70px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes marquee {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-marquee {
+  display: flex;
+  width: max-content;
+  animation: marquee 35s linear infinite;
+}
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }

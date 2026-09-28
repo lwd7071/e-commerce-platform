@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState } from "react";
 import Link from "next/link";
@@ -57,7 +57,7 @@ interface AdminLogItem {
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<"users" | "shops" | "products" | "logs">("users");
 
-  // Danh sách Người dùng (QLND)
+  // Danh sách Người dùng
   const [users, setUsers] = useState<UserAccount[]>([
     { id: "USR-001", email: "hainguyen@gmail.com", fullName: "Nguyễn Trung Hải", role: "BUYER", status: "ACTIVE", createdAt: "10/01/2026" },
     { id: "USR-002", email: "moristudio@gmail.com", fullName: "Lương Viết Vĩ Đông", role: "SELLER", status: "ACTIVE", createdAt: "15/01/2026" },
@@ -66,7 +66,7 @@ export default function AdminPage() {
     { id: "USR-005", email: "anyenceramic@gmail.com", fullName: "Trần Đăng Thắng", role: "SELLER", status: "ACTIVE", createdAt: "20/01/2026" },
   ]);
 
-  // Danh sách Gian hàng (QLS-A)
+  // Danh sách Gian hàng
   const [shops, setShops] = useState<PlatformShop[]>([
     { id: "SHOP-001", name: "Mori Studio", ownerEmail: "moristudio@gmail.com", productCount: 18, status: "ACTIVE", createdAt: "15/01/2026" },
     { id: "SHOP-002", name: "An Yên Ceramic", ownerEmail: "anyenceramic@gmail.com", productCount: 12, status: "ACTIVE", createdAt: "20/01/2026" },
@@ -74,7 +74,7 @@ export default function AdminPage() {
     { id: "SHOP-004", name: "Minimal Living", ownerEmail: "minimalliving@gmail.com", productCount: 24, status: "ACTIVE", createdAt: "10/02/2026" },
   ]);
 
-  // Kiểm duyệt sản phẩm (KDSP)
+  // Kiểm duyệt sản phẩm
   const [modProducts, setModProducts] = useState<ModerationProduct[]>([
     { id: "PROD-01", name: "Áo sơ mi Linen dáng suông Minimalist", shopName: "Mori Studio", price: 289000, status: "ACTIVE", reports: 0 },
     { id: "PROD-02", name: "Đèn gốm Wabi-Sabi thủ công", shopName: "An Yên Ceramic", price: 420000, status: "ACTIVE", reports: 0 },
@@ -82,7 +82,7 @@ export default function AdminPage() {
     { id: "PROD-04", name: "Bình giữ nhiệt Inox Pastel", shopName: "Minimal Living", price: 245000, status: "ACTIVE", reports: 1 },
   ]);
 
-  // Nhật ký quản trị (AdminLog - QD20)
+  // Nhật ký quản trị
   const [logs, setLogs] = useState<AdminLogItem[]>([
     { id: "LOG-01", action: "LOCK_USER", targetType: "USER", targetId: "USR-003", reason: "Spam đánh giá ảo đơn hàng", time: "16/09/2026 08:00" },
     { id: "LOG-02", action: "LOCK_SHOP", targetType: "SHOP", targetId: "SHOP-003", reason: "Bán hàng nhái, vi phạm quyền sở hữu trí tuệ", time: "15/09/2026 16:30" },
@@ -93,13 +93,12 @@ export default function AdminPage() {
     const isLocking = user.status === "ACTIVE";
     let reason = "";
     if (isLocking) {
-      reason = prompt("Nhập lý do khóa tài khoản (Bắt buộc theo QD17):") || "";
+      reason = prompt("Nhập lý do khóa tài khoản:") || "";
       if (!reason) return;
     }
 
     setUsers(prev => prev.map(u => u.id === user.id ? { ...u, status: isLocking ? "LOCKED" : "ACTIVE" } : u));
     
-    // Ghi nhật ký AdminLog
     setLogs(prev => [
       {
         id: "LOG-" + Date.now(),
@@ -117,7 +116,7 @@ export default function AdminPage() {
     const isLocking = shop.status === "ACTIVE";
     let reason = "";
     if (isLocking) {
-      reason = prompt("Nhập lý do khóa gian hàng (Bắt buộc theo QD17):") || "";
+      reason = prompt("Nhập lý do khóa gian hàng:") || "";
       if (!reason) return;
     }
 
@@ -140,7 +139,7 @@ export default function AdminPage() {
     const isHiding = prod.status === "ACTIVE";
     let reason = "";
     if (isHiding) {
-      reason = prompt("Nhập lý do ẩn sản phẩm (Bắt buộc theo QD17):") || "";
+      reason = prompt("Nhập lý do ẩn sản phẩm:") || "";
       if (!reason) return;
     }
 
@@ -160,129 +159,136 @@ export default function AdminPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] text-stone-800 pb-20">
+    <div className="min-h-screen bg-[#FBF8F9] text-[#221C1F] pb-20">
       {/* HEADER ADMIN */}
-      <header className="bg-stone-900 text-white sticky top-0 z-30 shadow-md">
+      <header className="bg-[#221C1F] text-white sticky top-0 z-30 shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-8 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href="/" className="w-9 h-9 rounded-full bg-stone-800 hover:bg-stone-700 flex items-center justify-center text-stone-300 transition-colors" title="Về trang mua sắm">
+            <Link href="/" className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/70 transition-colors" title="Về trang mua sắm">
               <ArrowLeft className="w-4 h-4" />
             </Link>
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-rose-600 flex items-center justify-center text-white font-bold text-sm">
-                ✦
-              </div>
-              <div>
+              <span className="text-xl font-bold text-white tracking-tight">
+                Mori<span className="text-[#FF7AAC]">.</span>
+              </span>
+              <div className="pl-3 border-l border-white/20">
                 <div className="flex items-center gap-2">
-                  <h1 className="text-sm font-bold leading-none">Shopee Minimal Admin</h1>
-                  <span className="bg-rose-500/20 text-rose-300 text-[10px] font-mono px-2 py-0.5 rounded-full border border-rose-500/30">
+                  <h1 className="text-xs font-bold leading-none text-white">Mori Admin Portal</h1>
+                  <span className="bg-[#FF7AAC]/20 text-[#FF7AAC] text-[10px] font-mono px-2 py-0.5 rounded-full border border-[#FF7AAC]/40 font-semibold">
                     SUPERADMIN
                   </span>
                 </div>
-                <span className="text-[11px] text-stone-400">Hệ thống quản trị tập trung toàn sàn</span>
+                <span className="text-[11px] text-white/60">Hệ thống quản trị tập trung toàn sàn Mori</span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <Link href="/seller" className="text-xs text-stone-300 hover:text-white px-3 py-1.5 rounded-full bg-stone-800 hover:bg-stone-700 transition-colors flex items-center gap-1.5">
-              <Store className="w-3.5 h-3.5 text-orange-400" />
+          <div className="flex items-center gap-2.5">
+            <Link href="/seller" className="text-xs text-white/80 hover:text-white px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 transition-colors flex items-center gap-1.5 font-medium">
+              <Store className="w-3.5 h-3.5 text-[#FF7AAC]" />
               Kênh Người Bán
             </Link>
-            <Link href="/" className="text-xs text-orange-300 hover:text-orange-200 px-3 py-1.5 rounded-full border border-orange-400/30 transition-colors">
+            <Link href="/" className="btn-matte-primary text-xs !py-2 !px-3.5">
               Xem Storefront ↗
             </Link>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-8 mt-8 space-y-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-8 mt-8 space-y-6">
         {/* STATS OVERVIEW */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white border border-stone-200/80 rounded-2xl p-5 shadow-2xs">
-            <div className="flex items-center justify-between text-xs text-stone-500">
-              <span>GMV Toàn Sàn (Hợp lệ)</span>
+          <div className="matte-card p-5">
+            <div className="flex items-center justify-between text-xs text-[#7E7077]">
+              <span>GMV Toàn Sàn</span>
               <TrendingUp className="w-4 h-4 text-emerald-600" />
             </div>
-            <div className="text-2xl font-black text-stone-900 mt-2">84.500.000₫</div>
-            <p className="text-[11px] text-emerald-600 font-medium mt-1">Tổng từ các đơn COMPLETED</p>
+            <div className="text-xl font-bold text-[#221C1F] mt-2">84.500.000₫</div>
+            <p className="text-[11px] text-emerald-600 font-medium mt-1">Từ các đơn hoàn tất</p>
           </div>
 
-          <div className="bg-white border border-stone-200/80 rounded-2xl p-5 shadow-2xs">
-            <div className="flex items-center justify-between text-xs text-stone-500">
-              <span>Tổng người dùng (QLND)</span>
-              <Users className="w-4 h-4 text-stone-600" />
+          <div className="matte-card p-5">
+            <div className="flex items-center justify-between text-xs text-[#7E7077]">
+              <span>Tổng người dùng</span>
+              <Users className="w-4 h-4 text-[#7E7077]" />
             </div>
-            <div className="text-2xl font-black text-stone-900 mt-2">1.248</div>
-            <p className="text-[11px] text-stone-400 mt-1">1.180 Buyer • 68 Seller</p>
+            <div className="text-xl font-bold text-[#221C1F] mt-2">1.248</div>
+            <p className="text-[11px] text-[#7E7077] mt-1">1.180 Buyer • 68 Seller</p>
           </div>
 
-          <div className="bg-white border border-stone-200/80 rounded-2xl p-5 shadow-2xs">
-            <div className="flex items-center justify-between text-xs text-stone-500">
-              <span>Gian hàng đang mở (QLS-A)</span>
-              <Store className="w-4 h-4 text-orange-600" />
+          <div className="matte-card p-5">
+            <div className="flex items-center justify-between text-xs text-[#7E7077]">
+              <span>Gian hàng đang mở</span>
+              <Store className="w-4 h-4 text-[#FF7AAC]" />
             </div>
-            <div className="text-2xl font-black text-stone-900 mt-2">52 Shop</div>
-            <p className="text-[11px] text-stone-400 mt-1">49 Đang bán • 3 Bị khóa</p>
+            <div className="text-xl font-bold text-[#221C1F] mt-2">52 Shop</div>
+            <p className="text-[11px] text-[#7E7077] mt-1">49 Đang bán • 3 Bị khóa</p>
           </div>
 
-          <div className="bg-white border border-stone-200/80 rounded-2xl p-5 shadow-2xs">
-            <div className="flex items-center justify-between text-xs text-stone-500">
-              <span>Xử lý vi phạm (QD17)</span>
+          <div className="matte-card p-5">
+            <div className="flex items-center justify-between text-xs text-[#7E7077]">
+              <span>Xử lý vi phạm</span>
               <ShieldAlert className="w-4 h-4 text-rose-500" />
             </div>
-            <div className="text-2xl font-black text-rose-600 mt-2">{logs.length} bản ghi</div>
+            <div className="text-xl font-bold text-rose-600 mt-2">{logs.length} bản ghi</div>
             <p className="text-[11px] text-rose-500 mt-1">Có lưu lý do & audit log</p>
           </div>
         </div>
 
         {/* TABS */}
-        <div className="flex items-center gap-3 border-b border-stone-200 pb-2">
+        <div className="flex items-center gap-3 border-b border-[#F2E8EC] pb-2">
           <button
             onClick={() => setActiveTab("users")}
-            className={`pb-2 px-3 text-sm font-bold transition-all border-b-2 cursor-pointer ${
-              activeTab === "users" ? "border-stone-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"
+            className={`pb-2 px-3 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+              activeTab === "users" ? "border-[#FF7AAC] text-[#FF7AAC]" : "border-transparent text-[#7E7077] hover:text-[#221C1F]"
             }`}
           >
             Quản lý tài khoản ({users.length})
           </button>
           <button
             onClick={() => setActiveTab("shops")}
-            className={`pb-2 px-3 text-sm font-bold transition-all border-b-2 cursor-pointer ${
-              activeTab === "shops" ? "border-stone-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"
+            className={`pb-2 px-3 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+              activeTab === "shops" ? "border-[#FF7AAC] text-[#FF7AAC]" : "border-transparent text-[#7E7077] hover:text-[#221C1F]"
             }`}
           >
             Quản lý gian hàng ({shops.length})
           </button>
           <button
             onClick={() => setActiveTab("products")}
-            className={`pb-2 px-3 text-sm font-bold transition-all border-b-2 cursor-pointer ${
-              activeTab === "products" ? "border-stone-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"
+            className={`pb-2 px-3 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+              activeTab === "products" ? "border-[#FF7AAC] text-[#FF7AAC]" : "border-transparent text-[#7E7077] hover:text-[#221C1F]"
             }`}
           >
             Kiểm duyệt sản phẩm ({modProducts.length})
           </button>
           <button
             onClick={() => setActiveTab("logs")}
-            className={`pb-2 px-3 text-sm font-bold transition-all border-b-2 cursor-pointer ${
-              activeTab === "logs" ? "border-stone-900 text-stone-900" : "border-transparent text-stone-500 hover:text-stone-800"
+            className={`pb-2 px-3 text-xs font-bold transition-all border-b-2 cursor-pointer ${
+              activeTab === "logs" ? "border-[#FF7AAC] text-[#FF7AAC]" : "border-transparent text-[#7E7077] hover:text-[#221C1F]"
             }`}
           >
             Nhật ký quản trị (AdminLog)
           </button>
+
+          <Link
+            href="/admin/categories"
+            className="ml-auto mb-1.5 btn-action-primary"
+          >
+            <span>Quản lý danh mục →</span>
+          </Link>
         </div>
 
-        {/* TAB 1: USERS (QLND) */}
+        {/* TAB 1: USERS */}
         {activeTab === "users" && (
-          <div className="bg-white border border-stone-200/80 rounded-3xl p-6 shadow-2xs space-y-4">
+          <div className="matte-card p-6 space-y-4">
             <div>
-              <h3 className="text-base font-bold text-stone-900">Danh sách người dùng toàn sàn</h3>
-              <p className="text-xs text-stone-500">Khóa tài khoản vi phạm và lưu lý do vào AdminLog theo QD03 & QD17</p>
+              <h3 className="text-sm font-bold text-[#221C1F]">Danh sách người dùng toàn sàn</h3>
+              <p className="text-xs text-[#7E7077]">Khóa tài khoản vi phạm và lưu lý do vào AdminLog</p>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-stone-700">
-                <thead className="bg-stone-50 text-stone-500 uppercase tracking-wider text-[10px] border-y border-stone-200">
+              <table className="w-full text-left text-xs text-[#221C1F]">
+                <thead className="bg-[#FAF6F8] text-[#7E7077] uppercase tracking-wider text-[10px] border-y border-[#F2E8EC]">
                   <tr>
                     <th className="py-3 px-4">Mã User</th>
                     <th className="py-3 px-4">Họ tên & Email</th>
@@ -292,37 +298,33 @@ export default function AdminPage() {
                     <th className="py-3 px-4 text-right">Thao tác</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-stone-100">
+                <tbody className="divide-y divide-[#F2E8EC]">
                   {users.map((u) => (
-                    <tr key={u.id} className="hover:bg-stone-50/70 transition-colors">
-                      <td className="py-3 px-4 font-mono font-bold text-stone-900">{u.id}</td>
-                      <td className="py-3 px-4">
-                        <div className="font-semibold text-stone-800">{u.fullName}</div>
-                        <div className="text-[11px] text-stone-400">{u.email}</div>
+                    <tr key={u.id} className="hover:bg-[#FAF6F8] transition-colors">
+                      <td className="py-3.5 px-4 font-mono font-bold text-[#221C1F]">{u.id}</td>
+                      <td className="py-3.5 px-4">
+                        <div className="font-semibold text-[#221C1F]">{u.fullName}</div>
+                        <div className="text-[11px] text-[#7E7077]">{u.email}</div>
                       </td>
-                      <td className="py-3 px-4">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                          u.role === "ADMIN" ? "bg-purple-100 text-purple-800" : u.role === "SELLER" ? "bg-orange-100 text-orange-800" : "bg-blue-100 text-blue-800"
+                      <td className="py-3.5 px-4">
+                        <span className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full ${
+                          u.role === "ADMIN" ? "bg-purple-50 text-purple-700 border border-purple-200" : u.role === "SELLER" ? "bg-[#FFF0F6] text-[#FF7AAC] border border-[#FFD1E3]" : "bg-blue-50 text-blue-700 border border-blue-200"
                         }`}>
                           {u.role}
                         </span>
                       </td>
-                      <td className="py-3 px-4">
+                      <td className="py-3.5 px-4">
                         {u.status === "ACTIVE" ? (
-                          <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full">ACTIVE</span>
+                          <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-semibold px-2 py-0.5 rounded-full">ACTIVE</span>
                         ) : (
-                          <span className="bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded-full">LOCKED</span>
+                          <span className="bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-semibold px-2 py-0.5 rounded-full">LOCKED</span>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-stone-500">{u.createdAt}</td>
-                      <td className="py-3 px-4 text-right">
+                      <td className="py-3.5 px-4 text-[#7E7077]">{u.createdAt}</td>
+                      <td className="py-3.5 px-4 text-right">
                         <button
                           onClick={() => toggleUserLock(u)}
-                          className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                            u.status === "ACTIVE"
-                              ? "text-rose-600 hover:bg-rose-50 border border-rose-200"
-                              : "text-emerald-700 hover:bg-emerald-50 border border-emerald-200"
-                          }`}
+                          className={u.status === "ACTIVE" ? "btn-action-danger" : "btn-action-success"}
                         >
                           {u.status === "ACTIVE" ? "Khóa tài khoản" : "Mở khóa"}
                         </button>
@@ -335,17 +337,17 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* TAB 2: SHOPS (QLS-A) */}
+        {/* TAB 2: SHOPS */}
         {activeTab === "shops" && (
-          <div className="bg-white border border-stone-200/80 rounded-3xl p-6 shadow-2xs space-y-4">
+          <div className="matte-card p-6 space-y-4">
             <div>
-              <h3 className="text-base font-bold text-stone-900">Quản lý gian hàng (Shop)</h3>
-              <p className="text-xs text-stone-500">Kiểm soát hoạt động các shop trên sàn; khi shop bị khóa, sản phẩm sẽ tự ẩn</p>
+              <h3 className="text-sm font-bold text-[#221C1F]">Quản lý gian hàng (Shop)</h3>
+              <p className="text-xs text-[#7E7077]">Kiểm soát hoạt động các shop trên sàn; khi shop bị khóa, sản phẩm sẽ tự ẩn</p>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-stone-700">
-                <thead className="bg-stone-50 text-stone-500 uppercase tracking-wider text-[10px] border-y border-stone-200">
+              <table className="w-full text-left text-xs text-[#221C1F]">
+                <thead className="bg-[#FAF6F8] text-[#7E7077] uppercase tracking-wider text-[10px] border-y border-[#F2E8EC]">
                   <tr>
                     <th className="py-3 px-4">Mã Shop</th>
                     <th className="py-3 px-4">Tên Shop</th>
@@ -355,28 +357,24 @@ export default function AdminPage() {
                     <th className="py-3 px-4 text-right">Thao tác</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-stone-100">
+                <tbody className="divide-y divide-[#F2E8EC]">
                   {shops.map((s) => (
-                    <tr key={s.id} className="hover:bg-stone-50/70 transition-colors">
-                      <td className="py-3 px-4 font-mono font-bold text-stone-900">{s.id}</td>
-                      <td className="py-3 px-4 font-bold text-stone-800">{s.name}</td>
-                      <td className="py-3 px-4 text-stone-600">{s.ownerEmail}</td>
-                      <td className="py-3 px-4 font-semibold text-stone-800">{s.productCount} SP</td>
+                    <tr key={s.id} className="hover:bg-[#FAF6F8] transition-colors">
+                      <td className="py-3 px-4 font-mono font-bold text-[#221C1F]">{s.id}</td>
+                      <td className="py-3 px-4 font-semibold text-[#221C1F]">{s.name}</td>
+                      <td className="py-3 px-4 text-[#7E7077]">{s.ownerEmail}</td>
+                      <td className="py-3 px-4 font-semibold text-[#221C1F]">{s.productCount} SP</td>
                       <td className="py-3 px-4">
                         {s.status === "ACTIVE" ? (
-                          <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full">ACTIVE</span>
+                          <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-semibold px-2 py-0.5 rounded-full">ACTIVE</span>
                         ) : (
-                          <span className="bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded-full">LOCKED</span>
+                          <span className="bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-semibold px-2 py-0.5 rounded-full">LOCKED</span>
                         )}
                       </td>
                       <td className="py-3 px-4 text-right">
                         <button
                           onClick={() => toggleShopLock(s)}
-                          className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                            s.status === "ACTIVE"
-                              ? "text-rose-600 hover:bg-rose-50 border border-rose-200"
-                              : "text-emerald-700 hover:bg-emerald-50 border border-emerald-200"
-                          }`}
+                          className={s.status === "ACTIVE" ? "btn-action-danger" : "btn-action-success"}
                         >
                           {s.status === "ACTIVE" ? "Khóa shop" : "Mở shop"}
                         </button>
@@ -389,17 +387,17 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* TAB 3: PRODUCTS (KDSP) */}
+        {/* TAB 3: PRODUCTS */}
         {activeTab === "products" && (
-          <div className="bg-white border border-stone-200/80 rounded-3xl p-6 shadow-2xs space-y-4">
+          <div className="matte-card p-6 space-y-4">
             <div>
-              <h3 className="text-base font-bold text-stone-900">Kiểm duyệt sản phẩm (KDSP)</h3>
-              <p className="text-xs text-stone-500">Ưu tiên chuyển trạng thái HIDDEN thay vì xóa vật lý theo QD16 để bảo toàn đơn hàng cũ</p>
+              <h3 className="text-sm font-bold text-[#221C1F]">Kiểm duyệt sản phẩm</h3>
+              <p className="text-xs text-[#7E7077]">Chuyển trạng thái HIDDEN để ẩn sản phẩm vi phạm</p>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-stone-700">
-                <thead className="bg-stone-50 text-stone-500 uppercase tracking-wider text-[10px] border-y border-stone-200">
+              <table className="w-full text-left text-xs text-[#221C1F]">
+                <thead className="bg-[#FAF6F8] text-[#7E7077] uppercase tracking-wider text-[10px] border-y border-[#F2E8EC]">
                   <tr>
                     <th className="py-3 px-4">Mã SP</th>
                     <th className="py-3 px-4">Tên sản phẩm</th>
@@ -409,34 +407,30 @@ export default function AdminPage() {
                     <th className="py-3 px-4 text-right">Thao tác</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-stone-100">
+                <tbody className="divide-y divide-[#F2E8EC]">
                   {modProducts.map((p) => (
-                    <tr key={p.id} className="hover:bg-stone-50/70 transition-colors">
-                      <td className="py-3 px-4 font-mono font-bold text-stone-900">{p.id}</td>
-                      <td className="py-3 px-4 font-bold text-stone-800">{p.name}</td>
-                      <td className="py-3 px-4 text-stone-600">{p.shopName}</td>
+                    <tr key={p.id} className="hover:bg-[#FAF6F8] transition-colors">
+                      <td className="py-3 px-4 font-mono font-bold text-[#221C1F]">{p.id}</td>
+                      <td className="py-3 px-4 font-semibold text-[#221C1F]">{p.name}</td>
+                      <td className="py-3 px-4 text-[#7E7077]">{p.shopName}</td>
                       <td className="py-3 px-4">
                         {p.reports > 0 ? (
-                          <span className="text-rose-600 font-bold bg-rose-50 px-2 py-0.5 rounded text-[11px]">{p.reports} vi phạm</span>
+                          <span className="text-rose-600 font-semibold bg-rose-50 border border-rose-200 px-2 py-0.5 rounded text-[11px]">{p.reports} vi phạm</span>
                         ) : (
-                          <span className="text-stone-400">0</span>
+                          <span className="text-[#7E7077]">0</span>
                         )}
                       </td>
                       <td className="py-3 px-4">
                         {p.status === "ACTIVE" ? (
-                          <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full">HIỂN THỊ</span>
+                          <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-semibold px-2 py-0.5 rounded-full">HIỂN THỊ</span>
                         ) : (
-                          <span className="bg-stone-200 text-stone-700 text-[10px] font-bold px-2 py-0.5 rounded-full">ĐÃ ẨN</span>
+                          <span className="bg-gray-100 text-gray-700 border border-gray-200 text-[10px] font-semibold px-2 py-0.5 rounded-full">ĐÃ ẨN</span>
                         )}
                       </td>
                       <td className="py-3 px-4 text-right">
                         <button
                           onClick={() => toggleProductHide(p)}
-                          className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                            p.status === "ACTIVE"
-                              ? "text-rose-600 hover:bg-rose-50 border border-rose-200"
-                              : "text-emerald-700 hover:bg-emerald-50 border border-emerald-200"
-                          }`}
+                          className={p.status === "ACTIVE" ? "btn-action-danger" : "btn-action-success"}
                         >
                           {p.status === "ACTIVE" ? "Ẩn sản phẩm" : "Hiện lại"}
                         </button>
@@ -449,37 +443,37 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* TAB 4: ADMIN LOGS (QD20) */}
+        {/* TAB 4: ADMIN LOGS */}
         {activeTab === "logs" && (
-          <div className="bg-white border border-stone-200/80 rounded-3xl p-6 shadow-2xs space-y-4">
+          <div className="matte-card p-6 space-y-4">
             <div>
-              <h3 className="text-base font-bold text-stone-900">Nhật ký hoạt động quản trị (AdminLog & ModerationRecord)</h3>
-              <p className="text-xs text-stone-500">Truy vết mọi thao tác khóa/mở khóa/ẩn sản phẩm theo QD20</p>
+              <h3 className="text-sm font-bold text-[#221C1F]">Nhật ký hoạt động quản trị (AdminLog)</h3>
+              <p className="text-xs text-[#7E7077]">Truy vết mọi thao tác khóa/mở khóa/ẩn sản phẩm</p>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-stone-700">
-                <thead className="bg-stone-50 text-stone-500 uppercase tracking-wider text-[10px] border-y border-stone-200">
+              <table className="w-full text-left text-xs text-[#221C1F]">
+                <thead className="bg-[#FAF6F8] text-[#7E7077] uppercase tracking-wider text-[10px] border-y border-[#F2E8EC]">
                   <tr>
                     <th className="py-3 px-4">Mã Log</th>
                     <th className="py-3 px-4">Hành động</th>
                     <th className="py-3 px-4">Đối tượng</th>
-                    <th className="py-3 px-4">Lý do xử lý (QD17)</th>
+                    <th className="py-3 px-4">Lý do xử lý</th>
                     <th className="py-3 px-4">Thời gian</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-stone-100 font-mono">
+                <tbody className="divide-y divide-[#F2E8EC] font-mono">
                   {logs.map((l) => (
-                    <tr key={l.id} className="hover:bg-stone-50/70 transition-colors">
-                      <td className="py-3 px-4 font-bold text-stone-900">{l.id}</td>
+                    <tr key={l.id} className="hover:bg-[#FAF6F8] transition-colors">
+                      <td className="py-3 px-4 font-bold text-[#221C1F]">{l.id}</td>
                       <td className="py-3 px-4">
-                        <span className="bg-stone-100 text-stone-800 text-[10px] font-bold px-2 py-0.5 rounded">
+                        <span className="bg-[#FFF0F6] text-[#FF7AAC] text-[10px] font-semibold px-2 py-0.5 rounded-full border border-[#FFD1E3]">
                           {l.action}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-stone-600 font-sans">{l.targetType}: {l.targetId}</td>
-                      <td className="py-3 px-4 font-sans text-stone-800">{l.reason}</td>
-                      <td className="py-3 px-4 text-stone-400 text-[11px] font-sans">{l.time}</td>
+                      <td className="py-3 px-4 text-[#7E7077] font-sans">{l.targetType}: {l.targetId}</td>
+                      <td className="py-3 px-4 font-sans text-[#221C1F]">{l.reason}</td>
+                      <td className="py-3 px-4 text-[#7E7077] text-[11px] font-sans">{l.time}</td>
                     </tr>
                   ))}
                 </tbody>
