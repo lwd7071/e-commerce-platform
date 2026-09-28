@@ -5,7 +5,7 @@
 - Phase/ticket: Phase 4 — B-402, B-403, B-404, B-405, B-406, B-407
 - Cập nhật lần cuối: 2026-09-28
 - Đang làm: Hoàn tất Cart UI, Quantity/Selection/Delete với optimistic rollback, Address list/create, Voucher preview/evaluate, Idempotent Checkout submit (0₫ shipping fee invariant, UUID key snapshot & retry resilience).
-- Nhánh/PR: t3-p4-buyer
+- Nhánh/PR: feat/fe-nguoi-4-cart/checkout
 - Bị block bởi: Không
 - Việc tiếp theo: B-408 (E2E integration test backend DB) và Q-804 phối hợp với Người 5.
 
