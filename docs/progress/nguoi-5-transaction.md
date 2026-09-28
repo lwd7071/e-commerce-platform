@@ -2,12 +2,47 @@
 
 ## Trạng thái hiện tại
 
-- Mốc: T3
-- Cập nhật lần cuối: 2026-09-27
-- Trạng thái: Đã xử lý T3-P5-01/02/03/04 và xác minh bằng 32/32 test PostgreSQL thật (không skip). Typecheck/build pass; lint 0 error. Xem [bằng chứng và giới hạn kiểm chứng](t3-p5-postgresql.md).
-- Bị block bởi: Không (Đã giải phóng 100% mọi blocker trước đây: API wiring của Người 1, shopId Catalog port của Người 3, persistence transaction của Người 2, Cart/Voucher binding của Người 4 đều đã tích hợp và hoạt động trọn vẹn).
+- Mốc: T3 (Hoàn tất)
+- Cập nhật lần cuối: 2026-09-28
+- Trạng thái: Đã hoàn tất 100% Mốc T3: Đóng toàn diện 4 findings T3-P5-01/02/03/04. Đã đối soát 100% khớp nối giữa Code và Docs (từ code thực thi `PgCheckoutService`, helper `persistTransition`, `retryPayment` đến bộ 32/32 tests PostgreSQL thật). Nhánh `thanh-vien-5` đã được merge vào `dev` (`c4ef012`) và đồng bộ code FE mới. Sẵn sàng chuyển giao sang kế hoạch Frontend.
+- Bị block bởi: Không (Sẵn sàng nghiệm thu cuối T3)
 
 ## Nhật ký theo ngày
+
+### 2026-09-28 (Đối soát toàn diện 100% Code & Docs, xác nhận đóng Mốc T3 và chuẩn bị FE)
+
+- **Đã làm:**
+  - **1. Đối soát khớp nối 100% Code & Docs cho 4 finding T3-P5 (theo yêu cầu của Lead):**
+    - **T3-P5-01 (`cancelOrder` & `persistTransition`):**
+      - *Code thực tế:* Trong `backend/src/modules/checkout/services/pg-checkout.service.ts`, hàm `cancelOrder()` và `persistTransition()` chạy trong `withTransaction`. Khóa dòng `orders` bằng `SELECT ... FOR UPDATE`, kiểm tra trạng thái `PENDING_CONFIRMATION`. Khóa `order_items` và khóa `product_variants` theo thứ tự UUID (`SELECT variant_id FROM product_variants WHERE variant_id=ANY($1::uuid[]) ORDER BY variant_id FOR UPDATE`) triệt tiêu deadlock. Hoàn kho atomic `UPDATE product_variants SET stock_quantity=stock_quantity+$1`, đổi status `CANCELLED` và ghi `order_status_history` bằng cùng client DB.
+      - *Test khớp nối:* `tests/db/pg-checkout.integration.test.ts`: test 4 request hủy đồng thời chỉ 1 thành công, hoàn kho đúng 1 lần, retry không hoàn kho lần 2; trigger lỗi ghi history rollback sạch toàn bộ cả status và stock.
+    - **T3-P5-02 (`retryPayment`):**
+      - *Code thực tế:* Trong `pg-checkout.service.ts`, hàm `retryPayment()` bọc trong `withTransaction`. Khóa dòng `orders` trước `FOR UPDATE`, guard chặn ngay nếu đơn ở terminal state (`CANCELLED`, `COMPLETED`, `DELIVERY_FAILED`) quăng `PAYMENT_STATE_INVALID`. Khóa các Payment attempts `FOR UPDATE`, guard chặn nếu không có attempt cũ hoặc đã có attempt `PENDING` hay `SUCCESS`. Validate phương thức thanh toán, trích xuất `order.total_amount` từ DB qua `createPaymentRetry()`.
+      - *Test khớp nối:* `pg-checkout.integration.test.ts`: test từ chối retry đơn terminal, từ chối retry khi có `SUCCESS`/`PENDING`, 3 retry đồng thời chỉ tạo đúng 1 attempt `PENDING` mới, cơ chế lock-wait và recheck cancellation/payment success commit đồng thời.
+    - **T3-P5-03 (`confirmOrder` & `transitionOrder` đồng bộ history):**
+      - *Code thực tế:* Trong `pg-checkout.service.ts`, `confirmOrder()` và `transitionOrder()` khóa Order `FOR UPDATE OF o`, xác thực quyền Admin/Seller theo state machine. Dùng chung `persistTransition()` để cập nhật status và ghi `order_status_history` trong cùng một transaction. Nhánh `transitionOrder` sang `CANCELLED` tự động khóa variant và hoàn kho.
+      - *Test khớp nối:* `pg-checkout.integration.test.ts`: confirm ghi đúng history và chặn trùng lặp; trigger lỗi ghi history rollback status; seller hủy qua `transitionOrder` cũng hoàn kho đúng 1 lần.
+    - **T3-P5-04 (Release Gate PostgreSQL đa kết nối):**
+      - *Hiện thực:* Bộ test `backend/tests/db/pg-checkout.integration.test.ts` và runner `scripts/test-transaction-pg.mjs` (`npm run test:transaction:pg`) phối hợp cùng `runConcurrentTransactions` và migration DDL thật trên schema UUID cô lập.
+      - *Kiểm chứng thực tế:* **32/32 tests PASS (100%, 0 skipped)** trên PostgreSQL 17.6 (thời gian 401.89s). Kiểm chứng trọn vẹn: Overselling (5 buyer tranh 1 tồn kho), Idempotency lease/replay/conflict, rollback từng bước qua trigger fault injection, rollback 2 shop + voucher, deadlock vòng thật (`40P01`), serialization natural conflict (`40001`) và retry loop/backoff.
+  - **2. Đồng bộ nhánh `dev` & Quality Gates:**
+    - Nhánh `thanh-vien-5` đã được merge vào `origin/dev` tại commit `c4ef012`.
+    - Đã kéo các cập nhật mới nhất từ `origin/dev` về nhánh `thanh-vien-5` local (Fast-forward, 0 xung đột), bao gồm toàn bộ UI Next.js mới và docs frontend-spec.
+    - Toàn bộ backend Quality Gates đạt chuẩn: Typecheck 0 lỗi (`tsc --noEmit`), Build thành công (`esbuild dist/app.js`), Lint 0 errors.
+  - **3. Đóng mốc T3 & Chuyển giao Frontend:**
+    - Hoàn tất 100% nhiệm vụ Backend Người 5.
+    - Cập nhật nhật ký tiến độ Frontend tại `docs/frontend-spec/progress/nguoi-5.md` chuẩn bị cho các màn Orders, Review và Admin.
+- **Quyết định kỹ thuật:**
+  - Khóa variant theo thứ tự UUID tăng dần (`ORDER BY variant_id FOR UPDATE`) ở cả luồng checkout và luồng cancel/restock — Lý do: Loại bỏ hoàn toàn khả năng deadlock giữa checkout và hủy đơn.
+  - Phân tách rõ ràng giữa `OrderLifecycleService` (domain logic / in-memory abstract) và `PgCheckoutService` (production transactional persistence trên PostgreSQL) — Lý do: Đảm bảo tính độc lập giữa kiểm thử đơn vị logic nghiệp vụ và kiểm chứng ACID thực tế trên database engine.
+- **Contract/port thay đổi:**
+  - Không thay đổi contract mới; giữ vững contract `CheckoutCommand`, `CheckoutResult`, `IdempotencyPort`, `IOrderQueryPort`, `TransactionDomainEvent` đã chốt.
+- **Blocker phát sinh:**
+  - Không.
+- **Test đã viết & kết quả:**
+  - `npm run test:transaction:pg`: **32/32 PASS (100%)** trên PostgreSQL thật.
+  - `npm run test:node`: **593/593 PASS (100%)** trên toàn backend.
+  - `npm run typecheck`: **0 errors**.
 
 ### 2026-09-27 — Đóng bốn finding T3-P5 bằng PostgreSQL integration tests
 
