@@ -58,13 +58,13 @@ describe("ApiCheckoutRepository without silent mock fallbacks", () => {
     vi.mocked(apiClient.post).mockRejectedValue(error422);
 
     const input: CreateAddressInput = {
-      recipientName: "Test User",
+      recipient_name: "Test User",
       phone: "invalid_phone",
       province: "HN",
       district: "CG",
       ward: "MP",
-      detailAddress: "123",
-      isDefault: false,
+      detail_address: "123",
+      is_default: false,
     };
 
     let thrownError: unknown;

@@ -6,7 +6,10 @@ import {
   clearIdempotencySnapshot,
 } from "../src/features/checkout/idempotency";
 import type { CheckoutPayload } from "../src/features/checkout/checkout.types";
-import { checkoutRepository } from "../src/features/checkout/checkout.repository";
+import {
+  checkoutRepository,
+  MockCheckoutRepository,
+} from "../src/features/checkout/checkout.repository";
 
 describe("Cart and Money Calculations", () => {
   it("correctly calculates subtotal without floating point issues", () => {
@@ -100,8 +103,10 @@ describe("Checkout Idempotency Lifecycle (B-407)", () => {
 });
 
 describe("Voucher Evaluation and Invariants (B-406)", () => {
+  const repo = new MockCheckoutRepository();
+
   it("applies fixed discount correctly", async () => {
-    const res = await checkoutRepository.evaluateVoucher("DINO50K", "300000.00");
+    const res = await repo.evaluateVoucher("DINO50K", "300000.00");
     expect(res.isValid).toBe(true);
     if (res.isValid) {
       expect(res.discountAmount).toBe("50000.00");
@@ -109,7 +114,7 @@ describe("Voucher Evaluation and Invariants (B-406)", () => {
   });
 
   it("rejects voucher if min order value is not met", async () => {
-    const res = await checkoutRepository.evaluateVoucher("DINO50K", "100000.00");
+    const res = await repo.evaluateVoucher("DINO50K", "100000.00");
     expect(res.isValid).toBe(false);
     if (!res.isValid) {
       expect(res.errorCode).toBe("MIN_ORDER_VALUE_NOT_MET");
@@ -117,7 +122,7 @@ describe("Voucher Evaluation and Invariants (B-406)", () => {
   });
 
   it("rejects non-existent voucher code", async () => {
-    const res = await checkoutRepository.evaluateVoucher("INVALID_CODE_XYZ", "500000.00");
+    const res = await repo.evaluateVoucher("INVALID_CODE_XYZ", "500000.00");
     expect(res.isValid).toBe(false);
     if (!res.isValid) {
       expect(res.errorCode).toBe("VOUCHER_NOT_FOUND");
@@ -126,15 +131,17 @@ describe("Voucher Evaluation and Invariants (B-406)", () => {
 });
 
 describe("Address Book Management (B-404, B-405)", () => {
+  const repo = new MockCheckoutRepository();
+
   it("fetches list of addresses with default address", async () => {
-    const addresses = await checkoutRepository.getAddresses();
+    const addresses = await repo.getAddresses();
     expect(addresses.length).toBeGreaterThan(0);
     const hasDefault = addresses.some((a) => a.isDefault);
     expect(hasDefault).toBe(true);
   });
 
   it("creates a new address and prepends to list", async () => {
-    const newAddr = await checkoutRepository.createAddress({
+    const newAddr = await repo.createAddress({
       recipient_name: "Trần Thị B",
       phone: "0987654321",
       province: "Đà Nẵng",
@@ -148,7 +155,7 @@ describe("Address Book Management (B-404, B-405)", () => {
     expect(newAddr.recipientName).toBe("Trần Thị B");
     expect(newAddr.isDefault).toBe(true);
 
-    const list = await checkoutRepository.getAddresses();
+    const list = await repo.getAddresses();
     expect(list[0].addressId).toBe(newAddr.addressId);
   });
 });

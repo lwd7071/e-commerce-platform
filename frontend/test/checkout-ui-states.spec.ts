@@ -98,7 +98,7 @@ describe("checkout UI states and 10-row error mapping matrix", () => {
     const emptyResult: CheckoutResult = { orders: [] };
     vi.mocked(checkoutRepository.submitCheckout).mockResolvedValueOnce(emptyResult);
 
-    let isSubmitting = true;
+    const isSubmitting = true;
     let postSubmitError: string | null = null;
     let redirected = false;
 
@@ -158,7 +158,7 @@ describe("checkout UI states and 10-row error mapping matrix", () => {
       expectedInline: false,
       shouldClearSnapshot: true,
     },
-  ])("Case 6.4: Voucher evaluation and submit errors ($type)", ({ type, error, shouldClearSnapshot }) => {
+  ])("Case 6.4: Voucher evaluation and submit errors ($type)", ({ error, shouldClearSnapshot }) => {
     const key1 = getOrCreateIdempotencyKey(samplePayload).key;
 
     if (error) {
@@ -184,13 +184,13 @@ describe("checkout UI states and 10-row error mapping matrix", () => {
 
     await expect(
       checkoutRepository.createAddress({
-        recipientName: "Test",
+        recipient_name: "Test",
         phone: "bad",
         province: "HN",
         district: "CG",
         ward: "MP",
-        detailAddress: "1",
-        isDefault: false,
+        detail_address: "1",
+        is_default: false,
       })
     ).rejects.toMatchObject({
       code: "VALIDATION_FAILED",
@@ -226,7 +226,7 @@ describe("checkout UI states and 10-row error mapping matrix", () => {
     expect(classifyCheckoutError(error409)).toBe("IN_PROGRESS");
 
     let isSubmitting = true;
-    let timer: NodeJS.Timeout | null = setTimeout(() => {
+    let timer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
       isSubmitting = false;
       timer = null;
     }, 3000);
@@ -243,8 +243,8 @@ describe("checkout UI states and 10-row error mapping matrix", () => {
 
     // Verify cleanup
     const mockCleanup = vi.fn();
-    timer = setTimeout(mockCleanup, 3000);
-    clearTimeout(timer);
+    const cleanupTimer = setTimeout(mockCleanup, 3000);
+    clearTimeout(cleanupTimer);
     vi.advanceTimersByTime(3000);
     expect(mockCleanup).not.toHaveBeenCalled();
 
