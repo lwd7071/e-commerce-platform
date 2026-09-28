@@ -416,7 +416,7 @@
   - Phân tích `backend/package-lock.json` và phát hiện nhiều optional dependency entries thiếu trường `version`, chủ yếu trong cây `esbuild`, `rollup` và `fsevents`.
   - Regenerate `backend/package-lock.json` từ `backend/package.json`; lockfile mới không còn entry package thiếu version và `npm ci --dry-run` đã pass.
 - Quyết định kỹ thuật:
-  - Giữ nguyên workflow Node `22.20.0` và npm `11.12.1`; sửa nguồn gây lỗi là lockfile thay vì bỏ qua `npm ci` hoặc nới quality gate.
+  - Tại thời điểm ghi nhận (2026-09-28), giữ workflow runtime tiền nhiệm Node `22.20.0` và npm `11.12.1`; sửa nguồn gây lỗi là lockfile thay vì bỏ qua `npm ci` hoặc nới quality gate.
   - Không thay đổi dependency trực tiếp hay hành vi runtime; chỉ chuẩn hóa metadata lockfile để Linux CI và local npm cùng resolve được dependency tree.
 - Contract/port thay đổi:
   - Không.
@@ -477,7 +477,7 @@
 - Đã bổ sung PostgreSQL `17.6` service container cho Backend quality, fixture `auth.users`,
   role `anon`/`authenticated`, migration deploy trên database trống và bật DB integration
   tests trong PR không cần remote secret.
-- Đã nâng `actions/checkout` và `actions/setup-node` lên v7, giữ Node `22.20.0` và npm
+- Đã nâng `actions/checkout` và `actions/setup-node` lên v7; tại thời điểm ghi nhận (2026-09-18), giữ runtime tiền nhiệm Node `22.20.0` và npm
   `11.12.1`. Không sửa lockfile hoặc secret.
 - Kiểm tra local: `typecheck`, `build`, `git diff --check` pass.
 

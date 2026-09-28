@@ -20,7 +20,7 @@ File này khóa rule hiển thị, tương tác và stack dự kiến. [02](./02
 | Auth và API | Supabase Auth client, `Authorization: Bearer`, API client/error parser, AuthProvider, repository/adapters và mock/API switch đã có trong `frontend/`; kiểm tra runtime readiness trước mỗi API integration. |
 | Server data | Tách server state khỏi local UI state bằng feature repository/hooks hiện có. TanStack Query chưa được chọn/cài; không thêm cache dependency nếu chưa chốt với Người 1. |
 | Form | Field validation phải khớp backend 05; lỗi server hiển thị tại field hoặc form. Không thêm form/schema package trước khi thống nhất dependency với Người 1. |
-| Quality gates | `frontend/package.json` có scripts `typecheck`, `lint`, `test`, `build`; Vitest runner đã có. Dùng Node `22.20.0` theo `.nvmrc` và npm 11. Không dùng scripts prototype, không ghi test là pass nếu chưa chạy. |
+| Quality gates | `frontend/package.json` có scripts `typecheck`, `lint`, `test`, `build`; Vitest runner đã có. Dùng Node `24.15.0` theo `.nvmrc` và npm `11.12.1`. Không dùng scripts prototype, không ghi test là pass nếu chưa chạy. |
 
 ## 3. Màu và token bắt buộc
 

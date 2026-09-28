@@ -6,10 +6,20 @@
 - Cập nhật lần cuối: 2026-09-28
 - Đang làm: U-201–206 và QA độc lập cho shared shell/profile/notifications đã hoàn tất; P-604/P-605/P-607b vẫn gated theo readiness backend
 - Nhánh/PR: Chưa có
-- Bị block bởi: D-004 chờ page mẫu checkout (Người 4), seller orders và admin dashboard (Người 5); P-601/P-603/P-606 chờ backend contract/runtime (GAP-07/GAP-01/GAP-09). Contrast ở login/register cần Người 1 và màu trạng thái seller cần Người 3 xử lý tại page của họ.
-- Việc tiếp theo: Ghi nhận/nhận handoff contrast từ Người 1/3; tiếp tục D-004 khi checkout, seller orders và admin dashboard có page mẫu; chạy lại gate theo Node 22.20.0 khi môi trường đó sẵn.
+- Bị block bởi: PR0a cần Người 1 và backend owner review trước merge; local PostgreSQL smoke chưa chạy được do worktree không có `DIRECT_URL`/DB test, chờ PostgreSQL service CI xanh. D-004 chờ page mẫu checkout (Người 4), seller orders và admin dashboard (Người 5); P-601/P-603/P-606 chờ backend contract/runtime (GAP-07/GAP-01/GAP-09). Contrast ở login/register cần Người 1 và màu trạng thái seller cần Người 3 xử lý tại page của họ.
+- Việc tiếp theo: Hoàn thành migration Node 24.15.0/npm 11.12.1 và ghi evidence mới; ghi nhận/nhận handoff contrast từ Người 1/3; tiếp tục D-004 khi checkout, seller orders và admin dashboard có page mẫu.
 
 ## Nhật ký theo ngày
+
+### 2026-09-28 — PR0a Node 24 runtime migration (đang chuẩn bị, chưa merge)
+
+- Đã đồng bộ từ `origin/dev` mới nhất và làm trong worktree riêng; không mang theo hoặc sửa thay đổi local tại `ecommerce-web/`.
+- Đã cập nhật `.nvmrc`, engines của backend/frontend thành `>=24 <25`, giữ npm `11.x` và `packageManager: npm@11.12.1`; `@types/node` lên major 24. Hai lockfile chỉ đổi engine, `@types/node`/`undici-types` và bundled optional metadata do npm 11 ghi nhận cho Tailwind WASM.
+- Backend và frontend `npm ci` pass trên Node `24.15.0`/npm `11.12.1`, không có `EBADENGINE`; audit lần này: backend 6 advisory (2 moderate, 4 high), frontend 2 moderate. Không chạy audit fix.
+- Backend trên Node 24: Prisma Client generate và schema validate pass (dùng URL PostgreSQL giả chỉ để nạp Prisma config); typecheck, lint, build pass. Test pass ngoài sandbox: native 598/598 và Vitest 96/96; 119 DB/remote integration cases skip do chưa có DB config. Trong sandbox native suite gặp một `spawn EPERM`; chạy lại được ngoài sandbox. Cần PostgreSQL service quality CI xanh trước merge làm DB/client smoke evidence.
+- Frontend trên Node 24: typecheck pass (cần quyền ghi `tsconfig.tsbuildinfo` trong worktree); 54/54 unit tests, production build và lint pass.
+- CI PR0a chuyển backend/remote DB/auth/storage jobs sang Node `24.15.0` và thêm runtime assertion; job `frontend-quality` còn Node22 có chủ đích vì vẫn kiểm tra prototype `ecommerce-web/`, sẽ được thay riêng ở PR0b.
+- Chưa có deploy/hosting evidence hay review của Người 1/backend owner; không merge PR0a cho tới khi đủ review và PostgreSQL service CI xanh. Node22 evidence bên dưới là lịch sử runtime tiền nhiệm, không phải gate hiện hành.
 
 ### 2026-09-28 — U-203, Q-802, Q-803 (QA sau merge catalog)
 
@@ -18,7 +28,7 @@
   - Chạy browser smoke bằng Chrome 153 với mock session, không thêm file QA hay dependency.
 - Quyết định UI/contract: Giữ native `<dialog>`; dùng cơ chế modal/focus containment/ESC của trình duyệt và lớp CSS chung, không thêm thư viện dialog.
 - Test/kiểm tra:
-  - `npm run typecheck`, `npm run lint`, `npm test` (4 files/15 tests), `npm run build`: PASS trên Node 24.15.0/npm 11.12.1. Repo yêu cầu Node 22.20.0 nên lượt này là kiểm tra bổ sung, chưa thay thế gate trên đúng Node.
+  - `npm run typecheck`, `npm run lint`, `npm test` (4 files/15 tests), `npm run build`: PASS trên Node 24.15.0/npm 11.12.1. Đây là evidence mới của workspace FE; migration toàn repo và các gate sau đồng bộ `origin/dev` vẫn đang thực hiện.
   - Chrome mock browser: Dialog nằm giữa viewport; focus vào dialog khi mở; Tab giữ focus bên trong; Escape đóng và trả focus về nút mở; click backdrop đóng và trả focus. Không có JS exception trong smoke.
   - Chrome responsive smoke: `/` không tràn ngang tại 320/360/768/1280px; `/profile` và `/notifications` không tràn tại 360px. Reduced motion bật làm animation skeleton gần như tắt (`0.00001s`).
   - Contrast audit: `#E11D48` trên `#FFF1F2` đạt 4.28:1 (dưới 4.5:1) trong auth error copy; `#059669` trên `#ECFDF5` đạt 3.58:1 và `#D97706` trên `#FFFBEB` đạt 3.07:1 cho status text seller. Đây là page của Người 1/3, không sửa chéo ownership.
@@ -30,14 +40,14 @@
 
 - Đã làm: Hoàn thiện tokens/global style, Button/IconButton, field controls/error summary, Dialog, ToastProvider, StatusBadge đủ 7 trạng thái, skeleton/empty/error, header/mobile dock, layout, role navigation, profile read-only và notification UI trong `frontend/src/`. Header/metadata/profile fallback dùng Dino text-only. FormField tự nối helper/error ARIA; notifications chỉ Buyer; profile chỉ dùng auth name/email và initials, không render avatar URL.
 - Quyết định UI/contract: Giữ nguyên palette đã cung cấp; CTA chữ trắng dùng `#BF3A6F` đạt contrast, không glow. Profile metadata chỉ read-only; avatar bị khóa vì thiếu media contract. Notifications demo/local-state chỉ trong non-production; production báo runtime API chưa sẵn sàng (501), không gọi endpoint thật hoặc realtime. Bulk action giới hạn tối đa 20 ID và hiện chỉ cập nhật demo state; production không hiển thị.
-- Test/kiểm tra: Nền `5ace145`; Node 22.20.0/npm 11. `npm ci` pass (415 packages; audit báo 2 moderate vulnerabilities); typecheck pass; ESLint source và 6 file TS đã sửa pass bằng CLI tương đương; Vitest 3 files/12 tests pass; production build pass. Browser smoke và defect evidence ghi ở mục [QA evidence](#qa-evidence). CUA không khởi tạo được nên dùng Chrome/Edge headless cài sẵn và Playwright cache ngoài repo; không sửa package/lockfile.
+- Test/kiểm tra lịch sử (2026-09-28, runtime tiền nhiệm Node 22.20.0/npm 11): trên nền `5ace145`, `npm ci` pass (415 packages; audit báo 2 moderate vulnerabilities); typecheck pass; ESLint source và 6 file TS đã sửa pass bằng CLI tương đương; Vitest 3 files/12 tests pass; production build pass. Đây không phải evidence cho runtime Node 24. Browser smoke và defect evidence ghi ở mục [QA evidence](#qa-evidence). CUA không khởi tạo được nên dùng Chrome/Edge headless cài sẵn và Playwright cache ngoài repo; không sửa package/lockfile.
 - Handoff: Người 1 — login/register cần đổi brand copy/wordmark sang Dino text-only; Người 3 — trang chủ có horizontal overflow ở 320/360px và brand/copy cần đổi Dino; Người 3/4/5 — dùng tokens, shared components và route handoff ở [file 10](../10-ui-ux-handoff.md). Chưa được xác nhận nhận.
 - Blocker: BE — notifications/profile APIs và media contract; Người 3/4/5 — page samples cho D-004. Không còn blocker scaffold/auth wiring.
 - Còn lại: Contrast screen-wide và dialog interaction cần browser QA evidence; notification API/rollback và avatar upload chỉ làm khi dependency backend sẵn.
 
 ### QA evidence
 
-Quality gates dùng Node `22.20.0`/npm 11: `npm ci` pass (415 packages); typecheck pass; ESLint source pass bằng CLI tương đương (lượt cuối `npm run lint` không kết thúc trong thời gian hợp lý, không tính riêng); Vitest 3 files/12 tests pass; Next production build pass. `npm ci` audit ghi nhận 2 moderate vulnerabilities.
+Quality gates lịch sử ngày 2026-09-28 dùng runtime tiền nhiệm Node `22.20.0`/npm 11: `npm ci` pass (415 packages); typecheck pass; ESLint source pass bằng CLI tương đương (lượt cuối `npm run lint` không kết thúc trong thời gian hợp lý, không tính riêng); Vitest 3 files/12 tests pass; Next production build pass. `npm ci` audit ghi nhận 2 moderate vulnerabilities. Đây không phải gate Node 24; evidence Node 24 mới sẽ được ghi riêng sau khi chạy lại trên branch migration.
 
 | Kiểm tra | Chrome | Edge |
 |---|---|---|
