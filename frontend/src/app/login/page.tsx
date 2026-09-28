@@ -42,16 +42,16 @@ function LoginForm() {
   return (
     <div className="w-full max-w-md bg-[var(--card)] border border-[var(--border)] rounded-2xl shadow-sm p-6 sm:p-8">
       <div className="text-center mb-6">
-        <Link href="/" className="inline-flex items-center gap-2 mb-3">
-          <div className="w-10 h-10 rounded-xl bg-[var(--primary)] flex items-center justify-center text-white font-bold shadow-sm">
-            EC
-          </div>
+        <Link href="/" className="inline-block mb-3 hover:opacity-90 transition-opacity">
+          <span className="text-3xl font-extrabold tracking-tight text-[var(--foreground)]">
+            Dino<span className="text-[var(--primary-active)]">.</span>
+          </span>
         </Link>
         <h1 className="text-2xl font-bold tracking-tight text-[var(--foreground)]">
           Đăng nhập tài khoản
         </h1>
         <p className="text-sm text-[var(--subtext)] mt-1">
-          Chào mừng bạn quay trở lại với E-Commerce Platform
+          Chào mừng bạn quay trở lại với Dino
         </p>
       </div>
 

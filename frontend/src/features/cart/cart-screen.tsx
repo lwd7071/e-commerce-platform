@@ -51,7 +51,9 @@ export function CartScreen() {
   };
 
   useEffect(() => {
-    loadCart();
+    void Promise.resolve().then(() => {
+      loadCart();
+    });
   }, []);
 
   // Group items by shop
@@ -345,6 +347,7 @@ export function CartScreen() {
                       {/* Product Thumbnail */}
                       <div className="w-16 h-16 rounded-md overflow-hidden bg-[var(--border)] shrink-0 flex items-center justify-center">
                         {item.imageUrl ? (
+                          /* eslint-disable-next-line @next/next/no-img-element */
                           <img
                             src={item.imageUrl}
                             alt={item.productName}

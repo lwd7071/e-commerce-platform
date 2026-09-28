@@ -23,6 +23,7 @@
   - **F-106:** Triển khai `route-guards.ts`: bảo vệ route theo role, chống open redirect với `sanitizeReturnTo`.
   - **F-107 & C-004:** Triển khai `types.ts` và `repository-factory.ts`: cung cấp trừu tượng repository và bộ switch linh hoạt giữa Live API và Mock fixtures dựa theo config `features.useMock()`, UI không cần branch code.
   - **B-303 & B-304:** Triển khai 2 trang `/login` (bọc Suspense boundary an toàn cho searchParams) và `/register` (chọn role BUYER/SELLER, validate form, accessible labels, loading indicator).
+  - **Dino Text-only Branding & Phase 2-7 Integration:** Cập nhật logo và copy tại `/login` và `/register` sang nhận diện thương hiệu "Dino" text-only theo chỉ đạo của Lead Vĩ Đông; rà soát và vá lỗi linter React 19 trong `cart-screen.tsx` và `checkout-screen.tsx`.
   - **HomePage (`src/app/page.tsx`):** Dựng trang chủ hiện đại với Navigation, Hero, Value Badges, Product Grid (dùng `next/image`, CSS variables và `moneyAdapter.formatVND`), hỗ trợ graceful offline fallback khi backend chưa chạy lúc build.
 - **Quyết định UI/contract:**
   - Áp dụng triệt để bảng màu và quy chuẩn từ `09-ui-ux-rules.md §3`: Nút chính đồng nhất dùng `--button-primary-bg` (`#BF3A6F`) và `--button-primary-fg` (trắng), đạt chuẩn tương phản 5.19:1 WCAG AA.
@@ -30,10 +31,10 @@
 - **Test/kiểm tra:**
   - `npm run typecheck`: **0 errors**.
   - `npm run lint`: **0 errors, 0 warnings**.
-  - `npm run test`: **12/12 tests PASS (100%)** (`test/api-client.spec.ts`, `test/money-adapter.spec.ts`, `test/route-guards.spec.ts`).
-  - `npm run build`: **Next.js Turbopack build thành công**, pre-render 4 routes tĩnh và động sạch sẽ.
+  - `npm run test`: **30/30 tests PASS (100%)** (`test/api-client.spec.ts`, `test/money-adapter.spec.ts`, `test/route-guards.spec.ts`, `test/category-adapter.spec.ts`, `test/catalog-pagination.spec.ts`, `test/cart-checkout.spec.ts`).
+  - `npm run build`: **Next.js Turbopack build thành công**, pre-render sạch sẽ toàn bộ 11 routes.
 - **Handoff:**
-  - Đã sẵn sàng bàn giao toàn bộ `src/lib` cho Người 2, 3, 4, 5.
+  - Đã tích hợp và kiểm thử thông suốt toàn bộ Phase 1–7 cùng Người 2 (UI Shell), Người 3 (Catalog), Người 4 (Cart/Checkout) và Người 5 (Orders/Admin).
 - **Blocker:** Không.
 - **Còn lại:** Hỗ trợ các thành viên tích hợp component vào `frontend/`.
 

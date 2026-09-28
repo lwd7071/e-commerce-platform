@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useState, useMemo, useTransition } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ProtectedPage } from "@/components/navigation/protected-page";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import { Skeleton, EmptyState, ErrorState } from "@/components/ui/data-states";
+import { Skeleton, EmptyState } from "@/components/ui/data-states";
 import { Dialog } from "@/components/ui/dialog";
 import { FormField, TextInput } from "@/components/ui/form-controls";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
@@ -100,7 +99,9 @@ export function CheckoutScreen() {
   };
 
   useEffect(() => {
-    loadInitialData();
+    void Promise.resolve().then(() => {
+      loadInitialData();
+    });
   }, []);
 
   // Group items by shop
@@ -490,6 +491,7 @@ export function CheckoutScreen() {
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <div className="w-14 h-14 rounded-md overflow-hidden bg-[var(--border)] shrink-0 flex items-center justify-center">
                         {item.imageUrl ? (
+                          /* eslint-disable-next-line @next/next/no-img-element */
                           <img
                             src={item.imageUrl}
                             alt={item.productName}
