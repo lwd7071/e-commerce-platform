@@ -558,6 +558,9 @@ svg {
 .status-badge--failed { border-color: #f0c2ca; background: #fff0f2; color: #8e2638; }
 
 .dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
   width: min(100% - 32px, 560px);
   max-height: min(84dvh, 720px);
   padding: 0;
