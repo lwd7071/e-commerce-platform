@@ -21,6 +21,11 @@
 - CI PR0a chuyển backend/remote DB/auth/storage jobs sang Node `24.15.0` và thêm runtime assertion; job `frontend-quality` còn Node22 có chủ đích vì vẫn kiểm tra prototype `ecommerce-web/`, sẽ được thay riêng ở PR0b.
 - Chưa có deploy/hosting evidence hay review của Người 1/backend owner; không merge PR0a cho tới khi đủ review và PostgreSQL service CI xanh. Node22 evidence bên dưới là lịch sử runtime tiền nhiệm, không phải gate hiện hành.
 
+### 2026-09-28 — PR0b frontend CI cutover (đang chuẩn bị)
+
+- Trên nhánh riêng xếp sau PR0a, `frontend-quality` đổi working directory/cache sang `frontend/`, xác nhận Node `24.15.0`/npm `11.12.1`, chạy `npm ci`, lockfile-clean, lint, typecheck, test và build.
+- Các gate local frontend trên Node24 đều pass; PR0b không sửa manifest/lockfile và không chạy quality gate cho `ecommerce-web/`. Chỉ merge sau PR0a và CI thật xanh.
+
 ### 2026-09-28 — U-203, Q-802, Q-803 (QA sau merge catalog)
 
 - Đã làm:
