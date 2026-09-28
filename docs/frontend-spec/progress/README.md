@@ -4,7 +4,7 @@
 
 | Người | Phạm vi | File | Trạng thái khởi tạo |
 |---|---|---|---|
-| 1 | Platform, API, auth, tích hợp | [nguoi-1.md](./nguoi-1.md) | Chưa bắt đầu FE |
+| 1 | Platform, API, auth, tích hợp | [nguoi-1.md](./nguoi-1.md) | Hoàn tất Phase 0, 1 & Phase 8 Gates (41/41 tests pass) |
 | 2 | UI/UX, shared UI, account | [nguoi-2.md](./nguoi-2.md) | Batch độc lập xong; Q-802/803 scoped pass; D-004 và nghiệm thu dialog/contrast còn mở |
 | 3 | Catalog, seller catalog, category | [nguoi-3.md](./nguoi-3.md) | Chưa bắt đầu FE |
 | 4 | Cart, address, voucher, checkout | [nguoi-4.md](./nguoi-4.md) | Chưa bắt đầu FE |

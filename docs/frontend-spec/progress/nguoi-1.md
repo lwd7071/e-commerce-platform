@@ -2,12 +2,12 @@
 
 ## Trạng thái hiện tại
 
-- Phase/ticket: Phase 0 & Phase 1 hoàn tất (C-001, C-003–005, F-101–107, B-303, B-304)
+- Phase/ticket: Phase 0, Phase 1 & Phase 8 hoàn tất (C-001, C-003–005, F-101–107, B-303, B-304, Q-801, Q-806, Q-807, Q-808)
 - Cập nhật lần cuối: 2026-09-28
-- Đang làm: Đã hoàn tất 100% scaffold thư mục `frontend/`, triển khai đầy đủ ApiClient, AuthProvider, RouteGuards, Repository Switcher, MoneyAdapter, các trang `/login`, `/register` và vượt qua 4 Quality Gates (typecheck 0 lỗi, lint 0 lỗi, 12/12 unit tests PASS, build Next.js thành công).
+- Đang làm: Đã hoàn tất 100% toàn bộ trách nhiệm của Người 1: Scaffold thư mục `frontend/`, bộ seam dùng chung `src/lib/`, 2 trang `/login` và `/register` chuẩn brand wordmark Dino, sửa toàn bộ linter của team, triển khai bộ kiểm thử chịu lỗi `resilience-q806` (8 tests) và kiểm thử đồng bộ contract `contract-drift-q807` (3 tests). Vượt qua toàn bộ Quality Gates: **41/41 unit tests frontend PASS**, **600/600 tests backend PASS**, typecheck 0 lỗi, lint 0 lỗi, build Turbopack 11 routes thành công.
 - Nhánh/PR: dev
 - Bị block bởi: Không
-- Việc tiếp theo: Bàn giao toàn bộ nền móng và seam `src/lib/` cho Người 2 (UI Shell), Người 3 (Catalog), Người 4 (Cart/Checkout) và Người 5 (Orders/Admin).
+- Việc tiếp theo: Toàn bộ công việc của Người 1 đã hoàn tất 100%, sẵn sàng bàn giao cho Release Candidate.
 
 ## Nhật ký theo ngày
 
@@ -31,12 +31,12 @@
 - **Test/kiểm tra:**
   - `npm run typecheck`: **0 errors**.
   - `npm run lint`: **0 errors, 0 warnings**.
-  - `npm run test`: **30/30 tests PASS (100%)** (`test/api-client.spec.ts`, `test/money-adapter.spec.ts`, `test/route-guards.spec.ts`, `test/category-adapter.spec.ts`, `test/catalog-pagination.spec.ts`, `test/cart-checkout.spec.ts`).
+  - `npm run test`: **41/41 tests PASS (100%)** (`test/api-client.spec.ts`, `test/resilience-q806.spec.ts`, `test/contract-drift-q807.spec.ts`, `test/money-adapter.spec.ts`, `test/route-guards.spec.ts`, `test/category-adapter.spec.ts`, `test/catalog-pagination.spec.ts`, `test/cart-checkout.spec.ts`).
   - `npm run build`: **Next.js Turbopack build thành công**, pre-render sạch sẽ toàn bộ 11 routes.
 - **Handoff:**
-  - Đã tích hợp và kiểm thử thông suốt toàn bộ Phase 1–7 cùng Người 2 (UI Shell), Người 3 (Catalog), Người 4 (Cart/Checkout) và Người 5 (Orders/Admin).
+  - Đã tích hợp và kiểm thử thông suốt toàn bộ Phase 1–8 cùng Người 2 (UI Shell), Người 3 (Catalog), Người 4 (Cart/Checkout) và Người 5 (Orders/Admin).
 - **Blocker:** Không.
-- **Còn lại:** Hỗ trợ các thành viên tích hợp component vào `frontend/`.
+- **Còn lại:** Không còn task nào tồn đọng.
 
 ## Handoff/contract đang sở hữu
 
@@ -46,10 +46,11 @@
 | Auth/route guard | Người 2, 3, 4, 5 | Session/role/returnTo behavior + test | Đã bàn giao | `src/lib/auth/` |
 | Mock/API repository switch | Người 2, 3, 4, 5 | Interface, flag, contract test, fixtures | Đã bàn giao | `src/lib/repositories/` |
 | Central Seams Export | Toàn đội FE | Export toàn diện ApiClient, Auth, Repositories, Adapters | Đã bàn giao | `src/lib/index.ts` |
+| Resilience & Drift Suites | Toàn đội | 8 bài test resilience và 3 bài test drift contract | Đã bàn giao | `test/resilience-q806.spec.ts`, `test/contract-drift-q807.spec.ts` |
 
 ## Việc được giao
 
 - [x] C-001/C-003–005 — phối hợp contract, flag, repository boundary, quyết định FE-BE.
 - [x] F-101–107 — env, API client, adapters, auth, route guards, mock/API switch.
 - [x] B-303/B-304 — login thật, registration UI có gating.
-- [x] Q-801/Q-806 — build/lint, resilience khi offline/error, unit test suite.
+- [x] Q-801/Q-806–808 — build/lint, resilience khi offline/error, contract drift, remove release mocks.
