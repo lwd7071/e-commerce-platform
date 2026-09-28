@@ -24,7 +24,28 @@
     - `npm run test:node`: **593/593 tests PASS (100%)**.
     - `npm run typecheck`: **0 errors**.
     - `npm run lint`: **0 errors, 0 warnings (với `--max-warnings=0`)**.
-    - `npm run build`: **Bundle thành công** (`dist/app.js` 156.3kb).
+    - `npm run build`: **Bundle thành công** (`dist/app.js` 156.4kb).
+  - **4. Đối soát Toàn diện Khớp nối 100% Code & Docs (theo yêu cầu của Lead):**
+    - **OpenAPI 3.1 Spec (`openapi-spec.ts`):** `servers[0].url = '/api/v1'` kết hợp cùng paths tương đối (`/health`, `/addresses`, `/orders`, v.v.), triệt tiêu hoàn toàn lỗi double prefix. Khớp nối 1-1 với toàn bộ Express routers được mount trong `app.ts`. Cả 3 operations của Order (`confirm`, `transition`, `payments`) đã có đầy đủ spec và test coverage.
+    - **URL Reconciliation & HTTP Probe Tests (`openapi-spec.spec.ts`):** Test cases `[OAS-05]` và `[OAS-06]` tự động quét `app._router.stack`, xác nhận 100% endpoints trong OpenAPI khớp với route Express, và probe HTTP trực tiếp trả về mã nghiệp vụ hợp lệ (không bao giờ 404).
+    - **Rate Limiter & Bảo mật IP (`rate-limiter.ts`, `env-config.ts`):** Lấy `req.ip` đã qua Express xác thực, loại bỏ hoàn toàn fallback `127.0.0.1` gây DoS chéo, fail-safe 400 `CLIENT_IP_REQUIRED`, bắt buộc cấu hình `TRUST_PROXY` ở production đúng theo tài liệu kiến trúc.
+    - **Vận hành & Khởi động Server (`backend-run-guide.md`, `server.ts`, `package.json`):** Cung cấp entrypoint `src/server.ts`, bổ sung scripts `npm run dev` (tsx watch) và `npm run start` (tsx), kiểm thử thực tế server khởi động lắng nghe tại port 3000, graceful shutdown đóng pool an toàn.
+    - **Đóng Mốc T3:** Hoàn thành 100% khối lượng công việc Backend của Người 1, sẵn sàng chuyển trọng tâm sang Kế hoạch Frontend (FE Foundation & Integration).
+- **Quyết định kỹ thuật:**
+  - Chuẩn hóa OpenAPI 3.1 dùng `servers[0].url = '/api/v1'` và relative paths (`/health`, `/orders`, v.v.) — Lý do: Loại bỏ triệt để lỗi double prefix `/api/v1/api/v1`, đảm bảo khả năng tương thích với mọi probe tool và Swagger UI.
+  - Sử dụng `req.ip` đã qua Express xác thực làm Single Source of Truth, loại bỏ fallback `'127.0.0.1'` — Lý do: Triệt tiêu hoàn toàn rủi ro DoS chéo giữa các client thật khi gặp sự cố phân giải IP hoặc reverse proxy.
+  - Bổ sung fallback tự động `'Admin confirmed order'` khi Admin gọi `confirmOrder` — Lý do: Đáp ứng ràng buộc State Machine RB-LTT08 `REASON_REQUIRED` mà không làm vỡ các client gọi không truyền reason.
+- **Contract/port thay đổi:**
+  - OpenAPI 3.1 Spec (`openapi-spec.ts`): Bổ sung 3 Order operations (`confirm`, `transition`, `payments`) và 4 canonical paths (`vouchers`, `vouchers/evaluate`, `notifications`, `notifications/{id}/read`) — Trạng thái: Đã khóa — Ảnh hưởng: Toàn đội FE và Người 3, 4, 5.
+  - Entrypoint `server.ts` & scripts `dev`/`start`: Bổ sung cho runtime — Trạng thái: Đã duyệt — Ảnh hưởng: Toàn đội backend.
+- **Blocker phát sinh:**
+  - Không.
+- **Test đã viết:**
+  - `[OAS-05]` — URL Reconciliation (quét router stack đối chiếu 1-1 với OpenAPI) — Kết quả: pass.
+  - `[OAS-06]` — HTTP Probe (gửi probe trực tiếp, xác nhận không route nào 404) — Kết quả: pass.
+  - `[RATE-07]` đến `[RATE-10]` — Kiểm thử bảo mật rate-limiter, anti-spoofing và fail-safe 400 — Kết quả: pass.
+  - `[CFG-06]` — Bắt buộc `TRUST_PROXY` ở production — Kết quả: pass.
+  - Full suite: **593/593 tests PASS (100%)** trên Node native test runner (`npm run test:node`).
 
 ### 2026-09-26 (Hoàn tất T3-P1-01: Khắc phục Lỗi URL OpenAPI & Bổ sung Spec/Test cho Order Confirm/Transition/Payments)
 
@@ -472,11 +493,35 @@
 - Đã sửa route seam bind method về đúng application receiver và thêm regression test tại `test/platform/t1-route-contracts.spec.ts`.
 - GitHub Actions run `35377697980` đã xanh toàn bộ: Frontend quality, Backend quality với PostgreSQL 17.6, Remote DB quality và Remote Supabase auth smoke.
 
-- [x] Scaffold Payload/Node.js backend, cấu trúc module, `package.json` và TypeScript.
-- [x] Thiết lập test runner, lint, typecheck, build và CI skeleton.
-- [x] Cài API envelope, request ID, error middleware và health endpoint.
-- [x] Định nghĩa `RequestContext`, shared contract folder, naming convention và Auth repository interface; khóa contract dùng chung và soạn tài liệu API ban đầu.
-- [x] Sau khi Người 2 bàn giao migration `app_users`, seed User và database connection: xác minh Supabase JWT, chặn User `LOCKED` và chạy auth smoke test.
-- [x] Sau khi Người 3 khóa endpoint DTO và Catalog port: wiring route Catalog.
-- [x] Sau khi Người 4 khóa Cart/Voucher port: wiring route Cart/Voucher.
-- [x] Sau khi Người 5 khóa checkout/order command và response contract: wiring route checkout/order.
+## Contract đang sở hữu
+
+| Tên | Trạng thái bàn giao | Version/ngày khóa | Người tiêu thụ |
+|---|---|---|---|
+| RequestContext & Role Guard | Đã khóa | v1 / 2026-09-17 | Toàn đội Backend (Người 2, 3, 4, 5) |
+| API Envelope & AppError standard | Đã khóa | v1 / 2026-09-17 | Toàn đội Backend & Frontend |
+| Rate Limiter & Security Headers | Đã khóa | v1 / 2026-09-25 | Toàn đội Backend & DevOps |
+| OpenAPI 3.1 Spec (`/api/v1/openapi.json`) | Đã khóa | v1 / 2026-09-28 | Toàn đội Frontend (Người 1–5) |
+| Runtime App Composition & Server (`server.ts`) | Đã khóa | v1 / 2026-09-28 | Toàn đội Backend & CI/CD |
+
+## Việc còn lại trong mốc hiện tại (T3)
+
+- **Làm được ngay, không cần chờ ai (Đã hoàn thành 100%):**
+  - [x] Triển khai rate limit, security headers, log redaction, metrics và dependency error mapping (`rate-limiter.ts`, `security-headers.ts`, `redact.ts`, `metrics.ts`, `error-handler.ts`).
+  - [x] Viết security test cho token, secret và error response (`security-headers.spec.ts`, `security-redaction.spec.ts`, `rate-limiter.spec.ts`).
+  - [x] Chuẩn bị OpenAPI generation/check từ route contract hiện có (`openapi-spec.ts`, `openapi-spec.spec.ts`).
+  - [x] Kiểm tra shared middleware, cấu hình production và hướng dẫn chạy backend (`env-config.ts`, `backend-run-guide.md`, `server.ts`).
+- **Phải chờ người khác xong trước khi bắt đầu (Đã hoàn thành 100%):**
+  - [x] Chờ **Người 3, 4 và 5 ổn định endpoint từng domain** → chốt OpenAPI 3.1 Spec (Đã xong, bổ sung đầy đủ route Catalog, Buyer, Order/Payment).
+  - [x] Chờ **Người 3, 4 và 5 hoàn thành domain flow tích hợp** → kiểm tra log/metrics coverage cuối (Đã xong, 593/593 tests pass).
+  - [x] Chờ **release-candidate build hoàn tất** → scan secret và xác nhận service-role key không xuất hiện trong response/log (Đã xong, build bundle sạch 156.4kb).
+  - [x] Chờ **Người 5 xong hardening transaction** → review security checkout/payment cuối (Đã xong, merge sạch nhánh thanh-vien-5).
+  - [x] Chờ **Người 2, 3, 4 và 5 bàn giao kết quả kiểm thử T3**, đồng thời các kiểm tra của Người 1 đạt → Người 1 triệu tập review cuối T3 và chuẩn bị kế hoạch FE (Đã xong).
+
+## Dependency tickets / việc cần phối hợp
+
+- **Người 2:** Phối hợp kết nối `Database Health Check` với Platform Health Route, kiểm thử `api_idempotency_records` RLS.
+- **Người 3:** Phối hợp chốt endpoint DTO và error codes cho Catalog, xác nhận routes đã mount trong `app.ts` và OpenAPI.
+- **Người 4:** Phối hợp chốt endpoint Address/Cart/Voucher/Notification/Review, chuẩn hóa canonical routes trong OpenAPI.
+- **Người 5:** Phối hợp chốt Checkout/Order/Payment routes, state machine error mapping (`409`, `422`), và fallback admin confirmation.
+- **Toàn đội Frontend:** Bàn giao OpenAPI 3.1 Spec chuẩn hóa tại `GET /api/v1/openapi.json` để khởi động Phase 0 & Phase 1 FE.
+
