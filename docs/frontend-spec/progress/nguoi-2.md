@@ -25,7 +25,7 @@
 - Ma trận Guest/Buyer/Seller/Admin, notification filter/unread count, mark-one, bulk tối đa 20 và tính bất biến input được kiểm tra riêng. Direct-role UI test xác nhận seller mở content buyer-only nhận unauthorized state/CTA, Buyer được render content.
 - `NotificationsPageContent` vẫn giữ `ProtectedPage allowedRoles={["BUYER"]}`; production tiếp tục hiển thị gated state, không gọi API 501. Không thêm test/helper API notification chưa có contract.
 - Frontend trên Node `24.15.0`/npm `11.12.1`: typecheck pass; Vitest 15 files / 74 tests pass; production build pass; lint pass.
-- Browser direct-URL smoke không hoàn tất: CUA không khởi tạo được và `playwright` không có trong npm cache. Vì vậy role guard chỉ có SSR/unit evidence, không ghi browser evidence đạt. Route helper `ROUTE_RULES` vẫn thiếu `allowedRoles: ["BUYER"]` cho `/notifications`; đây là auth contract thuộc Người 1, đã để nguyên và cần handoff/owner xác nhận.
+- Browser trực tiếp không được chạy lại trên nhánh hiện tại: CUA không khởi tạo được và `playwright` không có trong npm cache. Browser QA ngày 2026-09-28 ở mục [QA evidence](#qa-evidence) đã ghi Chrome/Edge direct URL cho Seller/Admin nhận unauthorized state; `ProtectedPage` và route wrapper không đổi ở PR C. Route helper `ROUTE_RULES` vẫn thiếu `allowedRoles: ["BUYER"]` cho `/notifications`; đây là auth contract thuộc Người 1, đã để nguyên và cần handoff/owner xác nhận.
 - Metadata `/profile` và `/notifications` hiện khai báo base title; root template `%s | Dino` đã tạo kết quả chuẩn. Không cần metadata diff cho hai route Người 2; metadata bất nhất ở page người khác để đúng owner xử lý, không sửa chéo.
 
 ### 2026-09-29 — PR B shared component hardening (provisional)
