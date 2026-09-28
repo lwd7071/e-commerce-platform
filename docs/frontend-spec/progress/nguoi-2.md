@@ -79,7 +79,7 @@
 
 ### QA evidence
 
-Quality gates lịch sử ngày 2026-09-28 dùng runtime tiền nhiệm Node `22.20.0`/npm 11: `npm ci` pass (415 packages); typecheck pass; ESLint source pass bằng CLI tương đương (lượt cuối `npm run lint` không kết thúc trong thời gian hợp lý, không tính riêng); Vitest 3 files/12 tests pass; Next production build pass. `npm ci` audit ghi nhận 2 moderate vulnerabilities. Đây không phải gate Node 24; evidence Node 24 mới sẽ được ghi riêng sau khi chạy lại trên branch migration.
+Quality gates lịch sử ngày 2026-09-28 dùng runtime tiền nhiệm Node `22.20.0`/npm 11: `npm ci` pass (415 packages); typecheck pass; ESLint source pass bằng CLI tương đương (lượt cuối `npm run lint` không kết thúc trong thời gian hợp lý, không tính riêng); Vitest 3 files/12 tests pass; Next production build pass. `npm ci` audit ghi nhận 2 moderate vulnerabilities. Đây không phải gate Node 24; evidence mới theo Node 24 được ghi riêng ở các mục PR0a/PR A/B/C phía trên.
 
 | Kiểm tra | Chrome | Edge |
 |---|---|---|
