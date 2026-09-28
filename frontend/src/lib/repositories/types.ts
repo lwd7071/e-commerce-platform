@@ -1,11 +1,20 @@
-import type { WireProduct } from "../api/catalog.api";
+import type {
+  WireCatalogProductItem,
+  WireCatalogProductDetail,
+  GetProductsParams,
+  CreateProductInput,
+} from "../api/catalog.api";
+import type { PaginatedEnvelope } from "../api/types";
 import type { WireCart, WireAddress, WireProfile } from "../api/buyer.api";
 import type { WireOrder } from "../api/order.api";
 import type { WireVoucher, EvaluateVoucherResult } from "../api/voucher.api";
 
 export interface ICatalogRepository {
-  getProducts(params?: { cursor?: string; limit?: number; category_id?: string; q?: string }): Promise<WireProduct[]>;
-  getProductById(id: string): Promise<WireProduct>;
+  getProducts(params?: GetProductsParams): Promise<WireCatalogProductItem[]>;
+  getProductsPaginated?(params?: GetProductsParams): Promise<PaginatedEnvelope<WireCatalogProductItem>>;
+  getProductById(id: string): Promise<WireCatalogProductDetail>;
+  createProduct?(data: CreateProductInput): Promise<WireCatalogProductDetail>;
+  updateStock?(variantId: string, quantity: number): Promise<unknown>;
 }
 
 export interface IBuyerRepository {
