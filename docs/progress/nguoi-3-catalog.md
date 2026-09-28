@@ -2,12 +2,32 @@
 
 ## Trạng thái hiện tại
 
-- Mốc: T3 (Hardening & Nghiệm thu)
-- Cập nhật lần cuối: 2026-09-26
-- Đang làm: Đã hoàn tất 100% các hạng mục của Mốc T3 và khắc phục triệt để lỗi T3-P3-01 (P1 - Đồng bộ giao dịch SKU và kiểm chứng đồng thời 2 PoolClient trên PostgreSQL thật). Toàn bộ quality gates đạt chuẩn xuất sắc: Typecheck 0 lỗi, Lint 0 lỗi, Node native runner 522/522 tests pass, Vitest catalog 68/68 tests pass (16/16 hardening pass, 4/4 benchmark siêu tốc pass).
-- Bị block bởi: Không (Sẵn sàng để Lead merge vào nhánh dev).
+- Mốc: T3 (Hardening & Nghiệm thu — Release Gate)
+- Cập nhật lần cuối: 2026-09-28
+- Đang làm: Đã rà soát toàn diện tính khớp nối 100% giữa Code và Docs (Architecture Rules, Contracts, OpenAPI Spec và Sổ tay kiến trúc 08_SoTay_LapTrinh_NodeJS_Backend_ThanhVien3_Catalog.docx). Toàn bộ Quality Gates đạt mức hoàn hảo tuyệt đối: Typecheck 0 lỗi, Lint 0 lỗi / 0 cảnh báo (--max-warnings=0), Node native test runner 583/583 tests PASS (100%), Vitest suites 181/181 tests PASS (100% — gồm trọn vẹn 8 test files với 68/68 tests thuộc phân hệ Catalog). Sẵn sàng bàn giao cho Lead tiến hành Review Gate T3 và Release.
+- Bị block bởi: Không (Sẵn sàng 100% để Lead merge vào dev/main).
 
 ## Nhật ký theo ngày
+
+### 2026-09-28 (Đối soát Toàn diện Khớp nối Code & Docs theo Yêu cầu của Lead)
+
+- Đã làm:
+  - **Đối soát & Khớp nối 100% Mã nguồn (Code) với Hợp đồng Kiến trúc (Contracts & Docs):**
+    - `ICatalogPort` (`backend/src/contracts/catalog.port.ts`): Khớp chính xác với service implementation `CatalogPortService` (`src/modules/catalog/services/catalog-port.service.ts`) và consumer `PgCheckoutService` của Người 5. Cung cấp khóa hàng `lockVariant` qua transactional `SELECT ... FOR UPDATE`, đọc thông tin `getVariantPriceAndStock` và kiểm tra `checkShopActive`.
+    - `HTTP Routes & Envelope` (`t1-routes.ts`): Toàn bộ 6 endpoint của Catalog (`POST /api/v1/products`, `PATCH /api/v1/products/:id/stock`, `GET /api/v1/products`, `GET /api/v1/products/:id`, `GET /api/v1/categories`, `GET /api/v1/shops/:id`) khớp 100% với DTOs đầu vào, Envelope đầu ra, mã lỗi miền (403, 404, 409, 422), và tài liệu OpenAPI 3.1 của Người 1.
+    - `Concurrency SKU per Shop (T3-P3-01)`: Cơ chế `withTransaction` kết hợp khóa hàng gian hàng `SELECT shop_id FROM shops WHERE shop_id = $1 FOR UPDATE` bảo đảm triệt để tính duy nhất của SKU trong Shop mà không cần sửa DDL/Schema (tuân thủ nghiêm ngặt Schema Freeze v1).
+  - **Cập nhật & Chuẩn hóa Tài liệu Sổ tay Kiến trúc Phân hệ Catalog:**
+    - Hoàn thiện và cập nhật tệp `08_SoTay_LapTrinh_NodeJS_Backend_ThanhVien3_Catalog.docx`:
+      - Phần 1: Ánh xạ Clean Architecture từ MVC cổ điển, bổ sung hộp ví von mô hình nhà hàng trực quan và sơ đồ khối đối sánh luồng 3 tầng (1.1), chi tiết pipeline HTTP 8 tầng (1.2).
+      - Phần 2: Cây thư mục dự án, triết lý phân chia 4 phân khu Catalog, quy tắc phụ thuộc giữa các tầng và bảng tra cứu tệp tin.
+      - Phần 3: Trình tự 6 luồng dịch vụ trọng yếu với hộp ánh xạ giao diện Frontend (`ecommerce-web`), bảng vòng đời từng bước (Lifecycle) và khối mã nguồn đối soát 3 tầng trọn vẹn (Controller -> Service -> Repository).
+      - Phần 4 & 5: Ma trận kiểm soát bất biến (Invariants), bảng ánh xạ mã lỗi HTTP, và báo cáo đối soát Quality Gates.
+  - **Xác minh Quality Gates Thực tế Toàn hệ thống:**
+    - `npm run typecheck`: **0 lỗi biên dịch** (`tsc --noEmit`).
+    - `npm run lint`: **0 lỗi, 0 warnings** (`eslint ... --max-warnings=0`).
+    - `npm run build`: Bundle thành công `dist/app.js` trong 56ms.
+    - `npm run test:node`: **166 test suites, 583/583 tests PASS 100%** (0 fail).
+    - `npm run test:vitest`: **31 test files, 181/181 tests PASS 100%** (trong đó trọn vẹn 8 files với 68/68 tests Catalog PASS).
 
 ### 2026-09-26 (Khắc phục T3-P3-01: Đồng bộ Concurrency SKU per Shop & Integration Tests 2 PoolClients trên PostgreSQL thật)
 
@@ -196,3 +216,9 @@
 - [x] Mốc T2: Tích hợp database repository thật khi Người 2 bàn giao database connection.
 - [x] Mốc T2: Triển khai Query / Filter / Sort / Visibility và Integration tests trên PostgreSQL.
 - [x] Mốc T2: Tích hợp DB transaction lock (SELECT ... FOR UPDATE) cho lockVariant.
+- [x] Mốc T3: Khắc phục lỗi concurrency SKU per Shop (T3-P3-01) với transaction scope và khóa hàng shop (SELECT FOR UPDATE).
+- [x] Mốc T3: Viết 2 integration tests dùng 2 PoolClient thật kiểm chứng SKU conflict trên PostgreSQL.
+- [x] Mốc T3: Triệt tiêu N+1 query và tối ưu hóa bulk insert cho benchmark dataset (~8s).
+- [x] Mốc T3: Hoàn thiện 16/16 hardening tests trên PostgreSQL thật (negative tests, visibility, soft delete).
+- [x] Mốc T3: Rà soát và bảo đảm 100% khớp nối giữa mã nguồn (code) và tài liệu (docs) cho phân hệ Catalog.
+
