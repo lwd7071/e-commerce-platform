@@ -4,6 +4,8 @@
 > **Phạm vi:** `frontend/` — Buyer, Seller, Admin. `ecommerce-web/` chỉ là prototype tham khảo, không sửa.
 > **Owner:** Người 2; thay đổi ảnh hưởng domain cần owner page tương ứng duyệt
 
+> **Brand contract:** Tên hiển thị là **Dino**; wordmark chỉ là chữ `Dino`, không logo/biểu tượng/emoji. Người 1 cập nhật login/register, Người 3 cập nhật banner/footer/catalog thuộc page mình; Người 4/5 dùng Dino cho nội dung mới. Không đổi tên repo/package/API/database.
+
 ## 1. Nguồn quyết định
 
 File này khóa rule hiển thị, tương tác và stack dự kiến. [02](./02-pages-and-user-flow.md) xác định route/luồng, [03](./03-design-system.md) xác định component contract, [04–07](./README.md) xác định dữ liệu/API/readiness, [08](./08-implementation-plan.md) xác định owner và thứ tự triển khai, [10](./10-ui-ux-handoff.md) là handoff theo route. `sodoUI.md` ở gốc repo là sơ đồ tham khảo; chức năng ngoài 14 route hoặc chưa có API phải ghi gap trước khi đưa vào plan. `ecommerce-web/` chỉ tham khảo, không phải workspace hay contract; khi xung đột, token và hành vi ở tài liệu này được ưu tiên. Người 2 ghi quyết định token/component trong progress; owner page ghi nơi tiêu thụ.
@@ -12,13 +14,13 @@ File này khóa rule hiển thị, tương tác và stack dự kiến. [02](./02
 
 | Hạng mục | Quy định |
 |---|---|
-| Framework mục tiêu | Next.js App Router 16.3.5, React 19.2.8, TypeScript strict theo baseline đã khảo sát. `frontend/` chưa có `package.json`/lockfile; Người 1 xác minh phiên bản và tạo scaffold tại đây. Không lấy config/node_modules hoặc sửa `ecommerce-web/`. |
+| Framework | Next.js App Router 16.3.5, React 19.2.8, TypeScript strict theo scaffold hiện có trong `frontend/`. Không lấy config/node_modules hoặc sửa `ecommerce-web/`. |
 | Styling mục tiêu | Tailwind CSS 4 + CSS variables trong `frontend/src/app/globals.css`. Token là nguồn chung; không hardcode hex trong page/component mới. |
 | Font/icon | `next/font` Geist Sans cho UI, Geist Mono chỉ cho mã/ID kỹ thuật. Icon dùng SVG registry tại `frontend/src/components/ui/icon.tsx` để không thêm package ngoài ownership Người 1. Không trộn bộ icon/font khác giữa các page. |
-| Auth và API dự kiến | Supabase Auth client + `Authorization: Bearer` và API client/repository/adapter do Người 1 sở hữu. Chưa có package/scaffold trong `frontend/`; Người 1 xác minh package/env trước khi nối thật. |
-| Server data | Tách server state khỏi local UI state. Query/mutation, cache key và invalidation nằm trong feature hook/repository. Nếu nhóm chọn TanStack Query, Người 1 thêm dependency và chốt provider/cache convention ở F-102/F-107; hiện chưa có package đó. |
+| Auth và API | Supabase Auth client, `Authorization: Bearer`, API client/error parser, AuthProvider, repository/adapters và mock/API switch đã có trong `frontend/`; kiểm tra runtime readiness trước mỗi API integration. |
+| Server data | Tách server state khỏi local UI state bằng feature repository/hooks hiện có. TanStack Query chưa được chọn/cài; không thêm cache dependency nếu chưa chốt với Người 1. |
 | Form | Field validation phải khớp backend 05; lỗi server hiển thị tại field hoặc form. Không thêm form/schema package trước khi thống nhất dependency với Người 1. |
-| Test hiện có / cần bổ sung | Chưa thể chạy lint/build trong `frontend/` do chưa có package/scaffold. Người 1 chốt runner và scripts ở Phase 1/8. Không dùng scripts từ prototype, không ghi test là pass nếu chưa chạy. |
+| Quality gates | `frontend/package.json` có scripts `typecheck`, `lint`, `test`, `build`; Vitest runner đã có. Dùng Node `22.20.0` theo `.nvmrc` và npm 11. Không dùng scripts prototype, không ghi test là pass nếu chưa chạy. |
 
 ## 3. Màu và token bắt buộc
 

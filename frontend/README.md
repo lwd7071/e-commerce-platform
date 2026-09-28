@@ -4,7 +4,7 @@
 
 Trước khi code, đọc [Frontend spec](../docs/frontend-spec/README.md), đặc biệt file [UI/UX rules](../docs/frontend-spec/09-ui-ux-rules.md), rồi cập nhật đúng file trong [progress](../docs/frontend-spec/progress/README.md). `ecommerce-web/` là bản UI thử nghiệm, không phải workspace triển khai.
 
-App scaffold mới sẽ được Người 1 khởi tạo tại thư mục này theo stack trong UI/UX rules. Người 2 sở hữu shared UI, global tokens/layout/navigation và `/profile`, `/notifications`; các page còn lại theo ownership trong implementation plan.
+Scaffold Next.js đã được Người 1 tạo tại đây. Dùng Node `22.20.0` (theo `.nvmrc`) và npm 11: chạy `npm ci`, sau đó `npm run dev` hoặc quality gates (`npm run typecheck`, `npm run lint`, `npm test`, `npm run build`). Sao chép `.env.example` thành `.env.local` theo yêu cầu môi trường; để thử luồng mock, bật `NEXT_PUBLIC_USE_MOCK=true` và không nhập credential thật vào file được commit. Người 2 sở hữu shared UI, global tokens/layout/navigation và `/profile`, `/notifications`; các page còn lại theo ownership trong implementation plan.
 
 ## Cấu trúc hiện tại
 
@@ -14,4 +14,4 @@ App scaffold mới sẽ được Người 1 khởi tạo tại thư mục này t
 - `src/features/profile/`, `src/features/notifications/`: UI theo readiness đã ghi trong spec.
 - `src/app/profile/`, `src/app/notifications/`: route thuộc Người 2.
 
-Chưa chạy app/build được cho đến khi scaffold, package và scripts do Người 1 quản lý được thêm. Không tạo bản sao hoặc tiếp tục phát triển prototype `ecommerce-web`.
+Không sửa `package.json`/lockfile nếu không thuộc Người 1. Không tạo bản sao hoặc tiếp tục phát triển prototype `ecommerce-web`.

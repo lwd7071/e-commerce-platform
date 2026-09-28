@@ -1,7 +1,7 @@
 # 03. Design system và UI components
 
 > **Phiên bản:** 1.1.0  
-> **Trạng thái:** IMPLEMENTATION TARGET
+> **Trạng thái:** IMPLEMENTED IN `frontend/`; BROWSER QA IN PROGRESS
 
 ## 1. Art direction
 
@@ -9,7 +9,7 @@ Phong cách nền sáng trung tính, bề mặt mờ và sắc hồng làm đi�
 
 ## 2. Tokens
 
-Token đích của U-201 (xem bộ CSS đầy đủ và ngoại lệ contrast ở file 09). `globals.css` hiện là CSS prototype; Người 2 phải đồng bộ trước khi xem nó là source of truth của UI mới.
+Token source of truth là `frontend/src/app/globals.css` (xem bộ CSS đầy đủ và ngoại lệ contrast ở file 09). Shared primitives/shell đang được nghiệm thu trong phạm vi Người 2; không lấy prototype `ecommerce-web/` làm nguồn.
 
 | Token | Giá trị | Dùng cho |
 |---|---:|---|
@@ -29,7 +29,7 @@ Token đích của U-201 (xem bộ CSS đầy đủ và ngoại lệ contrast �
 | `--shadow` | `0 1px 2px rgba(34, 28, 31, 0.06)` | Shadow nhẹ, không glow |
 | `--button-primary-bg` / `--button-primary-fg` | `#BF3A6F` / `#FFFFFF` | Cặp màu nút chính thống nhất |
 
-Các class `.btn-matte-primary`, `.btn-matte-secondary`, `.matte-card`, `.matte-glass`, `.matte-dock` hiện thuộc prototype. Người 2 di chuyển component dùng chung sang token mới trong U-201/U-202; page mới không sao chép hardcoded color/glow từ class cũ.
+Các class `.btn-matte-primary`, `.btn-matte-secondary`, `.matte-card`, `.matte-glass`, `.matte-dock` thuộc prototype. Page mới dùng token/component trong `frontend/`, không sao chép hardcoded color/glow từ prototype.
 
 Khi cấu hình Tailwind `@theme`, dùng CSS variables làm nguồn chung và map utility theo vai trò (`bg-background`, `bg-card`, `text-foreground`, `border-border`, v.v.). Không tạo utility glow.
 

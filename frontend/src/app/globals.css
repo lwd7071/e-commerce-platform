@@ -403,22 +403,12 @@ svg {
 
 .brand-lockup {
   display: inline-flex;
+  min-height: 44px;
   align-items: center;
-  gap: 10px;
   flex: 0 0 auto;
-  font-size: 19px;
+  font-size: 21px;
   font-weight: 750;
   letter-spacing: -0.05em;
-}
-
-.brand-mark {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  border-radius: 11px;
-  background: var(--primary-surface);
-  color: var(--primary-active);
 }
 
 .header-search {
@@ -872,7 +862,6 @@ svg {
   }
 
   .brand-lockup { font-size: 17px; }
-  .brand-mark { width: 32px; height: 32px; }
   .header-search,
   .desktop-nav { display: none; }
 
@@ -916,8 +905,10 @@ svg {
     gap: 3px;
     border-radius: 11px;
     color: var(--subtext);
-    font-size: 10px;
+    font-size: 12px;
     font-weight: 650;
+    line-height: 1.1;
+    text-align: center;
   }
 
   .mobile-dock__link[aria-current="page"] {
@@ -949,10 +940,14 @@ svg {
 
 @media (max-width: 380px) {
   .mobile-dock { right: 8px; left: 8px; }
-  .mobile-dock__link { font-size: 9px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .skeleton::after,
+  .button__spinner {
+    animation: none !important;
+  }
+
   *,
   *::before,
   *::after {

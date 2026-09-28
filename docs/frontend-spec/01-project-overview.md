@@ -1,7 +1,7 @@
 # 01. Tổng quan dự án và kiến trúc kỹ thuật
 
 > **Phiên bản:** 1.1.0  
-> **Trạng thái:** READY FOR FE FOUNDATION
+> **Trạng thái:** FOUNDATION EXISTS — FEATURE INTEGRATION SUBJECT TO READINESS MATRIX
 
 ## 1. Phạm vi
 
@@ -26,9 +26,11 @@ Phạm vi bản triển khai đầu tiên:
 ### Frontend
 
 - Next.js 16.3.5 App Router, React 19.2.8, TypeScript 5.8.
-- Tailwind CSS 4 và CSS variables tại `ecommerce-web/src/app/globals.css`.
-- `lucide-react` cho icon.
-- Chưa có Supabase client SDK, API client, query cache hoặc production state layer.
+- Tailwind CSS 4 và CSS variables tại `frontend/src/app/globals.css`.
+- `lucide-react` dependency có trong scaffold; shared shell ưu tiên icon component hiện hữu.
+- Supabase client SDK, API client/error parser, AuthProvider, repository/adapters, mock switch và Vitest runner đã tồn tại trong `frontend/`.
+- Chưa có TanStack Query; feature owners dùng repository/hooks hiện có, không tự thêm cache dependency nếu chưa thống nhất với Người 1.
+- Dùng Node `22.20.0` theo `.nvmrc` và npm 11 cho quality gates.
 
 ## 3. Kiến trúc FE mục tiêu
 

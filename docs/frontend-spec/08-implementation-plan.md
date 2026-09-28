@@ -1,7 +1,7 @@
 # 08. Implementation plan
 
-> **Phiên bản:** 1.2.0
-> **Trạng thái:** READY TO EXECUTE
+> **Phiên bản:** 1.3.0
+> **Trạng thái:** FOUNDATION EXISTS — VERTICAL SLICES READY SUBJECT TO READINESS
 
 ## 1. Chiến lược
 
@@ -38,12 +38,25 @@ Mỗi ticket có đúng một owner FE chịu trách nhiệm tích hợp và ngh
 | Người | Phạm vi và file sở hữu chính | Ticket FE chính | Làm ngay, không chờ người khác | Điểm bàn giao / điều kiện nối thật |
 |---|---|---|---|---|
 | 1 — FE platform/integration | `src/lib/api`, `src/lib/auth`, `src/lib/config`, `src/lib/repositories` (shared), `/login`, `/register`, config/CI | C-001, C-003–005, F-101–107, B-303–304, Q-801, Q-806–808 | Chốt type/error parser, env/feature flags, repository interface, auth shell; dùng fake token/session trong test | Bàn giao API client, auth guard, mock/API switch và contract test cho 3/4/5. Chỉ bật auth thật khi Supabase/env được kiểm chứng. |
-| 2 — UI/UX và account | `frontend/src/app/globals.css`, `layout.tsx`, `components/ui`, `components/navigation`, `features/profile`, `features/notifications`, routes `/profile` `/notifications` | D-001–004, U-201–206, P-602, P-604–605, P-607b, Q-802–803 | D-001–003 handoff tại file 10; shared primitives và account UI dựng trong `frontend/` | Token, component API và shell cho 3/4/5. Profile/notification chỉ nối thật sau P-601/P-603 và contract test; P-605 không gọi bulk endpoint chưa tồn tại; P-607b gated. Build/visual QA chờ Người 1 scaffold. |
+| 2 — UI/UX và account | `frontend/src/app/globals.css`, `layout.tsx`, `components/ui`, `components/navigation`, `features/profile`, `features/notifications`, routes `/profile` `/notifications` | D-001–004, U-201–206, P-602, P-604–605, P-607b, Q-802–803 | Hoàn thiện shared shell, role navigation, profile read-only và notification demo/gated; test accessibility/responsive | Token/component/shell cho 3/4/5. Profile/notifications chỉ nối thật sau P-601/P-603; P-605 không gọi bulk endpoint chưa tồn tại; P-607b gated. D-004 chờ page sample; QA shell/profile/notifications không chờ owner khác. |
 | 3 — Catalog/seller catalog | `/`, `/products/[id]`, `/seller/products/new`, feature catalog/seller product/category/media | B-301–302, B-305, B-401, O-508–509, P-607a, A-700/A-702 | Làm list/detail với API catalog sẵn có; dựng seller form và category view bằng adapter/mock đúng trạng thái readiness | Bàn giao selection/add-to-cart UI contract cho 4. O-508 chờ GAP-04; category API chờ A-701/GAP-05; upload chờ P-606/GAP-09. |
 | 4 — Buyer cart/checkout | `/cart`, `/checkout`, feature cart/address/voucher/checkout | B-402–408, Q-804 | Dựng cart và checkout states/form bằng repository mock; viết contract fixture, money/idempotency cases | Nhận API client từ 1 và add-to-cart contract từ 3; cart full data chờ GAP-03. B-408 chạy với backend/test DB thật. |
 | 5 — Orders/review/admin | `/orders`, `/orders/[id]/review`, `/seller` (order/dashboard), `/admin`, `/admin/categories`, feature orders/review/admin/stats | O-502–505, O-507, P-607c, A-704–705, A-708–709, Q-805 | Dựng order timeline, seller transition, review/admin states bằng mock adapter; viết transition/RBAC cases | Order read chờ O-501/GAP-01; review submit chờ O-506; admin reads chờ A-703/GAP-08; seller KPI chờ A-707/GAP-12. |
 
 Các đường dẫn `src/...` trong bảng ownership dưới đây tính tương đối từ `frontend/`; tất cả page/component FE triển khai phải nằm trong workspace này.
+
+### Brand contract toàn nhóm
+
+- Tên sản phẩm hiển thị duy nhất là **Dino**. Wordmark chỉ là text `Dino`, không logo, biểu tượng thương hiệu hay emoji.
+- Người 2 sở hữu header, metadata và profile fallback; Người 1 đổi copy thuộc `/login` và `/register`; Người 3 đổi banner/footer/copy ở trang chủ, catalog và seller catalog của mình; Người 4/5 dùng Dino cho nội dung mới.
+- Không đổi tên repository, package, API, database hay thuật ngữ kỹ thuật. Mỗi owner chỉ sửa page/copy thuộc phạm vi của mình.
+
+### Batch độc lập của Người 2
+
+1. Hoàn thiện shared shell, navigation theo role, `/profile` read-only từ auth metadata và `/notifications` demo/gated; role guard phía FE chỉ phục vụ UX, không thay backend authorization.
+2. Kiểm tra form ARIA, dialog focus/ESC/return-focus, toast live region, skip link/landmarks, focus visibility, touch target, reduced motion và responsive.
+3. Chạy typecheck/lint/unit/build bằng Node `22.20.0` và npm 11; browser smoke trên Chrome/Edge tại 320/360/768/1280px; ghi QA evidence và gán defect cho đúng owner.
+4. Cập nhật README, files 01/03/08/09/10 và progress. Q-802/Q-803 chỉ đạt trong phạm vi shell/profile/notifications; không đóng gate toàn dự án.
 
 `D-*` là đầu ra thiết kế cần chốt trước khi biến prototype thành màn hình mới:
 
@@ -65,9 +78,9 @@ Các đường dẫn `src/...` trong bảng ownership dưới đây tính tươn
 
 ## Bắt đầu ngay
 
-FE mới làm việc trong `frontend/`. Hiện folder chưa có package/scaffold nên chưa thể chạy lint/build/dev server; Người 1 phải tạo `package.json`, lockfile, env example và app bootstrap ở đây trước. Không chạy `npm install`, `npm run dev` trong `ecommerce-web/` cho feature triển khai. Khi scaffold sẵn, Người 1 cấu hình `NEXT_PUBLIC_API_BASE_URL` trỏ backend `http://localhost:3001/api/v1` và Supabase URL/publishable key; không đưa secret/service-role key vào biến `NEXT_PUBLIC_*`. OpenAPI backend ở `http://localhost:3001/api/v1/openapi.json`.
+Scaffold Next.js, package/lockfile, API client, AuthProvider, repositories/adapters và test runner đã có trong `frontend/` (nền `5ace145`). Dùng Node `22.20.0` theo `.nvmrc` và npm 11. Không sửa package/lockfile nếu không thuộc Người 1; không chạy feature implementation trong `ecommerce-web/`. Env/API base URL/Supabase key kiểm tra theo `frontend/.env.example`; không đưa secret/service-role key vào `NEXT_PUBLIC_*`. OpenAPI backend ở `http://localhost:3001/api/v1/openapi.json`.
 
-Thứ tự tích hợp: Người 1 bootstrap `frontend/` và làm F-102 API client + test parser/envelope/204 → F-103/F-104 adapters; Người 2 làm D-001–003 và Phase 2; Người 3/4/5 chuẩn bị fixture/mock interface trong phạm vi riêng. D-004 là lượt soát visual sau page mẫu, trước nhân rộng style. Catalog public B-301/B-302 nối API sau F-102. Cart/address/voucher/checkout chỉ nối sau contract tests; order center, review, notifications, profile, category/admin reads vẫn gated/mock cho đến khi gap đóng. `ecommerce-web/` không phải nguồn dữ liệu hay hành vi nghiệp vụ.
+Thứ tự tiếp tục: Người 1 duy trì nền F-102–107; Người 2 nghiệm thu Phase 2 và các batch độc lập; Người 3/4/5 chuẩn bị fixture/mock interface trong phạm vi riêng. D-004 là lượt soát visual sau page mẫu. Catalog public B-301/B-302 nối API theo readiness; cart/address/voucher/checkout chỉ nối sau contract tests; order center, review, notifications, profile, category/admin reads vẫn gated/mock cho đến khi gap đóng. `ecommerce-web/` không phải nguồn dữ liệu hay hành vi nghiệp vụ.
 
 ## 2. Phase 0 — Contract freeze và guardrails
 
@@ -87,7 +100,7 @@ Thứ tự tích hợp: Người 1 bootstrap `frontend/` và làm F-102 API clie
 
 **Ponytail:** `@ponytail` khi triển khai; `@ponytail-review` khi rà diff của phase.
 
-**Owner:** Người 1. Người 3/4/5 tiêu thụ type và mock repository sau khi F-102/F-107 bàn giao; không cùng sửa API client.
+**Owner:** Người 1. Nền scaffold, API client, AuthProvider, repository/adapters và Vitest runner đã có tại commit `5ace145`; phase này không còn bị chặn bởi việc khởi tạo workspace. Người 1 tiếp tục xác minh/bổ sung acceptance criteria còn thiếu; Người 3/4/5 không cùng sửa API client.
 
 | ID | Depends | Task | Acceptance criteria |
 |---|---|---|---|
@@ -103,7 +116,7 @@ Thứ tự tích hợp: Người 1 bootstrap `frontend/` và làm F-102 API clie
 
 **Ponytail:** `@ponytail` khi triển khai; `@ponytail-review` khi rà diff của phase.
 
-**Owner:** Người 2. D-002 và [UI/UX rules](./09-ui-ux-rules.md) là đầu vào của U-201; prop/state contract ở [handoff 10](./10-ui-ux-handoff.md). Nguồn code đều ở `frontend/`; chưa compile-verified cho đến khi Người 1 thêm scaffold.
+**Owner:** Người 2. D-002 và [UI/UX rules](./09-ui-ux-rules.md) là đầu vào của U-201; prop/state contract ở [handoff 10](./10-ui-ux-handoff.md). Source ở `frontend/`; gate và evidence được ghi trong [progress Người 2](./progress/nguoi-2.md) và [QA report](./qa-nguoi-2-ui.md). D-004 vẫn chờ page samples.
 
 | ID | Depends | Task | Acceptance criteria |
 |---|---|---|---|

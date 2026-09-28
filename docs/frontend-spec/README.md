@@ -31,11 +31,13 @@ Không được tích hợp một tính năng `RUNTIME_BLOCKED` hoặc `MISSING`
 10. [UI/UX handoff](./10-ui-ux-handoff.md) — bố cục, trạng thái, navigation và owner cho từng route.
 11. [Progress FE](./progress/README.md) — nhật ký và bằng chứng bàn giao của 5 người.
 
+QA trong phạm vi Người 2: [UI QA report](./qa-nguoi-2-ui.md) — quality gates, browser/viewport, defects và handoff theo owner.
+
 ## Bắt đầu làm FE
 
-Mỗi người đọc README này → file 01–10 cần cho ticket → [phân công 5 người](./08-implementation-plan.md#phân-công-5-người-fe) → [quy tắc progress](./progress/README.md). Tiếp theo đọc [README workspace](../../frontend/README.md), kiểm tra hướng dẫn repo áp dụng cho `frontend/`, xác nhận scaffold đã có rồi mới sửa code. Hiện scaffold chưa được tạo; Người 1 sở hữu `package.json`, lockfile, config chung và bootstrap. Không cài package hoặc chạy app bằng `ecommerce-web/`. Chọn ticket có owner/readiness rõ và cập nhật progress trước khi bắt đầu.
+Mỗi người đọc README này → file 01–10 cần cho ticket → [phân công 5 người](./08-implementation-plan.md#phân-công-5-người-fe) → [quy tắc progress](./progress/README.md). Tiếp theo đọc [README workspace](../../frontend/README.md), kiểm tra hướng dẫn repo áp dụng cho `frontend/`, rồi mới sửa code. Scaffold Next.js, package/lockfile, API client, AuthProvider, repository/adapters và Vitest đã có trong `frontend/` (commit nền `5ace145`); không tạo lại hoặc sửa package/lockfile nếu không thuộc Người 1. Dùng Node `22.20.0` theo `.nvmrc` và npm 11. Không cài package hoặc chạy app bằng `ecommerce-web/`. Chọn ticket có owner/readiness rõ và cập nhật progress trước khi bắt đầu.
 
-Người 2 duy trì D-001–003 và U-201 trước khi UI mới dùng token chung; D-004 soát các page mẫu trước khi nhân rộng style. Feature chưa có API runtime dùng mock repository theo cùng interface và tắt ở production. Không biến prototype hoặc dữ liệu giả thành contract.
+Thương hiệu hiển thị toàn FE là **Dino**: wordmark chỉ là chữ `Dino`, không logo/biểu tượng/emoji; không đổi tên repo, package, API hoặc database. Người 1 cập nhật copy ở login/register; Người 3 cập nhật banner/footer/catalog thuộc page mình; Người 2 giữ header/metadata/profile; Người 4/5 dùng Dino cho nội dung mới. D-004 soát các page mẫu trước khi nhân rộng style. Feature chưa có API runtime dùng mock repository theo cùng interface và tắt ở production. Không biến prototype hoặc dữ liệu giả thành contract.
 
 ## Source of truth
 

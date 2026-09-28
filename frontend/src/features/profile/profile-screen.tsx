@@ -8,18 +8,18 @@ import { Button } from "../../components/ui/button";
 import { Icon } from "../../components/ui/icon";
 import { TextInput } from "../../components/ui/form-controls";
 
-export type AuthProfileSnapshot = { email?: string | null; fullName?: string | null; phone?: string | null; avatarUrl?: string | null };
+export type AuthProfileSnapshot = { email?: string | null; fullName?: string | null; phone?: string | null };
 
 export function ProfilePageContent() {
   const { user } = useAuth();
-  const profile = user ? { email: user.email, fullName: user.fullName, phone: null, avatarUrl: null } : null;
+  const profile = user ? { email: user.email, fullName: user.fullName, phone: null } : null;
   return <ProtectedPage><ProfileScreen profile={profile} /></ProtectedPage>;
 }
 
 export function ProfileScreen({ profile }: { profile: AuthProfileSnapshot | null }) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const displayName = profile?.fullName?.trim() || "Tài khoản Petal Market";
-  const initials = displayName === "Tài khoản Petal Market" ? "P" : displayName.slice(0, 1).toLocaleUpperCase("vi-VN");
+  const displayName = profile?.fullName?.trim() || "Tài khoản Dino";
+  const initials = displayName === "Tài khoản Dino" ? "D" : displayName.slice(0, 1).toLocaleUpperCase("vi-VN");
 
   return (
     <>
@@ -29,13 +29,13 @@ export function ProfileScreen({ profile }: { profile: AuthProfileSnapshot | null
       {!profile && <div className="notice notice--warning" role="status"><Icon name="info" /><span>Chưa có phiên đăng nhập để đọc thông tin tài khoản. Đăng nhập để xem metadata hiện có.</span><Link href="/login">Đăng nhập</Link></div>}
       <div className="profile-grid">
         <section className="profile-summary surface-card" aria-label="Ảnh và tên tài khoản">
-          <div className="avatar">{profile?.avatarUrl ? <img src={profile.avatarUrl} alt="Ảnh đại diện" /> : initials}</div>
+          <div className="avatar" role="img" aria-label={`Ảnh đại diện mặc định của ${displayName}`}>{initials}</div>
           <p className="profile-summary__name">{displayName}</p>
           <p className="profile-summary__email">{profile?.email || "Email chưa được cung cấp"}</p>
           <div className="avatar-picker">
             <input ref={fileRef} className="file-input-hidden" id="avatar-file" type="file" accept="image/png,image/jpeg,image/webp" disabled aria-describedby="avatar-unavailable" />
             <Button variant="secondary" disabled leadingIcon={<Icon name="user" />} onClick={() => fileRef.current?.click()}>Đổi ảnh đại diện</Button>
-            <span className="field-help" id="avatar-unavailable">Tạm khóa đến khi backend có hợp đồng upload media (GAP-09).</span>
+            <span className="field-help" id="avatar-unavailable">Tạm khóa đến khi backend có hợp đồng upload media (GAP-09). Ảnh đại diện hiện chưa được lưu.</span>
           </div>
         </section>
         <section className="profile-form surface-card" aria-labelledby="profile-info-title">

@@ -64,5 +64,5 @@ export function NotificationsScreen({ production }: { production: boolean }) {
 
 export function NotificationsPageContent({ production }: { production: boolean }) {
   const { user } = useAuth();
-  return <ProtectedPage><NotificationsScreen production={production && Boolean(user)} /></ProtectedPage>;
+  return <ProtectedPage allowedRoles={["BUYER"]}><NotificationsScreen production={production && Boolean(user)} /></ProtectedPage>;
 }

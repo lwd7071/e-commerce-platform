@@ -5,7 +5,7 @@
 | Người | Phạm vi | File | Trạng thái khởi tạo |
 |---|---|---|---|
 | 1 | Platform, API, auth, tích hợp | [nguoi-1.md](./nguoi-1.md) | Chưa bắt đầu FE |
-| 2 | UI/UX, shared UI, account | [nguoi-2.md](./nguoi-2.md) | Chưa bắt đầu FE |
+| 2 | UI/UX, shared UI, account | [nguoi-2.md](./nguoi-2.md) | Batch độc lập xong; Q-802/803 scoped pass; D-004 và nghiệm thu dialog/contrast còn mở |
 | 3 | Catalog, seller catalog, category | [nguoi-3.md](./nguoi-3.md) | Chưa bắt đầu FE |
 | 4 | Cart, address, voucher, checkout | [nguoi-4.md](./nguoi-4.md) | Chưa bắt đầu FE |
 | 5 | Orders, review, admin | [nguoi-5.md](./nguoi-5.md) | Chưa bắt đầu FE |

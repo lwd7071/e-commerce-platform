@@ -1,4 +1,4 @@
-import { useEffect, useRef, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { cloneElement, isValidElement, useEffect, useRef, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
 
 type FieldProps = {
   id: string;
@@ -13,13 +13,22 @@ export function FormField({ id, label, helpText, error, required, children }: Fi
   const helpId = helpText ? `${id}-help` : undefined;
   const errorId = error ? `${id}-error` : undefined;
   const describedBy = [helpId, errorId].filter(Boolean).join(" ") || undefined;
+  const accessibleControl = isValidElement<{
+    "aria-describedby"?: string;
+    "aria-invalid"?: boolean | "true" | "false";
+  }>(children)
+    ? cloneElement(children, {
+        "aria-describedby": [children.props["aria-describedby"], describedBy].filter(Boolean).join(" ") || undefined,
+        "aria-invalid": error ? true : children.props["aria-invalid"],
+      })
+    : children;
 
   return (
     <div className="field-stack">
       <label className="field-label" htmlFor={id}>
         {label}{required && <span aria-hidden="true"> *</span>}
       </label>
-      {children}
+      {accessibleControl}
       {helpText && <p className="field-help" id={helpId}>{helpText}</p>}
       {error && <p className="field-error" id={errorId} role="alert">{error}</p>}
     </div>

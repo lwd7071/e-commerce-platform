@@ -22,7 +22,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div className="toast-region" aria-label="Thông báo" aria-live="polite" aria-atomic="false">
         {items.map((item) => (
-          <div className={`toast toast--${item.kind}`} key={item.id} role={item.kind === "error" ? "alert" : "status"}>
+          <div className={`toast toast--${item.kind}`} key={item.id} role={item.kind === "error" ? "alert" : "status"} aria-live={item.kind === "error" ? "assertive" : "polite"}>
             <Icon name={item.kind === "success" ? "check" : item.kind === "error" ? "warning" : "info"} />
             <div className="toast__message">{item.title && <span className="toast__title">{item.title}</span>}{item.message}</div>
             <button className="icon-button" type="button" aria-label="Đóng thông báo" onClick={() => setItems((current) => current.filter((toast) => toast.id !== item.id))}>

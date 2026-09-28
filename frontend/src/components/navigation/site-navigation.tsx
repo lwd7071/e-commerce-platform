@@ -9,9 +9,12 @@ type NavItem = { href: string; label: string; icon: IconName; roles: AppRole[] }
 const items: NavItem[] = [
   { href: "/", label: "Khám phá", icon: "home", roles: [null, "BUYER", "SELLER", "ADMIN"] },
   { href: "/cart", label: "Giỏ hàng", icon: "bag", roles: ["BUYER"] },
-  { href: "/orders", label: "Đơn hàng", icon: "bag", roles: ["BUYER", "SELLER", "ADMIN"] },
+  { href: "/orders", label: "Đơn hàng", icon: "bag", roles: ["BUYER"] },
   { href: "/notifications", label: "Thông báo", icon: "bell", roles: ["BUYER"] },
   { href: "/profile", label: "Tài khoản", icon: "user", roles: ["BUYER", "SELLER", "ADMIN"] },
+  { href: "/seller", label: "Kênh người bán", icon: "grid", roles: ["SELLER"] },
+  { href: "/admin", label: "Quản trị", icon: "grid", roles: ["ADMIN"] },
+  { href: "/admin/categories", label: "Danh mục", icon: "grid", roles: ["ADMIN"] },
 ];
 
 function isCurrent(pathname: string, href: string) {
@@ -23,8 +26,8 @@ export function SiteHeader({ role = null }: { role?: AppRole }) {
   return (
     <header className="site-header">
       <div className="site-header__inner">
-        <Link className="brand-lockup" href="/" aria-label="Petal Market - trang chủ">
-          <span className="brand-mark"><Icon name="bag" /></span><span>petal market</span>
+        <Link className="brand-lockup" href="/" aria-label="Dino - trang chủ">
+          <span>Dino</span>
         </Link>
         <form className="header-search" action="/" role="search">
           <Icon name="search" className="header-search__icon" />
