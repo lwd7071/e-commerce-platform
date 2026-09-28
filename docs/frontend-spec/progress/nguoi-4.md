@@ -9,7 +9,25 @@
 - Bị block bởi: Không
 - Việc tiếp theo: B-408 (E2E integration test backend DB) và Q-804 phối hợp với Người 5.
 
-## Nhật ký theo ngày
+### 2026-09-29 — Thực thi Plan v2.7.0 (Hardening Idempotency, Zero-Silent-Fallback, 10-Row Error Matrix, Quality Gates)
+
+- **Các lỗi và finding đã khắc phục triệt để:**
+  1. **Finding P1 (Đồng bộ cờ Mock):** Khắc phục lỗi hardcode `cartMock: () => envConfig.useMock || true` tại `features.ts`. Đồng bộ cả `cartMock` và `checkoutMock` về `Boolean(envConfig.useMock)`. Thêm bộ test `test/features-sync.spec.ts` kiểm thử factory chọn đúng `Api*Repository` khi `useMock=false` và `Mock*Repository` khi `useMock=true`.
+  2. **Finding P1 (Bỏ 100% Silent Mock Fallback):** Xóa hoàn toàn `mockFallback` và các khối `catch` nuốt lỗi trong `ApiCartRepository` và `ApiCheckoutRepository`. Lỗi mạng, 409, 422, 500 nay reject trung thực với `AppError` kèm `requestId`, kích hoạt đúng rollback số lượng trong Cart UI và hiển thị đúng thông báo lỗi cho người dùng.
+  3. **Finding P2 (Khắc phục Lint Effect):** Sửa vòng đời component trong `CartScreen` và `CheckoutScreen`. Sử dụng `mountedRef` để bảo vệ các hàm retry (`loadCart` / `handleRetryCheckoutData`) ngoài effect, tách biệt mount và retry, đạt 0 warning `react-hooks/set-state-in-effect`.
+  4. **Idempotency Lifecycle & Deterministic Fingerprinting:** Chuẩn hóa mảng `vouchers` (sắp xếp theo `shop_id` và `code`, hỗ trợ an toàn undefined/rỗng), kiểm thử cơ chế fallback an toàn sang in-memory storage khi `sessionStorage` ném lỗi (`test/idempotency-lifecycle.spec.ts`).
+  5. **Pure Error Classifier (`classifyCheckoutError`):** Tách hàm phân loại lỗi thuần túy tại `checkout-error-classifier.ts`, phân loại chính xác 5 nhóm (`GROUP_A`, `GROUP_B`, `AUTH`, `USER_LOCKED`, `IN_PROGRESS`) với 14 test cases (`test/classify-checkout-error.spec.ts`).
+  6. **Toàn diện 10 Hàng Ma Trận Lỗi & Double-Click Guard:** 
+     - Thêm `submittingRef = useRef(false)` bảo vệ đồng bộ chống double-click.
+     - Tách biệt try/catch của submit khỏi phần xử lý sau thành công (`clearIdempotencySnapshot`, fire-and-forget `removeSelected`, điều hướng `/orders?created=...`).
+     - Kiểm tra tường minh mảng `orders` trước khi push router; xử lý nhóm lỗi 401 giữ snapshot; 403 USER_LOCKED xóa snapshot và signOut; 409 IN_PROGRESS disable 3s kèm cleanup timer; 409 INVENTORY_INSUFFICIENT xóa snapshot và refresh giỏ hàng.
+     - Kiểm thử 15 test cases màn hình tại `test/checkout-ui-states.spec.ts`.
+
+- **Bằng chứng Quality Gates (100% Pass):**
+  1. `npm run lint --prefix frontend`: **0 errors, 0 warnings**.
+  2. `npm test --prefix frontend`: **18/18 test files passed, 103/103 tests passed (100%)**.
+  3. `npm run typecheck --prefix frontend`: `tsc --noEmit` **0 errors**.
+  4. `npm run build --prefix frontend`: Production build thành công với Next.js Turbopack, các route `/cart` và `/checkout` render tĩnh thành công.
 
 ### 2026-09-28 — B-402, B-403, B-404, B-405, B-406, B-407
 
