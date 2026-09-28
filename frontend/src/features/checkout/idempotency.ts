@@ -65,8 +65,9 @@ export function generateUUID(): string {
  * according to backend rules: (address_id, payment_method, sorted vouchers).
  */
 export function computePayloadFingerprint(payload: CheckoutPayload): string {
-  const sortedVouchers = [...payload.vouchers].sort((a, b) =>
-    a.shop_id.localeCompare(b.shop_id) || a.code.localeCompare(b.code)
+  const vouchers = Array.isArray(payload.vouchers) ? payload.vouchers : [];
+  const sortedVouchers = [...vouchers].sort((a, b) =>
+    (a.shop_id || "").localeCompare(b.shop_id || "") || (a.code || "").localeCompare(b.code || "")
   );
 
   return JSON.stringify({
