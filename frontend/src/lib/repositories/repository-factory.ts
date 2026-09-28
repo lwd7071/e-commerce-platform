@@ -320,8 +320,14 @@ const inMemoryMockOrders: WireOrder[] = [
 
 const mockOrderRepository: IOrderRepository = {
   getOrders: async (params) => {
-    if (!params?.status) return [...inMemoryMockOrders];
-    return inMemoryMockOrders.filter((o) => o.status === params.status);
+    let result = [...inMemoryMockOrders];
+    if (params?.status) {
+      result = result.filter((o) => o.status === params.status);
+    }
+    if (params?.shop_id) {
+      result = result.filter((o) => o.shop_id === params.shop_id);
+    }
+    return result;
   },
   getOrderById: async (id) => {
     const found = inMemoryMockOrders.find((o) => o.id === id);
@@ -340,7 +346,7 @@ const mockOrderRepository: IOrderRepository = {
     found.cancel_reason = reason;
     return { ...found };
   },
-  confirmOrder: async (id, _reason) => {
+  confirmOrder: async (id) => {
     const found = inMemoryMockOrders.find((o) => o.id === id);
     if (!found) throw new Error("Không tìm thấy đơn hàng");
     found.status = "CONFIRMED";
@@ -349,6 +355,11 @@ const mockOrderRepository: IOrderRepository = {
   transitionOrder: async (id, to, reason) => {
     const found = inMemoryMockOrders.find((o) => o.id === id);
     if (!found) throw new Error("Không tìm thấy đơn hàng");
+    if (["CANCELLED", "COMPLETED", "DELIVERY_FAILED"].includes(found.status)) {
+      const error = new Error("Đơn hàng không thể chuyển đổi trạng thái khi đã kết thúc chu trình.");
+      (error as unknown as { status: number }).status = 409;
+      throw error;
+    }
     found.status = to as WireOrder["status"];
     if (to === "CANCELLED") found.cancel_reason = reason;
     return { ...found };

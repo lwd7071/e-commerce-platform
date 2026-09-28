@@ -139,6 +139,25 @@ export function SellerProductsScreen() {
         </div>
       </div>
 
+      {/* Sub-navigation tabs between Orders and Products */}
+      <nav aria-label="Điều hướng kênh người bán" className="border-b border-[var(--border)]">
+        <div className="flex gap-6 text-sm font-semibold">
+          <Link
+            href="/seller/orders"
+            className="pb-3 border-b-2 border-transparent text-[var(--subtext)] hover:text-[var(--foreground)]"
+          >
+            Đơn hàng cần xử lý
+          </Link>
+          <Link
+            href="/seller/products"
+            className="pb-3 border-b-2 border-[var(--primary-active)] text-[var(--primary-active)]"
+            aria-current="page"
+          >
+            Danh sách sản phẩm
+          </Link>
+        </div>
+      </nav>
+
       {isLoading ? (
         <div className="space-y-3 surface-card p-6">
           <Skeleton height={28} className="w-1/4" />

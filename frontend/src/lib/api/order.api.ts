@@ -30,7 +30,7 @@ export interface WireOrder {
 }
 
 export const orderApi = {
-  getOrders: (params?: { status?: string }) => apiClient.get<WireOrder[]>("/orders", { params }),
+  getOrders: (params?: { status?: string; shop_id?: string }) => apiClient.get<WireOrder[]>("/orders", { params }),
   getOrderById: (id: string) => apiClient.get<WireOrder>(`/orders/${id}`),
 
   cancelOrder: (id: string, reason: string) =>

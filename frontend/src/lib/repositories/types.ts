@@ -27,7 +27,7 @@ export interface IBuyerRepository {
 }
 
 export interface IOrderRepository {
-  getOrders(params?: { status?: string }): Promise<WireOrder[]>;
+  getOrders(params?: { status?: string; shop_id?: string }): Promise<WireOrder[]>;
   getOrderById(id: string): Promise<WireOrder>;
   cancelOrder(id: string, reason: string): Promise<WireOrder>;
   confirmOrder(id: string, reason?: string): Promise<WireOrder>;

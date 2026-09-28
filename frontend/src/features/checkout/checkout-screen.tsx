@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useState, useMemo, useTransition } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ProtectedPage } from "@/components/navigation/protected-page";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import { Skeleton, EmptyState, ErrorState } from "@/components/ui/data-states";
+import { Skeleton, EmptyState } from "@/components/ui/data-states";
 import { Dialog } from "@/components/ui/dialog";
 import { FormField, TextInput } from "@/components/ui/form-controls";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
@@ -74,33 +73,32 @@ export function CheckoutScreen() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [successResult, setSuccessResult] = useState<CheckoutResult | null>(null);
 
-  // Load initial data
-  const loadInitialData = async () => {
-    setLoadingItems(true);
-    setSubmitError(null);
-    try {
-      const [allCart, addrs] = await Promise.all([
-        cartRepository.getCart(),
-        checkoutRepository.getAddresses(),
-      ]);
 
-      const selected = allCart.filter((i) => i.isSelected);
-      setItems(selected);
-
-      setAddresses(addrs);
-      const defaultAddr = addrs.find((a) => a.isDefault) || addrs[0];
-      if (defaultAddr) {
-        setSelectedAddressId(defaultAddr.addressId);
-      }
-    } catch {
-      setSubmitError("Không thể tải thông tin thanh toán. Vui lòng thử lại.");
-    } finally {
-      setLoadingItems(false);
-    }
-  };
 
   useEffect(() => {
-    loadInitialData();
+    let ignore = false;
+    Promise.all([cartRepository.getCart(), checkoutRepository.getAddresses()])
+      .then(([allCart, addrs]) => {
+        if (!ignore) {
+          const selected = allCart.filter((i) => i.isSelected);
+          setItems(selected);
+          setAddresses(addrs);
+          const defaultAddr = addrs.find((a) => a.isDefault) || addrs[0];
+          if (defaultAddr) {
+            setSelectedAddressId(defaultAddr.addressId);
+          }
+          setLoadingItems(false);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setSubmitError("Không thể tải thông tin thanh toán. Vui lòng thử lại.");
+          setLoadingItems(false);
+        }
+      });
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   // Group items by shop

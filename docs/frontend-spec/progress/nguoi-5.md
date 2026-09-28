@@ -2,14 +2,50 @@
 
 ## Trạng thái hiện tại
 
-- Phase/ticket: Phase 5 — O-502 & O-503 hoàn tất
+- Phase/ticket: Phase 5 — O-504 & O-505 hoàn tất (Cụm 2)
 - Cập nhật lần cuối: 2026-09-28
-- Đang làm: Đã hoàn thành 100% Ticket O-502 (Buyer Order Center `/orders`) và O-503 (Cancel Order Dialog). Đã tích hợp kiểm thử đơn vị `frontend/test/orders.spec.ts` (4/4 pass). Đảm bảo chuẩn UI/UX tokens và WCAG AA.
+- Đang làm: Đã hoàn thành 100% Cụm 2 gồm Ticket O-504 (Seller Orders Queue `/seller/orders`) và O-505 (Fulfillment flow tuần tự: Confirm -> Preparing -> Shipping, Từ chối/hủy đơn với lý do bắt buộc, xử lý 409 conflict). Đã tích hợp kiểm thử đơn vị `frontend/test/seller-orders.spec.ts` (5/5 pass). Toàn bộ test suite 35/35 pass, `next build` 100% thành công.
 - Nhánh/PR: thanh-vien-5
 - Bị block bởi: Không
-- Việc tiếp theo: Triển khai O-504 / O-505 (Seller orders table, confirm & transition actions tuần tự) tại `/seller/orders`.
+- Việc tiếp theo: Triển khai Cụm 3 gồm O-507 (Review Form UI `/orders/[id]/review`) và P-607c (Review media preview).
 
 ## Nhật ký theo ngày
+
+### 2026-09-28 (Hoàn thành Cụm 2: O-504 Seller Orders Table & O-505 Sequential Fulfillment Flow)
+
+- **Đã làm:**
+  - **1. Triển khai O-504 (Trình bày danh sách đơn bán hàng tại `/seller/orders`):**
+    - Cấu hình route `/seller/orders` bọc trong `ProtectedPage allowedRoles={["SELLER", "ADMIN"]}`.
+    - Thanh điều hướng phụ mượt mà giữa "Đơn hàng cần xử lý" (`/seller/orders`) và "Danh sách sản phẩm" (`/seller/products`).
+    - Thẻ thống kê nhanh hàng đợi xử lý (Quick Queue Stats): `Chờ xác nhận`, `Đang chuẩn bị hàng`, `Đang vận chuyển` với các token màu sắc chuẩn, không dùng màu thô.
+    - Bộ lọc trạng thái đa năng gồm `Tất cả` và 6 trạng thái xử lý bán hàng (`PENDING_CONFIRMATION`, `CONFIRMED`, `PREPARING`, `SHIPPING`, `COMPLETED`, `CANCELLED`).
+    - Giao diện đáp ứng kép (Dual Responsive): Bảng dữ liệu chi tiết trên Desktop (`table view`) và Danh sách thẻ tinh gọn trên Mobile (`card view`).
+  - **2. Triển khai O-505 (Xác nhận & xử lý đơn hàng theo luồng tuần tự):**
+    - Thao tác xác nhận đơn: Nút `Xác nhận đơn` chuyển trạng thái `PENDING_CONFIRMATION` -> `CONFIRMED` qua `orderRepo.confirmOrder(id)`.
+    - Thao tác tuần tự fulfillment:
+      - Khi `CONFIRMED`: Nút `Chuẩn bị hàng` chuyển trạng thái sang `PREPARING`.
+      - Khi `PREPARING`: Nút `Giao cho vận chuyển` chuyển trạng thái sang `SHIPPING`.
+      - Khi `SHIPPING`: Tuân thủ nghiêm ngặt quy tắc QD11 — Seller không thể tự ý chuyển sang `COMPLETED` (trạng thái chờ người mua xác nhận hoặc webhook vận chuyển).
+    - Thao tác từ chối / hủy đơn: Modal `<Dialog>` yêu cầu bắt buộc chọn hoặc nhập lý do hủy (RB-LTT08).
+    - Cơ chế phòng ngừa xung đột (Concurrency 409): Khi phát hiện trạng thái đơn hàng đã thay đổi trước đó (HTTP 409 Conflict), hệ thống hiển thị thông báo chi tiết và tự động làm mới danh sách dữ liệu.
+  - **3. Cập nhật Repository & API Contract:**
+    - Mở rộng `orderApi.getOrders` và `IOrderRepository.getOrders` hỗ trợ lọc theo `shop_id`.
+    - Cập nhật `mockOrderRepository.transitionOrder` mô phỏng kiểm tra lỗi 409 cho các đơn hàng ở trạng thái kết thúc chu trình (`CANCELLED`, `COMPLETED`, `DELIVERY_FAILED`).
+  - **4. Kiểm thử chất lượng (Quality Gates):**
+    - Tạo `frontend/test/seller-orders.spec.ts` kiểm tra 5 kịch bản: Lọc đơn theo `shop_id` & `status`, Xác nhận đơn hàng, Chuyển đổi tuần tự `CONFIRMED -> PREPARING -> SHIPPING`, Hủy đơn kèm lý do, Bắt lỗi 409 xung đột (5/5 PASS).
+    - Toàn bộ Vitest frontend: **35/35 tests PASS (100%)**.
+    - Typecheck frontend: **0 errors** (`tsc --noEmit`).
+    - ESLint frontend: **0 errors**.
+    - Next.js Production Build: **100% SUCCESS** (toàn bộ 13 routes tĩnh/động prerender hợp lệ).
+- **Quyết định kỹ thuật:**
+  - Tối ưu hóa render effect theo chuẩn React 19 / ESLint bằng asynchronous promise callback, tránh hoàn toàn lỗi setState đồng bộ trong effect.
+  - Tối ưu hóa UI/UX với các hiệu ứng hover, badge trạng thái `StatusBadge`, định dạng tiền tệ `moneyAdapter.formatVND`, định dạng ngày tháng tiếng Việt.
+- **Contract/port thay đổi:**
+  - Bổ sung tham số `shop_id` tùy chọn trong `getOrders`.
+- **Blocker phát sinh:**
+  - Không.
+- **Test đã viết:**
+  - `frontend/test/seller-orders.spec.ts` — Kiểm thử Seller Orders & Fulfillment Actions — Kết quả: 5/5 PASS.
 
 ### 2026-09-28 (Hoàn thành O-502 Buyer Order Center và O-503 Cancel Order)
 
@@ -64,7 +100,7 @@
 
 - [x] O-502 — Buyer order center (`/orders`), tabs 7 trạng thái, order card, loading/empty/error states.
 - [x] O-503 — Cancel order dialog, bắt buộc nhập lý do (RB-LTT08), xử lý 409 conflict tự động làm mới.
-- [ ] O-504/O-505 — Seller orders table, confirm & transition actions tuần tự (`/seller/orders`).
+- [x] O-504/O-505 — Seller orders table, confirm & transition actions tuần tự (`/seller/orders`).
 - [ ] O-507 — Review form UI (`/orders/[id]/review`).
 - [ ] A-704/A-705/A-708 — admin dashboard, user lock/unlock, seller KPI khi API sẵn.
 - [ ] A-709 — admin categories page, tiêu thụ category adapter A-700 của Người 3; nối API sau A-701.
