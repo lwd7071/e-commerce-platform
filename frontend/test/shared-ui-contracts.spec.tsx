@@ -75,16 +75,18 @@ describe("shared UI server-rendered contracts", () => {
     const html = renderToStaticMarkup(
       <EmptyState title="Chưa có đơn hàng" description="Đơn hàng mới sẽ xuất hiện ở đây." action={{ label: "Khám phá", onClick: () => undefined }} />,
     );
-    expect(html).toContain('aria-labelledby="empty-title"');
-    expect(html).toContain('id="empty-title"');
+    const titleId = html.match(/aria-labelledby="([^"]+)"/)?.[1];
+    expect(titleId).toBeTruthy();
+    expect(html).toContain(`id="${titleId}"`);
     expect(html).toContain("Chưa có đơn hàng");
     expect(html).toContain("Khám phá");
   });
 
   it("renders ErrorState recovery action and optional request identifier", () => {
     const html = renderToStaticMarkup(<ErrorState requestId="req_12345" onRetry={() => undefined} />);
-    expect(html).toContain('aria-labelledby="error-title"');
-    expect(html).toContain('id="error-title"');
+    const titleId = html.match(/aria-labelledby="([^"]+)"/)?.[1];
+    expect(titleId).toBeTruthy();
+    expect(html).toContain(`id="${titleId}"`);
     expect(html).toContain("Chưa tải được dữ liệu");
     expect(html).toContain("req_12345");
     expect(html).toContain("Thử lại");

@@ -11,6 +11,14 @@
 
 ## Nhật ký theo ngày
 
+### 2026-09-29 — PR B shared component hardening (provisional)
+
+- Test đỏ trước sửa xác nhận các EmptyState/ErrorState trên cùng page dùng lại `empty-title`/`error-title`; sau đó mỗi instance dùng `useId()` và test unique accessible heading target đã xanh.
+- Toast timer có manager nhỏ để hủy timer khi đóng từng toast và khi `ToastProvider` unmount; test manager xác nhận cancel/dispose và callback expiry. SSR test xác nhận polite live-region container còn hiện diện; chưa có browser interaction test tự động cho hành vi toast provider end-to-end.
+- Giữ nguyên public props của shared components. Không sửa Dialog vì repro browser hiện có cho ESC/backdrop/return-focus đã pass; Dialog vẫn chưa có automated interaction test.
+- Frontend trên Node `24.15.0`/npm `11.12.1`: typecheck pass; Vitest 14 files / 67 tests pass; production build pass; lint pass sạch sau khi xử lý hook dependency.
+- Evidence provisional trên nhánh phụ thuộc PR0a; phải rebase/chạy lại gate sau PR0a. Thông báo owner shared components/review chéo vẫn cần trước khi merge vào nhánh nhóm.
+
 ### 2026-09-29 — PR A token/contrast và SSR contract (provisional)
 
 - Thêm token mới `--success-text` và `--warning-text`, giữ nguyên giá trị mọi token palette gốc; dùng lại `--danger-text` đã có. Thêm test tính WCAG AA ≥4.5:1 cho semantic text/surface và chữ trắng trên CTA.
