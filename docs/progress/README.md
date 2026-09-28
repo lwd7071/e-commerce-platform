@@ -16,11 +16,26 @@ Người 1 cập nhật bảng này khi có thay đổi lớn hoặc tại revie
 
 | Người | Domain | Mốc hiện tại | Blocker | Cập nhật cuối |
 |---|---|---|---|---|
-| [Người 1](nguoi-1-platform.md) | Platform/Integration | T1 hoàn tất | Không | 2026-09-19 |
-| [Người 2](nguoi-2-database.md) | Database/Supabase | T1 hoàn tất | Không | 2026-09-19 |
-| [Người 3](nguoi-3-catalog.md) | Catalog/Seller | T1 hoàn tất | Không | 2026-09-19 |
-| [Người 4](nguoi-4-buyer-domain.md) | Buyer domain | T1 hoàn tất | Không | 2026-09-19 |
-| [Người 5](nguoi-5-transaction.md) | Transaction core | T1 hoàn tất | Không | 2026-09-19 |
+| [Người 1](nguoi-1-platform.md) | Platform/Integration | T3 hoàn tất | Không | 2026-09-28 |
+| [Người 2](nguoi-2-database.md) | Database/Supabase | T3 hoàn tất | Không | 2026-09-28 |
+| [Người 3](nguoi-3-catalog.md) | Catalog/Seller | T3 hoàn tất | Không | 2026-09-28 |
+| [Người 4](nguoi-4-buyer-domain.md) | Buyer domain | T3 hoàn tất | Không | 2026-09-28 |
+| [Người 5](nguoi-5-transaction.md) | Transaction core | T3 hoàn tất | Không | 2026-09-28 |
+
+## T3 final review — 2026-09-28
+
+- **Người 1:** Giải quyết T3-P1-01 (chuẩn hóa OpenAPI 3.1, loại bỏ duplicate prefix, audit & test 3 Order operations: confirm/transition/payments), vá lỗ hổng Rate Limiter bypass qua trust proxy, bổ sung scripts `dev` / `start`.
+- **Người 2:** Nghiệm thu Migration Rebuild sạch 22 bảng + 1 bảng vận hành `api_idempotency_records`, kiểm thử hồi quy bảo toàn lịch sử giao dịch (QD16 - RESTRICT), công cụ Schema Fingerprint Backup/Restore, và Concurrency Test Harness.
+- **Người 3:** Giải quyết T3-P3-01 (đồng bộ hóa kiểm tra & tạo SKU per Shop bằng Row Lock `FOR UPDATE` trong transaction), tối ưu hóa Bulk Insert giảm 90% thời gian benchmark, 17/17 tests hardening pass trên PostgreSQL thật.
+- **Người 4:** Triển khai `PostgresEventIdempotencyStore` kiến trúc Two-Tier Defense chống duplicate notification, kiểm thử Crash Recovery & Multi-Instance trên PostgreSQL thật, bàn giao Test Handover Matrix T3-P4-02.
+- **Người 5:** Đóng toàn diện 4 findings T3-P5-01/02/03/04 (khóa hàng chống restock trùng khi hủy đơn, chặn race condition khi retry payment, ghi nhận history audit), 32/32 tests transaction pass trên PostgreSQL thật, module Reporting tuân thủ QD19.
+- **Tích hợp & Quality Gates trên nhánh `dev`:**
+  - Merge thành công toàn bộ 4 nhánh feature (`feat/t3-p1-security-openapi`, `feat/t3-nguoi-3-catalog`, `t3-p4-buyer`, `thanh-vien-5`).
+  - Diagnose toàn diện: Khắc phục triệt để các cảnh báo ESLint (`@typescript-eslint/no-explicit-any`, unused variables) và lỗi logic thiếu `reason` khi Admin confirm đơn hàng.
+  - `npm run test:node`: **593/593 tests PASS (100%)**.
+  - `npm run typecheck`: **0 errors**.
+  - `npm run lint` (`--max-warnings=0`): **0 errors, 0 warnings (100% clean)**.
+  - `npm run build`: **Bundle thành công** (`dist/app.js` 156.3kb).
 
 ## T1 final review — 2026-09-19
 

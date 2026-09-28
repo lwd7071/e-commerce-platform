@@ -318,5 +318,5 @@
 - [x] Sau khi Người 5 khóa Order query/state contract: tích hợp Review với Order thật (`IOrderQueryPort`).
 - [x] Sau khi Người 5 công bố Order/Payment/Shipment events: tích hợp Notification với events thật (`ITransactionEventPort`).
 - [x] Sau khi Người 2 mở Storage RLS policy: tích hợp Review Image Upload với path canonical `users/{userId}/reviews/{reviewId}/{imageId}.{ext}` (`ReviewMediaService`).
-- [ ] Sau khi Người 1 khóa `RequestContext` và router: wiring endpoints Buyer Supporting Domain.
+- [x] Sau khi Người 1 khóa `RequestContext` và router: wiring endpoints Buyer Supporting Domain.
 

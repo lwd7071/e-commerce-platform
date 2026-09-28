@@ -2,12 +2,29 @@
 
 ## Trạng thái hiện tại
 
-- Mốc: T3
-- Cập nhật lần cuối: 2026-09-26
-- Đang làm: Đã hoàn tất ticket T3-P1-01 (P1): Thống nhất khai báo server/path trong OpenAPI 3.1 loại bỏ triệt để lỗi double prefix /api/v1/api/v1, audit và bổ sung OpenAPI spec + route tests cho 3 Order operations (confirm, transition, payments), thêm test kiểm tra URL cuối cùng và đối chiếu route registry Express. Đạt 522/522 tests pass trên toàn hệ thống (0 fail), sạch 100% typecheck và build.
-- Bị block bởi: Không
+- Mốc: T3 (Hoàn tất)
+- Cập nhật lần cuối: 2026-09-28
+- Đang làm: Đã hoàn tất 100% Mốc T3: Merge thành công 4 nhánh feature của các thành viên vào nhánh dev, giải quyết conflict, chạy /diagnose toàn diện, vá triệt để 5 cảnh báo ESLint (@typescript-eslint/no-explicit-any, unused vars) và lỗi logic thiếu reason khi Admin confirm đơn hàng. Toàn bộ Quality Gates đạt 100%: 593/593 tests PASS, typecheck 0 lỗi, lint --max-warnings=0 pass sạch, build esbuild thành công.
+- Bị block bởi: Không (Sẵn sàng nghiệm thu cuối T3)
 
 ## Nhật ký theo ngày
+
+### 2026-09-28 (Tổng kết Merge Dev, Diagnose Đa vòng & Đóng Mốc T3)
+
+- **Đã làm:**
+  - **1. Merge 4 nhánh feature vào `dev`:**
+    - `feat/t3-p1-security-openapi`: Giải quyết conflict tại `package.json`, `order-routes.ts`, `order-routes.spec.ts`. Giữ nguyên kiến trúc service chuẩn kèm fallback linh hoạt.
+    - `feat/t3-nguoi-3-catalog`: Tự động merge sạch sẽ.
+    - `t3-p4-buyer`: Tự động merge sạch sẽ.
+    - `thanh-vien-5`: Tự động merge sạch sẽ.
+  - **2. Thực hiện `/diagnose` đa vòng theo chuẩn chất lượng:**
+    - Khắc phục 5 vấn đề ESLint: Dùng type an toàn cho `ExpressWithRouter`, loại bỏ `any` trong `order-routes.ts` và `order-routes.spec.ts`, tận dụng `adminAuth`.
+    - Phát hiện và vá lỗi logic: `Admin` khi gọi `confirmOrder` thiếu `reason` bị State Machine từ chối với 422 `REASON_REQUIRED`. Đã bổ sung trích xuất `reason` và fallback tự động `'Admin confirmed order'` trong `OrderLifecycleService` và router. Bổ sung test case cho Admin confirm.
+  - **3. Quality Gates nghiệm thu:**
+    - `npm run test:node`: **593/593 tests PASS (100%)**.
+    - `npm run typecheck`: **0 errors**.
+    - `npm run lint`: **0 errors, 0 warnings (với `--max-warnings=0`)**.
+    - `npm run build`: **Bundle thành công** (`dist/app.js` 156.3kb).
 
 ### 2026-09-26 (Hoàn tất T3-P1-01: Khắc phục Lỗi URL OpenAPI & Bổ sung Spec/Test cho Order Confirm/Transition/Payments)
 
@@ -459,7 +476,7 @@
 - [x] Thiết lập test runner, lint, typecheck, build và CI skeleton.
 - [x] Cài API envelope, request ID, error middleware và health endpoint.
 - [x] Định nghĩa `RequestContext`, shared contract folder, naming convention và Auth repository interface; khóa contract dùng chung và soạn tài liệu API ban đầu.
-- [ ] Sau khi Người 2 bàn giao migration `app_users`, seed User và database connection: xác minh Supabase JWT, chặn User `LOCKED` và chạy auth smoke test.
-- [ ] Sau khi Người 3 khóa endpoint DTO và Catalog port: wiring route Catalog.
-- [ ] Sau khi Người 4 khóa Cart/Voucher port: wiring route Cart/Voucher.
-- [ ] Sau khi Người 5 khóa checkout/order command và response contract: wiring route checkout/order.
+- [x] Sau khi Người 2 bàn giao migration `app_users`, seed User và database connection: xác minh Supabase JWT, chặn User `LOCKED` và chạy auth smoke test.
+- [x] Sau khi Người 3 khóa endpoint DTO và Catalog port: wiring route Catalog.
+- [x] Sau khi Người 4 khóa Cart/Voucher port: wiring route Cart/Voucher.
+- [x] Sau khi Người 5 khóa checkout/order command và response contract: wiring route checkout/order.

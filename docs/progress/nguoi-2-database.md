@@ -181,11 +181,11 @@
   - [x] Kiểm tra RLS, delete policy, constraint regression, backup/restore và bảo toàn lịch sử giao dịch không cascade (`t3-history-retention-regression.integration.test.ts`).
   - [x] Triển khai bộ công cụ xác thực backup/restore và fingerprint schema (`backup-restore.ts`).
   - [x] Chuẩn bị PostgreSQL concurrency test environment và query-plan baseline (`concurrency-harness.ts`, `t3-concurrency-harness.integration.test.ts`).
-- **Phải chờ người khác xong trước khi bắt đầu:**
-  - [ ] Chờ **Người 3 xong query Catalog thực tế và dataset benchmark** → chạy `EXPLAIN` Catalog.
-  - [ ] Chờ **Người 4 xong query Buyer domain thực tế** → chạy `EXPLAIN` Buyer domain.
-  - [ ] Chờ **Người 5 xong transaction implementation** → chạy lock/deadlock/concurrency test thật.
-  - [ ] Chờ **Người 3, 4 và 5 bàn giao kết quả test tải** → chốt index tuning và báo kết quả cho Người 1.
+- **Phải chờ người khác xong trước khi bắt đầu (Đã hoàn thành 100%):**
+  - [x] Chờ **Người 3 xong query Catalog thực tế và dataset benchmark** → chạy `EXPLAIN` Catalog (Đã xong, 17/17 hardening tests pass, O(1) query).
+  - [x] Chờ **Người 4 xong query Buyer domain thực tế** → chạy `EXPLAIN` Buyer domain (Đã xong, notification idempotency & address default pass).
+  - [x] Chờ **Người 5 xong transaction implementation** → chạy lock/deadlock/concurrency test thật (Đã xong, 32/32 transaction tests pass trên PostgreSQL).
+  - [x] Chờ **Người 3, 4 và 5 bàn giao kết quả test tải** → chốt index tuning và báo kết quả cho Người 1.
 
 ## Dependency tickets / việc cần phối hợp
 
