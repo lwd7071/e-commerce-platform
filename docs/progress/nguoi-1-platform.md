@@ -2,12 +2,41 @@
 
 ## Trạng thái hiện tại
 
-- Mốc: T3 (Hoàn tất)
+- Mốc: T3 (Hoàn tất) & Frontend Phase 0/1 (Hoàn tất)
 - Cập nhật lần cuối: 2026-09-28
-- Đang làm: Đã hoàn tất 100% Mốc T3: Merge thành công 4 nhánh feature của các thành viên vào nhánh dev, giải quyết conflict, chạy /diagnose toàn diện, vá triệt để 5 cảnh báo ESLint (@typescript-eslint/no-explicit-any, unused vars) và lỗi logic thiếu reason khi Admin confirm đơn hàng. Toàn bộ Quality Gates đạt 100%: 593/593 tests PASS, typecheck 0 lỗi, lint --max-warnings=0 pass sạch, build esbuild thành công.
-- Bị block bởi: Không (Sẵn sàng nghiệm thu cuối T3)
+- Đang làm: Đã hoàn tất 100% Mốc T3 Backend (593/593 tests PASS) và hoàn thành trọn vẹn Phase 0 & Phase 1 Frontend Foundation trong thư mục `frontend/` (C-001, C-003–005, F-101–107, B-303, B-304, Q-801, Q-806). Toàn bộ Quality Gates đạt 100%: 12/12 unit tests PASS, typecheck 0 lỗi, lint pass, build Next.js 16 (Turbopack) thành công.
+- Bị block bởi: Không (Sẵn sàng bàn giao seam `src/lib/` cho Người 2, 3, 4, 5)
 
 ## Nhật ký theo ngày
+
+### 2026-09-28 (Khởi tạo Frontend Foundation & Tích hợp Bộ Seam Dùng Chung F-101 đến F-107)
+
+- **Đã làm:**
+  - Khởi tạo thư mục dự án `frontend/` chuẩn Next.js 16 (App Router), React 19, TypeScript, PostCSS, ESLint flat config, và Vitest.
+  - **F-101 (Env & Supabase Client):** Triển khai `env.ts` (validate fail-fast, ngăn ngừa lộ secret key phía client) và `supabase-client.ts` singleton an toàn cho trình duyệt.
+  - **F-102 (API Client Core & Envelopes):** Triển khai `ApiClient` fetch wrapper unwrap SuccessEnvelope, xử lý 204 No Content, timeout 10s với AbortController, sinh và theo dõi `X-Request-Id`, bóc tách error body sang class `AppError`.
+  - **F-103 (API Modules):** Hiện thực đầy đủ các endpoint API modules: `catalog.api.ts`, `buyer.api.ts`, `order.api.ts`, `voucher.api.ts`.
+  - **F-104 (Money Adapter):** Triển khai `money.adapter.ts` xử lý format tiền VND decimal-safe string, triệt tiêu lỗi làm tròn dấu phẩy động.
+  - **F-105 (Auth & Session):** Triển khai `AuthProvider` và hook `useAuth()`: quản lý session, JWT access token, giải mã vai trò (`BUYER | SELLER | ADMIN`), tự động kết nối token provider vào ApiClient.
+  - **F-106 (Route Guards):** Triển khai `route-guards.ts`: bảo vệ route theo role, chống open redirect với `sanitizeReturnTo`.
+  - **F-107 & C-004 (Repository Switcher):** Triển khai `types.ts` và `repository-factory.ts`: cung cấp trừu tượng repository và bộ switch linh hoạt giữa Live API và Mock fixtures dựa theo config `features.useMock()`, UI không cần branch code.
+  - **B-303 & B-304 (Auth Pages):** Triển khai 2 trang `/login` (bọc Suspense boundary an toàn cho searchParams) và `/register` (chọn role BUYER/SELLER, validate form, accessible labels, loading indicator).
+  - **HomePage (`src/app/page.tsx`):** Dựng trang chủ hiện đại với Navigation, Hero, Value Badges, Product Grid (dùng `next/image`, CSS variables và `moneyAdapter.formatVND`), hỗ trợ graceful offline fallback khi backend chưa chạy lúc build.
+  - **Q-801 & Q-806 (Quality Gates):**
+    - `npm run typecheck`: **0 errors**.
+    - `npm run lint`: **0 errors, 0 warnings**.
+    - `npm run test`: **12/12 tests PASS (100%)** (`test/api-client.spec.ts`, `test/money-adapter.spec.ts`, `test/route-guards.spec.ts`).
+    - `npm run build`: **Next.js Turbopack build PASS (4 routes generated)**.
+- **Quyết định kỹ thuật / UI:**
+  - Áp dụng triệt để bảng màu và quy chuẩn từ `09-ui-ux-rules.md §3`: Nút chính đồng nhất dùng `--button-primary-bg` (`#BF3A6F`) và `--button-primary-fg` (trắng), đạt chuẩn tương phản 5.19:1 WCAG AA.
+  - Mọi endpoint module và utility xuất ra tập trung qua `src/lib/index.ts` làm seam dùng chung duy nhất cho toàn đội.
+- **Contract/port bàn giao:**
+  - Bàn giao trọn vẹn `src/lib/` (ApiClient, Auth, Repositories, Adapters, Route Guards) cho Người 2 (UI Shell), Người 3 (Catalog), Người 4 (Cart/Checkout) và Người 5 (Orders/Admin).
+- **Blocker phát sinh:**
+  - Không.
+- **Test đã chạy:**
+  - Backend: 593/593 tests PASS (100%).
+  - Frontend: 12/12 tests PASS (100%).
 
 ### 2026-09-28 (Tổng kết Merge Dev, Diagnose Đa vòng & Đóng Mốc T3)
 

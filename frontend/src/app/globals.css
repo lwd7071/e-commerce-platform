@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+:root {
+  /* Brand */
+  --primary: #FF7AAC;
+  --primary-btn: #E85D94;
+  --primary-hover: #D4437D;
+  --primary-active: #BF3A6F;
+  --primary-surface: #FFF0F6;
+  --primary-border: #FFD1E3;
+
+  /* Neutrals */
+  --background: #FBF8F9;
+  --foreground: #221C1F;
+  --card: #FFFFFF;
+  --card-muted: #FAF6F8;
+  --border: #F0E6EA;
+  --subtext: #75686E;
+
+  /* Semantic */
+  --success: #059669;
+  --success-surface: #ECFDF5;
+  --danger: #E11D48;
+  --danger-surface: #FFF1F2;
+  --danger-border: #FECDD3;
+  --warning: #D97706;
+  --warning-surface: #FFFBEB;
+  --warning-border: #FDE68A;
+  --info: #0E7490;
+  --info-surface: #ECFEFF;
+  --info-border: #A5F3FC;
+
+  /* Shape */
+  --radius: 12px;
+  --shadow: 0 1px 2px rgba(34, 28, 31, 0.06);
+
+  /* Component aliases: nút chính thống nhất (5.19:1 contrast ratio) */
+  --button-primary-bg: var(--primary-active);
+  --button-primary-fg: #FFFFFF;
+}
+
+@layer base {
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    -webkit-font-smoothing: antialiased;
+    letter-spacing: -0.015em;
+    min-height: 100vh;
+  }
+}
