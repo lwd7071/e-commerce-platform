@@ -112,4 +112,23 @@ describe("ApiClient & Envelope Parser (F-102)", () => {
     expect(capturedHeaders?.get("Authorization")).toBe("Bearer valid_access_jwt_123");
     expect(capturedHeaders?.get("X-Request-Id")).toBeTruthy();
   });
+
+  it("preserves PaginatedEnvelope with meta when getPaginated is called", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
+      json: async () => ({
+        data: [{ id: "p1" }, { id: "p2" }],
+        meta: { limit: 20, has_more: true, next_cursor: "cur_opaque_123" },
+        request_id: "req_page_1",
+      }),
+    });
+
+    const envelope = await client.getPaginated<{ id: string }>("/products");
+    expect(envelope.data).toHaveLength(2);
+    expect(envelope.meta).toBeDefined();
+    expect(envelope.meta.has_more).toBe(true);
+    expect(envelope.meta.next_cursor).toBe("cur_opaque_123");
+  });
 });

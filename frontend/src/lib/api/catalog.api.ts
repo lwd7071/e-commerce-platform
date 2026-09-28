@@ -86,9 +86,8 @@ export const catalogApi = {
     return apiClient.get<WireCatalogProductItem[]>("/products", { params: params as Record<string, string | number | boolean | undefined>, skipAuth: true });
   },
 
-  getProductsPaginated: (params?: GetProductsParams) => {
-    return apiClient.request<PaginatedEnvelope<WireCatalogProductItem>>("/products", {
-      method: "GET",
+  getProductsPaginated: (params?: GetProductsParams): Promise<PaginatedEnvelope<WireCatalogProductItem>> => {
+    return apiClient.getPaginated<WireCatalogProductItem>("/products", {
       params: params as Record<string, string | number | boolean | undefined>,
       skipAuth: true,
     });

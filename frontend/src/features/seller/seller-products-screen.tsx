@@ -30,7 +30,7 @@ export function SellerProductsScreen() {
 
   useEffect(() => {
     let ignore = false;
-    repositories.catalog().getProducts({ limit: 50 })
+    repositories.catalog().getSellerProducts({ limit: 50 })
       .then((data) => {
         if (ignore) return;
         setProducts(data);
@@ -51,7 +51,7 @@ export function SellerProductsScreen() {
   const handleRetry = () => {
     setIsLoading(true);
     setError(null);
-    repositories.catalog().getProducts({ limit: 50 })
+    repositories.catalog().getSellerProducts({ limit: 50 })
       .then((data) => {
         setProducts(data);
         setIsLoading(false);
@@ -136,6 +136,14 @@ export function SellerProductsScreen() {
           >
             + Thêm sản phẩm mới
           </Link>
+        </div>
+      </div>
+
+      {/* GAP-04 Notice Banner */}
+      <div className="notice notice--warning" role="status">
+        <Icon name="info" />
+        <div>
+          <strong>Chế độ cách ly gian hàng (GAP-04):</strong> Màn hình hiện đang hiển thị các sản phẩm thuộc sở hữu của shop bạn. Chưa kết nối trực tiếp với endpoint public <code>GET /products</code> để tránh hiển thị sản phẩm của shop khác trong khi chờ backend triển khai endpoint seller-scoped <code>GET /seller/products</code>.
         </div>
       </div>
 

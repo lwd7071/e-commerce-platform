@@ -1,3 +1,5 @@
+import { features } from "../config/features";
+
 /**
  * CategoryAdapter - Safe category retrieval and tree representation.
  * Complies with RB-KN04 (max 2 levels hierarchy), GAP-05, and A-700/B-305.
@@ -34,43 +36,60 @@ export interface ICategoryAdapter {
 }
 
 /**
- * Verified category fixture from dev environment seed / domain tests.
- * GAP-05 requirement: Do NOT invent fake random UUIDs. Only use verified IDs or leave empty.
+ * Development category fixtures for mock and UI testing.
+ * Note: Under GAP-05, backend does not have public categories API or seed in DB.
+ * Therefore, in live mode without verified DB categories, the adapter safely returns []
+ * to hide the filter and prevent sending invalid UUIDs that would yield empty product lists.
  */
-export const VERIFIED_CATEGORY_FIXTURES: CategoryItem[] = [
+export const DEV_CATEGORY_FIXTURES: CategoryItem[] = [
   {
-    id: "44444444-4444-4444-8444-444444444444",
+    id: "00000000-0000-0000-0000-000000000010",
     parentId: null,
     name: "Mỹ phẩm & Chăm sóc sắc đẹp",
     description: "Sản phẩm chăm sóc da và làm đẹp chính hãng",
     status: "ACTIVE",
   },
   {
-    id: "55555555-5555-4555-8555-555555555555",
+    id: "00000000-0000-0000-0000-000000000011",
     parentId: null,
-    name: "Thiết bị điện tử & Phụ kiện",
-    description: "Điện thoại, tai nghe và phụ kiện công nghệ",
+    name: "Thời trang & Phụ kiện",
+    description: "Quần áo, giày dép thời trang",
     status: "ACTIVE",
   },
   {
-    id: "55555555-5555-4555-8555-555555555556",
-    parentId: "55555555-5555-4555-8555-555555555555",
-    name: "Phụ kiện điện thoại",
-    description: "Cáp sạc, ốp lưng, tai nghe",
+    id: "00000000-0000-0000-0000-000000000012",
+    parentId: null,
+    name: "Thiết bị điện tử",
+    description: "Điện thoại, bàn phím và phụ kiện công nghệ",
     status: "ACTIVE",
   },
 ];
 
-class CategoryAdapterImpl implements ICategoryAdapter {
-  private categories: CategoryItem[];
+export class CategoryAdapterImpl implements ICategoryAdapter {
+  private mockFixtures: CategoryItem[];
+  private forceMock: boolean | null;
 
-  constructor(initialData: CategoryItem[] = VERIFIED_CATEGORY_FIXTURES) {
-    this.categories = initialData;
+  constructor(initialData: CategoryItem[] = DEV_CATEGORY_FIXTURES, forceMock: boolean | null = null) {
+    this.mockFixtures = initialData;
+    this.forceMock = forceMock;
+  }
+
+  private isMockMode(): boolean {
+    if (this.forceMock !== null) {
+      return this.forceMock;
+    }
+    return features.useMock();
   }
 
   async getCategories(): Promise<CategoryItem[]> {
-    // Only return ACTIVE categories for public catalog display
-    return this.categories.filter((cat) => cat.status === "ACTIVE");
+    // GAP-05: In live mode, backend has no GET /categories route yet and DB seed is unverified.
+    // If not in mock mode, return empty list so UI safely hides the filter chips.
+    if (!this.isMockMode()) {
+      return [];
+    }
+
+    // In mock mode, return active mock categories
+    return this.mockFixtures.filter((cat) => cat.status === "ACTIVE");
   }
 
   async getCategoryTree(): Promise<CategoryTreeNode[]> {
@@ -87,7 +106,10 @@ class CategoryAdapterImpl implements ICategoryAdapter {
   }
 
   async getCategoryById(id: string): Promise<CategoryItem | null> {
-    const found = this.categories.find((c) => c.id === id);
+    if (!this.isMockMode()) {
+      return null;
+    }
+    const found = this.mockFixtures.find((c) => c.id === id);
     return found ? { ...found } : null;
   }
 

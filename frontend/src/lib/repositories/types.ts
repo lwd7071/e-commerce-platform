@@ -11,10 +11,11 @@ import type { WireVoucher, EvaluateVoucherResult } from "../api/voucher.api";
 
 export interface ICatalogRepository {
   getProducts(params?: GetProductsParams): Promise<WireCatalogProductItem[]>;
-  getProductsPaginated?(params?: GetProductsParams): Promise<PaginatedEnvelope<WireCatalogProductItem>>;
+  getProductsPaginated(params?: GetProductsParams): Promise<PaginatedEnvelope<WireCatalogProductItem>>;
   getProductById(id: string): Promise<WireCatalogProductDetail>;
   createProduct?(data: CreateProductInput): Promise<WireCatalogProductDetail>;
   updateStock?(variantId: string, quantity: number): Promise<unknown>;
+  getSellerProducts(params?: { limit?: number; cursor?: string }): Promise<WireCatalogProductItem[]>;
 }
 
 export interface IBuyerRepository {
