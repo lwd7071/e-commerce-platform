@@ -3,13 +3,19 @@
 ## Trạng thái hiện tại
 
 - Phase/ticket: Phase 0, Phase 1 & Phase 8 hoàn tất (C-001, C-003–005, F-101–107, B-303, B-304, Q-801, Q-806, Q-807, Q-808)
-- Cập nhật lần cuối: 2026-09-28
+- Cập nhật lần cuối: 2026-09-29
 - Đang làm: Đã hoàn tất 100% toàn bộ trách nhiệm của Người 1: Scaffold thư mục `frontend/`, bộ seam dùng chung `src/lib/`, 2 trang `/login` và `/register` chuẩn brand wordmark Dino, sửa toàn bộ linter của team, triển khai bộ kiểm thử chịu lỗi `resilience-q806` (8 tests) và kiểm thử đồng bộ contract `contract-drift-q807` (3 tests). Vượt qua toàn bộ Quality Gates: **41/41 unit tests frontend PASS**, **600/600 tests backend PASS**, typecheck 0 lỗi, lint 0 lỗi, build Turbopack 11 routes thành công.
 - Nhánh/PR: dev
 - Bị block bởi: Không
 - Việc tiếp theo: Toàn bộ công việc của Người 1 đã hoàn tất 100%, sẵn sàng bàn giao cho Release Candidate.
 
 ## Nhật ký theo ngày
+
+### 2026-09-29 — Đồng bộ role metadata với route RBAC
+
+- Đã làm: `ROUTE_RULES` giới hạn `/orders`, `/orders/[id]/review` và `/notifications` cho Buyer theo `01-project-overview.md`; UI `ProtectedPage` giữ guard tương ứng.
+- Test/kiểm tra: Route guard regression test được thêm trước khi sửa và tái hiện sai lệch `/orders`; sau sửa toàn bộ 15 test files/74 tests, typecheck, lint và production build pass trên Node 24.15.0/npm 11.12.1.
+- Còn lại: Không có blocker mới từ thay đổi này.
 
 ### 2026-09-28 — F-101 đến F-107 & Scaffold Frontend Foundation
 

@@ -10,7 +10,7 @@
 | Login | `authRepository.signIn` | Supabase Auth | email/password | `PARTIAL` | tích hợp; kiểm tra app user sau login |
 | Register | `authRepository.signUp` | Supabase + onboarding | account data | `BLOCKED` | mock/feature flag |
 | Product list | `catalogRepository.list` | `GET /products` | search/category/sort/cursor | `AVAILABLE` | tích hợp thật |
-| Category filter | `categoryRepository.list` | `GET /categories` | — | `MISSING` | static config/ẩn |
+| Category filter | `categoryRepository.list` | `GET /categories` | — | `MISSING` (route chưa mount) | Ẩn khi không có UUID xác thực; không gọi endpoint giả định |
 | Product detail | `catalogRepository.get` | `GET /products/:id` | product ID | `PARTIAL` | tích hợp core; placeholder ảnh/shop |
 | Add cart | `cartRepository.add` | `POST /cart/items` | variant_id, quantity | `AVAILABLE` | tích hợp thật |
 | Load cart | `cartRepository.get` | `GET /cart` | — | `PARTIAL` | chờ enriched data/mock |
@@ -19,23 +19,36 @@
 | Delete item | `cartRepository.remove` | `DELETE /cart/items/:id` | — | `AVAILABLE` | 204, không parse JSON |
 | Delete selected | `cartRepository.removeSelected` | `DELETE /cart/selected` | không body | `AVAILABLE` | 204; invalidate cart |
 | Address list/create | `addressRepository` | `GET/POST /addresses` | address DTO | `AVAILABLE` | tích hợp thật |
-| Address edit/default/delete | `addressRepository` | address item routes | address DTO | `RUNTIME_BLOCKED` | mock/disable |
+| Address edit/default/delete | `addressRepository` | `GET/PATCH/DELETE /addresses/:id`, `PATCH /addresses/:id/default` | address DTO | `NOT_IMPLEMENTED` (501) | giữ UI mock/gated; list/create dùng `/addresses` |
 | Voucher list | `voucherRepository.list` | `GET /vouchers/applicable` | scope/shop_id/now | `AVAILABLE` | runtime camelCase; adapter map rõ theo `VoucherRuntimeDTO` |
 | Voucher preview | `voucherRepository.evaluate` | `POST /vouchers/evaluate` | code/order_subtotal/shop_id | `AVAILABLE` | runtime union camelCase `{isValid, voucherId, discountAmount}` / `{isValid, errorCode, errorMessage}`; không có voucher lồng |
 | Checkout | `checkoutRepository.create` | `POST /checkout` | address/payment/vouchers + header | `AVAILABLE` | tích hợp thật sau cart selection |
-| Order list/detail | `orderRepository` | `GET /orders`, `/orders/:id` | role lấy từ token | `RUNTIME_BLOCKED` | mock/feature flag |
-| Cancel order | `orderRepository.cancel` | `POST /orders/:id/cancel` | reason | `AVAILABLE` | bật khi có order query |
-| Confirm order | `orderRepository.confirm` | `POST /orders/:id/confirm` | optional reason | `AVAILABLE` | bật khi có order query |
+| Order list/detail | `orderRepository` | `GET /orders`, `/orders/:id` | role lấy từ token | `STUB` (200 empty/placeholder) | mock/feature flag; không render response stub như data thật |
+| Cancel order | `orderRepository.cancel` | `POST /orders/:id/cancel` | `{ reason }` | `AVAILABLE` | handler thật; chỉ bật với order ID hợp lệ và xử lý 409 |
+| Confirm order | `orderRepository.confirm` | `POST /orders/:id/confirm` | body không cần reason | `AVAILABLE` | handler thật; chỉ bật với order ID hợp lệ |
 | Transition order | `orderRepository.transition` | `POST /orders/:id/transition` | tuần tự theo state; `to`/`reason`/`shipment_status` | `AVAILABLE` | Seller không được nhảy `CONFIRMED → SHIPPING` hoặc tự hoàn tất đơn |
-| Payment retry | `paymentRepository.retry` | `POST /orders/:id/payments` | payment_method | `PARTIAL` | không gọi trong checkout success |
-| Submit review | `reviewRepository.create` | `POST /order-items/:id/review` | product_id/rating/content/images | `RUNTIME_BLOCKED` | UI mock, submit off |
-| Notifications | `notificationRepository` | notification routes | is_read | `RUNTIME_BLOCKED` | mock/feature flag |
-| Profile | `profileRepository` | `GET/PATCH /profile` | profile DTO | `MISSING` | Supabase read-only/mock |
-| Seller product list | `sellerCatalogRepository.list` | proposed seller products API | filters | `MISSING` | mock |
+| Payment retry | `paymentRepository.retry` | `POST /orders/:id/payments` | payment_method | `AVAILABLE` | retry hiện hữu; không gọi trong checkout success, không tạo QR/provider session |
+| Submit review | `reviewRepository.create` | `POST /order-items/:id/review` | product_id/rating/content/images | `NOT_IMPLEMENTED` (501) | làm UI text/rating bằng mock; production submit tắt |
+| Notifications | `notificationRepository` | `GET/PATCH /notifications...` | is_read | `NOT_IMPLEMENTED` (501) | mock/feature flag; route có nhưng runtime service chưa inject |
+| Profile | `profileRepository` | `/profile` hoặc `/buyers/profile` | profile DTO | `MISSING` (404) | chỉ dùng auth metadata read-only; không gọi API profile |
+| Seller product list | `sellerCatalogRepository.list` | `GET /seller/products` | filters | `MISSING` (404) | mock/gated; không dùng public list với `shop_id` |
 | Seller stock | `sellerCatalogRepository.updateStock` | `PATCH /product-variants/:id/stock` | quantity | `AVAILABLE` | integrate if variant IDs known |
 | Create product | `sellerCatalogRepository.create` | `POST /products` | create DTO | `PARTIAL` | static categories + URL images in dev |
-| Admin users/logs | `adminRepository` | proposed admin reads | filters/cursor | `MISSING` | mock |
-| Lock/unlock user | `adminRepository.moderateUser` | admin user routes | reason | `AVAILABLE` | enable once user IDs are available |
+| Admin users/logs | `adminRepository` | proposed admin reads | filters/cursor | `MISSING` (404) | mock; không có route để lấy danh sách target |
+| Lock/unlock user | `adminRepository.moderateUser` | `POST /admin/users/:id/lock|unlock` | reason | `AVAILABLE` | có mutation/audit; UI chỉ gọi khi có target ID hợp lệ |
+
+## 1.1. Đối chiếu API modules hiện có trong FE
+
+Các kiểu/path dưới đây trong `frontend/src/lib/api/` chưa khớp runtime; xử lý như việc cần làm trước khi bật live integration, không xem TypeScript interface hiện tại là contract backend:
+
+| FE module hiện tại | Sai lệch với runtime | Cách dùng/sửa trước khi bật |
+|---|---|---|
+| `buyer.api.ts` | Address đang gọi `/buyers/addresses`; backend mount `/addresses`. `WireAddress` dùng `id/receiver_name/...`, trong khi response là camelCase `addressId/recipientName/phone/province/district/ward/detailAddress/isDefault/...` | Đổi path và wire DTO theo `05-api-contract.md`; giữ profile route gated vì chưa tồn tại |
+| `buyer.api.ts` profile | `/buyers/profile` không được mount; `/profile` cũng chưa được mount | Không gọi live; chỉ dùng AuthProvider metadata/read-only cho đến khi backend có route |
+| `buyer.api.ts` cart | `WireCart.id` và `WireCartItem.id` không khớp `cart_id`, `cart_item_id`; GET chỉ có variant ID/quantity/selection | Đổi DTO; giữ enrichment/display data mock hoặc gated đến khi có read model đủ thông tin |
+| `order.api.ts` | `WireOrder` giả định `id/order_code/final_amount/items`; order list/detail hiện là stub và mutation trả response snake_case khác | Không gắn type `WireOrder` vào stub như data thật; cập nhật DTO theo response được chốt khi order reads được wire |
+| `voucher.api.ts` | `EvaluateVoucherResult` dùng `is_valid/discount_amount`; runtime trả camelCase union `isValid` + `voucherId/discountAmount` hoặc `errorCode/errorMessage` | Sửa DTO/adapter trước khi dùng response runtime |
+| `catalog.api.ts` | List/detail wire fields khớp route hiện có; category list và seller-scoped product list không có API | Tiếp tục dùng API thật cho public catalog; ẩn/fixture cho category và seller list |
 
 ## 2. Repository interfaces
 

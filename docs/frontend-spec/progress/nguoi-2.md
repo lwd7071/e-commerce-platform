@@ -4,12 +4,21 @@
 
 - Phase/ticket: Phase 0 D-001–003; Phase 2 U-201–206; Phase 6 P-602/P-604–605/P-607b (UI mock/gated); Q-802/Q-803 scoped QA
 - Cập nhật lần cuối: 2026-09-29
-- Đang làm: U-201–206 và QA độc lập cho shared shell/profile/notifications đã hoàn tất; chuẩn bị PR0a/0b và PR A/B/C trên nhánh tách riêng; P-604/P-605/P-607b vẫn gated theo readiness backend
-- Nhánh/PR: `codex/node-24-runtime` (PR0a), `codex/frontend-ci-workspace` (PR0b), `codex/member2-pr-a`, `codex/member2-pr-b`, `codex/member2-pr-c` (đã push; PR GitHub chưa tạo vì GitHub CLI credential invalid)
-- Bị block bởi: PR0a cần Người 1 và backend owner review trước merge; local PostgreSQL smoke chưa chạy được do worktree không có `DIRECT_URL`/DB test, chờ PostgreSQL service CI xanh. D-004 chờ page mẫu checkout (Người 4), seller orders và admin dashboard (Người 5); P-601/P-603/P-606 chờ backend contract/runtime (GAP-07/GAP-01/GAP-09). Contrast ở login/register cần Người 1 và màu trạng thái seller cần Người 3 xử lý tại page của họ.
-- Việc tiếp theo: Hoàn thành migration Node 24.15.0/npm 11.12.1 và ghi evidence mới; ghi nhận/nhận handoff contrast từ Người 1/3; tiếp tục D-004 khi checkout, seller orders và admin dashboard có page mẫu.
+- Đang làm: U-201–206 và QA scoped cho shared shell/profile/notifications đã hoàn tất; các thay đổi shared UI, notification/navigation helpers, Node 24 và frontend CI đã được tích hợp vào `dev`. P-604/P-605/P-607b vẫn gated theo readiness backend.
+- Nhánh/PR: Các commit từ `codex/node-24-runtime`, `codex/frontend-ci-workspace` và `codex/member2-pr-a/b/c` đã merge vào `dev` cục bộ. PR GitHub chưa tạo được theo nhật ký vì GitHub CLI credential invalid.
+- Bị block bởi: Local PostgreSQL smoke chưa chạy được do worktree thiếu `DIRECT_URL`/DB test; cần PostgreSQL service CI xanh làm evidence. D-004 chờ đủ page mẫu; P-601/P-603/P-606 chờ backend contract/runtime (GAP-07/GAP-01/GAP-09). Handoff contrast ở login/register và seller status cần owner Người 1/3 xác nhận. Route metadata `/orders`, `/orders/[id]/review` và `/notifications` đã được đồng bộ Buyer-only theo RBAC spec.
+- Việc tiếp theo: Nhận xác nhận/review của owner cho runtime và các handoff; hoàn tất D-004 khi đủ page mẫu; tiếp tục các ticket đang chờ backend readiness.
 
 ## Nhật ký theo ngày
+
+### 2026-09-29 — Tích hợp các nhánh runtime, CI và shared UI vào dev
+
+- Đã làm: Các thay đổi trên `codex/node-24-runtime`, `codex/frontend-ci-workspace` và chuỗi `codex/member2-pr-a/b/c` đã được merge vào `dev` cục bộ. PR C chứa các helper navigation/notification, hardening shared UI và test contract; Node 24 và quality gate frontend cũng đã có trên `dev`.
+- Test/kiểm tra: Route guard test ban đầu bắt mismatch role ở `/orders`; sau khi đồng bộ `/orders`, `/orders/[id]/review` và `/notifications` sang Buyer-only, toàn bộ frontend pass typecheck, lint, 74/74 tests và production build trên Node `24.15.0`/npm `11.12.1`. PostgreSQL smoke vẫn chưa chạy do thiếu DB test/`DIRECT_URL`.
+- Đối chiếu UI rules: màu trạng thái trong seller/order screens dùng semantic tokens; filter tabs đáp ứng touch target 44px. Các cặp semantic text/surface được kiểm tra đạt WCAG AA.
+- Handoff: Chờ Người 1/backend owner xác nhận review runtime/CI; handoff contrast login/register và seller status vẫn cần owner xử lý/xác nhận.
+- Blocker: PR GitHub chưa được tạo theo nhật ký trước đó do GitHub CLI credential invalid; local PostgreSQL smoke chưa có DB test/`DIRECT_URL`.
+- Còn lại: D-004 và các ticket đang gated theo backend/page readiness như phần trạng thái hiện tại.
 
 ### 2026-09-29 — PR C implementation sau test contract
 

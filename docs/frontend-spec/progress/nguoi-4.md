@@ -3,13 +3,20 @@
 ## Trạng thái hiện tại
 
 - Phase/ticket: Phase 4 — B-402, B-403, B-404, B-405, B-406, B-407
-- Cập nhật lần cuối: 2026-09-28
+- Cập nhật lần cuối: 2026-09-29
 - Đang làm: Hoàn tất Cart UI, Quantity/Selection/Delete với optimistic rollback, Address list/create, Voucher preview/evaluate, Idempotent Checkout submit (0₫ shipping fee invariant, UUID key snapshot & retry resilience).
-- Nhánh/PR: feat/fe-nguoi-4-cart/checkout
-- Bị block bởi: Không
+- Nhánh/PR: Đã tích hợp vào `dev` (merge commit `4760e19`; nhánh `feat/fe-nguoi-4-cart/checkout`)
+- Bị block bởi: B-408 cần backend/test DB thật; Q-804 cần môi trường và phối hợp chạy Buyer/Seller critical E2E.
 - Việc tiếp theo: B-408 (E2E integration test backend DB) và Q-804 phối hợp với Người 5.
 
 ## Nhật ký theo ngày
+
+### 2026-09-29 — Đối soát trạng thái tích hợp
+
+- Đã làm: Xác nhận nhánh cart/checkout đã được tích hợp vào `dev` qua merge `4760e19`.
+- Test/kiểm tra: Không chạy lại test/E2E trong lần đối soát tài liệu này; giữ nguyên evidence tại nhật ký 2026-09-28.
+- Đối chiếu UI rules: nút tăng/giảm số lượng giỏ hàng có vùng chạm 44×44px.
+- Còn lại: B-408 cần backend/test DB thật; Q-804 cần phối hợp chạy critical E2E.
 
 ### 2026-09-28 — B-402, B-403, B-404, B-405, B-406, B-407
 

@@ -3,13 +3,20 @@
 ## Trạng thái hiện tại
 
 - Phase/ticket: Phase 5 — O-504 & O-505 hoàn tất (Cụm 2)
-- Cập nhật lần cuối: 2026-09-28
+- Cập nhật lần cuối: 2026-09-29
 - Đang làm: Đã hoàn thành 100% Cụm 2 gồm Ticket O-504 (Seller Orders Queue `/seller/orders`) và O-505 (Fulfillment flow tuần tự: Confirm -> Preparing -> Shipping, Từ chối/hủy đơn với lý do bắt buộc, xử lý 409 conflict). Đã tích hợp kiểm thử đơn vị `frontend/test/seller-orders.spec.ts` (5/5 pass). Toàn bộ test suite 35/35 pass, `next build` 100% thành công.
-- Nhánh/PR: thanh-vien-5
-- Bị block bởi: Không
+- Nhánh/PR: Đã tích hợp vào `dev` (merge commit `1623c65`; nhánh `thanh-vien-5`)
+- Bị block bởi: A-704/A-705/A-708/A-709 và P-607c phụ thuộc backend/API hoặc GAP-09; Q-805 cần chạy kiểm tra RBAC/security trực tiếp.
 - Việc tiếp theo: Triển khai Cụm 3 gồm O-507 (Review Form UI `/orders/[id]/review`) và P-607c (Review media preview).
 
 ## Nhật ký theo ngày
+
+### 2026-09-29 — Đối soát trạng thái tích hợp
+
+- Đã làm: Xác nhận các thay đổi buyer/seller orders đã được tích hợp vào `dev` qua merge `1623c65`.
+- Test/kiểm tra: Không chạy lại test trong lần đối soát tài liệu này; giữ nguyên evidence test ở nhật ký 2026-09-28.
+- Đối chiếu UI rules: màu trạng thái Seller Orders và thông báo đơn dùng semantic tokens đã có trong design system.
+- Còn lại: O-507, các ticket admin, P-607c và Q-805 như phần trạng thái hiện tại.
 
 ### 2026-09-28 (Hoàn thành Cụm 2: O-504 Seller Orders Table & O-505 Sequential Fulfillment Flow)
 
