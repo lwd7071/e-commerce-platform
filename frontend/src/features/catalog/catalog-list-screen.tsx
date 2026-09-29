@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useTransition } from "react";
+import { usePathname } from "next/navigation";
 import { repositories } from "@/lib/repositories/repository-factory";
 import { categoryAdapter, type CategoryItem } from "@/lib/adapters/category.adapter";
 import type { WireCatalogProductItem, GetProductsParams } from "@/lib/api/catalog.api";
@@ -8,33 +9,60 @@ import { ProductCard } from "./product-card";
 import { Skeleton, EmptyState, ErrorState } from "@/components/ui/data-states";
 import { Icon } from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
+import {
+  buildCatalogUrlSearchParams,
+  createCatalogQueryCoordinator,
+} from "./catalog-query-engine";
 
 type SortOption = "created_at_desc" | "price_asc" | "price_desc";
 
 type Props = {
   initialSearch?: string;
   initialCategoryId?: string;
+  initialSort?: SortOption;
+  initialMinPrice?: string;
+  initialMaxPrice?: string;
 };
 
-export function CatalogListScreen({ initialSearch = "", initialCategoryId = "" }: Props) {
+export function CatalogListScreen({
+  initialSearch = "",
+  initialCategoryId = "",
+  initialSort = "created_at_desc",
+  initialMinPrice = "",
+  initialMaxPrice = "",
+}: Props) {
+  const pathname = usePathname();
+
   const [products, setProducts] = useState<WireCatalogProductItem[]>([]);
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Controlled search input & debounced search term (300ms debounce per user flow)
+  const [searchInput, setSearchInput] = useState(initialSearch);
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
+
   // Filters state
-  const [search, setSearch] = useState(initialSearch);
   const [selectedCategory, setSelectedCategory] = useState(initialCategoryId);
-  const [sort, setSort] = useState<SortOption>("created_at_desc");
-  const [minPrice, setMinPrice] = useState("");
-  const [maxPrice, setMaxPrice] = useState("");
+  const [sort, setSort] = useState<SortOption>(initialSort);
+  const [minPrice, setMinPrice] = useState(initialMinPrice);
+  const [maxPrice, setMaxPrice] = useState(initialMaxPrice);
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
 
-  const activeQueryRef = useRef(0);
+  const coordinatorRef = useRef(createCatalogQueryCoordinator());
   const [, startTransition] = useTransition();
 
-  // Load verified categories on mount
+  // 300ms search input debounce
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchInput.trim());
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  // Load categories on mount (safe live fallback if unverified per GAP-05)
   useEffect(() => {
     categoryAdapter.getCategories().then((cats) => {
       setCategories(cats);
@@ -44,13 +72,15 @@ export function CatalogListScreen({ initialSearch = "", initialCategoryId = "" }
   }, []);
 
   const fetchProducts = async (params: GetProductsParams, append = false) => {
-    const queryId = ++activeQueryRef.current;
+    const coordinator = coordinatorRef.current;
+    const queryId = coordinator.startQuery();
+
     setIsLoading(true);
     setError(null);
     try {
       const envelope = await repositories.catalog().getProductsPaginated(params);
-      // Discard stale out-of-order response if another query was initiated
-      if (queryId !== activeQueryRef.current) {
+      // Discard stale out-of-order responses if a newer query was initiated
+      if (!coordinator.isLatest(queryId)) {
         return;
       }
 
@@ -58,7 +88,12 @@ export function CatalogListScreen({ initialSearch = "", initialCategoryId = "" }
       const meta = envelope.meta;
 
       if (append) {
-        setProducts((prev) => [...prev, ...items]);
+        // Guarantee deduplicated items ("cursor không trùng" per B-301 acceptance)
+        setProducts((prev) => {
+          const existingIds = new Set(prev.map((p) => p.product_id));
+          const uniqueItems = items.filter((item) => !existingIds.has(item.product_id));
+          return [...prev, ...uniqueItems];
+        });
       } else {
         setProducts(items);
       }
@@ -66,43 +101,64 @@ export function CatalogListScreen({ initialSearch = "", initialCategoryId = "" }
       setNextCursor(meta?.next_cursor ?? null);
       setHasMore(Boolean(meta?.has_more));
     } catch (err: unknown) {
-      if (queryId !== activeQueryRef.current) {
+      if (!coordinator.isLatest(queryId)) {
         return;
       }
       const msg = err instanceof Error ? err.message : "Không thể tải danh sách sản phẩm.";
       setError(msg);
     } finally {
-      if (queryId === activeQueryRef.current) {
+      if (coordinator.isLatest(queryId)) {
         setIsLoading(false);
       }
     }
   };
 
+  // Trigger query & sync active filters to browser URL (B-301: "URL giữ filter")
   useEffect(() => {
     const params: GetProductsParams = {
       limit: 20,
       sort,
     };
-    if (search.trim()) params.search = search.trim();
+    if (debouncedSearch) params.search = debouncedSearch;
     if (selectedCategory) params.category_id = selectedCategory;
     if (minPrice.trim() && !isNaN(Number(minPrice))) params.min_price = minPrice.trim();
     if (maxPrice.trim() && !isNaN(Number(maxPrice))) params.max_price = maxPrice.trim();
 
+    // Sync URL without triggering full page reload
+    if (typeof window !== "undefined") {
+      const urlParams = buildCatalogUrlSearchParams({
+        search: debouncedSearch,
+        categoryId: selectedCategory,
+        sort,
+        minPrice,
+        maxPrice,
+      });
+      const queryStr = urlParams.toString();
+      const nextUrl = queryStr ? `${pathname}?${queryStr}` : pathname;
+      window.history.replaceState(null, "", nextUrl);
+    }
+
     startTransition(() => {
       fetchProducts(params, false);
     });
-  }, [search, selectedCategory, sort, minPrice, maxPrice]);
+  }, [debouncedSearch, selectedCategory, sort, minPrice, maxPrice, pathname]);
 
   const handleSearchSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setDebouncedSearch(searchInput.trim());
   };
 
   const handleResetFilters = () => {
-    setSearch("");
+    setSearchInput("");
+    setDebouncedSearch("");
     setSelectedCategory("");
     setSort("created_at_desc");
     setMinPrice("");
     setMaxPrice("");
+
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", pathname);
+    }
   };
 
   const handleLoadMore = () => {
@@ -112,7 +168,7 @@ export function CatalogListScreen({ initialSearch = "", initialCategoryId = "" }
       sort,
       cursor: nextCursor,
     };
-    if (search.trim()) params.search = search.trim();
+    if (debouncedSearch) params.search = debouncedSearch;
     if (selectedCategory) params.category_id = selectedCategory;
     if (minPrice.trim()) params.min_price = minPrice.trim();
     if (maxPrice.trim()) params.max_price = maxPrice.trim();
@@ -134,8 +190,8 @@ export function CatalogListScreen({ initialSearch = "", initialCategoryId = "" }
         <form onSubmit={handleSearchSubmit} className="relative flex-1 max-w-md">
           <input
             name="q"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             className="form-control pl-10 pr-4"
             placeholder="Tìm theo tên sản phẩm..."
             aria-label="Tìm theo tên sản phẩm"
@@ -231,7 +287,7 @@ export function CatalogListScreen({ initialSearch = "", initialCategoryId = "" }
             fetchProducts({
               limit: 20,
               sort,
-              search: search || undefined,
+              search: debouncedSearch || undefined,
               category_id: selectedCategory || undefined,
             });
           }}

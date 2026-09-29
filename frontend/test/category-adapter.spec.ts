@@ -12,9 +12,10 @@ describe("CategoryAdapter (A-700 / B-305 / RB-KN04 / GAP-05)", () => {
   it("builds a hierarchical tree conforming to max 2 levels (RB-KN04)", async () => {
     const adapter = new CategoryAdapterImpl(DEV_CATEGORY_FIXTURES, true);
     const tree = await adapter.getCategoryTree();
-    expect(tree.length).toBeGreaterThan(0);
+    expect(tree.length).toBe(3);
     for (const root of tree) {
       expect(root.parentId).toBeNull();
+      expect(root.children.length).toBeGreaterThan(0);
       for (const child of root.children) {
         expect(child.parentId).toBe(root.id);
       }

@@ -43,6 +43,7 @@ export interface ICategoryAdapter {
  * a category endpoint is mounted and wired.
  */
 export const DEV_CATEGORY_FIXTURES: CategoryItem[] = [
+  // Cấp 1: Danh mục gốc (Roots - level 1)
   {
     id: "00000000-0000-0000-0000-000000000010",
     parentId: null,
@@ -62,6 +63,28 @@ export const DEV_CATEGORY_FIXTURES: CategoryItem[] = [
     parentId: null,
     name: "Thiết bị điện tử",
     description: "Điện thoại, bàn phím và phụ kiện công nghệ",
+    status: "ACTIVE",
+  },
+  // Cấp 2: Danh mục con (Children - level 2 theo RB-KN04)
+  {
+    id: "00000000-0000-0000-0000-000000000110",
+    parentId: "00000000-0000-0000-0000-000000000010",
+    name: "Chăm sóc da mặt & Serum",
+    description: "Serum, kem dưỡng, mặt nạ chuyên sâu",
+    status: "ACTIVE",
+  },
+  {
+    id: "00000000-0000-0000-0000-000000000111",
+    parentId: "00000000-0000-0000-0000-000000000011",
+    name: "Áo sơ mi & Áo thun nam",
+    description: "Trang phục nam cao cấp",
+    status: "ACTIVE",
+  },
+  {
+    id: "00000000-0000-0000-0000-000000000112",
+    parentId: "00000000-0000-0000-0000-000000000012",
+    name: "Phụ kiện máy tính & Bàn phím",
+    description: "Bàn phím cơ, chuột và tai nghe",
     status: "ACTIVE",
   },
 ];
