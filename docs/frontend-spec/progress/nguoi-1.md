@@ -4,18 +4,33 @@
 
 - Phase/ticket: Phase 0, Phase 1 & Phase 8 hoàn tất (C-001, C-003–005, F-101–107, B-303, B-304, Q-801, Q-806, Q-807, Q-808)
 - Cập nhật lần cuối: 2026-09-29
-- Đang làm: Đã hoàn tất 100% toàn bộ trách nhiệm của Người 1: Scaffold thư mục `frontend/`, bộ seam dùng chung `src/lib/`, 2 trang `/login` và `/register` chuẩn brand wordmark Dino, sửa toàn bộ linter của team, triển khai bộ kiểm thử chịu lỗi `resilience-q806` (8 tests) và kiểm thử đồng bộ contract `contract-drift-q807` (3 tests). Vượt qua toàn bộ Quality Gates: **41/41 unit tests frontend PASS**, **600/600 tests backend PASS**, typecheck 0 lỗi, lint 0 lỗi, build Turbopack 11 routes thành công.
+- Đang làm: Đã xử lý triệt để review của Lead: cấu hình chặt chẽ `allowedRoles: ["BUYER"]` cho `/orders` và `/notifications` trong `route-guards.ts`, các route review con (`/orders/[id]/review`) tự động thừa hưởng rule an toàn; bổ sung regression test bảo đảm chặn `SELLER`/`ADMIN`. Đồng bộ toàn diện sau khi kéo nhánh Người 2 và Người 5. Toàn bộ Quality Gates đạt 100%: unit tests frontend PASS, 600/600 tests backend PASS, typecheck 0 lỗi, lint 0 lỗi, build Turbopack 13 routes thành công.
 - Nhánh/PR: dev
 - Bị block bởi: Không
 - Việc tiếp theo: Toàn bộ công việc của Người 1 đã hoàn tất 100%, sẵn sàng bàn giao cho Release Candidate.
 
 ## Nhật ký theo ngày
 
-### 2026-09-29 — Đồng bộ role metadata với route RBAC
+### 2026-09-29 — Đồng bộ role metadata với route RBAC (BUYER-only cho /orders & /notifications)
 
-- Đã làm: `ROUTE_RULES` giới hạn `/orders`, `/orders/[id]/review` và `/notifications` cho Buyer theo `01-project-overview.md`; UI `ProtectedPage` giữ guard tương ứng.
-- Test/kiểm tra: Route guard regression test được thêm trước khi sửa và tái hiện sai lệch `/orders`; sau sửa toàn bộ 15 test files/74 tests, typecheck, lint và production build pass trên Node 24.15.0/npm 11.12.1.
-- Còn lại: Không có blocker mới từ thay đổi này.
+- **Đã làm:**
+  - Khắc phục lỗ hổng phân quyền giao diện tại `frontend/src/lib/auth/route-guards.ts`:
+    - Đặt `allowedRoles: ["BUYER"]` cho `/orders` (loại bỏ hoàn toàn cấp quyền thừa cho `SELLER`, `ADMIN`).
+    - Đặt `allowedRoles: ["BUYER"]` cho `/notifications` (thay vì mở cho mọi role đã đăng nhập).
+    - Quy tắc `/orders` tự động áp dụng tiền tố an toàn cho toàn bộ route con như `/orders/[id]/review`.
+  - Bổ sung kiểm thử hồi quy (Regression Test) trong `frontend/test/route-guards.spec.ts`:
+    - Xác nhận `/orders` yêu cầu auth và chỉ cho phép `BUYER`.
+    - Xác nhận route con `/orders/order-123/review` kế thừa guard và chỉ cho phép `BUYER`.
+    - Xác nhận `/notifications` yêu cầu auth và chỉ cho phép `BUYER`, cấm `SELLER` và `ADMIN`.
+- **Quyết định UI/contract:**
+  - Guard phân quyền phía FE ngăn chặn sớm việc render màn hình nhầm role ở client. Backend API vẫn tiếp tục thực thi xác thực quyền độc lập qua `RequestContext` và RBAC middleware.
+- **Test/kiểm tra:**
+  - Route guard regression test xác nhận chặn đứng mọi role ngoài `BUYER`.
+  - Typecheck, lint, test và production build pass sạch 100%.
+- **Handoff:**
+  - Bàn giao route guard đã vá lỗi cho Người 2 (UI Shell), Người 4 (Cart/Checkout) và Người 5 (Orders/Review).
+- **Blocker:** Không.
+- **Còn lại:** Không còn task nào tồn đọng.
 
 ### 2026-09-28 — F-101 đến F-107 & Scaffold Frontend Foundation
 

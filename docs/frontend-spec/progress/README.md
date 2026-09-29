@@ -4,7 +4,7 @@
 
 | Người | Phạm vi | File | Trạng thái hiện tại (2026-09-29) |
 |---|---|---|---|
-| 1 | Platform, API, auth, tích hợp | [nguoi-1.md](./nguoi-1.md) | Foundation, auth/API, login/register và Q-806/Q-807 hoàn tất; các gate được báo cáo đạt. Xem file cá nhân để biết phạm vi và evidence. |
+| 1 | Platform, API, auth, tích hợp | [nguoi-1.md](./nguoi-1.md) | Foundation, auth/API, login/register, route guards BUYER và Q-806/Q-807 hoàn tất; các gate được báo cáo đạt. Xem file cá nhân để biết phạm vi và evidence. |
 | 2 | UI/UX, shared UI, account | [nguoi-2.md](./nguoi-2.md) | Shared UI/account và các thay đổi PR A/B/C đã tích hợp vào `dev`; QA scoped đạt. Còn D-004, backend-gated features và các handoff contrast/route metadata. |
 | 3 | Catalog, seller catalog, category | [nguoi-3.md](./nguoi-3.md) | Catalog, product detail, seller catalog, stock edit và category adapter đã triển khai; còn P-607a chờ GAP-09 và phối hợp nghiệm thu handoff. |
 | 4 | Cart, address, voucher, checkout | [nguoi-4.md](./nguoi-4.md) | Cart và checkout B-402–B-407 hoàn tất; còn B-408 E2E với DB thật và Q-804. |
