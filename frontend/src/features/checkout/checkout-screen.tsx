@@ -908,8 +908,10 @@ export function CheckoutScreen() {
             <Button
               variant="primary"
               onClick={() => {
+                const createdIds = successResult?.orders?.map((o) => o.order_id).filter(Boolean).join(",");
+                const targetUrl = createdIds ? `/orders?created=${createdIds}` : "/orders";
                 startTransition(() => {
-                  router.push("/orders");
+                  router.push(targetUrl);
                 });
               }}
             >

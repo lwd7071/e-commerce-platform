@@ -98,7 +98,7 @@ export function OrderCard({ order, onCancel, isHighlighted = false }: OrderCardP
 
       {/* 3. Reason Alert (If cancelled) */}
       {isCancelled && order.cancel_reason && (
-        <div className="p-3 bg-[var(--danger-surface)] border border-[var(--danger-border)] rounded-lg text-xs text-[#8e2638]">
+        <div className="p-3 bg-[var(--danger-surface)] border border-[var(--danger-border)] rounded-lg text-xs text-[var(--danger)]">
           <span className="font-semibold">Lý do hủy đơn: </span>
           <span>{order.cancel_reason}</span>
         </div>

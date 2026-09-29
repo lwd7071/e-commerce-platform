@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { repositories } from "../src/lib/repositories/repository-factory";
 import { ORDER_TABS, PREDEFINED_CANCEL_REASONS } from "../src/features/orders/orders.types";
+import { checkoutRepository } from "../src/features/checkout/checkout.repository";
 
 describe("Orders Center and Cancellation Lifecycle (O-502, O-503)", () => {
   it("provides all 7 valid order status tabs plus ALL tab", () => {
@@ -58,5 +59,31 @@ describe("Orders Center and Cancellation Lifecycle (O-502, O-503)", () => {
     ).rejects.toMatchObject({
       status: 409,
     });
+  });
+
+  it("registers newly created orders from checkout and allows lifecycle actions (O-502, O-503)", async () => {
+    const orderRepo = repositories.order();
+    const createdResult = await checkoutRepository.submitCheckout(
+      {
+        address_id: "addr_01",
+        payment_method: "COD",
+        vouchers: [],
+      },
+      "test-idempotency-key-01"
+    );
+
+    expect(createdResult.orders).toHaveLength(1);
+    const newOrderId = createdResult.orders[0].order_id;
+
+    // Immediately readable via mock store
+    const fetched = await orderRepo.getOrderById(newOrderId);
+    expect(fetched).toBeDefined();
+    expect(fetched.id).toBe(newOrderId);
+    expect(fetched.status).toBe("PENDING_CONFIRMATION");
+
+    // Actionable: can be cancelled by buyer
+    const cancelled = await orderRepo.cancelOrder(newOrderId, "Đổi ý mua món khác");
+    expect(cancelled.status).toBe("CANCELLED");
+    expect(cancelled.cancel_reason).toBe("Đổi ý mua món khác");
   });
 });

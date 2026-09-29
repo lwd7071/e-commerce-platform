@@ -241,44 +241,44 @@ export function SellerOrdersScreen() {
 
         {/* Quick Queue Stats Banner */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="surface-card p-4 flex items-center justify-between border-l-4 border-l-[#f3dfb6]">
+          <div className="surface-card p-4 flex items-center justify-between border-l-4 border-l-[var(--warning-border)]">
             <div>
               <p className="text-xs text-[var(--subtext)] font-semibold uppercase tracking-wider">
                 Chờ xác nhận
               </p>
-              <p className="text-2xl font-bold mt-1 tabular-nums text-[#794600]">
+              <p className="text-2xl font-bold mt-1 tabular-nums text-[var(--warning)]">
                 {pendingCount}
               </p>
             </div>
-            <div className="w-10 h-10 rounded-full bg-[#fff7e8] flex items-center justify-center text-[#794600]">
+            <div className="w-10 h-10 rounded-full bg-[var(--warning-surface)] flex items-center justify-center text-[var(--warning)]">
               <Icon name="bag" className="w-5 h-5" />
             </div>
           </div>
 
-          <div className="surface-card p-4 flex items-center justify-between border-l-4 border-l-[#d7c7f2]">
+          <div className="surface-card p-4 flex items-center justify-between border-l-4 border-l-[var(--info-border)]">
             <div>
               <p className="text-xs text-[var(--subtext)] font-semibold uppercase tracking-wider">
                 Đang chuẩn bị hàng
               </p>
-              <p className="text-2xl font-bold mt-1 tabular-nums text-[#50377e]">
+              <p className="text-2xl font-bold mt-1 tabular-nums text-[var(--info)]">
                 {preparingCount}
               </p>
             </div>
-            <div className="w-10 h-10 rounded-full bg-[#f6f0ff] flex items-center justify-center text-[#50377e]">
+            <div className="w-10 h-10 rounded-full bg-[var(--info-surface)] flex items-center justify-center text-[var(--info)]">
               <Icon name="grid" className="w-5 h-5" />
             </div>
           </div>
 
-          <div className="surface-card p-4 flex items-center justify-between border-l-4 border-l-[#b2e8e0]">
+          <div className="surface-card p-4 flex items-center justify-between border-l-4 border-l-[var(--success-border)]">
             <div>
               <p className="text-xs text-[var(--subtext)] font-semibold uppercase tracking-wider">
                 Đang vận chuyển
               </p>
-              <p className="text-2xl font-bold mt-1 tabular-nums text-[#075f53]">
+              <p className="text-2xl font-bold mt-1 tabular-nums text-[var(--success)]">
                 {shippingCount}
               </p>
             </div>
-            <div className="w-10 h-10 rounded-full bg-[#eafaf7] flex items-center justify-center text-[#075f53]">
+            <div className="w-10 h-10 rounded-full bg-[var(--success-surface)] flex items-center justify-center text-[var(--success)]">
               <Icon name="check" className="w-5 h-5" />
             </div>
           </div>

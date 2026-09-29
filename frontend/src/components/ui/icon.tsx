@@ -3,6 +3,7 @@ import type { ReactNode, SVGProps } from "react";
 export type IconName =
   | "bag"
   | "bell"
+  | "camera"
   | "check"
   | "chevron-right"
   | "close"
@@ -12,6 +13,8 @@ export type IconName =
   | "menu"
   | "search"
   | "spinner"
+  | "star"
+  | "trash"
   | "user"
   | "warning";
 
@@ -20,6 +23,7 @@ type Props = SVGProps<SVGSVGElement> & { name: IconName };
 const paths: Record<IconName, ReactNode> = {
   bag: <><path d="M5 8h14l1 12H4L5 8Z" /><path d="M9 8a3 3 0 0 1 6 0" /></>,
   bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M10 21h4" /></>,
+  camera: <><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" /><circle cx="12" cy="13" r="3" /></>,
   check: <path d="m5 12 4 4L19 6" />,
   "chevron-right": <path d="m9 18 6-6-6-6" />,
   close: <><path d="m6 6 12 12M18 6 6 18" /></>,
@@ -29,6 +33,8 @@ const paths: Record<IconName, ReactNode> = {
   menu: <><path d="M4 6h16M4 12h16M4 18h16" /></>,
   search: <><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 5 5" /></>,
   spinner: <><path d="M20 12a8 8 0 0 1-8 8" /><path d="M12 4a8 8 0 0 1 8 8" /></>,
+  star: <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />,
+  trash: <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />,
   user: <><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></>,
   warning: <><path d="m12 3 10 18H2L12 3Z" /><path d="M12 9v5M12 17h.01" /></>,
 };

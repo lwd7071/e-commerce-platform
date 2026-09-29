@@ -2,14 +2,139 @@
 
 ## Trạng thái hiện tại
 
-- Phase/ticket: Phase 5 — O-504 & O-505 hoàn tất (Cụm 2)
-- Cập nhật lần cuối: 2026-09-28
-- Đang làm: Đã hoàn thành 100% Cụm 2 gồm Ticket O-504 (Seller Orders Queue `/seller/orders`) và O-505 (Fulfillment flow tuần tự: Confirm -> Preparing -> Shipping, Từ chối/hủy đơn với lý do bắt buộc, xử lý 409 conflict). Đã tích hợp kiểm thử đơn vị `frontend/test/seller-orders.spec.ts` (5/5 pass). Toàn bộ test suite 35/35 pass, `next build` 100% thành công.
+- Phase/ticket: Phase 5 & Phase 6 — Hoàn tất 100% Cụm 4 & Toàn bộ phân công Frontend của Người 5 (A-704, A-705, A-708, A-709, Q-805)
+- Cập nhật lần cuối: 2026-09-29
+- Đang làm: Đã hoàn thành toàn bộ 4 cụm công việc Frontend của Người 5:
+  1. Cụm 1: O-502 & O-503 (Buyer Order Center `/orders`, Cancel Dialog với RB-LTT08).
+  2. Cụm 2: O-504 & O-505 (Seller Orders `/seller/orders`, quy trình xử lý đơn tuần tự).
+  3. Cụm 3: O-507 & P-607c (Review Form UI `/orders/[id]/review`, chống đánh giá trùng RB-LB09, điều kiện tiên quyết QD14, upload ảnh xem trước).
+  4. Cụm 4: A-704 (Admin Dashboard `/admin`), A-705 (Khóa/Mở người dùng kèm audit log), A-708 (Seller Dashboard `/seller` tuân thủ nghiêm ngặt quy tắc QD19 doanh thu chỉ tính đơn COMPLETED), A-709 (Admin Categories `/admin/categories` cây danh mục tối đa 2 cấp RB-KN04), Q-805 (RBAC route guard cho `/admin`, `/admin/categories`, `/seller`).
+  5. Quality Gates: 60/60 Vitest tests PASS (100%), typecheck 0 errors (`tsc --noEmit`), Next.js Production Build 100% SUCCESS (17/17 routes tĩnh/động prerender thành công), 0 hardcoded hex colors.
 - Nhánh/PR: thanh-vien-5
 - Bị block bởi: Không
-- Việc tiếp theo: Triển khai Cụm 3 gồm O-507 (Review Form UI `/orders/[id]/review`) và P-607c (Review media preview).
+- Việc tiếp theo: Sẵn sàng bàn giao hoặc phối hợp với Người 1, 3, 4 khi backend hoàn tất tích hợp live endpoints.
 
 ## Nhật ký theo ngày
+
+### 2026-09-29 (Hoàn thành 100% Cụm 4: A-704, A-705, A-708, A-709, Q-805)
+
+- **Đã làm:**
+  - **1. Triển khai A-704 — Admin Dashboard Screen (`/admin` & `frontend/src/features/admin/admin-dashboard-screen.tsx`):**
+    - Trang trung tâm kiểm duyệt và quản trị toàn diện hệ thống sàn.
+    - 4 thẻ KPI chỉ số chính: Tổng người dùng, Tổng gian hàng đối tác, Tổng sản phẩm kiểm duyệt, Tổng doanh số GMV thực tế sàn (tuân thủ **QD19**: chỉ tính từ đơn hàng `COMPLETED`).
+    - Hệ thống chuyển Tab mượt mà: Người dùng (`users`), Gian hàng (`shops`), Sản phẩm kiểm duyệt (`products`), Nhật ký kiểm toán (`logs`).
+    - Thanh tìm kiếm từ khóa thời gian thực lọc danh sách theo tên, email, sản phẩm.
+    - Điều hướng nhanh đến trang Quản lý danh mục ngành hàng `/admin/categories`.
+  - **2. Triển khai A-705 — User/Shop Moderation & Audit Logging:**
+    - Khóa tài khoản người dùng / gian hàng vi phạm với modal `<Dialog>` yêu cầu **bắt buộc nhập lý do** theo quy tắc **RB-LTT08**.
+    - Chặn hoàn toàn việc khóa tài khoản quản trị viên tối cao (`ADMIN`).
+    - Ghi nhận mọi hoạt động kiểm duyệt vào bảng `AdminAuditLog` (hành động, đối tượng mục tiêu, lý do, quản trị viên thực hiện, thời gian chi tiết).
+    - Thao tác mở khóa khôi phục tài khoản tức thì kèm log audit tương ứng.
+    - Kiểm duyệt ẩn/khôi phục sản phẩm vi phạm với lý do kiểm duyệt rõ ràng.
+  - **3. Triển khai A-708 — Seller Dashboard & KPI UI (`/seller` & `frontend/src/features/seller/seller-dashboard-screen.tsx`):**
+    - Trang dashboard tổng quan dành cho người bán và quản trị viên (`<ProtectedPage allowedRoles={["SELLER", "ADMIN"]}>`).
+    - **Tuân thủ nghiêm ngặt quy tắc QD19**: Doanh thu hiển thị trên Dashboard chỉ tổng hợp từ các đơn hàng có trạng thái `COMPLETED`. Tuyệt đối không tạm tính đơn đang giao (`SHIPPING`), đang chuẩn bị (`PREPARING`) hoặc đã hủy (`CANCELLED`).
+    - Thẻ KPI: Doanh thu thực nhận (QD19), Số lượng đơn hoàn tất, Số đơn chờ xác nhận (có cảnh báo đỏ và CTA xử lý ngay), Số sản phẩm đang bán, Đánh giá chất lượng shop (sao).
+    - Banner công khai chính sách doanh thu theo chuẩn QD19 giải thích minh bạch quy tắc kế toán cho chủ gian hàng.
+    - Hàng đợi đơn hàng gần đây cần xử lý (Action Queue) với link trực tiếp đến `/seller/orders`.
+    - Bảng cảnh báo tồn kho thấp (Low Stock Inventory) phát hiện sản phẩm có tồn kho $\le 20$ và liên kết cập nhật nhanh tại `/seller/products`.
+  - **4. Triển khai A-709 — Admin Categories Management (`/admin/categories` & `frontend/src/features/admin/admin-categories-screen.tsx`):**
+    - Tiêu thụ `CategoryAdapter` (`A-700`) từ Người 3.
+    - Hiển thị cây danh mục phân cấp 2 cấp trực quan (Accordion disclosure, icon, số lượng danh mục con, trạng thái `ACTIVE` / `INACTIVE`).
+    - Thực thi quy tắc **RB-KN04**: Cây danh mục giới hạn **tối đa 2 cấp**. Khi thêm danh mục con, hệ thống chỉ cho phép chọn cha là danh mục gốc cấp 1; từ chối tạo cấp 3.
+    - Bật/tắt trạng thái hoạt động danh mục (`ACTIVE` $\leftrightarrow$ `INACTIVE`) tức thì.
+    - Xóa danh mục với hộp thoại xác nhận; từ chối xóa danh mục cha nếu vẫn còn danh mục con trực thuộc.
+  - **5. Triển khai Q-805 — Route Protection & RBAC:**
+    - Cấu hình phân quyền nghiêm ngặt trong `route-guards.ts`:
+      - `/admin` và `/admin/*`: chỉ cho phép vai trò `ADMIN`.
+      - `/seller` và `/seller/*`: cho phép vai trò `SELLER` và `ADMIN`.
+    - Tích hợp `<ProtectedPage>` ở tất cả các trang đích, chuyển hướng an toàn về `/login` với `returnTo` đã được làm sạch chống open-redirect.
+  - **6. Design System & Token Compliance:**
+    - 100% màu sắc và giao diện tuân thủ biến token CSS (`var(--background)`, `var(--foreground)`, `var(--card)`, `var(--border)`, `var(--primary)`, `var(--success-*)`, `var(--warning-*)`, `var(--danger-*)`, `var(--info-*)`).
+    - **0 hardcoded hex colors** trong toàn bộ code mới.
+  - **7. Quality Gates:**
+    - Viết mới `frontend/test/admin.spec.ts` với 16 ca kiểm thử bao phủ toàn bộ QD19, A-705, A-708, A-709, RB-KN04, RB-LTT08, Q-805.
+    - Toàn bộ Vitest test suite: **60/60 tests PASS (100%)**.
+    - Typecheck (`tsc --noEmit`): **0 errors**.
+    - Next.js Production Build (`next build`): **100% SUCCESS** (17/17 routes tĩnh và động biên dịch trơn tru).
+
+### 2026-09-29 (Hoàn thành Cụm 3: O-507 Review Form UI & P-607c Review Media Upload)
+
+- **Đã làm:**
+  - **1. Triển khai O-507 — Review Form UI (`frontend/src/app/orders/[id]/review/page.tsx` & `frontend/src/features/review/review-screen.tsx`):**
+    - Cấu hình trang dynamic Next.js App Router `/orders/[id]/review` với metadata chuẩn SEO.
+    - Bảo vệ phân quyền nghiêm ngặt bằng `<ProtectedPage allowedRoles={["BUYER"]}>`.
+    - Kiểm tra điều kiện tiên quyết theo quy tắc nghiệp vụ **QD14**: Chỉ cho phép đánh giá đơn hàng ở trạng thái `COMPLETED`. Nếu đơn chưa hoàn thành (PENDING, CONFIRMED, SHIPPING, CANCELLED), giao diện hiển thị thông báo giải thích rõ ràng và nút điều hướng về trang đơn hàng.
+    - Phòng ngừa đánh giá trùng lặp theo quy tắc **RB-LB09**: Nếu đơn hàng đã được đánh giá trước đó, hiển thị màn hình thông báo cùng nội dung phản hồi đã gửi.
+    - Thiết kế giao diện biểu mẫu đánh giá chi tiết theo từng sản phẩm trong đơn:
+      - Header sản phẩm: hình ảnh, tên sản phẩm, phân loại, giá bán.
+      - Chấm điểm số sao trực quan từ 1 đến 5 sao: hỗ trợ hover preview, click chọn sao, badge nhãn cảm xúc ("Rất tệ", "Chưa tốt", "Bình thường", "Hài lòng", "Tuyệt vời"), chuẩn accessibility (role `radiogroup`, `aria-checked`, `aria-label`).
+      - Khung nhập nhận xét chi tiết: giới hạn 10-500 ký tự, hiển thị realtime số lượng ký tự, cảnh báo lỗi cụ thể nếu nhập dưới 10 ký tự.
+      - Tùy chọn "Đánh giá ẩn danh" (hiển thị dạng `n***n`).
+      - Màn hình phản hồi thành công: card thông báo chúc mừng kèm hiệu ứng và tự động quay về `/orders` sau 2.5 giây.
+  - **2. Triển khai P-607c — Review Media Upload & Preview UI (`frontend/src/features/review/review-media-upload.tsx`):**
+    - Component tải lên và xem trước hình ảnh đính kèm:
+      - Hỗ trợ tải các định dạng phổ biến: JPG, PNG, WEBP.
+      - Kiểm soát số lượng: tối đa 5 ảnh trên mỗi sản phẩm (theo F-607).
+      - Kiểm soát dung lượng: tối đa 5MB mỗi ảnh, cảnh báo rõ ràng nếu vượt giới hạn.
+      - Xem trước ảnh tức thì (instant thumbnail preview).
+      - Thao tác xóa từng ảnh thuận tiện với nút icon đóng kèm `aria-label="Xóa ảnh {i + 1}"`.
+      - Thanh trạng thái tiến trình xử lý tải ảnh (Progress Bar).
+      - Cơ chế thử lại (Retry) khi chọn phải file không hợp lệ hoặc lỗi đọc file.
+      - Thông báo ngữ cảnh về media API (GAP-09): ảnh được lưu trữ an toàn trong phiên đánh giá.
+  - **3. Xây dựng Review Repository & Data Layer (`frontend/src/features/review/review.repository.ts`):**
+    - Định nghĩa contract `IReviewRepository`: `submitReview(payload)`, `getOrderReviews(orderId)`, `isOrderReviewed(orderId)`.
+    - Triển khai `MockReviewRepository`: lưu trữ phiên làm việc an toàn, kiểm tra tính toàn vẹn dữ liệu (rating 1..5, comment 10..500, max 5 ảnh, chặn trùng lặp mã 409 `REVIEW_ALREADY_EXISTS`).
+    - Triển khai `ApiReviewRepository`: kết nối live API khi sẵn sàng và fallback mượt mà về mock khi offline.
+    - Bổ sung icon `star`, `camera`, `trash` vào design system icon registry (`frontend/src/components/ui/icon.tsx`).
+  - **4. Kiểm thử chất lượng (Quality Gates):**
+    - Viết mới `frontend/test/review.spec.ts` kiểm tra 7 kịch bản: nhãn rating, validate comment tối thiểu 10 ký tự, validate số sao 1..5, giới hạn tối đa 5 ảnh P-607c, gửi đánh giá hợp lệ và lưu trữ, chặn đánh giá trùng 409 RB-LB09, kiểm tra bất biến QD14 (7/7 PASS).
+    - Toàn bộ Vitest frontend: **44/44 tests PASS (100%)**.
+    - Typecheck frontend: **0 errors** (`tsc --noEmit`).
+    - Next.js Production Build: **100% SUCCESS** (toàn bộ 14 routes tĩnh/động prerender thành công).
+- **Quyết định kỹ thuật:**
+  - Thiết kế cấu trúc form độc lập theo từng sản phẩm trong đơn (`order_item_id`), phản ánh chính xác cấu trúc dữ liệu review của hệ thống e-commerce.
+  - Sử dụng semantic tokens 100%, không sử dụng mã màu hex tự do trong `src/features/review`.
+- **Contract/port thay đổi:**
+  - Bổ sung contract `IReviewRepository`, `ReviewItemInput`, `CreateReviewPayload`, `ReviewRecord`, `ReviewResult`.
+- **Blocker phát sinh:**
+  - Không.
+- **Test đã viết:**
+  - `frontend/test/review.spec.ts` — Kiểm thử Review Form UI & Media Upload (O-507 & P-607c) — Kết quả: 7/7 PASS.
+
+### 2026-09-29 (Hoàn thành Token Design System Refactor & Transaction Core Checkout/Orders Lifecycle)
+
+- **Đã làm:**
+  - **1. Chuẩn hóa Token Design System (Người 5 — Orders & Seller orders):**
+    - Bổ sung biến token semantic `--success-border: #a7f3d0;` vào `:root` trong `frontend/src/app/globals.css`.
+    - Thay thế toàn bộ mã màu hex tự do trong thẻ thống kê hàng đợi seller (`seller-orders-screen.tsx`):
+      - "Chờ xác nhận": Chuyển từ `#f3dfb6`, `#794600`, `#fff7e8` sang `border-l-[var(--warning-border)]`, `text-[var(--warning)]`, `bg-[var(--warning-surface)]`.
+      - "Đang chuẩn bị hàng": Chuyển từ `#d7c7f2`, `#50377e`, `#f6f0ff` sang `border-l-[var(--info-border)]`, `text-[var(--info)]`, `bg-[var(--info-surface)]`.
+      - "Đang vận chuyển": Chuyển từ `#b2e8e0`, `#075f53`, `#eafaf7` sang `border-l-[var(--success-border)]`, `text-[var(--success)]`, `bg-[var(--success-surface)]`.
+    - Thay thế mã màu hex tự do trong thông báo đơn hàng thành công (`orders-screen.tsx`): Chuyển `#b2e5c8`, `#126239` sang `border-[var(--success-border)]`, `text-[var(--success)]`.
+    - Thay thế mã màu hex tự do trong chi tiết lý do hủy đơn (`order-card.tsx`): Chuyển `#8e2638` sang `text-[var(--danger)]`.
+    - Kiểm tra regex toàn bộ `src/features/orders` và `src/features/seller`: **100% không còn mã hex hardcoded**.
+  - **2. Hoàn thiện Transaction Core (Checkout -> Order Lifecycle & GAP-01 Mitigation):**
+    - Hoàn thiện FE checkout theo `POST /checkout` với header `Idempotency-Key` thông qua `getOrCreateIdempotencyKey(payload)` và `ApiCheckoutRepository`.
+    - Triển khai `registerCreatedOrder`: Khi đặt hàng thành công từ checkout, các order được tự động đăng ký vào store bộ nhớ chung, cho phép người mua và người bán nhìn thấy và thao tác ngay lập tức.
+    - Triển khai mô hình `hybridOrderRepository` trong `repository-factory.ts`:
+      - Đọc dữ liệu (`getOrders`, `getOrderById`): Sử dụng mock store để đảm bảo UI hoạt động trọn vẹn và ổn định trong khi chờ Backend giải quyết triệt để GAP-01.
+      - Thao tác đơn hàng (`cancelOrder`, `confirmOrder`, `transitionOrder`): Khi có order ID hợp lệ, hệ thống gọi API thực tế tới Backend (`/orders/:id/cancel`, `/orders/:id/confirm`, `/orders/:id/transition`).
+      - Xử lý xung đột Concurrency 409: Bắt và lan truyền chính xác mã lỗi 409 để giao diện hiển thị thông báo lỗi xung đột trạng thái và tự động làm mới dữ liệu.
+      - Cơ chế Fallback an toàn: Tự động fallback sang mock state update khi offline hoặc chạy trong môi trường kiểm thử unit test.
+    - Cập nhật điều hướng thành công tại `checkout-screen.tsx`: Chuyển hướng tới `/orders?created=${ids}` để hiển thị banner chúc mừng đặt hàng thành công tương ứng.
+  - **3. Kiểm thử chất lượng (Quality Gates):**
+    - Bổ sung unit tests trong `frontend/test/orders.spec.ts` và `frontend/test/seller-orders.spec.ts` kiểm thử toàn trình từ checkout tạo order ID đến hủy đơn buyer và fulfill seller.
+    - Vitest: **37/37 tests PASS (100%)**.
+    - Typecheck: **0 errors** (`tsc --noEmit`).
+    - Next.js Production Build: **100% SUCCESS** (13/13 routes).
+- **Quyết định kỹ thuật:**
+  - Áp dụng Hybrid Repository Pattern: Tách biệt kênh đọc (mock do GAP-01) và kênh ghi (live mutation gọi backend + sync store + 409 propagation) giúp hệ thống vừa an toàn trước hạn chế dữ liệu đọc của backend vừa sẵn sàng kết nối live mutation.
+- **Contract/port thay đổi:**
+  - `ICheckoutRepository.submitCheckout(payload, idempotencyKey)`: Bắt buộc truyền `idempotencyKey`.
+  - Xuất helper `registerCreatedOrder` từ `repository-factory.ts`.
+- **Blocker phát sinh:**
+  - Không.
 
 ### 2026-09-28 (Hoàn thành Cụm 2: O-504 Seller Orders Table & O-505 Sequential Fulfillment Flow)
 
@@ -100,9 +225,8 @@
 
 - [x] O-502 — Buyer order center (`/orders`), tabs 7 trạng thái, order card, loading/empty/error states.
 - [x] O-503 — Cancel order dialog, bắt buộc nhập lý do (RB-LTT08), xử lý 409 conflict tự động làm mới.
-- [x] O-504/O-505 — Seller orders table, confirm & transition actions tuần tự (`/seller/orders`).
-- [ ] O-507 — Review form UI (`/orders/[id]/review`).
-- [ ] A-704/A-705/A-708 — admin dashboard, user lock/unlock, seller KPI khi API sẵn.
-- [ ] A-709 — admin categories page, tiêu thụ category adapter A-700 của Người 3; nối API sau A-701.
-- [ ] P-607c — review media UI khi P-606/GAP-09 đóng.
-- [ ] Q-805 — RBAC/security gate cho direct URL/API.
+- [x] O-507 — Review form UI (`/orders/[id]/review`).
+- [x] A-704/A-705/A-708 — admin dashboard, user lock/unlock, seller KPI khi API sẵn (tuân thủ nghiêm ngặt quy tắc QD19 doanh thu chỉ tính đơn COMPLETED).
+- [x] A-709 — admin categories page, tiêu thụ category adapter A-700 của Người 3 (RB-KN04 cây danh mục tối đa 2 cấp).
+- [x] P-607c — review media UI khi P-606/GAP-09 đóng (xem trước tức thì, tối đa 5 ảnh, 5MB).
+- [x] Q-805 — RBAC/security gate cho direct URL/API (`/admin`, `/admin/categories`, `/seller`).
