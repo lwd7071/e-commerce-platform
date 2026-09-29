@@ -106,6 +106,31 @@ export function generateOpenApiSpec(): OpenApiSpec {
             request_id: { type: 'string', example: 'req_01J8Y7...' },
           },
         },
+        OrderReadDTO: {
+          type: 'object', required: ['order_id', 'buyer_id', 'shop_id', 'shop_name', 'status', 'subtotal', 'discount_amount', 'shipping_fee', 'total_amount', 'cancel_reason', 'created_at', 'updated_at', 'items'],
+          properties: {
+            order_id: { type: 'string', format: 'uuid' }, buyer_id: { type: 'string', format: 'uuid' }, shop_id: { type: 'string', format: 'uuid' }, shop_name: { type: 'string' },
+            status: { type: 'string', enum: ['PENDING_CONFIRMATION', 'CONFIRMED', 'PREPARING', 'SHIPPING', 'COMPLETED', 'CANCELLED', 'DELIVERY_FAILED'] },
+            subtotal: { type: 'string', pattern: '^\\d+\\.\\d{2}$' }, discount_amount: { type: 'string', pattern: '^\\d+\\.\\d{2}$' }, shipping_fee: { type: 'string', pattern: '^\\d+\\.\\d{2}$' }, total_amount: { type: 'string', pattern: '^\\d+\\.\\d{2}$' },
+            cancel_reason: { type: ['string', 'null'] }, created_at: { type: 'string', format: 'date-time' }, updated_at: { type: 'string', format: 'date-time' },
+            items: { type: 'array', items: { type: 'object', required: ['order_item_id', 'product_id', 'variant_id', 'product_name', 'variant_name', 'unit_price', 'quantity', 'line_total', 'image_url'], properties: {
+              order_item_id: { type: 'string', format: 'uuid' }, product_id: { type: 'string', format: 'uuid' }, variant_id: { type: 'string', format: 'uuid' }, product_name: { type: 'string' }, variant_name: { type: 'string' }, unit_price: { type: 'string' }, quantity: { type: 'integer', minimum: 1 }, line_total: { type: 'string' }, image_url: { type: ['string', 'null'], format: 'uri' },
+            } } },
+          },
+        },
+        OrderListSuccessEnvelope: { type: 'object', required: ['data', 'request_id'], properties: { data: { type: 'array', items: { $ref: '#/components/schemas/OrderReadDTO' } }, request_id: { type: 'string' } } },
+        OrderDetailSuccessEnvelope: { type: 'object', required: ['data', 'request_id'], properties: { data: { $ref: '#/components/schemas/OrderReadDTO' }, request_id: { type: 'string' } } },
+        CategoryDTO: { type: 'object', required: ['category_id', 'parent_category_id', 'category_name', 'description'], properties: { category_id: { type: 'string', format: 'uuid' }, parent_category_id: { type: ['string', 'null'], format: 'uuid' }, category_name: { type: 'string' }, description: { type: ['string', 'null'] } } },
+        CategoryListSuccessEnvelope: { type: 'object', required: ['data', 'request_id'], properties: { data: { type: 'array', items: { $ref: '#/components/schemas/CategoryDTO' } }, request_id: { type: 'string' } } },
+        ProfileDTO: { type: 'object', required: ['user_id', 'full_name', 'phone', 'avatar_url', 'updated_at'], properties: { user_id: { type: 'string', format: 'uuid' }, full_name: { type: 'string', nullable: true }, phone: { type: ['string', 'null'] }, avatar_url: { type: ['string', 'null'] }, updated_at: { type: 'string', format: 'date-time' } } },
+        ProfileSuccessEnvelope: { type: 'object', required: ['data', 'request_id'], properties: { data: { $ref: '#/components/schemas/ProfileDTO' }, request_id: { type: 'string' } } },
+        AddressDTO: { type: 'object', required: ['addressId', 'userId', 'recipientName', 'phone', 'province', 'district', 'ward', 'detailAddress', 'isDefault', 'createdAt', 'updatedAt'], properties: { addressId: { type: 'string', format: 'uuid' }, userId: { type: 'string', format: 'uuid' }, recipientName: { type: 'string' }, phone: { type: 'string' }, province: { type: 'string' }, district: { type: 'string' }, ward: { type: 'string' }, detailAddress: { type: 'string' }, isDefault: { type: 'boolean' }, createdAt: { type: 'string', format: 'date-time' }, updatedAt: { type: 'string', format: 'date-time' } } },
+        AddressSuccessEnvelope: { type: 'object', required: ['data', 'request_id'], properties: { data: { $ref: '#/components/schemas/AddressDTO' }, request_id: { type: 'string' } } },
+        AddressListSuccessEnvelope: { type: 'object', required: ['data', 'request_id'], properties: { data: { type: 'array', items: { $ref: '#/components/schemas/AddressDTO' } }, request_id: { type: 'string' } } },
+        CartItemReadDTO: { type: 'object', required: ['cart_item_id', 'variant_id', 'product_id', 'product_name', 'variant_name', 'price', 'stock_quantity', 'shop_id', 'shop_name', 'image_url', 'product_status', 'variant_status', 'shop_status', 'is_available', 'quantity', 'is_selected'], properties: {
+          cart_item_id: { type: 'string', format: 'uuid' }, variant_id: { type: 'string', format: 'uuid' }, product_id: { type: 'string', format: 'uuid' }, product_name: { type: 'string' }, variant_name: { type: 'string' }, price: { type: 'string', pattern: '^\\d+\\.\\d{2}$' }, stock_quantity: { type: 'integer', minimum: 0 }, shop_id: { type: 'string', format: 'uuid' }, shop_name: { type: 'string' }, image_url: { type: ['string', 'null'], format: 'uri' }, product_status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] }, variant_status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] }, shop_status: { type: 'string' }, is_available: { type: 'boolean' }, quantity: { type: 'integer', minimum: 1 }, is_selected: { type: 'boolean' },
+        } },
+        CartSuccessEnvelope: { type: 'object', required: ['data', 'request_id'], properties: { data: { type: 'object', required: ['cart_id', 'buyer_id', 'items'], properties: { cart_id: { type: ['string', 'null'], format: 'uuid' }, buyer_id: { type: 'string', format: 'uuid' }, items: { type: 'array', items: { $ref: '#/components/schemas/CartItemReadDTO' } } } }, request_id: { type: 'string' } } },
       },
     },
     paths: {
@@ -123,21 +148,20 @@ export function generateOpenApiSpec(): OpenApiSpec {
         post: {
           summary: 'Complete initial onboarding for Buyer or Seller',
           security: [{ BearerAuth: [] }],
-          requestBody: jsonRequest({
-            type: 'object',
-            additionalProperties: true,
-          }),
+          requestBody: jsonRequest({ type: 'object', required: ['full_name', 'requested_role', 'shop_name'], additionalProperties: false, properties: { full_name: { type: 'string', minLength: 2, maxLength: 150 }, requested_role: { type: 'string', enum: ['BUYER', 'SELLER'] }, shop_name: { type: ['string', 'null'], minLength: 2, maxLength: 150 } } }),
           responses: {
             '200': successResponse('Onboarding completed'),
             '401': errorResponse('Authentication required'),
             '403': errorResponse('Role not permitted'),
+            '409': errorResponse('Onboarding conflicts with existing profile/shop'),
+            '422': errorResponse('Invalid onboarding payload'),
           },
         },
       },
       '/categories': {
         get: {
           summary: 'List active public categories',
-          responses: { '200': successResponse('Active categories'), '503': errorResponse('Category service unavailable') },
+          responses: { '200': successResponse('Active categories', '#/components/schemas/CategoryListSuccessEnvelope'), '503': errorResponse('Category service unavailable') },
         },
       },
       '/profile': {
@@ -145,7 +169,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
           summary: 'Get current user profile',
           security: [{ BearerAuth: [] }],
           responses: {
-            '200': successResponse('User profile'),
+            '200': successResponse('User profile', '#/components/schemas/ProfileSuccessEnvelope'),
             '401': errorResponse('Authentication required'),
             '501': errorResponse('Profile service not available'),
           },
@@ -162,7 +186,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
             },
           }),
           responses: {
-            '200': successResponse('Profile updated'),
+            '200': successResponse('Profile updated', '#/components/schemas/ProfileSuccessEnvelope'),
             '401': errorResponse('Authentication required'),
             '422': errorResponse('Validation failed'),
             '501': errorResponse('Profile service not available'),
@@ -253,7 +277,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
               description: 'List of addresses',
               content: {
                 'application/json': {
-                  schema: { $ref: '#/components/schemas/SuccessEnvelope' },
+                  schema: { $ref: '#/components/schemas/AddressListSuccessEnvelope' },
                 },
               },
             },
@@ -272,19 +296,15 @@ export function generateOpenApiSpec(): OpenApiSpec {
           description: 'Create a new shipping address for the authenticated buyer.',
           security: [{ BearerAuth: [] }],
           requestBody: jsonRequest({
-            type: 'object', required: ['recipient_name', 'phone', 'province', 'district', 'ward', 'detail_address'], additionalProperties: false,
-            properties: {
-              recipient_name: { type: 'string', minLength: 1 }, phone: { type: 'string', minLength: 1 },
-              detail_address: { type: 'string', minLength: 1 }, province: { type: 'string', minLength: 1 },
-              district: { type: 'string', minLength: 1 }, ward: { type: 'string', minLength: 1 }, is_default: { type: 'boolean' },
-            },
+            type: 'object', required: ['recipientName', 'phone', 'province', 'district', 'ward', 'detailAddress'], additionalProperties: false,
+            properties: { recipientName: { type: 'string', minLength: 1 }, phone: { type: 'string', minLength: 1 }, detailAddress: { type: 'string', minLength: 1 }, province: { type: 'string', minLength: 1 }, district: { type: 'string', minLength: 1 }, ward: { type: 'string', minLength: 1 }, isDefault: { type: 'boolean' } },
           }),
           responses: {
             '201': {
               description: 'Address created',
               content: {
                 'application/json': {
-                  schema: { $ref: '#/components/schemas/SuccessEnvelope' },
+              schema: { $ref: '#/components/schemas/AddressSuccessEnvelope' },
                 },
               },
             },
@@ -304,7 +324,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
           summary: 'Get Buyer Address',
           security: [{ BearerAuth: [] }],
           parameters: [{ name: 'address_id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
-          responses: { '200': successResponse('Address detail'), '404': errorResponse('Address not found'), '501': errorResponse('Address detail is not wired in the current runtime') },
+          responses: { '200': successResponse('Address detail', '#/components/schemas/AddressSuccessEnvelope'), '404': errorResponse('Address not found') },
         },
         patch: {
           summary: 'Update Buyer Address',
@@ -317,12 +337,13 @@ export function generateOpenApiSpec(): OpenApiSpec {
               schema: { type: 'string', format: 'uuid' },
             },
           ],
+          requestBody: jsonRequest({ type: 'object', minProperties: 1, additionalProperties: false, properties: { recipientName: { type: 'string', minLength: 2, maxLength: 150 }, phone: { type: 'string' }, province: { type: 'string' }, district: { type: 'string' }, ward: { type: 'string' }, detailAddress: { type: 'string' }, isDefault: { type: 'boolean' } } }),
           responses: {
             '200': {
               description: 'Address updated',
               content: {
                 'application/json': {
-                  schema: { $ref: '#/components/schemas/SuccessEnvelope' },
+                  schema: { $ref: '#/components/schemas/AddressSuccessEnvelope' },
                 },
               },
             },
@@ -341,7 +362,6 @@ export function generateOpenApiSpec(): OpenApiSpec {
           ],
           responses: {
             '204': { description: 'Address deleted; no response body' },
-            '501': errorResponse('Address deletion is not available in the current runtime'),
           },
         },
       },
@@ -350,7 +370,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
           summary: 'Set Buyer Default Address',
           security: [{ BearerAuth: [] }],
           parameters: [{ name: 'address_id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
-          responses: { '200': successResponse('Default address updated'), '404': errorResponse('Address not found'), '501': errorResponse('Address service is not wired in the current runtime') },
+          responses: { '200': successResponse('Default address updated'), '404': errorResponse('Address not found') },
         },
       },
       '/cart': {
@@ -359,10 +379,10 @@ export function generateOpenApiSpec(): OpenApiSpec {
           security: [{ BearerAuth: [] }],
           responses: {
             '200': {
-              description: 'Active shopping cart',
+              description: 'Cart with current catalog and availability fields',
               content: {
                 'application/json': {
-                  schema: { $ref: '#/components/schemas/SuccessEnvelope' },
+                  schema: { $ref: '#/components/schemas/CartSuccessEnvelope' },
                 },
               },
             },
@@ -434,15 +454,10 @@ export function generateOpenApiSpec(): OpenApiSpec {
         get: {
           summary: 'List Orders',
           security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['PENDING_CONFIRMATION', 'CONFIRMED', 'PREPARING', 'SHIPPING', 'COMPLETED', 'CANCELLED', 'DELIVERY_FAILED'] } }],
           responses: {
-            '200': {
-              description: 'List of orders (runtime currently returns a plain array in the success envelope)',
-              content: {
-                'application/json': {
-                  schema: { $ref: '#/components/schemas/SuccessEnvelope' },
-                },
-              },
-            },
+            '200': successResponse('Orders owned by the authenticated Buyer/Seller or visible to Admin', '#/components/schemas/OrderListSuccessEnvelope'),
+            '422': errorResponse('Invalid status filter or unsupported query field'),
           },
         },
         post: {
@@ -475,12 +490,8 @@ export function generateOpenApiSpec(): OpenApiSpec {
           ],
           responses: {
             '200': {
-              description: 'Order detail',
-              content: {
-                'application/json': {
-                  schema: { $ref: '#/components/schemas/SuccessEnvelope' },
-                },
-              },
+              description: 'Order detail with item snapshots',
+              content: { 'application/json': { schema: { $ref: '#/components/schemas/OrderDetailSuccessEnvelope' } } },
             },
             '404': {
               description: 'Order not found or owned by another user',

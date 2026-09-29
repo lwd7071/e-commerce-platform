@@ -52,6 +52,18 @@ describe("ApiCartRepository without silent mock fallbacks", () => {
     expect(items).toEqual([]);
   });
 
+  it("maps enriched PostgreSQL items and preserves decimal prices and unavailable state", async () => {
+    vi.mocked(apiClient.get).mockResolvedValue({
+      cart_id: "c1", buyer_id: "b1", items: [{
+        cart_item_id: "ci1", variant_id: "v1", quantity: 2, is_selected: true,
+        product_id: "p1", product_name: "Áo", variant_name: "Size: M", price: "12000.50", stock_quantity: 0,
+        shop_id: "s1", shop_name: "Dino", image_url: null, product_status: "ACTIVE", variant_status: "INACTIVE",
+        shop_status: "ACTIVE", is_available: false,
+      }],
+    });
+    await expect(repo.getCart()).resolves.toMatchObject([{ id: "ci1", price: "12000.50", stock: 0, imageUrl: null, isAvailable: false, variantStatus: "INACTIVE" }]);
+  });
+
   it("Case 4.3: updateItem throws AppError on 409 INVENTORY_INSUFFICIENT and does NOT silently swallow", async () => {
     const error409 = new AppError({
       status: 409,

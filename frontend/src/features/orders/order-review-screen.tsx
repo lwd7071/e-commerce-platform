@@ -128,7 +128,7 @@ export function OrderReviewScreen({ orderId }: OrderReviewScreenProps) {
         </Link>
         <h1 className="page-title mt-1">Đánh Giá Sản Phẩm</h1>
         <p className="page-description">
-          Mã đơn hàng: <span className="font-mono font-semibold">{order.order_code || order.id}</span>
+          Mã đơn hàng: <span className="font-mono font-semibold">{order.id.slice(0, 8)}</span>
         </p>
       </div>
 

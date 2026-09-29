@@ -1,8 +1,5 @@
-import path from 'node:path';
-import dotenv from 'dotenv';
-
-// Nạp biến môi trường từ root .env hoặc backend/.env
-dotenv.config({ path: [path.resolve(process.cwd(), '../.env'), path.resolve(process.cwd(), '.env')] });
+// Load the shared root .env before composing the backend runtime.
+import './platform/config/load-root-env.ts';
 
 import { createRuntimeApp } from './platform/http/app.ts';
 

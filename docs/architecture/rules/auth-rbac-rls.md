@@ -22,6 +22,10 @@ Mọi protected request phải:
 
 Không log access token, refresh token hoặc Authorization header.
 
+### Supabase signing key verification
+
+Backend dùng `jose` `createRemoteJWKSet`/`jwtVerify` với URL `SUPABASE_JWKS_URL`, issuer `{SUPABASE_URL}/auth/v1` và audience mặc định `authenticated` (có thể cấu hình `SUPABASE_JWT_AUDIENCE`). Chữ ký được xác minh bằng public key khớp `kid` trong JWKS; thư viện kiểm tra `exp` và `nbf` theo chuẩn JWT. Không dùng legacy shared JWT secret hoặc role claim làm nguồn quyền. Supabase key rotation được JWKS resolver xử lý bằng cách tải/refresh public keys; request vẫn phải tải role/status hiện hành từ `app_users`.
+
 ## 3. Role và ownership
 
 | Hành vi | Guest | Buyer | Seller | Admin |
@@ -41,6 +45,7 @@ Không log access token, refresh token hoặc Authorization header.
 
 - Role chỉ là điều kiện đầu tiên; resource ownership luôn phải được kiểm tra riêng.
 - Seller ownership đi theo `app_users.user_id → shops.owner_id`.
+- Seller có role `SELLER` nhưng shop `PENDING`/`SUSPENDED`/không tồn tại không được gọi thao tác Seller; chỉ `shop.status = ACTIVE` mới qua guard cho seller business routes.
 - Buyer ownership đi theo `orders.buyer_id`, `addresses.user_id`, `carts.buyer_id`, `notifications.recipient_id`.
 - Resource riêng tư không thuộc người gọi nên trả `404 RESOURCE_NOT_FOUND` khi cần tránh tiết lộ tồn tại; hành vi quản trị bị cấm rõ ràng có thể trả `403 RESOURCE_FORBIDDEN`.
 

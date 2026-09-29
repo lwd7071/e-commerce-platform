@@ -46,8 +46,8 @@ export default function RegisterPage() {
 
     setIsSubmitting(true);
     try {
-      await register(email, password, role, fullName, shopName);
-      router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+      const result = await register(email, password, role, fullName, shopName);
+      router.push(result === "mock" ? "/" : `/verify-email?email=${encodeURIComponent(email)}`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Đăng ký thất bại. Vui lòng thử lại.";
       setErrorMsg(msg);

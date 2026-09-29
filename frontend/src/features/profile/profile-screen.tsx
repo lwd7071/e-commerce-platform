@@ -9,6 +9,7 @@ import { Icon } from "../../components/ui/icon";
 import { TextInput } from "../../components/ui/form-controls";
 import { useToast } from "../../components/ui/toast";
 import { buyerApi } from "../../lib/api/buyer.api";
+import { AddressManager } from "./address-manager";
 
 export type AuthProfileSnapshot = { email?: string | null; fullName?: string | null; phone?: string | null; avatarUrl?: string | null };
 
@@ -157,6 +158,7 @@ export function ProfileScreen({ profile }: { profile: AuthProfileSnapshot | null
           </form>
         </section>
       </div>
+      <AddressManager />
     </>
   );
 }

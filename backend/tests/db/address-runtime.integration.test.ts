@@ -5,6 +5,9 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { loadDatabaseConfig, parseRunRemoteDbTests } from '../../db/config.ts';
 import { PostgresAddressRepository } from '../../src/modules/buyer/infrastructure/postgres-address.repository.ts';
 import { AddressService } from '../../src/modules/buyer/services/address.service.ts';
+import { createApp } from '../../src/platform/http/app.ts';
+import { createRequestContext } from '../../src/platform/context/request-context.ts';
+import request from 'supertest';
 
 const remoteDescribe = parseRunRemoteDbTests(process.env) ? describe : describe.skip;
 
@@ -60,6 +63,22 @@ remoteDescribe('Address CRUD runtime (real PostgreSQL)', () => {
     expect((await service.getAddresses(otherId))).toHaveLength(0);
   });
 
+  it('serves list/detail/update/default/delete through authenticated HTTP routes', async () => {
+    const address = await createAddress('Nguyễn Văn A');
+    const app = createApp({
+      rateLimiter: false,
+      buyerServices: { addressService: service },
+      auth: (req, _res, next) => { req.context = createRequestContext({ request_id: req.requestId ?? 'req_addr', user_id: ownerId, role: 'BUYER' }); next(); },
+    });
+    expect((await request(app).get('/api/v1/addresses')).body.data).toHaveLength(1);
+    expect((await request(app).get(`/api/v1/addresses/${address.addressId}`)).body.data.addressId).toBe(address.addressId);
+    const updated = await request(app).patch(`/api/v1/addresses/${address.addressId}`).send({ recipientName: 'Nguyễn Văn C' });
+    expect(updated.status).toBe(200);
+    expect(updated.body.data.recipientName).toBe('Nguyễn Văn C');
+    expect((await request(app).patch(`/api/v1/addresses/${address.addressId}/default`).send({})).status).toBe(200);
+    expect((await request(app).delete(`/api/v1/addresses/${address.addressId}`)).status).toBe(204);
+  });
+
   it('serializes concurrent default changes so exactly one address remains default', async () => {
     const first = await createAddress('Nguyễn Văn A');
     const second = await service.createAddress(ownerId, { recipientName: 'Nguyễn Văn B', phone: '0901234568', province: 'Hà Nội', district: 'Ba Đình', ward: 'Điện Biên', detailAddress: '2 Độc Lập' });
@@ -91,5 +110,17 @@ remoteDescribe('Address CRUD runtime (real PostgreSQL)', () => {
     expect(await service.getAddressById(ownerId, address.addressId).catch(() => null)).toBeNull();
     const snapshot = await pool.query(`SELECT address_snapshot FROM ${schema}.order_address_snapshots WHERE order_id=$1`, [orderId]);
     expect(snapshot.rows[0].address_snapshot).toEqual({ recipient_name: 'Nguyễn Văn A', province: 'Hà Nội', detail_address: '1 Độc Lập' });
+  });
+
+  it('moves the default atomically when create or update requests isDefault=true', async () => {
+    const first = await createAddress('Nguyễn Văn A');
+    const second = await service.createAddress(ownerId, { recipientName: 'Nguyễn Văn B', phone: '0901234568', province: 'Hà Nội', district: 'Ba Đình', ward: 'Điện Biên', detailAddress: '2 Độc Lập', isDefault: true });
+    expect(second.isDefault).toBe(true);
+    expect((await service.getAddresses(ownerId)).filter(address => address.isDefault).map(address => address.addressId)).toEqual([second.addressId]);
+    const third = await service.createAddress(ownerId, { recipientName: 'Nguyễn Văn C', phone: '0901234569', province: 'Hà Nội', district: 'Ba Đình', ward: 'Điện Biên', detailAddress: '3 Độc Lập' });
+    const updated = await service.updateAddress(ownerId, third.addressId, { isDefault: true });
+    expect(updated.isDefault).toBe(true);
+    expect((await service.getAddresses(ownerId)).filter(address => address.isDefault).map(address => address.addressId)).toEqual([third.addressId]);
+    expect((await service.getAddressById(ownerId, first.addressId)).isDefault).toBe(false);
   });
 });

@@ -11,7 +11,7 @@ import { createDatabasePool, closeDatabasePool } from '../../../db/client.ts';
 import { loadDatabaseConfig } from '../../../db/config.ts';
 import { PgAuthRepository } from '../../modules/identity/repositories/pg-auth.repository.ts';
 import { SupabaseJwtVerifier } from './middlewares/supabase-jwt.ts';
-import { createAuthMiddleware } from './middlewares/auth.ts';
+import { createAuthMiddleware, type ITokenVerifier } from './middlewares/auth.ts';
 import { PgCheckoutService } from '../../modules/checkout/services/pg-checkout.service.ts';
 import { PgCatalogHttpService } from '../../modules/catalog/services/pg-catalog-http.service.ts';
 import { ModerationService } from '../../modules/moderation/services/moderation.service.ts';
@@ -102,22 +102,26 @@ export interface RuntimeApp {
 }
 
 /** Runtime composition: one pool, one auth repository and a non-stub JWT verifier. */
-export function createRuntimeApp(environment: NodeJS.ProcessEnv = process.env): RuntimeApp {
+export function createRuntimeApp(
+  environment: NodeJS.ProcessEnv = process.env,
+  runtimeOverrides: { pool?: Pool; tokenVerifier?: ITokenVerifier } = {},
+): RuntimeApp {
   const envConfig = validateEnvConfig(environment);
   const config = loadDatabaseConfig(environment);
-  const pool = createDatabasePool(config);
+  const ownsPool = runtimeOverrides.pool === undefined;
+  const pool = runtimeOverrides.pool ?? createDatabasePool(config);
   const supabaseUrl = envConfig.supabaseUrl ?? environment.SUPABASE_URL;
   const jwksUrl = envConfig.supabaseJwksUrl ?? environment.SUPABASE_JWKS_URL;
-  if (!supabaseUrl || !jwksUrl) {
+  if (!runtimeOverrides.tokenVerifier && (!supabaseUrl || !jwksUrl)) {
     throw new AuthConfigurationError('SUPABASE_URL and SUPABASE_JWKS_URL are required for runtime auth');
   }
   const authRepository = new PgAuthRepository(pool);
   const onboardingService = new PgOnboardingService(pool);
   const checkoutService = new PgCheckoutService(pool);
   const orderQueryService = new OrderQueryService(new PgOrderRepository(pool), pool);
-  const verifier = new SupabaseJwtVerifier({
-    jwksUrl: new URL(jwksUrl),
-    issuer: new URL('/auth/v1', supabaseUrl).toString().replace(/\/$/, ''),
+  const verifier = runtimeOverrides.tokenVerifier ?? new SupabaseJwtVerifier({
+    jwksUrl: new URL(jwksUrl!),
+    issuer: new URL('/auth/v1', supabaseUrl!).toString().replace(/\/$/, ''),
     audience: envConfig.supabaseJwtAudience ?? 'authenticated',
   });
   return {
@@ -148,6 +152,6 @@ export function createRuntimeApp(environment: NodeJS.ProcessEnv = process.env): 
         new PgTransactionManager(pool)
       ),
     }),
-    close: () => closeDatabasePool(pool),
+    close: () => ownsPool ? closeDatabasePool(pool) : Promise.resolve(),
   };
 }

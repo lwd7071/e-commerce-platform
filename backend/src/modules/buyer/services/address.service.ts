@@ -56,7 +56,8 @@ export class AddressService {
       district: validated.district,
       ward: validated.ward,
       detailAddress: validated.detailAddress,
-      isDefault: shouldBeDefault,
+      // Avoid colliding with the existing partial unique index before setDefault swaps it.
+      isDefault: isFirstAddress,
       createdAt: now,
       updatedAt: now,
     };
@@ -66,6 +67,7 @@ export class AddressService {
     // Nếu đặt là default và đã có các địa chỉ khác, đồng bộ chuyển các địa chỉ cũ về isDefault=false
     if (shouldBeDefault && !isFirstAddress) {
       await this.addressRepo.setDefault(userId, created.addressId);
+      created.isDefault = true;
     }
 
     return created;
@@ -87,7 +89,7 @@ export class AddressService {
       district: validated.district ?? address.district,
       ward: validated.ward ?? address.ward,
       detailAddress: validated.detailAddress ?? address.detailAddress,
-      isDefault: validated.isDefault !== undefined ? validated.isDefault : address.isDefault,
+      isDefault: validated.isDefault === false ? false : address.isDefault,
       updatedAt: now,
     };
 

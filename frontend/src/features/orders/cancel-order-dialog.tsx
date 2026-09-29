@@ -70,7 +70,7 @@ export function CancelOrderDialog({
         if (!open && !isSubmitting) onClose();
       }}
       title="Hủy đơn hàng"
-      description={`Mã đơn hàng: ${order.order_code || order.id}`}
+      description={`Mã đơn hàng: ${order.id.slice(0, 8)}`}
       footer={
         <div className="flex justify-end gap-3 w-full">
           <Button variant="ghost" disabled={isSubmitting} onClick={onClose}>

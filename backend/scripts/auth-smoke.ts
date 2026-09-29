@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import '../src/platform/config/load-root-env.ts';
 import http from 'node:http';
 import { createClient } from '@supabase/supabase-js';
 import { Pool } from 'pg';
@@ -11,9 +11,12 @@ const required = (name: string): string => {
 };
 
 const supabaseUrl = required('SUPABASE_URL');
-const publishableKey = required('SUPABASE_TEST_PUBLISHABLE_KEY');
-const secretKey = required('SUPABASE_TEST_SECRET_KEY');
-required('SUPABASE_TEST_JWKS_URL');
+const projectRef = new URL(supabaseUrl).hostname.split('.')[0];
+if (process.env.ALLOW_SUPABASE_AUTH_SMOKE !== 'true') throw new Error('Set ALLOW_SUPABASE_AUTH_SMOKE=true to authorize creating and deleting one temporary Supabase Auth user');
+if (required('EXPECTED_SUPABASE_PROJECT_REF') !== projectRef) throw new Error('EXPECTED_SUPABASE_PROJECT_REF does not match SUPABASE_URL');
+const publishableKey = process.env.SUPABASE_TEST_PUBLISHABLE_KEY?.trim() || required('SUPABASE_PUBLISHABLE_KEY');
+const secretKey = process.env.SUPABASE_TEST_SECRET_KEY?.trim() || required('SUPABASE_SECRET_KEY');
+required('SUPABASE_JWKS_URL');
 const databaseUrl = required('DIRECT_URL');
 
 const admin = createClient(supabaseUrl, secretKey, { auth: { autoRefreshToken: false, persistSession: false } });
@@ -38,13 +41,16 @@ const request = (port: number, token: string) => new Promise<{ status: number; b
 
 try {
   const created = await admin.auth.admin.createUser({ email, password, email_confirm: true });
-  if (created.error || !created.data.user) throw new Error('Supabase Auth test user creation failed');
+  if (created.error || !created.data.user) throw new Error(`Supabase Auth test user creation failed: ${created.error?.message ?? 'no user returned'}`);
   userId = created.data.user.id;
 
-  await pool.query(
-    `INSERT INTO app_users (user_id, email, role, status) VALUES ($1, $2, 'BUYER', 'ACTIVE')`,
-    [userId, email],
+  const bootstrap = await pool.query<{ email: string; role: string; status: string }>(
+    `SELECT email, role, status FROM app_users WHERE user_id = $1`,
+    [userId],
   );
+  if (bootstrap.rowCount !== 1 || bootstrap.rows[0]?.email !== email || bootstrap.rows[0]?.role !== 'BUYER' || bootstrap.rows[0]?.status !== 'ACTIVE') {
+    throw new Error('Supabase auth.users trigger did not bootstrap the expected active Buyer app_users row');
+  }
 
   const signedIn = await client.auth.signInWithPassword({ email, password });
   if (signedIn.error || !signedIn.data.session?.access_token) throw new Error('Supabase Auth sign-in failed');
@@ -70,7 +76,10 @@ try {
   if (runtime) await runtime.close();
   if (userId) {
     await pool.query('DELETE FROM app_users WHERE user_id = $1', [userId]);
-    await admin.auth.admin.deleteUser(userId);
+    const deleted = await admin.auth.admin.deleteUser(userId);
+    if (deleted.error) throw new Error(`Supabase Auth test user cleanup failed: ${deleted.error.message}`);
+    const remaining = await pool.query('SELECT 1 FROM app_users WHERE user_id = $1', [userId]);
+    if (remaining.rowCount !== 0) throw new Error('Supabase Auth smoke left an app_users test row behind');
   }
   await pool.end();
 }

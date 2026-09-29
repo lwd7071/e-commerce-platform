@@ -1,6 +1,6 @@
 import { Router, type Request, type Response, type NextFunction, type RequestHandler } from 'express';
 import { buildSuccessEnvelope } from '../envelope.ts';
-import { ForbiddenError, NotImplementedError, UnauthorizedError, ValidationFailedError } from '../../errors/app-error.ts';
+import { DependencyUnavailableError, ForbiddenError, NotImplementedError, UnauthorizedError, ValidationFailedError } from '../../errors/app-error.ts';
 import type { RequestContext } from '../../context/request-context.ts';
 import type { AddressService } from '../../../modules/buyer/services/address.service.ts';
 import type { CartService } from '../../../modules/buyer/services/cart.service.ts';
@@ -128,7 +128,7 @@ export function createBuyerDomainRouter(
     } else if (legacyApp) {
       data = await legacyApp.listAddresses(ctx);
     } else {
-      data = [];
+      throw new DependencyUnavailableError('Address service is not configured');
     }
     res.json(buildSuccessEnvelope(data, requestId(req)));
   }));
@@ -141,7 +141,7 @@ export function createBuyerDomainRouter(
     } else if (legacyApp) {
       data = await legacyApp.createAddress(ctx, req.body);
     } else {
-      data = req.body;
+      throw new DependencyUnavailableError('Address service is not configured');
     }
     res.status(201).json(buildSuccessEnvelope(data, requestId(req)));
   }));
@@ -193,7 +193,7 @@ export function createBuyerDomainRouter(
     } else if (legacyApp) {
       data = await legacyApp.getCart(ctx);
     } else {
-      data = { cart_id: null, buyer_id: ctx.user_id, items: [] };
+      throw new DependencyUnavailableError('Cart service is not configured');
     }
     res.json(buildSuccessEnvelope(data, requestId(req)));
   }));

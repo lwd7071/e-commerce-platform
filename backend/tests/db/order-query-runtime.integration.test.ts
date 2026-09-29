@@ -10,6 +10,7 @@ import { createRequestContext } from '../../src/platform/context/request-context
 import { createFixtureUser, createFixtureShop, createFixtureCategory, createFixtureProduct, createFixtureVariant, createFixtureOrder, createFixtureOrderItem } from './fixtures/database-fixtures.ts';
 import { createApp } from '../../src/platform/http/app.ts';
 import request from 'supertest';
+import { createRuntimeApp } from '../../src/platform/http/app.ts';
 
 const remoteDescribe = parseRunRemoteDbTests(process.env) ? describe : describe.skip;
 
@@ -85,6 +86,18 @@ remoteDescribe('Runtime OrderQueryService (real PostgreSQL)', () => {
     const detail = await request(app).get(`/api/v1/orders/${orderId}`);
     expect(detail.status).toBe(200);
     expect(detail.body.data.order_id).toBe(orderId);
+  });
+
+  it('composes PostgreSQL order reads in createRuntimeApp and authenticates from app_users', async () => {
+    const runtime = createRuntimeApp(process.env, {
+      pool,
+      tokenVerifier: { verifyToken: async () => ({ userId: buyerId }) },
+    });
+    const response = await request(runtime.app).get('/api/v1/orders').set('Authorization', 'Bearer integration-test-token');
+    expect(response.status).toBe(200);
+    expect(response.body.data).toHaveLength(1);
+    expect(response.body.data[0]).toMatchObject({ order_id: orderId, buyer_id: buyerId, items: [{ product_name: 'Áo khoác Snapshot' }] });
+    await runtime.close();
   });
 
   it('scopes Buyer, Seller and Admin reads to their authorized records', async () => {

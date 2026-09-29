@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import '../src/platform/config/load-root-env.ts';
 import pg from 'pg';
 import { loadDatabaseConfig } from '../db/config.ts';
 import { seedDevelopmentCategories } from '../db/seed/development-categories.ts';

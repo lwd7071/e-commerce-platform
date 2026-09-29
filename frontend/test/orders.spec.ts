@@ -1,6 +1,14 @@
-import { describe, it, expect } from "vitest";
-import { repositories } from "../src/lib/repositories/repository-factory";
+import { beforeAll, describe, it, expect, vi } from "vitest";
 import { ORDER_TABS, PREDEFINED_CANCEL_REASONS } from "../src/features/orders/orders.types";
+
+let repositories: typeof import("../src/lib/repositories/repository-factory").repositories;
+
+beforeAll(async () => {
+  // These lifecycle tests exercise the in-memory fixture repository explicitly.
+  vi.stubEnv("NEXT_PUBLIC_USE_MOCK", "true");
+  vi.resetModules();
+  ({ repositories } = await import("../src/lib/repositories/repository-factory"));
+});
 
 describe("Orders Center and Cancellation Lifecycle (O-502, O-503)", () => {
   it("provides all 7 valid order status tabs plus ALL tab", () => {

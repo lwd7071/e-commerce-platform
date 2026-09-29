@@ -17,21 +17,9 @@ remoteDescribe('Auth user bootstrap trigger (real PostgreSQL)', () => {
     const config = loadDatabaseConfig(process.env);
     pool = new pg.Pool({ connectionString: config.directUrl.toString(), max: 2, options: `-c search_path=${schema}` });
     await pool.query(`CREATE SCHEMA ${schema}`);
-    await pool.query(`
-      CREATE TABLE ${schema}.auth_users (
-        id uuid PRIMARY KEY,
-        email varchar(255),
-        raw_user_meta_data jsonb NOT NULL DEFAULT '{}'::jsonb
-      );
-      CREATE TABLE ${schema}.app_users (
-        user_id uuid PRIMARY KEY REFERENCES ${schema}.auth_users(id),
-        email varchar(255) NOT NULL UNIQUE,
-        role varchar(20) NOT NULL,
-        status varchar(20) NOT NULL,
-        created_at timestamptz NOT NULL DEFAULT now(),
-        updated_at timestamptz NOT NULL DEFAULT now()
-      );
-    `);
+    await pool.query(`CREATE TABLE ${schema}.auth_users (id uuid PRIMARY KEY, email varchar(255), raw_user_meta_data jsonb NOT NULL DEFAULT '{}'::jsonb)`);
+    const initialSchema = await readFile(new URL('../../prisma/migrations/20260916110000_initial_schema/migration.sql', import.meta.url), 'utf8');
+    await pool.query(initialSchema.replace('CREATE EXTENSION IF NOT EXISTS pgcrypto;', '').replaceAll('auth.users', `${schema}.auth_users`).replaceAll('public.', `${schema}.`));
 
     linkedUserId = randomUUID();
     backfillUserId = randomUUID();

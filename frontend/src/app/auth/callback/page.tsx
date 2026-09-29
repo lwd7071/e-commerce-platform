@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseClient } from "@/lib/auth/supabase-client";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -14,18 +14,19 @@ function CallbackHandler() {
   const search = useSearchParams();
   const { completeOnboarding } = useAuth();
   const [message, setMessage] = useState("Đang xác minh phiên đăng nhập...");
+  const started = useRef(false);
 
   useEffect(() => {
-    let active = true;
+    if (started.current) return;
+    started.current = true;
     void (async () => {
       const supabase = getSupabaseClient();
       if (!supabase) throw new Error("Supabase Auth chưa được cấu hình.");
-      const code = search.get("code");
-      if (code) {
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
-        if (error) throw error;
-      }
-      const { data: { session } } = await supabase.auth.getSession();
+      // detectSessionInUrl handles both OAuth hash tokens and PKCE codes during
+      // client initialization. Calling exchangeCodeForSession here as well can
+      // race that automatic exchange and consume the one-time code twice.
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) throw error;
       if (!session) throw new Error("Phiên đăng nhập không hợp lệ hoặc đã hết hạn.");
       setAuthTokenProvider(() => session.access_token);
       const flow = search.get("flow");
@@ -44,8 +45,11 @@ function CallbackHandler() {
       }
       sessionStorage.removeItem("dino_auth_return_to");
       router.replace(returnTo);
-    })().catch(error => { if (active) setMessage(error instanceof Error ? error.message : "Không thể hoàn tất đăng nhập."); });
-    return () => { active = false; };
+    })().catch(error => {
+      // React Strict Mode replays effects in development. Suppressing this
+      // error after the first cleanup left the callback stuck on its spinner.
+      setMessage(error instanceof Error ? error.message : "Không thể hoàn tất đăng nhập.");
+    });
   }, [completeOnboarding, router, search]);
 
   return <main className="min-h-screen grid place-items-center p-6"><p role="status" className="text-sm text-[var(--subtext)]">{message}</p></main>;

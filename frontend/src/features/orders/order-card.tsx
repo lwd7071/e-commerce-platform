@@ -48,7 +48,7 @@ export function OrderCard({ order, onCancel, isHighlighted = false }: OrderCardP
               {order.shop_name || "Gian hàng Dino"}
             </h2>
             <div className="flex items-center gap-2 text-xs text-[var(--subtext)]">
-              <span>Mã đơn: <strong className="font-mono text-[var(--foreground)]">{order.order_code || order.id.slice(0, 8)}</strong></span>
+              <span>Mã đơn: <strong className="font-mono text-[var(--foreground)]">{order.id.slice(0, 8)}</strong></span>
               <span>•</span>
               <time dateTime={order.created_at}>{formattedDate}</time>
             </div>
@@ -123,7 +123,7 @@ export function OrderCard({ order, onCancel, isHighlighted = false }: OrderCardP
           <div className="text-sm">
             <span>Tổng thanh toán: </span>
             <strong className="text-base text-[var(--primary-active)] font-bold tabular-nums">
-              {moneyAdapter.formatVND(order.final_amount || order.total_amount)}
+              {moneyAdapter.formatVND(order.total_amount)}
             </strong>
           </div>
         </div>

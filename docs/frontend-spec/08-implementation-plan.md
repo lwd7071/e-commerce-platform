@@ -78,7 +78,7 @@ Các đường dẫn `src/...` trong bảng ownership dưới đây tính tươn
 
 ## Bắt đầu ngay
 
-Scaffold Next.js, package/lockfile, API client, AuthProvider, repositories/adapters và test runner đã có trong `frontend/` (nền `5ace145`). Dùng Node `24.15.0` theo `.nvmrc` và npm `11.12.1`. Runtime migration PR 0 là ngoại lệ được duyệt để cập nhật package/lockfile; PR A/B/C không sửa package/lockfile. Không chạy feature implementation trong `ecommerce-web/`. Env/API base URL/Supabase key kiểm tra theo `frontend/.env.example`; không đưa secret/service-role key vào `NEXT_PUBLIC_*`. OpenAPI backend ở `http://localhost:3001/api/v1/openapi.json`.
+Scaffold Next.js, package/lockfile, API client, AuthProvider, repositories/adapters và test runner đã có trong `frontend/` (nền `5ace145`). Dùng Node `24.15.0` theo `.nvmrc` và npm `11.12.1`. Runtime migration PR 0 là ngoại lệ được duyệt để cập nhật package/lockfile; PR A/B/C không sửa package/lockfile. Không chạy feature implementation trong `ecommerce-web/`. Backend và frontend dùng chung root `.env` theo `.env.example`; frontend chỉ nhận các biến `NEXT_PUBLIC_*`, không đưa secret/service-role key vào bundle. OpenAPI backend ở `http://localhost:3001/api/v1/openapi.json`.
 
 Thứ tự tiếp tục: Người 1 duy trì nền F-102–107; Người 2 nghiệm thu Phase 2 và các batch độc lập; Người 3/4/5 chuẩn bị fixture/mock interface trong phạm vi riêng. D-004 là lượt soát visual sau page mẫu. Catalog public B-301/B-302 nối API theo readiness; cart/address/voucher/checkout chỉ nối sau contract tests; order center, review, notifications, profile, category/admin reads vẫn gated/mock cho đến khi gap đóng. `ecommerce-web/` không phải nguồn dữ liệu hay hành vi nghiệp vụ.
 

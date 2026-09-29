@@ -9,6 +9,8 @@ import { apiClient } from "../api/client";
 
 export const AuthContext = createContext<AuthContextType | null>(null);
 
+const isUserLockedError = (error: unknown) => typeof error === "object" && error !== null && "code" in error && (error as { code?: unknown }).code === "USER_LOCKED";
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -17,7 +19,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const syncSession = useCallback(async (session: { access_token: string; user: { id: string; email?: string; user_metadata?: Record<string, unknown> } }) => {
     setAccessToken(session.access_token);
     setAuthTokenProvider(() => session.access_token);
-    const identity = await apiClient.get<{ user_id: string; email: string; role: UserRole; shop_id: string | null }>("/auth/me");
+    let identity: { user_id: string; email: string; role: UserRole; shop_id: string | null };
+    try {
+      identity = await apiClient.get("/auth/me");
+    } catch (error) {
+      if (isUserLockedError(error)) {
+        const client = getSupabaseClient();
+        if (client) await client.auth.signOut({ scope: "local" });
+        setAccessToken(null); setUser(null);
+      }
+      throw error;
+    }
     setUser({
       id: identity.user_id,
       email: identity.email || session.user.email || "",
@@ -75,7 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session) {
         try { await syncSession(session); }
-        catch { setAccessToken(session.access_token); setUser(extractUser(session)); }
+        catch { setAccessToken(null); setUser(null); }
       }
       setIsLoading(false);
     });
@@ -84,7 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) {
-        void syncSession(session).catch(() => { setAccessToken(session.access_token); setUser(extractUser(session)); });
+        void syncSession(session).catch(() => { setAccessToken(null); setUser(null); });
       } else {
         setAccessToken(null);
         setUser(null);
@@ -123,12 +135,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       if (data.session) {
         setAccessToken(data.session.access_token);
-        setUser(extractUser(data.session));
+        await syncSession(data.session);
       }
     } finally {
       setIsLoading(false);
     }
-  }, [extractUser]);
+  }, [syncSession]);
 
   const register = useCallback(async (email: string, password: string, role: UserRole = "BUYER", fullName = "", shopName = "") => {
     setIsLoading(true);
@@ -136,7 +148,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const supabase = getSupabaseClient();
       if (!supabase) {
         await login(email, password);
-        return;
+        return "mock";
       }
 
       const { data, error } = await supabase.auth.signUp({
@@ -157,6 +169,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (typeof window !== "undefined") {
         sessionStorage.setItem("dino_signup_draft", JSON.stringify({ email, full_name: fullName.trim(), requested_role: role, shop_name: role === "SELLER" ? shopName.trim() : null }));
       }
+      return "otp";
     } finally {
       setIsLoading(false);
     }
@@ -191,7 +204,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try { draft = JSON.parse(sessionStorage.getItem("dino_signup_draft") || "{}"); } catch { /* continue to profile completion */ }
     if (!draft.full_name || !draft.requested_role || (draft.requested_role === "SELLER" && !draft.shop_name)) return;
     await completeOnboarding(draft.full_name, draft.requested_role, draft.shop_name ?? undefined);
-    sessionStorage.removeItem("dino_signup_draft");
   }, [completeOnboarding, syncSession]);
 
   const resendSignupOtp = useCallback(async (email: string) => {

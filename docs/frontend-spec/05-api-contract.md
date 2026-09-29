@@ -35,7 +35,7 @@ Backend không trả field `success`.
 
 ### Căn cứ runtime (2026-09-29)
 
-Backend đã hoàn tất milestone T3. Milestone này đóng phạm vi hardening và quality gates; nó không khẳng định mọi endpoint trong product plan đã được triển khai. Khi tích hợp FE, căn cứ vào runtime composition tại `backend/src/platform/http/app.ts` cùng các router được mount. Hiện `createRuntimeApp()` inject `PgCatalogHttpService`, `PgBuyerHttpService`, `PgCheckoutService` và `ModerationService`. Một service class hoặc đường dẫn trong OpenAPI tự nó không chứng minh endpoint đã được nối vào runtime này.
+Runtime composition tại `backend/src/platform/http/app.ts` inject identity/onboarding, catalog, buyer profile/address, checkout, order query/commands và moderation services. Một service class hoặc đường dẫn trong OpenAPI tự nó không chứng minh endpoint đã được nối vào runtime này.
 
 Status meanings below:
 
@@ -53,29 +53,31 @@ Status meanings below:
 | Catalog | `GET /products/:product_id` | Public | `PARTIAL` | Thiếu images/shop/reviews/metrics |
 | Catalog | `POST /products` | Seller | `PARTIAL` | Runtime tạo sản phẩm/variants; chỉ nhận URL ảnh, không có media upload; không có category list runtime |
 | Catalog | `PATCH /product-variants/:variant_id/stock` | Seller | `AVAILABLE` | Body `{ quantity }` |
-| Catalog | `GET /categories`, `GET /shops/:id` | Public | `MISSING` | Không có route trong router đang mount. Dev/test có thể seed 3 category UUID theo [Backend Run Guide](../architecture/backend-run-guide.md); seed không tạo discovery API |
+| Catalog | `GET /categories` | Public | `AVAILABLE` | Chỉ category ACTIVE, danh sách phẳng, roots trước; dùng `PgCategoryRepository` |
+| Catalog | `GET /shops/:id` | Public | `MISSING` | Chưa có route runtime |
 | Catalog | `GET /seller/products` hoặc `GET /products?shop_id=...` | Seller | `MISSING` | Không có seller-scoped list; `shop_id` bị từ chối như query không hỗ trợ |
 | Address | `GET /addresses` | Buyer | `AVAILABLE` | Runtime legacy service |
 | Address | `POST /addresses` | Buyer | `AVAILABLE` | Runtime legacy service |
-| Address | `GET/PATCH/DELETE /addresses/:address_id`, `PATCH .../default` | Buyer | `NOT_IMPLEMENTED` | Route trả 501 `NOT_IMPLEMENTED`; list/create mới được wire |
-| Cart | `GET /cart` | Buyer | `PARTIAL` | Trả `cart_id`, `buyer_id`, và item `{ cart_item_id, variant_id, quantity, is_selected }`; không có product/variant display data hoặc totals |
+| Address | `GET/PATCH/DELETE /addresses/:address_id`, `PATCH .../default` | Buyer | `AVAILABLE` | Tất cả truy vấn scope theo JWT; đặt mặc định trong transaction; order giữ snapshot địa chỉ |
+| Cart | `GET /cart` | Buyer | `AVAILABLE` | Join sản phẩm, variant, shop, ảnh chính và giá/tồn kho hiện tại; hàng inactive/hết kho vẫn trả với `is_available=false` |
 | Cart | add/update/delete item | Buyer | `AVAILABLE` | Update hỗ trợ `is_selected` |
 | Cart | `DELETE /cart/selected` | Buyer | `AVAILABLE` | Xóa item đang chọn trong cart của buyer; trả 204 |
 | Voucher | list/evaluate | Buyer | `AVAILABLE` | Dùng `code`, `order_subtotal`, `shop_id` |
 | Checkout | `POST /checkout` | Buyer | `AVAILABLE` | Bắt buộc Idempotency-Key |
-| Orders | `GET /orders` | Buyer/Seller/Admin | `STUB` | HTTP 200 nhưng runtime trả `data: []`; `orderRepo`/query service chưa được inject vào order router |
-| Orders | `GET /orders/:id` | Buyer/Seller/Admin | `STUB` | HTTP 200 placeholder `{ order_id }`; không dùng làm order detail |
+| Orders | `GET /orders` | Buyer/Seller/Admin | `AVAILABLE` | `OrderQueryService` PostgreSQL read model, DTO có items; role và ownership được xác minh từ context |
+| Orders | `GET /orders/:id` | Buyer/Seller/Admin | `AVAILABLE` | Cùng DTO với list; ngoài ownership và không tồn tại trả 404 |
 | Orders | cancel/confirm/transition | Theo route | `AVAILABLE` | Được `PgCheckoutService` xử lý; chỉ dùng khi có order ID hợp lệ |
 | Payment | `POST /orders/:id/payments` | Buyer | `AVAILABLE` | Chỉ retry payment; không tạo provider session, QR hoặc link |
 | Review | `POST /order-items/:id/review`, `POST /reviews` | Buyer | `NOT_IMPLEMENTED` | Route trả 501 vì `ReviewService` không được inject trong runtime |
 | Notification | list/detail/read | Buyer | `NOT_IMPLEMENTED` | Route trả 501 vì `NotificationService` không được inject trong runtime |
-| Profile | `GET/PATCH /profile`, `/buyers/profile` | Authenticated | `MISSING` | Không có profile route trong runtime |
+| Identity | `GET /auth/me`, `POST /auth/onboarding` | Authenticated | `AVAILABLE` | Role lấy từ `app_users`; onboarding Buyer/Seller chạy transaction; shop Seller ban đầu PENDING |
+| Profile | `GET/PATCH /profile` | Authenticated | `AVAILABLE` | Chỉ sửa `full_name`, `phone`; email/role/avatar là read-only hoặc chưa hỗ trợ |
 | Admin | `POST /admin/users/:id/lock`, `/unlock` | Admin | `AVAILABLE` | Mutation có moderation/audit; không có list users để cung cấp target ID |
 | Admin | user/log/shop/product reads, shop/product moderation | Admin | `MISSING` | Chỉ user lock/unlock routes được mount |
 | Seller | seller stats | Seller | `MISSING` | Không có HTTP stats route |
 | Media | upload/presign/finalize | Authenticated | `MISSING` | `POST /products` chỉ nhận URL ảnh đã có |
 
-`GET /orders`/detail là các stub khác với các mutation order: checkout, cancel, confirm, transition và payment retry có concrete handlers. FE có thể hoàn thiện UI bằng repository/mock, nhưng không được lấy stub reads làm dữ liệu thật. Các gap về profile, review, notifications, categories, admin reads, media và seller stats là phần API/runtime chưa có, dù backend T3 hardening đã hoàn thành.
+Order reads, profile, categories, addresses và enriched cart hiện được nối vào runtime. Các capability còn thiếu gồm review, notifications, admin reads, media, seller product discovery/stats và online payment provider. Google OAuth, email OTP/recovery phụ thuộc cấu hình provider tại Supabase/Google Cloud; source code không chứa OAuth secret hoặc SMTP app password.
 
 ## 3. Catalog
 

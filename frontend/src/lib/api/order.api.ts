@@ -43,7 +43,6 @@ export interface WireOrderItem {
 /** Stable UI model produced at the API boundary; no backend DTO is consumed in components. */
 export interface WireOrder {
   id: string;
-  order_code: string;
   buyer_id: string;
   shop_id: string;
   shop_name: string;
@@ -52,7 +51,6 @@ export interface WireOrder {
   total_amount: string;
   shipping_fee: string;
   discount_amount: string;
-  final_amount: string;
   cancel_reason?: string | null;
   created_at: string;
   updated_at?: string;
@@ -62,7 +60,6 @@ export interface WireOrder {
 function mapOrder(dto: OrderReadDTO): WireOrder {
   return {
     id: dto.order_id,
-    order_code: dto.order_id.slice(0, 8).toUpperCase(),
     buyer_id: dto.buyer_id,
     shop_id: dto.shop_id,
     shop_name: dto.shop_name,
@@ -71,7 +68,6 @@ function mapOrder(dto: OrderReadDTO): WireOrder {
     total_amount: dto.total_amount,
     shipping_fee: dto.shipping_fee,
     discount_amount: dto.discount_amount,
-    final_amount: dto.total_amount,
     cancel_reason: dto.cancel_reason,
     created_at: dto.created_at,
     updated_at: dto.updated_at,
@@ -92,8 +88,8 @@ function mapOrder(dto: OrderReadDTO): WireOrder {
 export const orderApi = {
   getOrders: async (params?: { status?: string }) => (await apiClient.get<OrderReadDTO[]>("/orders", { params })).map(mapOrder),
   getOrderById: async (id: string) => mapOrder(await apiClient.get<OrderReadDTO>(`/orders/${id}`)),
-  cancelOrder: (id: string, reason: string) => apiClient.post<WireOrder>(`/orders/${id}/cancel`, { reason }),
-  confirmOrder: (id: string, reason?: string) => apiClient.post<WireOrder>(`/orders/${id}/confirm`, { reason }),
-  transitionOrder: (id: string, data: { to: string; reason?: string }) => apiClient.post<WireOrder>(`/orders/${id}/transition`, data),
+  cancelOrder: async (id: string, reason: string) => { await apiClient.post<unknown>(`/orders/${id}/cancel`, { reason }); return orderApi.getOrderById(id); },
+  confirmOrder: async (id: string, reason?: string) => { await apiClient.post<unknown>(`/orders/${id}/confirm`, { reason }); return orderApi.getOrderById(id); },
+  transitionOrder: async (id: string, data: { to: string; reason?: string }) => { await apiClient.post<unknown>(`/orders/${id}/transition`, data); return orderApi.getOrderById(id); },
   retryPayment: (id: string, data: { payment_method: string }) => apiClient.post<unknown>(`/orders/${id}/payments`, data),
 };

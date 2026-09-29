@@ -3,6 +3,7 @@ import { buyerApi } from "@/lib/api/buyer.api";
 import { voucherApi } from "@/lib/api/voucher.api";
 import { apiClient } from "@/lib/api/client";
 import { repositories } from "@/lib/repositories/repository-factory";
+import { features } from "@/lib/config/features";
 
 vi.mock("@/lib/api/client", () => ({
   apiClient: {
@@ -69,6 +70,20 @@ describe("Buyer & Voucher Adapters (Plan v3.2 Specification)", () => {
       expect(apiClient.post).toHaveBeenCalledWith("/addresses", payload);
       expect(result.addressId).toBe("addr_002");
       expect(result.recipientName).toBe("Trần Thị B");
+    });
+
+    it("1.3: address detail/edit/delete/default use canonical owner-scoped routes", async () => {
+      vi.mocked(apiClient.get).mockResolvedValueOnce({ addressId: "addr_003" });
+      vi.mocked(apiClient.patch).mockResolvedValueOnce({ addressId: "addr_003" }).mockResolvedValueOnce({ message: "ok" });
+      vi.mocked(apiClient.delete).mockResolvedValueOnce(undefined);
+      await buyerApi.getAddress("addr_003");
+      await buyerApi.updateAddress("addr_003", { recipientName: "Updated" });
+      await buyerApi.setDefaultAddress("addr_003");
+      await buyerApi.deleteAddress("addr_003");
+      expect(apiClient.get).toHaveBeenCalledWith("/addresses/addr_003");
+      expect(apiClient.patch).toHaveBeenNthCalledWith(1, "/addresses/addr_003", { recipientName: "Updated" });
+      expect(apiClient.patch).toHaveBeenNthCalledWith(2, "/addresses/addr_003/default", {});
+      expect(apiClient.delete).toHaveBeenCalledWith("/addresses/addr_003");
     });
   });
 
@@ -261,6 +276,7 @@ describe("Buyer & Voucher Adapters (Plan v3.2 Specification)", () => {
   // ==========================================
   describe("Central Repository Factory live bindings", () => {
     it("5.1: repositories.buyer() delegates correctly to buyerApi", async () => {
+      vi.spyOn(features.domains, "cartMock").mockReturnValue(false);
       vi.mocked(apiClient.get).mockResolvedValueOnce([]);
       const buyerRepo = repositories.buyer();
       await buyerRepo.getAddresses();
@@ -268,6 +284,7 @@ describe("Buyer & Voucher Adapters (Plan v3.2 Specification)", () => {
     });
 
     it("5.2: repositories.voucher() delegates correctly to voucherApi", async () => {
+      vi.spyOn(features, "useMock").mockReturnValue(false);
       vi.mocked(apiClient.get).mockResolvedValueOnce([]);
       const voucherRepo = repositories.voucher();
       await voucherRepo.getVouchers("shop_01");

@@ -83,7 +83,7 @@ export function OrdersScreen() {
     setToastMessage({
       type: "success",
       title: "Hủy đơn hàng thành công",
-      message: `Đơn hàng ${updated.order_code || updated.id.slice(0, 8)} đã được hủy và hoàn lại tồn kho.`,
+      message: `Đơn hàng ${updated.id.slice(0, 8)} đã được hủy và hoàn lại tồn kho.`,
     });
     // Auto dismiss toast after 4s
     setTimeout(() => {

@@ -12,11 +12,17 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const returnTo = sanitizeReturnTo(searchParams.get("returnTo"));
 
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleGoogleLogin = async () => {
+    setErrorMsg(null);
+    try { await loginWithGoogle(returnTo); }
+    catch (err) { setErrorMsg(err instanceof Error ? err.message : "Không thể đăng nhập bằng Google."); }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,6 +132,8 @@ function LoginForm() {
           )}
         </button>
       </form>
+
+      <button type="button" onClick={handleGoogleLogin} className="w-full mt-3 py-3 rounded-xl border border-[var(--border)] font-semibold text-sm hover:bg-[var(--card-muted)]">Đăng nhập với Google</button>
 
       <div className="mt-6 text-center text-sm text-[var(--subtext)]">
         Chưa có tài khoản?{" "}

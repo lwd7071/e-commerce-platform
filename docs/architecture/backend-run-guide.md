@@ -29,18 +29,14 @@ Mục đích: Không bao giờ cho phép một container/process production kh�
 
 ---
 
-## 3. Mẫu File Cấu hình `.env.example`
+## 3. File môi trường dùng chung
+
+Backend và frontend dùng duy nhất `/.env` ở root repository. Sao chép root `.env.example` thành `.env`; không tạo `backend/.env`, `frontend/.env.local` hoặc template riêng theo từng ứng dụng. Backend server, Prisma, integration tests và các script nạp root env; Next.js cũng nạp root env qua `frontend/next.config.ts`.
+
+Frontend chỉ nhận các biến có tiền tố `NEXT_PUBLIC_`. Không đặt Supabase secret key, database URL, Google Client Secret hoặc SMTP app password vào các biến public. Google OAuth và SMTP credentials được cấu hình trực tiếp trong Supabase Dashboard.
 
 ```dotenv
-NODE_ENV=development
-PORT=3000
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ecommerce_dev
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_JWKS_URL=https://your-project.supabase.co/auth/v1/.well-known/jwks.json
-SUPABASE_JWT_AUDIENCE=authenticated
-CORS_ORIGIN=http://localhost:3000
-# Bắt buộc khi NODE_ENV=production: ví dụ 1 cho single load-balancer (ALB/Nginx), hoặc dải CIDR
-TRUST_PROXY=1
+cp .env.example .env
 ```
 
 ---
@@ -80,7 +76,7 @@ EXPECTED_SUPABASE_PROJECT_REF=<project-ref-development-da-xac-minh>
 ALLOW_DEVELOPMENT_CATEGORY_SEED=true
 ```
 
-Sau khi cấu hình các biến database bình thường trong `backend/.env`, chạy:
+Sau khi cấu hình các biến database trong root `.env`, chạy từ `backend/`:
 
 ```bash
 npm run db:seed:dev-categories

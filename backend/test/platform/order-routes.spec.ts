@@ -249,39 +249,32 @@ describe('Order & Checkout Domain Routes Integration (/api/v1/...) [Mốc T2]', 
     assert.ok(res.body.data.orders);
   });
 
-  it('GET /api/v1/orders: returns list of buyer orders', async () => {
+  it('GET /api/v1/orders: refuses to return repository-only rows without a configured read database', async () => {
     const services = createMockOrderServices();
     const app = createApp({ auth: buyerAuth, orderServices: services });
 
-    const res = await request(app).get('/api/v1/orders').expect(200);
-
-    assert.ok(Array.isArray(res.body.data));
-    assert.strictEqual(res.body.data.length, 1);
-    assert.strictEqual(res.body.data[0].orderId, '00000000-0000-4000-8000-000000000001');
+    const res = await request(app).get('/api/v1/orders').expect(503);
+    assert.strictEqual(res.body.error.code, 'DEPENDENCY_UNAVAILABLE');
   });
 
-  it('GET /api/v1/orders/:id: returns order details and items', async () => {
+  it('GET /api/v1/orders/:id: refuses to return a placeholder without a configured read database', async () => {
     const services = createMockOrderServices();
     const app = createApp({ auth: buyerAuth, orderServices: services });
 
     const res = await request(app)
       .get('/api/v1/orders/00000000-0000-4000-8000-000000000001')
-      .expect(200);
-
-    assert.strictEqual(res.body.data.orderId, '00000000-0000-4000-8000-000000000001');
-    assert.ok(res.body.data.items);
-    assert.strictEqual(res.body.data.items.length, 1);
+      .expect(503);
+    assert.strictEqual(res.body.error.code, 'DEPENDENCY_UNAVAILABLE');
   });
 
-  it('GET /api/v1/orders/:id: returns 404 RESOURCE_NOT_FOUND when accessing another user order (auth-rbac-rls.md §3)', async () => {
+  it('GET /api/v1/orders/:id: reports dependency unavailable instead of reading through a command repository', async () => {
     const services = createMockOrderServices();
     const app = createApp({ auth: buyerAuth, orderServices: services });
 
     const res = await request(app)
       .get('/api/v1/orders/00000000-0000-4000-8000-000000000099')
-      .expect(404);
-
-    assert.strictEqual(res.body.error.code, 'RESOURCE_NOT_FOUND');
+      .expect(503);
+    assert.strictEqual(res.body.error.code, 'DEPENDENCY_UNAVAILABLE');
   });
 
   it('POST /api/v1/orders/:id/cancel: returns 422 REASON_REQUIRED when reason is missing (RB-LTT08, QD12)', async () => {

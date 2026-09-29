@@ -286,7 +286,6 @@ const mockBuyerRepository: IBuyerRepository = {
 const inMemoryMockOrders: WireOrder[] = [
   {
     id: "00000000-0000-0000-0000-000000000301",
-    order_code: "ORD-2026-0928-01",
     buyer_id: "user_dev",
     shop_id: "00000000-0000-0000-0000-000000000001",
     shop_name: "Dino Beauty Official",
@@ -294,7 +293,6 @@ const inMemoryMockOrders: WireOrder[] = [
     total_amount: "560000.00",
     shipping_fee: "0.00",
     discount_amount: "50000.00",
-    final_amount: "510000.00",
     created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
     items: [
       {
@@ -317,7 +315,6 @@ const inMemoryMockOrders: WireOrder[] = [
   },
   {
     id: "00000000-0000-0000-0000-000000000302",
-    order_code: "ORD-2026-0927-02",
     buyer_id: "user_dev",
     shop_id: "00000000-0000-0000-0000-000000000001",
     shop_name: "Dino Beauty Official",
@@ -325,7 +322,6 @@ const inMemoryMockOrders: WireOrder[] = [
     total_amount: "420000.00",
     shipping_fee: "0.00",
     discount_amount: "0.00",
-    final_amount: "420000.00",
     created_at: new Date(Date.now() - 86400000).toISOString(),
     items: [
       {
@@ -340,7 +336,6 @@ const inMemoryMockOrders: WireOrder[] = [
   },
   {
     id: "00000000-0000-0000-0000-000000000303",
-    order_code: "ORD-2026-0926-03",
     buyer_id: "user_dev",
     shop_id: "00000000-0000-0000-0000-000000000002",
     shop_name: "Dino Tech Store",
@@ -348,7 +343,6 @@ const inMemoryMockOrders: WireOrder[] = [
     total_amount: "890000.00",
     shipping_fee: "0.00",
     discount_amount: "0.00",
-    final_amount: "890000.00",
     created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
     items: [
       {
@@ -363,7 +357,6 @@ const inMemoryMockOrders: WireOrder[] = [
   },
   {
     id: "00000000-0000-0000-0000-000000000304",
-    order_code: "ORD-2026-0920-04",
     buyer_id: "user_dev",
     shop_id: "00000000-0000-0000-0000-000000000001",
     shop_name: "Dino Beauty Official",
@@ -371,7 +364,6 @@ const inMemoryMockOrders: WireOrder[] = [
     total_amount: "280000.00",
     shipping_fee: "0.00",
     discount_amount: "0.00",
-    final_amount: "280000.00",
     created_at: new Date(Date.now() - 86400000 * 8).toISOString(),
     items: [
       {
