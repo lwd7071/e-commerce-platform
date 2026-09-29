@@ -137,6 +137,12 @@ export function AdminScreen() {
             Danh sách người dùng
           </Link>
           <Link
+            href="/admin/shops"
+            className="pb-3 border-b-2 border-transparent text-[var(--subtext)] hover:text-[var(--foreground)]"
+          >
+            Duyệt gian hàng (Shop)
+          </Link>
+          <Link
             href="/admin/categories"
             className="pb-3 border-b-2 border-transparent text-[var(--subtext)] hover:text-[var(--foreground)]"
           >

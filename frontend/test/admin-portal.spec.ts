@@ -37,4 +37,51 @@ describe("Admin Moderation Portal (Người 5 - TDD)", () => {
     const updated = users.find((u) => u.id === "usr_001");
     expect(updated?.status).toBe("ACTIVE");
   });
+
+  describe("Shop Moderation & Approval Flow", () => {
+    it("lấy danh sách 20 shop ban đầu và xác nhận có các shop PENDING từ seed data", async () => {
+      const shops = await adminRepo.getShops();
+      expect(shops).toBeDefined();
+      expect(shops.length).toBe(20);
+      const pendingShops = shops.filter((s) => s.status === "PENDING");
+      expect(pendingShops.length).toBeGreaterThan(0);
+    });
+
+    it("lọc danh sách shop theo trạng thái PENDING", async () => {
+      const pendingShops = await adminRepo.getShops({ status: "PENDING" });
+      expect(pendingShops.every((s) => s.status === "PENDING")).toBe(true);
+    });
+
+    it("duyệt shop PENDING thành công chuyển trạng thái thành ACTIVE", async () => {
+      const targetShopId = "00000000-0000-0000-0000-000000000001";
+      await adminRepo.approveShop(targetShopId);
+      const shops = await adminRepo.getShops();
+      const approved = shops.find((s) => s.shop_id === targetShopId);
+      expect(approved?.status).toBe("ACTIVE");
+    });
+
+    it("chặn khóa shop khi lý do (reason) bị để trống", async () => {
+      const targetShopId = "00000000-0000-0000-0000-000000000001";
+      await expect(
+        adminRepo.lockShop({ shop_id: targetShopId, reason: "   " })
+      ).rejects.toThrow("lý do");
+    });
+
+    it("khóa shop thành công khi có lý do và chuyển trạng thái thành LOCKED", async () => {
+      const targetShopId = "00000000-0000-0000-0000-000000000002";
+      await adminRepo.lockShop({ shop_id: targetShopId, reason: "Hàng giả nhãn hiệu" });
+      const shops = await adminRepo.getShops();
+      const locked = shops.find((s) => s.shop_id === targetShopId);
+      expect(locked?.status).toBe("LOCKED");
+    });
+
+    it("mở khóa shop chuyển trạng thái về ACTIVE", async () => {
+      const targetShopId = "00000000-0000-0000-0000-000000000002";
+      await adminRepo.unlockShop(targetShopId);
+      const shops = await adminRepo.getShops();
+      const unlocked = shops.find((s) => s.shop_id === targetShopId);
+      expect(unlocked?.status).toBe("ACTIVE");
+    });
+  });
 });
+
