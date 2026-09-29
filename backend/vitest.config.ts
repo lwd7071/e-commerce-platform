@@ -1,5 +1,10 @@
+import path from 'node:path';
 import { fileURLToPath, URL } from 'node:url';
+import dotenv from 'dotenv';
 import { defineConfig } from 'vitest/config';
+
+// Nạp tự động file .env từ root dự án hoặc backend/.env
+dotenv.config({ path: [path.resolve(process.cwd(), '../.env'), path.resolve(process.cwd(), '.env')] });
 
 export default defineConfig({
   test: {
