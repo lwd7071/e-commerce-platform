@@ -6,7 +6,7 @@ import { getSupabaseClient } from "./supabase-client";
 import { setAuthTokenProvider } from "../api/client";
 import { envConfig } from "../config/env";
 
-const AuthContext = createContext<AuthContextType | null>(null);
+export const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);

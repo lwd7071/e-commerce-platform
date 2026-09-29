@@ -35,6 +35,9 @@ const apiBuyerRepository: IBuyerRepository = {
   createAddress: (data) => buyerApi.createAddress(data),
   getCart: () => buyerApi.getCart(),
   addToCart: (variantId, quantity) => buyerApi.addToCart({ variant_id: variantId, quantity }),
+  updateCartItem: (itemId, patch) => buyerApi.updateCartItem(itemId, patch),
+  removeCartItem: (itemId) => buyerApi.removeCartItem(itemId),
+  removeSelectedCartItems: () => buyerApi.removeSelectedCartItems(),
 };
 
 const apiOrderRepository: IOrderRepository = {
@@ -46,7 +49,7 @@ const apiOrderRepository: IOrderRepository = {
 };
 
 const apiVoucherRepository: IVoucherRepository = {
-  getVouchers: () => voucherApi.getVouchers(),
+  getVouchers: (shopId?: string) => voucherApi.getVouchers(shopId ? { shop_id: shopId } : undefined),
   evaluateVoucher: (code, orderSubtotal, shopId) =>
     voucherApi.evaluateVoucher({ code, order_subtotal: orderSubtotal, shop_id: shopId }),
 };
@@ -242,25 +245,37 @@ const mockBuyerRepository: IBuyerRepository = {
   }),
   getAddresses: async () => [
     {
-      id: "addr_01",
-      receiver_name: "Nguyễn Văn A",
-      phone_number: "0901234567",
-      address_line: "123 Đường Nguyễn Huệ",
-      ward: "Bến Nghé",
+      addressId: "addr_01",
+      recipientName: "Nguyễn Văn A",
+      phone: "0901234567",
+      province: "Thành phố Hồ Chí Minh",
       district: "Quận 1",
-      city: "Hồ Chí Minh",
-      is_default: true,
+      ward: "Phường Bến Nghé",
+      detailAddress: "123 Đường Nguyễn Huệ",
+      isDefault: true,
     },
   ],
   createAddress: async (data) => ({
-    id: `addr_${Date.now()}`,
-    ...data,
+    addressId: `addr_${Date.now()}`,
+    recipientName: data.recipientName,
+    phone: data.phone,
+    province: data.province,
+    district: data.district,
+    ward: data.ward,
+    detailAddress: data.detailAddress,
+    isDefault: data.isDefault ?? false,
   }),
   getCart: async () => ({
-    id: "cart_01",
-    items: [{ id: "ci_01", variant_id: "var_01", quantity: 2, is_selected: true }],
+    cart_id: "cart_01",
+    buyer_id: "user_dev",
+    items: [{ cart_item_id: "ci_01", variant_id: "var_01", quantity: 2, is_selected: true }],
   }),
-  addToCart: async () => ({ success: true }),
+  addToCart: async (variantId, quantity) => ({
+    cart_item_id: `ci_${Date.now()}`,
+    variant_id: variantId,
+    quantity,
+    is_selected: false,
+  }),
 };
 
 const inMemoryMockOrders: WireOrder[] = [
@@ -417,21 +432,30 @@ const mockOrderRepository: IOrderRepository = {
 const mockVoucherRepository: IVoucherRepository = {
   getVouchers: async () => [
     {
-      id: "vouch_01",
+      voucherId: "vouch_01",
       code: "WELCOME50",
-      type: "FIXED",
-      discount_value: "50000.00",
-      min_order_value: "200000.00",
-      max_discount: null,
-      start_at: "2026-01-01T00:00:00Z",
-      end_at: "2026-12-31T23:59:59Z",
+      voucherName: "Ưu đãi chào mừng 50.000₫",
+      scope: "PLATFORM",
+      shopId: null,
+      discountType: "FIXED",
+      discountValue: "50000.00",
+      maxDiscount: null,
+      minOrderValue: "200000.00",
+      quantity: 100,
+      startAt: "2026-01-01T00:00:00Z",
+      endAt: "2026-12-31T23:59:59Z",
+      status: "ACTIVE",
     },
   ],
   evaluateVoucher: async (code) => {
     if (code === "WELCOME50") {
-      return { is_valid: true, discount_amount: "50000.00" };
+      return { isValid: true, voucherId: "vouch_01", discountAmount: "50000.00" };
     }
-    return { is_valid: false, discount_amount: "0.00", reason: "Mã giảm giá không hợp lệ hoặc đã hết hạn" };
+    return {
+      isValid: false,
+      errorCode: "VOUCHER_NOT_APPLICABLE",
+      errorMessage: "Mã giảm giá không hợp lệ hoặc đã hết hạn",
+    };
   },
 };
 

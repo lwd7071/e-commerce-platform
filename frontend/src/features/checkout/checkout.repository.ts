@@ -70,7 +70,7 @@ const INITIAL_VOUCHERS: CheckoutVoucher[] = [
 const ADDRESS_STORAGE_KEY = "dino_user_addresses_v1";
 const memoryAddressStore = new Map<string, string>();
 
-class MockCheckoutRepository implements ICheckoutRepository {
+export class MockCheckoutRepository implements ICheckoutRepository {
   private getStoredAddresses(): CheckoutAddress[] {
     let data: string | null = null;
     if (typeof window !== "undefined" && window.sessionStorage) {
@@ -116,13 +116,13 @@ class MockCheckoutRepository implements ICheckoutRepository {
     const list = this.getStoredAddresses();
     const newAddress: CheckoutAddress = {
       addressId: `addr_${Date.now()}`,
-      recipientName: input.recipient_name,
+      recipientName: input.recipientName || input.recipient_name || "",
       phone: input.phone,
       province: input.province,
       district: input.district,
       ward: input.ward,
-      detailAddress: input.detail_address,
-      isDefault: input.is_default || list.length === 0,
+      detailAddress: input.detailAddress || input.detail_address || "",
+      isDefault: (input.isDefault ?? input.is_default) || list.length === 0,
     };
 
     let updatedList = [...list];
@@ -197,129 +197,110 @@ class MockCheckoutRepository implements ICheckoutRepository {
   }
 }
 
-class ApiCheckoutRepository implements ICheckoutRepository {
-  private mockFallback = new MockCheckoutRepository();
-
+export class ApiCheckoutRepository implements ICheckoutRepository {
   async getAddresses(): Promise<CheckoutAddress[]> {
-    try {
-      const res = await apiClient.get<Array<{
-        addressId: string;
-        userId?: string;
-        recipientName: string;
-        phone: string;
-        province: string;
-        district: string;
-        ward: string;
-        detailAddress: string;
-        isDefault: boolean;
-      }>>("/addresses");
+    const res = await apiClient.get<Array<{
+      addressId: string;
+      userId?: string;
+      recipientName: string;
+      phone: string;
+      province: string;
+      district: string;
+      ward: string;
+      detailAddress: string;
+      isDefault: boolean;
+    }>>("/addresses");
 
-      if (Array.isArray(res) && res.length > 0) {
-        return res.map((a) => ({
-          addressId: a.addressId,
-          recipientName: a.recipientName,
-          phone: a.phone,
-          province: a.province,
-          district: a.district,
-          ward: a.ward,
-          detailAddress: a.detailAddress,
-          isDefault: !!a.isDefault,
-        }));
-      }
-      return this.mockFallback.getAddresses();
-    } catch {
-      return this.mockFallback.getAddresses();
+    if (Array.isArray(res)) {
+      return res.map((a) => ({
+        addressId: a.addressId,
+        recipientName: a.recipientName,
+        phone: a.phone,
+        province: a.province,
+        district: a.district,
+        ward: a.ward,
+        detailAddress: a.detailAddress,
+        isDefault: !!a.isDefault,
+      }));
     }
+    return [];
   }
 
   async createAddress(input: CreateAddressInput): Promise<CheckoutAddress> {
-    try {
-      const res = await apiClient.post<{
-        addressId: string;
-        recipientName: string;
-        phone: string;
-        province: string;
-        district: string;
-        ward: string;
-        detailAddress: string;
-        isDefault: boolean;
-      }>("/addresses", input);
+    const payload = {
+      recipientName: (input.recipientName || input.recipient_name || "").trim(),
+      phone: (input.phone || "").trim(),
+      province: (input.province || "").trim(),
+      district: (input.district || "").trim(),
+      ward: (input.ward || "").trim(),
+      detailAddress: (input.detailAddress || input.detail_address || "").trim(),
+      isDefault: input.isDefault ?? input.is_default,
+    };
+    const res = await apiClient.post<{
+      addressId: string;
+      recipientName: string;
+      phone: string;
+      province: string;
+      district: string;
+      ward: string;
+      detailAddress: string;
+      isDefault: boolean;
+    }>("/addresses", payload);
 
-      return {
-        addressId: res.addressId,
-        recipientName: res.recipientName,
-        phone: res.phone,
-        province: res.province,
-        district: res.district,
-        ward: res.ward,
-        detailAddress: res.detailAddress,
-        isDefault: !!res.isDefault,
-      };
-    } catch {
-      return this.mockFallback.createAddress(input);
-    }
+    return {
+      addressId: res.addressId,
+      recipientName: res.recipientName,
+      phone: res.phone,
+      province: res.province,
+      district: res.district,
+      ward: res.ward,
+      detailAddress: res.detailAddress,
+      isDefault: !!res.isDefault,
+    };
   }
 
   async getVouchers(shopId?: string): Promise<CheckoutVoucher[]> {
-    try {
-      const res = await apiClient.get<CheckoutVoucher[]>("/vouchers/applicable", {
-        params: shopId ? { shop_id: shopId } : undefined,
-      });
-      if (Array.isArray(res) && res.length > 0) {
-        return res;
-      }
-      return this.mockFallback.getVouchers(shopId);
-    } catch {
-      return this.mockFallback.getVouchers(shopId);
-    }
+    const res = await apiClient.get<CheckoutVoucher[]>("/vouchers/applicable", {
+      params: shopId ? { shop_id: shopId } : undefined,
+    });
+    return Array.isArray(res) ? res : [];
   }
 
   async evaluateVoucher(code: string, subtotal: string, shopId?: string): Promise<VoucherEvaluationResult> {
-    try {
-      const res = await apiClient.post<{
-        isValid: boolean;
-        voucherId?: string;
-        discountAmount?: string;
-        errorCode?: string;
-        errorMessage?: string;
-      }>("/vouchers/evaluate", {
-        code,
-        order_subtotal: subtotal,
-        shop_id: shopId,
-      });
+    const res = await apiClient.post<{
+      isValid: boolean;
+      voucherId?: string;
+      discountAmount?: string;
+      errorCode?: string;
+      errorMessage?: string;
+    }>("/vouchers/evaluate", {
+      code,
+      order_subtotal: subtotal,
+      shop_id: shopId,
+    });
 
-      if (res.isValid) {
-        return {
-          isValid: true,
-          voucherId: res.voucherId || "vouch_custom",
-          discountAmount: res.discountAmount || "0.00",
-        };
-      } else {
-        return {
-          isValid: false,
-          errorCode: res.errorCode || "VOUCHER_INVALID",
-          errorMessage: res.errorMessage || "Mã giảm giá không hợp lệ.",
-        };
-      }
-    } catch {
-      return this.mockFallback.evaluateVoucher(code, subtotal, shopId);
+    if (res.isValid) {
+      return {
+        isValid: true,
+        voucherId: res.voucherId || "vouch_custom",
+        discountAmount: res.discountAmount || "0.00",
+      };
+    } else {
+      return {
+        isValid: false,
+        errorCode: res.errorCode || "VOUCHER_INVALID",
+        errorMessage: res.errorMessage || "Mã giảm giá không hợp lệ.",
+      };
     }
   }
 
   async submitCheckout(payload: CheckoutPayload, idempotencyKey: string): Promise<CheckoutResult> {
-    try {
-      const res = await apiClient.post<CheckoutResult>("/checkout", payload, {
-        headers: {
-          "Idempotency-Key": idempotencyKey,
-        },
-      });
-      return res;
-    } catch (err) {
-      if (features.domains.checkoutMock()) {
-        return this.mockFallback.submitCheckout(payload);
-      }
-      throw err;
-    }
+    const res = await apiClient.post<CheckoutResult>("/checkout", payload, {
+      headers: {
+        "Idempotency-Key": idempotencyKey,
+      },
+    });
+    return res;
   }
 }
 
