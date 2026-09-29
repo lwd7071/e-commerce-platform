@@ -2,14 +2,55 @@
 
 ## Trạng thái hiện tại
 
-- Phase/ticket: Phase 4 — B-402, B-403, B-404, B-405, B-406, B-407
+- Phase/ticket: Phase 4 — B-402, B-403, B-404, B-405, B-406, B-407 (Hoàn tất chuẩn hóa FE Adapters & Wire Runtime)
 - Cập nhật lần cuối: 2026-09-29
-- Đang làm: Chuẩn hóa FE address/cart/voucher adapters theo path và DTO runtime backend; tiếp tục wire list/create address, cart mutations và voucher evaluation.
+- Đang làm: Đã hoàn tất sửa FE address/cart/voucher adapters khớp 100% path và DTO runtime backend, bảo vệ toàn bộ ràng buộc nghiệp vụ Cart write-ops, xử lý fail-fast GAP-07, pass toàn bộ 4 quality gates (139/139 tests).
 - Nhánh/PR: feat/fe-nguoi-4-cart/checkout
 - Bị block bởi: B-408 cần backend/test DB thật; Q-804 cần môi trường và phối hợp chạy Buyer/Seller critical E2E.
-- Việc tiếp theo: Sửa FE address/cart/voucher adapters khớp path và DTO runtime theo spec 05/06; B-408 & Q-804.
+- Việc tiếp theo: B-408 (E2E integration test backend DB) và Q-804 phối hợp với Người 5.
 
 ## Nhật ký theo ngày
+
+### 2026-09-29 — Chuẩn hóa FE Address/Cart/Voucher Adapters và Wire Runtime (Plan v3.2)
+
+- Đã làm:
+  - Cập nhật `frontend/src/lib/api/buyer.api.ts`:
+    - Chuyển đổi path Address từ `/buyers/addresses` sang `/addresses` (khớp router mount của backend).
+    - Chuẩn hóa DTO `WireAddress` sang camelCase (`addressId, recipientName, phone, province, district, ward, detailAddress, isDefault`).
+    - Cung cấp `CreateAddressPayload` thuần camelCase theo chuẩn Ponytail.
+    - Chuẩn hóa DTO Cart sang snake_case (`WireCartItem`, `WireCart`, `WireCartItemResponse`).
+    - Triển khai `addToCart` với whitelist nghiêm ngặt (`variant_id`, `quantity`), không chứa `is_selected` (tránh backend ném 422 Unknown field).
+    - Triển khai `updateCartItem` với whitelist `{ quantity?, is_selected? }` kèm client-side async guard `Promise.reject` chặn `quantity < 1` (phòng ngừa lỗi so sánh biến chưa khởi tạo tại backend).
+    - Triển khai `removeCartItem` và `removeSelectedCartItems` an toàn với HTTP 204 No Content.
+    - Xử lý GAP-07: Profile API fail-fast tường minh với `Promise.reject(new Error("GAP-07..."))`, loại bỏ hoàn toàn live network call 404 tới `/buyers/profile`.
+  - Cập nhật `frontend/src/lib/api/voucher.api.ts`:
+    - Chuyển đổi path từ `/vouchers` sang `/vouchers/applicable` (nhận query params `scope`, `shop_id`, `now`).
+    - Chuẩn hóa DTO `WireVoucher` sang camelCase (`voucherId, code, voucherName, scope, shopId, discountType, discountValue, maxDiscount, minOrderValue, quantity, startAt, endAt, status`).
+    - Triển khai `evaluateVoucher` trả về discriminated union `EvaluateVoucherResult` (`{ isValid: true, voucherId, discountAmount } | { isValid: false, errorCode, errorMessage }`).
+  - Cập nhật `frontend/src/lib/repositories/types.ts` & `repository-factory.ts`:
+    - Đồng bộ `IBuyerRepository`, `IVoucherRepository`, `apiBuyerRepository`, `mockBuyerRepository`, `apiVoucherRepository`, `mockVoucherRepository`.
+    - Mock data cho Address/Voucher chuyển sang camelCase và Cart sang snake_case.
+  - Cập nhật `frontend/src/features/checkout/`:
+    - Cho phép `CreateAddressInput` hỗ trợ linh hoạt, `ApiCheckoutRepository.createAddress` chuẩn hóa payload camelCase gửi tới `/addresses`.
+    - Bảo toàn logic disabled/gated cho Address edit/delete/default do runtime trả 501 `NOT_IMPLEMENTED` (GAP-01).
+  - Cập nhật `frontend/src/features/cart/cart.repository.ts`:
+    - `ApiCartRepository` ủy quyền các thao tác item mutations cho `buyerApi` để tái sử dụng guard và path chuẩn.
+  - Tạo mới `frontend/test/buyer-voucher-adapters.spec.ts`:
+    - 15 unit test cases kiểm thử độc lập toàn diện: Address camelCase, Voucher union, Cart whitelist 422, relative add, client guard `Promise.reject`, HTTP 204 No Content, và GAP-07 fail-fast.
+- Quyết định UI/contract:
+  - Bám sát `05-api-contract.md` và `06-fe-be-mapping.md` §1.1.
+  - Giữ vững nguyên tắc Ponytail: tối giản diff, tái sử dụng `buyerApi`, không abstraction thừa, mỗi logic mới đều có test tự chạy kiểm chứng.
+  - Tuân thủ `09-ui-ux-rules.md`: touch targets >= 44×44px, nút chính `--button-primary-bg: #BF3A6F` contrast 5.19:1, nhãn text-only **Dino**.
+- Test/kiểm tra:
+  - `npm test --prefix frontend`: **23/23 test files passed, 139/139 tests passed (100%)**.
+  - `npm run typecheck --prefix frontend`: `tsc --noEmit` **0 errors**.
+  - `npm run lint --prefix frontend`: `eslint` **0 errors, 0 warnings**.
+  - `npm run build --prefix frontend`: Next.js Turbopack production build thành công (13 static/dynamic routes).
+- Handoff:
+  - Cart command / repository đã sẵn sàng kết nối với Product Detail (`B-401` của Người 3).
+  - Checkout snapshot và idempotency contract sẵn sàng phối hợp với Order center (`O-502` của Người 5).
+- Blocker: Không.
+- Còn lại: B-408 (E2E với DB thật) và Q-804 khi môi trường backend test DB được khởi chạy.
 
 ### 2026-09-29 — B-403: Nâng vùng chạm nút tăng/giảm số lượng giỏ hàng lên 44×44px
 

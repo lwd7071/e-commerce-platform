@@ -1,4 +1,5 @@
 import { apiClient } from "@/lib/api/client";
+import { buyerApi } from "@/lib/api/buyer.api";
 import { features } from "@/lib/config/features";
 import type { CartItem } from "./cart.types";
 
@@ -165,15 +166,15 @@ export class ApiCartRepository implements ICartRepository {
   }
 
   async updateItem(cartItemId: string, patch: { quantity?: number; is_selected?: boolean }): Promise<void> {
-    await apiClient.patch(`/cart/items/${cartItemId}`, patch);
+    await buyerApi.updateCartItem(cartItemId, patch);
   }
 
   async removeItem(cartItemId: string): Promise<void> {
-    await apiClient.delete(`/cart/items/${cartItemId}`);
+    await buyerApi.removeCartItem(cartItemId);
   }
 
   async removeSelected(): Promise<void> {
-    await apiClient.delete("/cart/selected");
+    await buyerApi.removeSelectedCartItems();
   }
 }
 

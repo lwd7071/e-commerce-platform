@@ -116,13 +116,13 @@ export class MockCheckoutRepository implements ICheckoutRepository {
     const list = this.getStoredAddresses();
     const newAddress: CheckoutAddress = {
       addressId: `addr_${Date.now()}`,
-      recipientName: input.recipient_name,
+      recipientName: input.recipientName || input.recipient_name || "",
       phone: input.phone,
       province: input.province,
       district: input.district,
       ward: input.ward,
-      detailAddress: input.detail_address,
-      isDefault: input.is_default || list.length === 0,
+      detailAddress: input.detailAddress || input.detail_address || "",
+      isDefault: (input.isDefault ?? input.is_default) || list.length === 0,
     };
 
     let updatedList = [...list];
@@ -227,6 +227,15 @@ export class ApiCheckoutRepository implements ICheckoutRepository {
   }
 
   async createAddress(input: CreateAddressInput): Promise<CheckoutAddress> {
+    const payload = {
+      recipientName: (input.recipientName || input.recipient_name || "").trim(),
+      phone: (input.phone || "").trim(),
+      province: (input.province || "").trim(),
+      district: (input.district || "").trim(),
+      ward: (input.ward || "").trim(),
+      detailAddress: (input.detailAddress || input.detail_address || "").trim(),
+      isDefault: input.isDefault ?? input.is_default,
+    };
     const res = await apiClient.post<{
       addressId: string;
       recipientName: string;
@@ -236,7 +245,7 @@ export class ApiCheckoutRepository implements ICheckoutRepository {
       ward: string;
       detailAddress: string;
       isDefault: boolean;
-    }>("/addresses", input);
+    }>("/addresses", payload);
 
     return {
       addressId: res.addressId,
