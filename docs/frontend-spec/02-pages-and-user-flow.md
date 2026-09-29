@@ -5,22 +5,24 @@
 
 ## 1. Route map
 
+Các route dưới đây là route sản phẩm dự kiến. Đối chiếu source hiện tại trong `frontend/src/app`: đã có `/`, `/products`, `/products/[id]`, `/cart`, `/checkout`, `/orders`, `/notifications`, `/profile`, `/login`, `/register`, `/seller`, `/seller/orders`, `/seller/products`. Chưa có `/orders/[id]/review`, `/seller/products/new`, `/admin` hoặc `/admin/categories`; các route đó cần được tạo trước khi QA theo flow tương ứng.
+
 | Route | Role | Data readiness | Strategy |
 |---|---|---|---|
 | `/` | Public | `PARTIAL` | API catalog + static category config |
 | `/products/[id]` | Public | `PARTIAL` | API detail + placeholders; reviews hidden/flagged |
 | `/cart` | Buyer | `PARTIAL` | API identity/selection + blocker cho joined display data |
 | `/checkout` | Buyer | `AVAILABLE` sau cart selection | API thật; không QR |
-| `/orders` | Buyer | `RUNTIME_BLOCKED` | mock repository cho tới khi order query được wire |
-| `/orders/[id]/review` | Buyer | `RUNTIME_BLOCKED` | UI/mock; disable production submit |
-| `/notifications` | Buyer | `RUNTIME_BLOCKED` | UI/mock; không hứa realtime |
+| `/orders` | Buyer | `STUB` (GET 200 rỗng/placeholder) | Route FE đã có; mock repository cho tới khi order query được wire |
+| `/orders/[id]/review` | Buyer | `NOT_IMPLEMENTED` (BE 501) | FE route chưa có; UI/mock; disable production submit |
+| `/notifications` | Buyer | `NOT_IMPLEMENTED` (BE 501) | Route FE đã có; UI/mock; không hứa realtime |
 | `/profile` | Authenticated | `MISSING` | Supabase metadata read-only hoặc mock |
 | `/login` | Public-only | `PARTIAL` | Supabase login; cần cấu hình SDK/env |
 | `/register` | Public-only | `BLOCKED` | cần app user/seller onboarding |
 | `/seller` | Seller | `RUNTIME_BLOCKED/PARTIAL` | order table mock; stock mutation thật |
-| `/seller/products/new` | Seller | `PARTIAL` | create thật sau category/media fallback |
-| `/admin` | Admin | `PARTIAL` | lock/unlock thật; lists dùng mock |
-| `/admin/categories` | Admin | `MISSING` | mock/local-only cho tới khi có API |
+| `/seller/products/new` | Seller | `PARTIAL` | FE route chưa có; BE create có, category/media thiếu |
+| `/admin` | Admin | `PARTIAL` | FE route chưa có; lock/unlock BE có, lists dùng mock |
+| `/admin/categories` | Admin | `MISSING` | FE route và category HTTP API chưa có; mock/local-only |
 
 ## 2. Quy tắc chung cho page
 

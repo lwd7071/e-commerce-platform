@@ -184,6 +184,8 @@
 
 ## Contract đang sở hữu
 
+> **Đính chính phạm vi HTTP (2026-09-29):** Nhật ký T3 phía trên ghi Catalog có `GET /categories` và `GET /shops/:id`, nhưng audit router hiện được mount cho thấy `backend/src/platform/http/routes/t1-routes.ts` chỉ đăng ký `GET /products`, `GET /products/:product_id`, `POST /products` và `PATCH /product-variants/:variant_id/stock`. Category/Shop domain, repository hoặc DTO có tồn tại không đồng nghĩa các route này đang chạy trong HTTP runtime. Xem [runtime API matrix](../frontend-spec/05-api-contract.md). Giữ nguyên log lịch sử; code router đang mount là căn cứ hiện tại.
+
 | Tên | Trạng thái bàn giao | Version/ngày khóa | Người tiêu thụ | Ghi chú |
 |---|---|---|---|---|
 | `ICatalogPort` (lockVariant, getVariantPriceAndStock, checkShopActive) | Đã khóa Contract, đã điều chỉnh nullable `variantValue` | v1.1 / 2026-09-18 | Người 5 | Đồng bộ Schema Freeze; T2 dùng DB transaction thật |

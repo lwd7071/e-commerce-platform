@@ -46,7 +46,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 22.20.0
+          node-version: 24.15.0
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
@@ -55,7 +55,7 @@ jobs:
 
       - name: Verify runtime
         run: |
-          test "$(node --version)" = "v22.20.0"
+          test "$(node --version)" = "v24.15.0"
           test "$(npm --version)" = "11.12.1"
 
       - name: Install backend dependencies
@@ -63,6 +63,9 @@ jobs:
 
       - name: Verify backend lockfile is clean
         run: git diff --exit-code -- package-lock.json
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
 
       - name: Prisma validate
         run: npx prisma validate
@@ -93,7 +96,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ecommerce-web
+        working-directory: frontend
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -101,16 +104,16 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 22.20.0
+          node-version: 24.15.0
           cache: npm
-          cache-dependency-path: ecommerce-web/package-lock.json
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Pin npm
         run: npm install --global npm@11.12.1
 
       - name: Verify runtime
         run: |
-          test "$(node --version)" = "v22.20.0"
+          test "$(node --version)" = "v24.15.0"
           test "$(npm --version)" = "11.12.1"
 
       - name: Install frontend dependencies
@@ -123,7 +126,10 @@ jobs:
         run: npm run lint
 
       - name: Typecheck
-        run: npx tsc --noEmit
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
 
       - name: Build
         run: npm run build
@@ -155,7 +161,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 22.20.0
+          node-version: 24.15.0
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
@@ -164,7 +170,7 @@ jobs:
 
       - name: Verify runtime
         run: |
-          test "$(node --version)" = "v22.20.0"
+          test "$(node --version)" = "v24.15.0"
           test "$(npm --version)" = "11.12.1"
 
       - name: Install backend dependencies
@@ -219,12 +225,17 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 22.20.0
+          node-version: 24.15.0
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
       - name: Pin npm
         run: npm install --global npm@11.12.1
+
+      - name: Verify runtime
+        run: |
+          test "$(node --version)" = "v24.15.0"
+          test "$(npm --version)" = "11.12.1"
 
       - name: Install backend dependencies
         run: npm ci
@@ -282,12 +293,17 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 22.20.0
+          node-version: 24.15.0
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
       - name: Pin npm
         run: npm install --global npm@11.12.1
+
+      - name: Verify runtime
+        run: |
+          test "$(node --version)" = "v24.15.0"
+          test "$(npm --version)" = "11.12.1"
 
       - name: Install backend dependencies
         run: npm ci

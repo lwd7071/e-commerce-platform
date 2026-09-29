@@ -4,7 +4,7 @@
 
 Trước khi code, đọc [Frontend spec](../docs/frontend-spec/README.md), đặc biệt file [UI/UX rules](../docs/frontend-spec/09-ui-ux-rules.md), rồi cập nhật đúng file trong [progress](../docs/frontend-spec/progress/README.md). `ecommerce-web/` là bản UI thử nghiệm, không phải workspace triển khai.
 
-Scaffold Next.js đã được Người 1 tạo tại đây. Dùng Node `22.20.0` (theo `.nvmrc`) và npm 11: chạy `npm ci`, sau đó `npm run dev` hoặc quality gates (`npm run typecheck`, `npm run lint`, `npm test`, `npm run build`). Sao chép `.env.example` thành `.env.local` theo yêu cầu môi trường; để thử luồng mock, bật `NEXT_PUBLIC_USE_MOCK=true` và không nhập credential thật vào file được commit. Người 2 sở hữu shared UI, global tokens/layout/navigation và `/profile`, `/notifications`; các page còn lại theo ownership trong implementation plan.
+Scaffold Next.js đã được Người 1 tạo tại đây. Dùng Node `24.15.0` (theo `.nvmrc`) và npm `11.12.1`: chạy `npm ci`, sau đó `npm run dev` hoặc quality gates (`npm run typecheck`, `npm run lint`, `npm test`, `npm run build`). Sao chép `.env.example` thành `.env.local` theo yêu cầu môi trường; để thử luồng mock, bật `NEXT_PUBLIC_USE_MOCK=true` và không nhập credential thật vào file được commit. Người 2 sở hữu shared UI, global tokens/layout/navigation và `/profile`, `/notifications`; các page còn lại theo ownership trong implementation plan.
 
 ## Cấu trúc hiện tại
 

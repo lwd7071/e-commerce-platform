@@ -3,13 +3,20 @@
 ## Trạng thái hiện tại
 
 - Phase/ticket: Phase 3 (B-301, B-302, B-305), Phase 4 (B-401), Phase 5 (O-508, O-509), Phase 7 (A-700, A-702)
-- Cập nhật lần cuối: 2026-09-28
+- Cập nhật lần cuối: 2026-09-29
 - Đang làm: Đã xử lý triệt để các phản hồi kiểm thử của Lead: Độ tương phản WCAG AA, validation tồn kho số nguyên (không cắt 1.5), controlled search input reset, và race-condition guard cho bộ lọc bất đồng bộ. Quality gates pass sạch 100%.
-- Nhánh/PR: `feat/fe-nguoi-3-catalog`
-- Bị block bởi: Không
+- Nhánh/PR: Đã tích hợp vào `dev` (merge commit `c9cc35f` và cập nhật `9786150`)
+- Bị block bởi: P-607a chờ backend mở P-606/GAP-09; nghiệm thu add-to-cart/category adapter cần phối hợp Người 4/5.
 - Việc tiếp theo: Phối hợp Người 4 nghiệm thu add-to-cart handoff; phối hợp Người 5 nghiệm thu category adapter; chờ backend mở P-606/GAP-09 để làm P-607a.
 
 ## Nhật ký theo ngày
+
+### 2026-09-29 — Đối soát trạng thái tích hợp
+
+- Đã làm: Xác nhận các thay đổi catalog đã nằm trên `dev` qua merge `c9cc35f` và commit cập nhật `9786150`.
+- Test/kiểm tra: Không chạy lại quality gates trong lần đối soát tài liệu này; giữ nguyên evidence tại nhật ký 2026-09-28.
+- Đối chiếu UI rules: category filter có touch target tối thiểu 44px; stock status dùng semantic color tokens.
+- Còn lại: P-607a chờ GAP-09; tiếp tục nghiệm thu handoff với Người 4/5.
 
 ### 2026-09-28 (Lần 3) — Khắc phục tương phản AA, validation tồn kho số nguyên, controlled search reset và race-condition guard
 

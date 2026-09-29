@@ -150,7 +150,7 @@
   5. Idempotency replay -> trả ngay cached result mà không gọi lại Cart, Catalog, Voucher.
 - Bổ sung 2 tests biên cho `calculateOrderTotals` (`order-calculation.spec.ts`): tiền lẻ 0.01 cent chính xác, chặn các chuỗi số dị dạng (`1.0.0`, `1.00 `, `..01`).
 - Đồng bộ `checkout-contract.md`: phân định rõ ranh giới Domain thuần (đã xong) và Persistence/API wiring (chờ phối hợp).
-- Quality gate Node v22.20.0, npm 11.12.1: TV5 41/41 pass; full backend 229/229 pass; typecheck 0 lỗi; build pass; lint 0 error.
+- Quality gate lịch sử ngày 2026-09-16 dùng runtime tiền nhiệm Node v22.20.0, npm 11.12.1: TV5 41/41 pass; full backend 229/229 pass; typecheck 0 lỗi; build pass; lint 0 error. Đây không phải evidence runtime Node 24.
 
 ### 2026-09-18 — CheckoutOrchestrator + Mock Ports
 

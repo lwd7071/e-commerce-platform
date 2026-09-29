@@ -24,6 +24,8 @@ Người 1 cập nhật bảng này khi có thay đổi lớn hoặc tại revie
 
 ## T3 final review — 2026-09-28
 
+> **Phạm vi:** T3 backend hardening/quality gates đã hoàn tất. Điều này không đồng nghĩa mọi capability HTTP mà FE cần đều đã được triển khai hoặc nối vào runtime. Bản audit runtime ngày 2026-09-29 nằm tại [FE–BE API contract](../frontend-spec/05-api-contract.md) và [gap analysis](../frontend-spec/07-gap-analysis.md); các route/stub/service wiring ở đó phản ánh code hiện tại, không thay đổi kết quả hoàn tất T3 bên dưới.
+
 - **Người 1:** Giải quyết T3-P1-01 (chuẩn hóa OpenAPI 3.1, loại bỏ duplicate prefix, audit & test 3 Order operations: confirm/transition/payments), vá lỗ hổng Rate Limiter bypass qua trust proxy, bổ sung scripts `dev` / `start`.
 - **Người 2:** Nghiệm thu Migration Rebuild sạch 22 bảng + 1 bảng vận hành `api_idempotency_records`, kiểm thử hồi quy bảo toàn lịch sử giao dịch (QD16 - RESTRICT), công cụ Schema Fingerprint Backup/Restore, và Concurrency Test Harness.
 - **Người 3:** Giải quyết T3-P3-01 (đồng bộ hóa kiểm tra & tạo SKU per Shop bằng Row Lock `FOR UPDATE` trong transaction), tối ưu hóa Bulk Insert giảm 90% thời gian benchmark, 17/17 tests hardening pass trên PostgreSQL thật.

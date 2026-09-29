@@ -3,13 +3,69 @@
 ## Trạng thái hiện tại
 
 - Phase/ticket: Phase 0 D-001–003; Phase 2 U-201–206; Phase 6 P-602/P-604–605/P-607b (UI mock/gated); Q-802/Q-803 scoped QA
-- Cập nhật lần cuối: 2026-09-28
-- Đang làm: U-201–206 và QA độc lập cho shared shell/profile/notifications đã hoàn tất; P-604/P-605/P-607b vẫn gated theo readiness backend
-- Nhánh/PR: Chưa có
-- Bị block bởi: D-004 chờ page mẫu checkout (Người 4), seller orders và admin dashboard (Người 5); P-601/P-603/P-606 chờ backend contract/runtime (GAP-07/GAP-01/GAP-09). Contrast ở login/register cần Người 1 và màu trạng thái seller cần Người 3 xử lý tại page của họ.
-- Việc tiếp theo: Ghi nhận/nhận handoff contrast từ Người 1/3; tiếp tục D-004 khi checkout, seller orders và admin dashboard có page mẫu; chạy lại gate theo Node 22.20.0 khi môi trường đó sẵn.
+- Cập nhật lần cuối: 2026-09-29
+- Đang làm: U-201–206 và QA scoped cho shared shell/profile/notifications đã hoàn tất; các thay đổi shared UI, notification/navigation helpers, Node 24 và frontend CI đã được tích hợp vào `dev`. P-604/P-605/P-607b vẫn gated theo readiness backend.
+- Nhánh/PR: Các commit từ `codex/node-24-runtime`, `codex/frontend-ci-workspace` và `codex/member2-pr-a/b/c` đã merge vào `dev` cục bộ. PR GitHub chưa tạo được theo nhật ký vì GitHub CLI credential invalid.
+- Bị block bởi: Local PostgreSQL smoke chưa chạy được do worktree thiếu `DIRECT_URL`/DB test; cần PostgreSQL service CI xanh làm evidence. D-004 chờ đủ page mẫu; P-601/P-603/P-606 chờ backend contract/runtime (GAP-07/GAP-01/GAP-09). Handoff contrast ở login/register và seller status cần owner Người 1/3 xác nhận. Route metadata `/orders`, `/orders/[id]/review` và `/notifications` đã được đồng bộ Buyer-only theo RBAC spec.
+- Việc tiếp theo: Nhận xác nhận/review của owner cho runtime và các handoff; hoàn tất D-004 khi đủ page mẫu; tiếp tục các ticket đang chờ backend readiness.
 
 ## Nhật ký theo ngày
+
+### 2026-09-29 — Tích hợp các nhánh runtime, CI và shared UI vào dev
+
+- Đã làm: Các thay đổi trên `codex/node-24-runtime`, `codex/frontend-ci-workspace` và chuỗi `codex/member2-pr-a/b/c` đã được merge vào `dev` cục bộ. PR C chứa các helper navigation/notification, hardening shared UI và test contract; Node 24 và quality gate frontend cũng đã có trên `dev`.
+- Test/kiểm tra: Route guard test ban đầu bắt mismatch role ở `/orders`; sau khi đồng bộ `/orders`, `/orders/[id]/review` và `/notifications` sang Buyer-only, toàn bộ frontend pass typecheck, lint, 74/74 tests và production build trên Node `24.15.0`/npm `11.12.1`. PostgreSQL smoke vẫn chưa chạy do thiếu DB test/`DIRECT_URL`.
+- Đối chiếu UI rules: màu trạng thái trong seller/order screens dùng semantic tokens; filter tabs đáp ứng touch target 44px. Các cặp semantic text/surface được kiểm tra đạt WCAG AA.
+- Handoff: Chờ Người 1/backend owner xác nhận review runtime/CI; handoff contrast login/register và seller status vẫn cần owner xử lý/xác nhận.
+- Blocker: PR GitHub chưa được tạo theo nhật ký trước đó do GitHub CLI credential invalid; local PostgreSQL smoke chưa có DB test/`DIRECT_URL`.
+- Còn lại: D-004 và các ticket đang gated theo backend/page readiness như phần trạng thái hiện tại.
+
+### 2026-09-29 — PR C implementation sau test contract
+
+- Commit test-only `9a58181` được tạo trước helper/implementation; lúc đó suite đỏ do module navigation helper chưa tồn tại. Sau đó tách helper và nối lại consumer; full suite chuyển xanh.
+- Ma trận nav tách thành pure helper dùng chung desktop/mobile; notification filter/count/mark-one/bulk tách thành pure state helper và giữ max 20 visible unread, không mutate input.
+- SSR unit test riêng xác nhận `ProtectedPage` buyer-only không render notification content cho Seller và có CTA an toàn, còn Buyer render được. Đây không thay thế browser direct-URL smoke; browser automation chưa chạy được trong môi trường này.
+- Route helper `ROUTE_RULES` đang thiếu role cho `/notifications`, dù route UI truyền `allowedRoles=["BUYER"]`; handoff Người 1 cần bổ sung/đồng bộ auth route metadata hoặc xác nhận helper không còn là source dùng. Không sửa chéo owner.
+- Frontend Node `24.15.0`/npm `11.12.1`: typecheck pass; Vitest 15 files / 74 tests pass; build pass; lint pass.
+
+### 2026-09-29 — PR C navigation/notifications helpers (provisional)
+
+- Viết contract tests trước implementation: test đỏ ban đầu do chưa có helper; sau khi tách role navigation items và notification view-state helper, tests xanh.
+- Ma trận Guest/Buyer/Seller/Admin, notification filter/unread count, mark-one, bulk tối đa 20 và tính bất biến input được kiểm tra riêng. Direct-role UI test xác nhận seller mở content buyer-only nhận unauthorized state/CTA, Buyer được render content.
+- `NotificationsPageContent` vẫn giữ `ProtectedPage allowedRoles={["BUYER"]}`; production tiếp tục hiển thị gated state, không gọi API 501. Không thêm test/helper API notification chưa có contract.
+- Frontend trên Node `24.15.0`/npm `11.12.1`: typecheck pass; Vitest 15 files / 74 tests pass; production build pass; lint pass.
+- Browser trực tiếp không được chạy lại trên nhánh hiện tại: CUA không khởi tạo được và `playwright` không có trong npm cache. Browser QA ngày 2026-09-28 ở mục [QA evidence](#qa-evidence) đã ghi Chrome/Edge direct URL cho Seller/Admin nhận unauthorized state; `ProtectedPage` và route wrapper không đổi ở PR C. Route helper `ROUTE_RULES` vẫn thiếu `allowedRoles: ["BUYER"]` cho `/notifications`; đây là auth contract thuộc Người 1, đã để nguyên và cần handoff/owner xác nhận.
+- Metadata `/profile` và `/notifications` hiện khai báo base title; root template `%s | Dino` đã tạo kết quả chuẩn. Không cần metadata diff cho hai route Người 2; metadata bất nhất ở page người khác để đúng owner xử lý, không sửa chéo.
+
+### 2026-09-29 — PR B shared component hardening (provisional)
+
+- Test đỏ trước sửa xác nhận các EmptyState/ErrorState trên cùng page dùng lại `empty-title`/`error-title`; sau đó mỗi instance dùng `useId()` và test unique accessible heading target đã xanh.
+- Toast timer có manager nhỏ để hủy timer khi đóng từng toast và khi `ToastProvider` unmount; test manager xác nhận cancel/dispose và callback expiry. SSR test xác nhận polite live-region container còn hiện diện; chưa có browser interaction test tự động cho hành vi toast provider end-to-end.
+- Giữ nguyên public props của shared components. Không sửa Dialog vì repro browser hiện có cho ESC/backdrop/return-focus đã pass; Dialog vẫn chưa có automated interaction test.
+- Frontend trên Node `24.15.0`/npm `11.12.1`: typecheck pass; Vitest 14 files / 67 tests pass; production build pass; lint pass sạch sau khi xử lý hook dependency.
+- Evidence provisional trên nhánh phụ thuộc PR0a; phải rebase/chạy lại gate sau PR0a. Thông báo owner shared components/review chéo vẫn cần trước khi merge vào nhánh nhóm.
+
+### 2026-09-29 — PR A token/contrast và SSR contract (provisional)
+
+- Thêm token mới `--success-text` và `--warning-text`, giữ nguyên giá trị mọi token palette gốc; dùng lại `--danger-text` đã có. Thêm test tính WCAG AA ≥4.5:1 cho semantic text/surface và chữ trắng trên CTA.
+- Thêm SSR characterization cho Button (variant/disabled/loading), FormField (label/help/error ARIA), EmptyState, ErrorState và StatusBadge; không thêm navigation/notification helper test ở PR A.
+- Frontend Node `24.15.0`/npm `11.12.1`: typecheck, lint, build pass; Vitest 12 files / 63 tests pass.
+- Evidence provisional trên nhánh dựa vào PR0a chưa merge; sau khi PR0a được duyệt/gộp phải rebase và chạy lại tất cả gate. `Toast`/`Dialog` interaction chưa có automated interaction test; Dialog mới có browser repro/evidence trong nhật ký QA.
+
+### 2026-09-28 — PR0a Node 24 runtime migration (đang chuẩn bị, chưa merge)
+
+- Đã đồng bộ từ `origin/dev` mới nhất và làm trong worktree riêng; không mang theo hoặc sửa thay đổi local tại `ecommerce-web/`.
+- Đã cập nhật `.nvmrc`, engines của backend/frontend thành `>=24 <25`, giữ npm `11.x` và `packageManager: npm@11.12.1`; `@types/node` lên major 24. Hai lockfile chỉ đổi engine, `@types/node`/`undici-types` và bundled optional metadata do npm 11 ghi nhận cho Tailwind WASM.
+- Backend và frontend `npm ci` pass trên Node `24.15.0`/npm `11.12.1`, không có `EBADENGINE`; audit lần này: backend 6 advisory (2 moderate, 4 high), frontend 2 moderate. Không chạy audit fix.
+- Backend trên Node 24: Prisma Client generate và schema validate pass (dùng URL PostgreSQL giả chỉ để nạp Prisma config); typecheck, lint, build pass. Test pass ngoài sandbox: native 598/598 và Vitest 96/96; 119 DB/remote integration cases skip do chưa có DB config. Trong sandbox native suite gặp một `spawn EPERM`; chạy lại được ngoài sandbox. Cần PostgreSQL service quality CI xanh trước merge làm DB/client smoke evidence.
+- Frontend trên Node 24: typecheck pass (cần quyền ghi `tsconfig.tsbuildinfo` trong worktree); 54/54 unit tests, production build và lint pass.
+- CI PR0a chuyển backend/remote DB/auth/storage jobs sang Node `24.15.0` và thêm runtime assertion; job `frontend-quality` còn Node22 có chủ đích vì vẫn kiểm tra prototype `ecommerce-web/`, sẽ được thay riêng ở PR0b.
+- Chưa có deploy/hosting evidence hay review của Người 1/backend owner; không merge PR0a cho tới khi đủ review và PostgreSQL service CI xanh. Node22 evidence bên dưới là lịch sử runtime tiền nhiệm, không phải gate hiện hành.
+
+### 2026-09-28 — PR0b frontend CI cutover (đang chuẩn bị)
+
+- Trên nhánh riêng xếp sau PR0a, `frontend-quality` đổi working directory/cache sang `frontend/`, xác nhận Node `24.15.0`/npm `11.12.1`, chạy `npm ci`, lockfile-clean, lint, typecheck, test và build.
+- Các gate local frontend trên Node24 đều pass; PR0b không sửa manifest/lockfile và không chạy quality gate cho `ecommerce-web/`. Chỉ merge sau PR0a và CI thật xanh.
 
 ### 2026-09-28 — U-203, Q-802, Q-803 (QA sau merge catalog)
 
@@ -18,7 +74,7 @@
   - Chạy browser smoke bằng Chrome 153 với mock session, không thêm file QA hay dependency.
 - Quyết định UI/contract: Giữ native `<dialog>`; dùng cơ chế modal/focus containment/ESC của trình duyệt và lớp CSS chung, không thêm thư viện dialog.
 - Test/kiểm tra:
-  - `npm run typecheck`, `npm run lint`, `npm test` (4 files/15 tests), `npm run build`: PASS trên Node 24.15.0/npm 11.12.1. Repo yêu cầu Node 22.20.0 nên lượt này là kiểm tra bổ sung, chưa thay thế gate trên đúng Node.
+  - `npm run typecheck`, `npm run lint`, `npm test` (4 files/15 tests), `npm run build`: PASS trên Node 24.15.0/npm 11.12.1. Đây là evidence mới của workspace FE; migration toàn repo và các gate sau đồng bộ `origin/dev` vẫn đang thực hiện.
   - Chrome mock browser: Dialog nằm giữa viewport; focus vào dialog khi mở; Tab giữ focus bên trong; Escape đóng và trả focus về nút mở; click backdrop đóng và trả focus. Không có JS exception trong smoke.
   - Chrome responsive smoke: `/` không tràn ngang tại 320/360/768/1280px; `/profile` và `/notifications` không tràn tại 360px. Reduced motion bật làm animation skeleton gần như tắt (`0.00001s`).
   - Contrast audit: `#E11D48` trên `#FFF1F2` đạt 4.28:1 (dưới 4.5:1) trong auth error copy; `#059669` trên `#ECFDF5` đạt 3.58:1 và `#D97706` trên `#FFFBEB` đạt 3.07:1 cho status text seller. Đây là page của Người 1/3, không sửa chéo ownership.
@@ -30,14 +86,14 @@
 
 - Đã làm: Hoàn thiện tokens/global style, Button/IconButton, field controls/error summary, Dialog, ToastProvider, StatusBadge đủ 7 trạng thái, skeleton/empty/error, header/mobile dock, layout, role navigation, profile read-only và notification UI trong `frontend/src/`. Header/metadata/profile fallback dùng Dino text-only. FormField tự nối helper/error ARIA; notifications chỉ Buyer; profile chỉ dùng auth name/email và initials, không render avatar URL.
 - Quyết định UI/contract: Giữ nguyên palette đã cung cấp; CTA chữ trắng dùng `#BF3A6F` đạt contrast, không glow. Profile metadata chỉ read-only; avatar bị khóa vì thiếu media contract. Notifications demo/local-state chỉ trong non-production; production báo runtime API chưa sẵn sàng (501), không gọi endpoint thật hoặc realtime. Bulk action giới hạn tối đa 20 ID và hiện chỉ cập nhật demo state; production không hiển thị.
-- Test/kiểm tra: Nền `5ace145`; Node 22.20.0/npm 11. `npm ci` pass (415 packages; audit báo 2 moderate vulnerabilities); typecheck pass; ESLint source và 6 file TS đã sửa pass bằng CLI tương đương; Vitest 3 files/12 tests pass; production build pass. Browser smoke và defect evidence ghi ở mục [QA evidence](#qa-evidence). CUA không khởi tạo được nên dùng Chrome/Edge headless cài sẵn và Playwright cache ngoài repo; không sửa package/lockfile.
+- Test/kiểm tra lịch sử (2026-09-28, runtime tiền nhiệm Node 22.20.0/npm 11): trên nền `5ace145`, `npm ci` pass (415 packages; audit báo 2 moderate vulnerabilities); typecheck pass; ESLint source và 6 file TS đã sửa pass bằng CLI tương đương; Vitest 3 files/12 tests pass; production build pass. Đây không phải evidence cho runtime Node 24. Browser smoke và defect evidence ghi ở mục [QA evidence](#qa-evidence). CUA không khởi tạo được nên dùng Chrome/Edge headless cài sẵn và Playwright cache ngoài repo; không sửa package/lockfile.
 - Handoff: Người 1 — login/register cần đổi brand copy/wordmark sang Dino text-only; Người 3 — trang chủ có horizontal overflow ở 320/360px và brand/copy cần đổi Dino; Người 3/4/5 — dùng tokens, shared components và route handoff ở [file 10](../10-ui-ux-handoff.md). Chưa được xác nhận nhận.
 - Blocker: BE — notifications/profile APIs và media contract; Người 3/4/5 — page samples cho D-004. Không còn blocker scaffold/auth wiring.
 - Còn lại: Contrast screen-wide và dialog interaction cần browser QA evidence; notification API/rollback và avatar upload chỉ làm khi dependency backend sẵn.
 
 ### QA evidence
 
-Quality gates dùng Node `22.20.0`/npm 11: `npm ci` pass (415 packages); typecheck pass; ESLint source pass bằng CLI tương đương (lượt cuối `npm run lint` không kết thúc trong thời gian hợp lý, không tính riêng); Vitest 3 files/12 tests pass; Next production build pass. `npm ci` audit ghi nhận 2 moderate vulnerabilities.
+Quality gates lịch sử ngày 2026-09-28 dùng runtime tiền nhiệm Node `22.20.0`/npm 11: `npm ci` pass (415 packages); typecheck pass; ESLint source pass bằng CLI tương đương (lượt cuối `npm run lint` không kết thúc trong thời gian hợp lý, không tính riêng); Vitest 3 files/12 tests pass; Next production build pass. `npm ci` audit ghi nhận 2 moderate vulnerabilities. Đây không phải gate Node 24; evidence mới theo Node 24 được ghi riêng ở các mục PR0a/PR A/B/C phía trên.
 
 | Kiểm tra | Chrome | Edge |
 |---|---|---|

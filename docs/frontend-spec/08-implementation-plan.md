@@ -55,7 +55,7 @@ Các đường dẫn `src/...` trong bảng ownership dưới đây tính tươn
 
 1. Hoàn thiện shared shell, navigation theo role, `/profile` read-only từ auth metadata và `/notifications` demo/gated; role guard phía FE chỉ phục vụ UX, không thay backend authorization.
 2. Kiểm tra form ARIA, dialog focus/ESC/return-focus, toast live region, skip link/landmarks, focus visibility, touch target, reduced motion và responsive.
-3. Chạy typecheck/lint/unit/build bằng Node `22.20.0` và npm 11; browser smoke trên Chrome/Edge tại 320/360/768/1280px; ghi QA evidence và gán defect cho đúng owner.
+3. Chạy typecheck/lint/unit/build bằng Node `24.15.0` và npm `11.12.1`; browser smoke trên Chrome/Edge tại 320/360/768/1280px; ghi QA evidence và gán defect cho đúng owner.
 4. Cập nhật README, files 01/03/08/09/10 và progress. Q-802/Q-803 chỉ đạt trong phạm vi shell/profile/notifications; không đóng gate toàn dự án.
 
 `D-*` là đầu ra thiết kế cần chốt trước khi biến prototype thành màn hình mới:
@@ -78,7 +78,7 @@ Các đường dẫn `src/...` trong bảng ownership dưới đây tính tươn
 
 ## Bắt đầu ngay
 
-Scaffold Next.js, package/lockfile, API client, AuthProvider, repositories/adapters và test runner đã có trong `frontend/` (nền `5ace145`). Dùng Node `22.20.0` theo `.nvmrc` và npm 11. Không sửa package/lockfile nếu không thuộc Người 1; không chạy feature implementation trong `ecommerce-web/`. Env/API base URL/Supabase key kiểm tra theo `frontend/.env.example`; không đưa secret/service-role key vào `NEXT_PUBLIC_*`. OpenAPI backend ở `http://localhost:3001/api/v1/openapi.json`.
+Scaffold Next.js, package/lockfile, API client, AuthProvider, repositories/adapters và test runner đã có trong `frontend/` (nền `5ace145`). Dùng Node `24.15.0` theo `.nvmrc` và npm `11.12.1`. Runtime migration PR 0 là ngoại lệ được duyệt để cập nhật package/lockfile; PR A/B/C không sửa package/lockfile. Không chạy feature implementation trong `ecommerce-web/`. Env/API base URL/Supabase key kiểm tra theo `frontend/.env.example`; không đưa secret/service-role key vào `NEXT_PUBLIC_*`. OpenAPI backend ở `http://localhost:3001/api/v1/openapi.json`.
 
 Thứ tự tiếp tục: Người 1 duy trì nền F-102–107; Người 2 nghiệm thu Phase 2 và các batch độc lập; Người 3/4/5 chuẩn bị fixture/mock interface trong phạm vi riêng. D-004 là lượt soát visual sau page mẫu. Catalog public B-301/B-302 nối API theo readiness; cart/address/voucher/checkout chỉ nối sau contract tests; order center, review, notifications, profile, category/admin reads vẫn gated/mock cho đến khi gap đóng. `ecommerce-web/` không phải nguồn dữ liệu hay hành vi nghiệp vụ.
 

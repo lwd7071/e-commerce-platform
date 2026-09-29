@@ -18,7 +18,7 @@ Phạm vi bản triển khai đầu tiên:
 
 ### Backend
 
-- Node.js 22, TypeScript 5.8, Express 4.
+- Node.js 24.15.0, TypeScript 5.8, Express 4.
 - PostgreSQL/Supabase, Prisma 7 dùng cho migration và client dependency; schema nghiệp vụ hiện nằm chủ yếu trong SQL migrations.
 - Supabase JWT RS256/JWKS, RBAC `BUYER | SELLER | ADMIN`.
 - API base URL `/api/v1`.
@@ -30,7 +30,7 @@ Phạm vi bản triển khai đầu tiên:
 - `lucide-react` dependency có trong scaffold; shared shell ưu tiên icon component hiện hữu.
 - Supabase client SDK, API client/error parser, AuthProvider, repository/adapters, mock switch và Vitest runner đã tồn tại trong `frontend/`.
 - Chưa có TanStack Query; feature owners dùng repository/hooks hiện có, không tự thêm cache dependency nếu chưa thống nhất với Người 1.
-- Dùng Node `22.20.0` theo `.nvmrc` và npm 11 cho quality gates.
+- Dùng Node `24.15.0` theo `.nvmrc` và npm `11.12.1` cho quality gates backend/frontend.
 
 ## 3. Kiến trúc FE mục tiêu
 

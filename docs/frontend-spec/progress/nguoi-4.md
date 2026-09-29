@@ -2,12 +2,12 @@
 
 ## Trạng thái hiện tại
 
-- Phase/ticket: Phase 4 — B-402, B-403 (Nâng vùng chạm Stepper Giỏ hàng 44×44px)
+- Phase/ticket: Phase 4 — B-402, B-403, B-404, B-405, B-406, B-407
 - Cập nhật lần cuối: 2026-09-29
-- Đang làm: Đã hoàn tất nâng vùng chạm nút tăng/giảm số lượng giỏ hàng từ 32×32px lên 44×44px (w-11 h-11 min-w-[44px] min-h-[44px]) đạt chuẩn WCAG 2.2 AA / UI-UX rules 09.
+- Đang làm: Chuẩn hóa FE address/cart/voucher adapters theo path và DTO runtime backend; tiếp tục wire list/create address, cart mutations và voucher evaluation.
 - Nhánh/PR: feat/fe-nguoi-4-cart/checkout
-- Bị block bởi: Không
-- Việc tiếp theo: B-408 (E2E integration test backend DB) và Q-804 phối hợp với Người 5.
+- Bị block bởi: B-408 cần backend/test DB thật; Q-804 cần môi trường và phối hợp chạy Buyer/Seller critical E2E.
+- Việc tiếp theo: Sửa FE address/cart/voucher adapters khớp path và DTO runtime theo spec 05/06; B-408 & Q-804.
 
 ## Nhật ký theo ngày
 
@@ -31,7 +31,7 @@
   - `npm run build --prefix frontend`: Next.js Turbopack production build thành công, render tĩnh các route `/cart` và `/checkout`.
 - Handoff: Không thay đổi contract API/view-model; giao diện giỏ hàng đã cập nhật vùng chạm chuẩn WCAG 2.2 AA sẵn sàng cho Người 2 nghiệm thu accessibility QA.
 - Blocker: Không.
-- Còn lại: B-408 và Q-804 khi môi trường test DB backend được khởi chạy.
+- Còn lại: Sửa FE address/cart/voucher adapters khớp path và DTO runtime; B-408 và Q-804 khi môi trường test DB backend được khởi chạy.
 
 ### 2026-09-29 — Thực thi Plan v2.7.0 (Hardening Idempotency, Zero-Silent-Fallback, 10-Row Error Matrix, Quality Gates)
 
@@ -52,6 +52,13 @@
   2. `npm test --prefix frontend`: **18/18 test files passed, 103/103 tests passed (100%)**.
   3. `npm run typecheck --prefix frontend`: `tsc --noEmit` **0 errors**.
   4. `npm run build --prefix frontend`: Production build thành công với Next.js Turbopack, các route `/cart` và `/checkout` render tĩnh thành công.
+
+### 2026-09-29 — Đối soát trạng thái tích hợp
+
+- Đã làm: Đồng bộ cập nhật từ nhánh `dev`, đối soát trạng thái tích hợp với backend runtime audit.
+- Test/kiểm tra: Giữ nguyên evidence tại nhật ký 2026-09-29.
+- Đối chiếu UI rules: nút tăng/giảm số lượng giỏ hàng có vùng chạm 44×44px.
+- Còn lại: Sửa FE address/cart/voucher adapters khớp path và DTO runtime; B-408 cần backend/test DB thật; Q-804 cần phối hợp chạy critical E2E.
 
 ### 2026-09-28 — B-402, B-403, B-404, B-405, B-406, B-407
 

@@ -10,12 +10,14 @@ Mọi thay đổi runtime hoặc framework phải cập nhật đồng thời fi
 
 | Thành phần | Version chuẩn | Trạng thái |
 |---|---:|---|
-| Node.js | `22.20.0` | Bắt buộc |
+| Node.js | `24.15.0` | Bắt buộc cho backend và frontend workspace |
 | npm | `11.12.1` | Bắt buộc |
 | TypeScript backend | `5.8.x` | Đã dùng |
 | TypeScript frontend | `5.8.x` | Đã dùng |
 
-Node 20 và Node 24 không được dùng để xác nhận CI T1. Lockfile chỉ được sinh bằng npm `11.12.1`.
+`engines.node` khóa backend và frontend workspace trong major 24 (`>=24 <25`); CI dùng chính xác Node `24.15.0`. `ecommerce-web/` là prototype riêng, không thuộc runtime gate triển khai. Lockfile backend/frontend chỉ được sinh bằng npm `11.12.1` trên Node `24.15.0`.
+
+Node 24 compatibility was checked on 2026-09-28 against [Prisma system requirements](https://docs.prisma.io/docs/orm/reference/system-requirements), which list Node `^24.0.0`, and [Vercel Node.js versions](https://vercel.com/docs/functions/runtimes/node-js/node-js-versions), which support the `24.x` line for builds/functions. Vercel pins the major line, not patch `24.15.0`; production readiness still requires deployment settings/log evidence and confirmation of the backend host runtime before merge.
 
 ## Frontend
 
@@ -33,7 +35,7 @@ Next.js sở hữu UI và session phía trình duyệt. Frontend gọi backend q
 
 | Thành phần | Version/trạng thái |
 |---|---|
-| Node.js | `22.20.0` |
+| Node.js | `24.15.0` |
 | Payload CMS | `3.89.x`, package đã có; CMS bootstrap thực tế chưa hoàn tất |
 | Express | `4.21.x` |
 | esbuild | `0.25.x` |
