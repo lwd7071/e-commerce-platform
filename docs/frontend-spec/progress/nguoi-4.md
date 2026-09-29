@@ -2,12 +2,36 @@
 
 ## Trạng thái hiện tại
 
-- Phase/ticket: Phase 4 — B-402, B-403, B-404, B-405, B-406, B-407
-- Cập nhật lần cuối: 2026-09-28
-- Đang làm: Hoàn tất Cart UI, Quantity/Selection/Delete với optimistic rollback, Address list/create, Voucher preview/evaluate, Idempotent Checkout submit (0₫ shipping fee invariant, UUID key snapshot & retry resilience).
+- Phase/ticket: Phase 4 — B-402, B-403 (Nâng vùng chạm Stepper Giỏ hàng 44×44px)
+- Cập nhật lần cuối: 2026-09-29
+- Đang làm: Đã hoàn tất nâng vùng chạm nút tăng/giảm số lượng giỏ hàng từ 32×32px lên 44×44px (w-11 h-11 min-w-[44px] min-h-[44px]) đạt chuẩn WCAG 2.2 AA / UI-UX rules 09.
 - Nhánh/PR: feat/fe-nguoi-4-cart/checkout
 - Bị block bởi: Không
 - Việc tiếp theo: B-408 (E2E integration test backend DB) và Q-804 phối hợp với Người 5.
+
+## Nhật ký theo ngày
+
+### 2026-09-29 — B-403: Nâng vùng chạm nút tăng/giảm số lượng giỏ hàng lên 44×44px
+
+- Đã làm:
+  - Cập nhật `frontend/src/features/cart/cart-screen.tsx`:
+    - Thay thế kích thước nút tăng (`+`) và giảm (`−`) từ 32×32px (`w-8 h-8`) lên 44×44px (`w-11 h-11 min-w-[44px] min-h-[44px]`).
+    - Nâng cỡ chữ dấu `+` và `−` lên `text-base font-semibold` để hiển thị rõ ràng, dễ nhìn và dễ thao tác trên màn hình cảm ứng/mobile.
+    - Cập nhật nút xóa đơn lẻ của item trong giỏ hàng lên `w-11 h-11 min-w-[44px] min-h-[44px]` để toàn bộ touch targets trong hàng sản phẩm đạt chuẩn tối thiểu 44×44px.
+  - Cập nhật `frontend/test/cart-checkout.spec.ts`:
+    - Bổ sung test suite `Cart UI Stepper Touch Target Specification (09-ui-ux-rules.md)` kiểm tra và bảo vệ invariant touch target >= 44×44px, không cho phép hồi quy về 32×32px.
+    - Dọn dẹp unused import `checkoutRepository` để giữ 0 lint warnings.
+- Quyết định UI/contract:
+  - Tuân thủ quy định tại `docs/frontend-spec/09-ui-ux-rules.md` (Mục 4: "Touch target tối thiểu 44×44px") và ticket phân công Người 4 trong `docs/frontend-spec/08-implementation-plan.md`.
+  - Giữ nguyên các class token CSS (`--border`, `--card`, `--card-muted`, `--foreground`), giữ nguyên logic optimistic update và rollback khi cập nhật số lượng thất bại.
+- Test/kiểm tra:
+  - `npm test --prefix frontend`: **18/18 test files passed, 104/104 tests passed (100%)**.
+  - `npm run typecheck --prefix frontend`: `tsc --noEmit` **0 errors**.
+  - `npm run lint --prefix frontend`: `eslint` **0 errors, 0 warnings**.
+  - `npm run build --prefix frontend`: Next.js Turbopack production build thành công, render tĩnh các route `/cart` và `/checkout`.
+- Handoff: Không thay đổi contract API/view-model; giao diện giỏ hàng đã cập nhật vùng chạm chuẩn WCAG 2.2 AA sẵn sàng cho Người 2 nghiệm thu accessibility QA.
+- Blocker: Không.
+- Còn lại: B-408 và Q-804 khi môi trường test DB backend được khởi chạy.
 
 ### 2026-09-29 — Thực thi Plan v2.7.0 (Hardening Idempotency, Zero-Silent-Fallback, 10-Row Error Matrix, Quality Gates)
 

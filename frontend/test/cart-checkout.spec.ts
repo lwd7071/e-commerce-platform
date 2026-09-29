@@ -7,7 +7,6 @@ import {
 } from "../src/features/checkout/idempotency";
 import type { CheckoutPayload } from "../src/features/checkout/checkout.types";
 import {
-  checkoutRepository,
   MockCheckoutRepository,
 } from "../src/features/checkout/checkout.repository";
 
@@ -159,3 +158,22 @@ describe("Address Book Management (B-404, B-405)", () => {
     expect(list[0].addressId).toBe(newAddr.addressId);
   });
 });
+
+describe("Cart UI Stepper Touch Target Specification (09-ui-ux-rules.md)", () => {
+  it("enforces minimum 44x44px touch target on quantity stepper and action buttons", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const cartScreenPath = path.resolve(__dirname, "../src/features/cart/cart-screen.tsx");
+    const content = fs.readFileSync(cartScreenPath, "utf-8");
+
+    // Must not contain 32x32px (w-8 h-8) stepper buttons
+    expect(content).not.toMatch(/w-8 h-8[^"]*aria-label="Giảm số lượng"/);
+    expect(content).not.toMatch(/w-8 h-8[^"]*aria-label="Tăng số lượng"/);
+
+    // Must contain minimum 44x44px touch target classes
+    expect(content).toContain('w-11 h-11 min-w-[44px] min-h-[44px]');
+    expect(content).toContain('aria-label="Giảm số lượng"');
+    expect(content).toContain('aria-label="Tăng số lượng"');
+  });
+});
+

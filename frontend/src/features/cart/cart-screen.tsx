@@ -417,7 +417,7 @@ export function CartScreen() {
                       <div className="flex items-center border border-[var(--border)] rounded-md bg-[var(--card)]">
                         <button
                           type="button"
-                          className="w-8 h-8 flex items-center justify-center text-sm font-semibold hover:bg-[var(--card-muted)] disabled:opacity-40"
+                          className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center text-base font-semibold hover:bg-[var(--card-muted)] disabled:opacity-40"
                           disabled={item.quantity <= 1}
                           onClick={() => handleQuantityChange(item.id, -1)}
                           aria-label="Giảm số lượng"
@@ -429,7 +429,7 @@ export function CartScreen() {
                         </span>
                         <button
                           type="button"
-                          className="w-8 h-8 flex items-center justify-center text-sm font-semibold hover:bg-[var(--card-muted)] disabled:opacity-40"
+                          className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center text-base font-semibold hover:bg-[var(--card-muted)] disabled:opacity-40"
                           disabled={item.quantity >= item.stock}
                           onClick={() => handleQuantityChange(item.id, 1)}
                           aria-label="Tăng số lượng"
@@ -450,7 +450,7 @@ export function CartScreen() {
                       {/* Remove Button */}
                       <button
                         type="button"
-                        className="text-xs text-[var(--subtext)] hover:text-[var(--danger)] p-1.5 transition-colors"
+                        className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center text-xs text-[var(--subtext)] hover:text-[var(--danger)] rounded-md transition-colors"
                         onClick={() => setDeleteTarget(item.id)}
                         aria-label={`Xóa ${item.productName}`}
                       >
