@@ -8,6 +8,11 @@ import type {
   IBuyerRepository,
   IOrderRepository,
   IVoucherRepository,
+  IReviewRepository,
+  IAdminRepository,
+  CreateReviewPayload,
+  WireReview,
+  AdminUserItem,
 } from "./types";
 
 // ==========================================
@@ -459,6 +464,96 @@ const mockVoucherRepository: IVoucherRepository = {
   },
 };
 
+const mockReviewsStore: WireReview[] = [
+  {
+    review_id: "rev_01",
+    order_item_id: "item_01",
+    rating: 5,
+    comment: "Sản phẩm chất lượng vượt mong đợi, đóng gói rất cẩn thận!",
+    media_urls: ["https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400"],
+    created_at: new Date(Date.now() - 86400000).toISOString(),
+  },
+];
+
+const mockReviewRepository: IReviewRepository = {
+  createReview: async (payload: CreateReviewPayload) => {
+    const review: WireReview = {
+      review_id: `rev_${Date.now()}`,
+      order_item_id: payload.order_item_id,
+      rating: payload.rating,
+      comment: payload.comment,
+      media_urls: payload.media_urls || [],
+      created_at: new Date().toISOString(),
+    };
+    mockReviewsStore.push(review);
+    return review;
+  },
+  getReviewsByProduct: async () => mockReviewsStore,
+};
+
+const mockAdminUsersStore: AdminUserItem[] = [
+  {
+    id: "usr_001",
+    email: "buyer@dino.vn",
+    full_name: "Nguyễn Văn Mua",
+    role: "BUYER",
+    status: "ACTIVE",
+    created_at: "2026-09-01T08:00:00Z",
+  },
+  {
+    id: "usr_002",
+    email: "seller@dino.vn",
+    full_name: "Trần Thị Bán",
+    role: "SELLER",
+    status: "ACTIVE",
+    created_at: "2026-09-05T09:30:00Z",
+  },
+  {
+    id: "usr_003",
+    email: "spammer@dino.vn",
+    full_name: "Lê Văn Vi Phạm",
+    role: "BUYER",
+    status: "LOCKED",
+    created_at: "2026-09-10T14:15:00Z",
+  },
+  {
+    id: "usr_004",
+    email: "admin@dino.vn",
+    full_name: "Hệ Thống Dino Admin",
+    role: "ADMIN",
+    status: "ACTIVE",
+    created_at: "2026-08-01T00:00:00Z",
+  },
+];
+
+const mockAdminRepository: IAdminRepository = {
+  getUsers: async (params) => {
+    let list = [...mockAdminUsersStore];
+    if (params?.role) {
+      list = list.filter((u) => u.role === params.role);
+    }
+    if (params?.status) {
+      list = list.filter((u) => u.status === params.status);
+    }
+    return list;
+  },
+  lockUser: async (payload) => {
+    if (!payload.reason || !payload.reason.trim()) {
+      throw new Error("Vui lòng nhập lý do khóa tài khoản");
+    }
+    const user = mockAdminUsersStore.find((u) => u.id === payload.user_id);
+    if (user) {
+      user.status = "LOCKED";
+    }
+  },
+  unlockUser: async (userId) => {
+    const user = mockAdminUsersStore.find((u) => u.id === userId);
+    if (user) {
+      user.status = "ACTIVE";
+    }
+  },
+};
+
 // ==========================================
 // 3. Central Dependency Switcher Factory
 // ==========================================
@@ -475,4 +570,9 @@ export const repositories = {
 
   voucher: (): IVoucherRepository =>
     features.useMock() ? mockVoucherRepository : apiVoucherRepository,
+
+  review: (): IReviewRepository => mockReviewRepository,
+
+  admin: (): IAdminRepository => mockAdminRepository,
 };
+

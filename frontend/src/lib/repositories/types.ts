@@ -49,3 +49,46 @@ export interface IVoucherRepository {
   getVouchers(shopId?: string): Promise<WireVoucher[]>;
   evaluateVoucher(code: string, orderSubtotal: string, shopId?: string): Promise<EvaluateVoucherResult>;
 }
+
+export interface CreateReviewPayload {
+  order_id: string;
+  order_item_id: string;
+  rating: number; // 1-5
+  comment: string;
+  media_urls?: string[];
+}
+
+export interface WireReview {
+  review_id: string;
+  order_item_id: string;
+  rating: number;
+  comment: string;
+  media_urls?: string[];
+  created_at: string;
+}
+
+export interface IReviewRepository {
+  createReview(payload: CreateReviewPayload): Promise<WireReview>;
+  getReviewsByProduct(productId: string): Promise<WireReview[]>;
+}
+
+export interface AdminUserItem {
+  id: string;
+  email: string;
+  full_name: string;
+  role: "BUYER" | "SELLER" | "ADMIN";
+  status: "ACTIVE" | "LOCKED";
+  created_at: string;
+}
+
+export interface LockUserPayload {
+  user_id: string;
+  reason: string;
+}
+
+export interface IAdminRepository {
+  getUsers(params?: { status?: string; role?: string }): Promise<AdminUserItem[]>;
+  lockUser(payload: LockUserPayload): Promise<void>;
+  unlockUser(userId: string): Promise<void>;
+}
+
