@@ -429,7 +429,7 @@ const mockOrderRepository: IOrderRepository = {
       throw error;
     }
     found.status = to as WireOrder["status"];
-    if (to === "CANCELLED") found.cancel_reason = reason;
+    if (to === "CANCELLED") found.cancel_reason = reason ?? null;
     return { ...found };
   },
 };

@@ -9,8 +9,10 @@ import { Lock, Mail, AlertCircle, Loader2, Store, User } from "lucide-react";
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { register } = useAuth();
+  const { register, loginWithGoogle } = useAuth();
 
+  const [fullName, setFullName] = useState("");
+  const [shopName, setShopName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -27,8 +29,13 @@ export default function RegisterPage() {
       return;
     }
 
-    if (password.length < 6) {
-      setErrorMsg("Mật khẩu phải có độ dài tối thiểu 6 ký tự.");
+    if (fullName.trim().length < 2 || (role === "SELLER" && shopName.trim().length < 2)) {
+      setErrorMsg("Vui lòng nhập họ tên và tên gian hàng hợp lệ.");
+      return;
+    }
+
+    if (password.length < 8) {
+      setErrorMsg("Mật khẩu phải có độ dài tối thiểu 8 ký tự.");
       return;
     }
 
@@ -39,14 +46,21 @@ export default function RegisterPage() {
 
     setIsSubmitting(true);
     try {
-      await register(email, password, role);
-      router.push("/");
+      await register(email, password, role, fullName, shopName);
+      router.push(`/verify-email?email=${encodeURIComponent(email)}`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Đăng ký thất bại. Vui lòng thử lại.";
       setErrorMsg(msg);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const startGoogle = async () => {
+    setErrorMsg(null);
+    sessionStorage.setItem("dino_signup_draft", JSON.stringify({ email, full_name: fullName.trim(), requested_role: role, shop_name: role === "SELLER" ? shopName.trim() : null }));
+    try { await loginWithGoogle("/"); }
+    catch (err) { setErrorMsg(err instanceof Error ? err.message : "Không thể đăng nhập bằng Google."); }
   };
 
   return (
@@ -72,6 +86,14 @@ export default function RegisterPage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="reg-full-name" className="block text-xs font-semibold uppercase tracking-wider text-[var(--foreground)] mb-1.5">Họ và tên</label>
+            <input id="reg-full-name" value={fullName} onChange={e => setFullName(e.target.value)} required minLength={2} maxLength={150} className="w-full px-3 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--background)] text-sm" />
+          </div>
+          {role === "SELLER" && <div>
+            <label htmlFor="reg-shop-name" className="block text-xs font-semibold uppercase tracking-wider text-[var(--foreground)] mb-1.5">Tên gian hàng</label>
+            <input id="reg-shop-name" value={shopName} onChange={e => setShopName(e.target.value)} required minLength={2} maxLength={150} className="w-full px-3 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--background)] text-sm" />
+          </div>}
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--foreground)] mb-2">
               Bạn muốn tham gia với vai trò:
@@ -131,7 +153,7 @@ export default function RegisterPage() {
               htmlFor="reg-password"
               className="block text-xs font-semibold uppercase tracking-wider text-[var(--foreground)] mb-1.5"
             >
-              Mật khẩu (tối thiểu 6 ký tự)
+              Mật khẩu (tối thiểu 8 ký tự)
             </label>
             <div className="relative">
               <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--subtext)]" />
@@ -142,7 +164,7 @@ export default function RegisterPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                minLength={6}
+                minLength={8}
                 className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-all"
               />
             </div>
@@ -164,7 +186,7 @@ export default function RegisterPage() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                minLength={6}
+                minLength={8}
                 className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-all"
               />
             </div>
@@ -185,6 +207,8 @@ export default function RegisterPage() {
             )}
           </button>
         </form>
+
+        <button type="button" onClick={startGoogle} className="w-full mt-3 py-3 rounded-xl border border-[var(--border)] font-semibold text-sm hover:bg-[var(--card-muted)]">Tiếp tục với Google</button>
 
         <div className="mt-6 text-center text-sm text-[var(--subtext)]">
           Đã có tài khoản?{" "}

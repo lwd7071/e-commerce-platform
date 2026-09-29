@@ -36,6 +36,10 @@ describe("screen lifecycle and observable effect behaviors", () => {
         shopName: "Dino",
         imageUrl: null,
         isSelected: true,
+        isAvailable: true,
+        productStatus: "ACTIVE",
+        variantStatus: "ACTIVE",
+        shopStatus: "ACTIVE",
       },
     ]);
     vi.mocked(checkoutRepository.getAddresses).mockResolvedValueOnce([

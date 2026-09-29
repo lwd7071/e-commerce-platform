@@ -1,12 +1,14 @@
 import { apiClient } from "./client";
 
 export interface WireProfile {
-  id: string;
-  email: string;
+  user_id?: string;
+  id?: string;
+  email?: string;
   full_name: string | null;
   phone: string | null;
   avatar_url: string | null;
-  role: "BUYER" | "SELLER" | "ADMIN";
+  updated_at?: string;
+  role?: "BUYER" | "SELLER" | "ADMIN";
 }
 
 /**
@@ -25,6 +27,8 @@ export interface WireAddress {
   createdAt?: string;
   updatedAt?: string;
 }
+
+export type UpdateAddressPayload = Partial<Omit<CreateAddressPayload, "isDefault">> & { isDefault?: boolean };
 
 /**
  * Address creation payload (pure camelCase per Ponytail guidelines).
@@ -90,19 +94,16 @@ export interface UpdateCartItemPayload {
 }
 
 export const buyerApi = {
-  // GAP-07: Profile API is NOT mounted on backend runtime (HTTP 404 MISSING).
-  // Profile is read-only from Supabase Auth metadata in AuthProvider.
-  // Fail-fast explicitly with GAP-07 error rather than making a dead HTTP call:
-  getProfile: (): Promise<WireProfile> =>
-    Promise.reject(new Error("GAP-07: /buyers/profile chưa mount trên backend runtime (HTTP 404 MISSING)")),
-  updateProfile: (_data?: Partial<Pick<WireProfile, "full_name" | "phone" | "avatar_url">>): Promise<WireProfile> => {
-    void _data;
-    return Promise.reject(new Error("GAP-07: /buyers/profile chưa mount trên backend runtime (HTTP 404 MISSING)"));
-  },
+  getProfile: () => apiClient.get<WireProfile>("/profile"),
+  updateProfile: (data: { full_name?: string | null; phone?: string | null; avatar_url?: string | null }) => apiClient.patch<WireProfile>("/profile", { full_name: data.full_name, phone: data.phone }),
 
   // Address operations (AVAILABLE in runtime at /addresses)
   getAddresses: () => apiClient.get<WireAddress[]>("/addresses"),
   createAddress: (data: CreateAddressPayload) => apiClient.post<WireAddress>("/addresses", data),
+  getAddress: (id: string) => apiClient.get<WireAddress>(`/addresses/${id}`),
+  updateAddress: (id: string, data: UpdateAddressPayload) => apiClient.patch<WireAddress>(`/addresses/${id}`, data),
+  deleteAddress: (id: string) => apiClient.delete<void>(`/addresses/${id}`),
+  setDefaultAddress: (id: string) => apiClient.patch<{ message: string }>(`/addresses/${id}/default`, {}),
 
   // Cart operations (AVAILABLE in runtime at /cart/*)
   getCart: () => apiClient.get<WireCart>("/cart"),

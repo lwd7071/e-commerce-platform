@@ -102,8 +102,9 @@ export function CartScreen() {
   }, [items]);
 
   // Calculations using moneyAdapter for safe arithmetic
-  const selectedItems = useMemo(() => items.filter((i) => i.isSelected), [items]);
-  const isAllSelected = items.length > 0 && selectedItems.length === items.length;
+  const availableItems = useMemo(() => items.filter((item) => item.isAvailable), [items]);
+  const selectedItems = useMemo(() => availableItems.filter((i) => i.isSelected), [availableItems]);
+  const isAllSelected = availableItems.length > 0 && selectedItems.length === availableItems.length;
 
   const subtotal = useMemo(() => {
     return selectedItems.reduce((acc, item) => {
@@ -119,6 +120,7 @@ export function CartScreen() {
     if (!target) return;
 
     const newSelection = !target.isSelected;
+    if (newSelection && !target.isAvailable) return;
     // Optimistic UI update
     setItems((prev) =>
       prev.map((i) => (i.id === itemId ? { ...i, isSelected: newSelection } : i))
@@ -139,11 +141,11 @@ export function CartScreen() {
     const newSelection = !currentSelected;
 
     setItems((prev) =>
-      prev.map((i) => (i.shopId === shopId ? { ...i, isSelected: newSelection } : i))
+      prev.map((i) => (i.shopId === shopId && (i.isAvailable || !newSelection) ? { ...i, isSelected: newSelection } : i))
     );
 
     try {
-      const shopItems = items.filter((i) => i.shopId === shopId);
+      const shopItems = items.filter((i) => i.shopId === shopId && (i.isAvailable || !newSelection));
       await Promise.all(
         shopItems.map((item) =>
           cartRepository.updateItem(item.id, { is_selected: newSelection })
@@ -160,11 +162,11 @@ export function CartScreen() {
     const prevItems = [...items];
     const newSelection = !isAllSelected;
 
-    setItems((prev) => prev.map((i) => ({ ...i, isSelected: newSelection })));
+    setItems((prev) => prev.map((i) => (i.isAvailable ? { ...i, isSelected: newSelection } : i)));
 
     try {
       await Promise.all(
-        items.map((item) =>
+        items.filter(item => item.isAvailable).map((item) =>
           cartRepository.updateItem(item.id, { is_selected: newSelection })
         )
       );
@@ -369,6 +371,7 @@ export function CartScreen() {
                         type="checkbox"
                         className="w-5 h-5 accent-[var(--primary-active)] cursor-pointer mt-2"
                         checked={item.isSelected}
+                        disabled={!item.isAvailable && !item.isSelected}
                         onChange={() => handleToggleItem(item.id)}
                         aria-label={`Chọn sản phẩm ${item.productName}`}
                       />
@@ -395,6 +398,7 @@ export function CartScreen() {
                         >
                           {item.productName}
                         </Link>
+                        {!item.isAvailable && <p className="text-xs text-[var(--danger-text)] mt-0.5">Sản phẩm hiện không khả dụng</p>}
                         <p className="text-xs text-[var(--subtext)] mt-0.5">
                           Phân loại: {item.variantName}
                         </p>
@@ -430,7 +434,7 @@ export function CartScreen() {
                         <button
                           type="button"
                           className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center text-base font-semibold hover:bg-[var(--card-muted)] disabled:opacity-40"
-                          disabled={item.quantity >= item.stock}
+                        disabled={!item.isAvailable || item.quantity >= item.stock}
                           onClick={() => handleQuantityChange(item.id, 1)}
                           aria-label="Tăng số lượng"
                         >

@@ -136,6 +136,14 @@ export class PgCategoryRepository implements ICategoryRepository {
     return res.rows[0] ? mapCategoryRow(res.rows[0]) : null;
   }
 
+  async findActive(): Promise<Category[]> {
+    const res = await this.pool.query(
+      `SELECT * FROM categories WHERE status='ACTIVE'
+       ORDER BY (parent_category_id IS NOT NULL),category_name ASC,category_id ASC`,
+    );
+    return res.rows.map(mapCategoryRow);
+  }
+
   async findRoots(): Promise<Category[]> {
     const res = await this.pool.query(
       'SELECT * FROM categories WHERE parent_category_id IS NULL ORDER BY category_name ASC'

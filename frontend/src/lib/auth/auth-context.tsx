@@ -5,6 +5,7 @@ import type { AuthUser, AuthContextType, UserRole } from "./types";
 import { getSupabaseClient } from "./supabase-client";
 import { setAuthTokenProvider } from "../api/client";
 import { envConfig } from "../config/env";
+import { apiClient } from "../api/client";
 
 export const AuthContext = createContext<AuthContextType | null>(null);
 
@@ -13,20 +14,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const syncSession = useCallback(async (session: { access_token: string; user: { id: string; email?: string; user_metadata?: Record<string, unknown> } }) => {
+    setAccessToken(session.access_token);
+    setAuthTokenProvider(() => session.access_token);
+    const identity = await apiClient.get<{ user_id: string; email: string; role: UserRole; shop_id: string | null }>("/auth/me");
+    setUser({
+      id: identity.user_id,
+      email: identity.email || session.user.email || "",
+      role: identity.role,
+      fullName: (session.user.user_metadata?.full_name as string) || null,
+      shopId: identity.shop_id,
+    });
+  }, []);
+
   // Sync token with ApiClient singleton
   useEffect(() => {
     setAuthTokenProvider(() => accessToken);
   }, [accessToken]);
 
-  // Decode role from Supabase JWT or metadata
+  // Auth metadata is display-only; authorization role comes from the backend app_users record.
   const extractUser = useCallback((session: { user: { id: string; email?: string; user_metadata?: Record<string, unknown>; app_metadata?: Record<string, unknown> } } | null): AuthUser | null => {
     if (!session || !session.user) return null;
 
     const sbUser = session.user;
-    const role: UserRole =
-      (sbUser.app_metadata?.role as UserRole) ||
-      (sbUser.user_metadata?.role as UserRole) ||
-      "BUYER";
+    const role: UserRole = "BUYER";
 
     return {
       id: sbUser.id,
@@ -61,10 +72,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session) {
-        setAccessToken(session.access_token);
-        setUser(extractUser(session));
+        try { await syncSession(session); }
+        catch { setAccessToken(session.access_token); setUser(extractUser(session)); }
       }
       setIsLoading(false);
     });
@@ -73,8 +84,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) {
-        setAccessToken(session.access_token);
-        setUser(extractUser(session));
+        void syncSession(session).catch(() => { setAccessToken(session.access_token); setUser(extractUser(session)); });
       } else {
         setAccessToken(null);
         setUser(null);
@@ -85,7 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       subscription.unsubscribe();
     };
-  }, [extractUser]);
+  }, [extractUser, syncSession]);
 
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
@@ -120,7 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [extractUser]);
 
-  const register = useCallback(async (email: string, password: string, role: UserRole = "BUYER") => {
+  const register = useCallback(async (email: string, password: string, role: UserRole = "BUYER", fullName = "", shopName = "") => {
     setIsLoading(true);
     try {
       const supabase = getSupabaseClient();
@@ -133,7 +143,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email,
         password,
         options: {
-          data: { role },
+          data: { full_name: fullName.trim() },
         },
       });
 
@@ -142,13 +152,70 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (data.session) {
-        setAccessToken(data.session.access_token);
-        setUser(extractUser(data.session));
+        await syncSession(data.session);
+      }
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("dino_signup_draft", JSON.stringify({ email, full_name: fullName.trim(), requested_role: role, shop_name: role === "SELLER" ? shopName.trim() : null }));
       }
     } finally {
       setIsLoading(false);
     }
-  }, [extractUser, login]);
+  }, [login, syncSession]);
+
+  const loginWithGoogle = useCallback(async (returnTo = "/") => {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new Error("Đăng nhập Google cần cấu hình Supabase Auth.");
+    if (typeof window !== "undefined") sessionStorage.setItem("dino_auth_return_to", returnTo.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/");
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
+    });
+    if (error) throw new Error(error.message);
+  }, []);
+
+  const completeOnboarding = useCallback(async (fullName: string, role: UserRole, shopName?: string) => {
+    const result = await apiClient.post<{ user_id: string; email: string; role: UserRole; profile_completed: boolean; shop: { shop_id: string } | null }>("/auth/onboarding", {
+      full_name: fullName.trim(), requested_role: role, shop_name: role === "SELLER" ? shopName?.trim() ?? null : null,
+    });
+    setUser(current => current ? { ...current, id: result.user_id, email: result.email, role: result.role, fullName: fullName.trim(), shopId: result.shop?.shop_id ?? null } : current);
+  }, []);
+
+  const verifySignupOtp = useCallback(async (email: string, token: string) => {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new Error("Xác minh email cần cấu hình Supabase Auth.");
+    const { data, error } = await supabase.auth.verifyOtp({ email, token, type: "signup" });
+    if (error) throw new Error(error.message);
+    if (!data.session) throw new Error("Xác minh thành công nhưng chưa tạo được phiên đăng nhập.");
+    await syncSession(data.session);
+    let draft: { full_name?: string; requested_role?: UserRole; shop_name?: string | null } = {};
+    try { draft = JSON.parse(sessionStorage.getItem("dino_signup_draft") || "{}"); } catch { /* continue to profile completion */ }
+    if (!draft.full_name || !draft.requested_role || (draft.requested_role === "SELLER" && !draft.shop_name)) return;
+    await completeOnboarding(draft.full_name, draft.requested_role, draft.shop_name ?? undefined);
+    sessionStorage.removeItem("dino_signup_draft");
+  }, [completeOnboarding, syncSession]);
+
+  const resendSignupOtp = useCallback(async (email: string) => {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new Error("Gửi lại mã cần cấu hình Supabase Auth.");
+    const { error } = await supabase.auth.resend({ type: "signup", email });
+    if (error) throw new Error(error.message);
+  }, []);
+
+  const requestPasswordReset = useCallback(async (email: string) => {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new Error("Đặt lại mật khẩu cần cấu hình Supabase Auth.");
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/auth/callback?flow=recovery` });
+    if (error) throw new Error(error.message);
+  }, []);
+
+  const updatePassword = useCallback(async (password: string) => {
+    const supabase = getSupabaseClient();
+    if (!supabase) throw new Error("Đặt lại mật khẩu cần cấu hình Supabase Auth.");
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) throw new Error(error.message);
+    await supabase.auth.signOut();
+    setAccessToken(null); setUser(null);
+  }, []);
 
   const logout = useCallback(async () => {
     setIsLoading(true);
@@ -179,10 +246,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated: !!user,
       login,
       register,
+      loginWithGoogle,
+      verifySignupOtp,
+      resendSignupOtp,
+      requestPasswordReset,
+      updatePassword,
+      completeOnboarding,
       logout,
       hasRole,
     }),
-    [user, accessToken, isLoading, login, register, logout, hasRole]
+    [user, accessToken, isLoading, login, register, loginWithGoogle, verifySignupOtp, resendSignupOtp, requestPasswordReset, updatePassword, completeOnboarding, logout, hasRole]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

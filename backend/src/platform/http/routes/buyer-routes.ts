@@ -1,12 +1,13 @@
 import { Router, type Request, type Response, type NextFunction, type RequestHandler } from 'express';
 import { buildSuccessEnvelope } from '../envelope.ts';
-import { ForbiddenError, NotImplementedError, UnauthorizedError } from '../../errors/app-error.ts';
+import { ForbiddenError, NotImplementedError, UnauthorizedError, ValidationFailedError } from '../../errors/app-error.ts';
 import type { RequestContext } from '../../context/request-context.ts';
 import type { AddressService } from '../../../modules/buyer/services/address.service.ts';
 import type { CartService } from '../../../modules/buyer/services/cart.service.ts';
 import type { VoucherService } from '../../../modules/buyer/services/voucher.service.ts';
 import type { ReviewService } from '../../../modules/buyer/services/review.service.ts';
 import type { NotificationService } from '../../../modules/buyer/services/notification.service.ts';
+import type { ProfileService } from '../../../modules/buyer/services/profile.service.ts';
 import type { BuyerHttpApplication } from './t1-routes.ts';
 import type { VoucherScope } from '../../../modules/buyer/domain/types.ts';
 
@@ -14,11 +15,13 @@ type AsyncRoute = (req: Request, res: Response, next: NextFunction) => Promise<v
 type Role = 'BUYER' | 'SELLER' | 'ADMIN';
 
 export interface BuyerServices {
+  legacyHttpApplication?: BuyerHttpApplication;
   addressService?: AddressService;
   cartService?: CartService;
   voucherService?: VoucherService;
   reviewService?: ReviewService;
   notificationService?: NotificationService;
+  profileService?: ProfileService;
 }
 
 function guards(auth: RequestHandler | undefined, ...roles: Role[]): RequestHandler[] {
@@ -36,6 +39,9 @@ function requireRole(...roles: Role[]): (req: Request, _res: Response, next: Nex
       const requestContext = context(req);
       if (!roles.includes(requestContext.role as Role)) {
         throw new ForbiddenError('ROLE_REQUIRED', `Required role: ${roles.join(' or ')}`);
+      }
+      if (requestContext.role === 'SELLER' && roles.includes('SELLER') && requestContext.shop_status !== 'ACTIVE') {
+        throw new ForbiddenError('SHOP_NOT_ACTIVE', 'Seller shop must be active before using seller operations');
       }
       next();
     } catch (error) {
@@ -66,14 +72,50 @@ export function createBuyerDomainRouter(
 
   // If a legacy BuyerHttpApplication is passed, delegate standard routes to it
   const isLegacyApp = servicesOrApp && 'listAddresses' in servicesOrApp && typeof servicesOrApp.listAddresses === 'function';
-  const legacyApp = isLegacyApp ? (servicesOrApp as BuyerHttpApplication) : undefined;
-  const services = (!isLegacyApp ? servicesOrApp : undefined) as BuyerServices | undefined;
+  const services = servicesOrApp as BuyerServices | undefined;
+  const legacyApp = isLegacyApp
+    ? servicesOrApp as BuyerHttpApplication
+    : services?.legacyHttpApplication;
 
   const addressService = services?.addressService;
   const cartService = services?.cartService;
   const voucherService = services?.voucherService;
   const reviewService = services?.reviewService;
   const notificationService = services?.notificationService;
+  const profileService = services?.profileService;
+
+  router.get('/profile', ...guards(auth, 'BUYER', 'SELLER', 'ADMIN'), asyncRoute(async (req, res) => {
+    if (!profileService) throw new NotImplementedError('Profile is not available in the current runtime');
+    const profile = await profileService.getProfile(context(req).user_id);
+    res.json(buildSuccessEnvelope({
+      user_id: profile.userId,
+      full_name: profile.fullName,
+      phone: profile.phone,
+      avatar_url: profile.avatarUrl,
+      updated_at: profile.updatedAt,
+    }, requestId(req)));
+  }));
+
+  router.patch('/profile', ...guards(auth, 'BUYER', 'SELLER', 'ADMIN'), asyncRoute(async (req, res) => {
+    if (!profileService) throw new NotImplementedError('Profile is not available in the current runtime');
+    const input = req.body as Record<string, unknown>;
+    const unknown = Object.keys(input ?? {}).find(key => !['full_name', 'phone'].includes(key));
+    if (unknown) throw new ValidationFailedError(`Unknown field: ${unknown}`, { field: unknown });
+    if (input.full_name !== undefined && (typeof input.full_name !== 'string' || input.full_name.trim().length < 2 || input.full_name.trim().length > 150)) {
+      throw new ValidationFailedError('Full name must contain 2 to 150 characters', { field: 'full_name' });
+    }
+    if (input.phone !== undefined && input.phone !== null && (typeof input.phone !== 'string' || !/^(?:0\d{9,10}|\+84\d{9,10})$/.test(input.phone.trim()))) {
+      throw new ValidationFailedError('Phone number is invalid', { field: 'phone' });
+    }
+    const profile = await profileService.updateProfile(context(req).user_id, input);
+    res.json(buildSuccessEnvelope({
+      user_id: profile.userId,
+      full_name: profile.fullName,
+      phone: profile.phone,
+      avatar_url: profile.avatarUrl,
+      updated_at: profile.updatedAt,
+    }, requestId(req)));
+  }));
 
   // ==========================================
   // 1. ADDRESS ROUTES

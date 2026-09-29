@@ -26,6 +26,10 @@ const INITIAL_MOCK_ITEMS: CartItem[] = [
     shopName: "Dino Fashion Official",
     imageUrl: "https://images.unsplash.com/photo-1598033129183-c4f50c736f10?w=300",
     isSelected: true,
+    isAvailable: true,
+    productStatus: "ACTIVE",
+    variantStatus: "ACTIVE",
+    shopStatus: "ACTIVE",
   },
   {
     id: "ci_02",
@@ -41,6 +45,10 @@ const INITIAL_MOCK_ITEMS: CartItem[] = [
     shopName: "Dino Fashion Official",
     imageUrl: "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=300",
     isSelected: true,
+    isAvailable: true,
+    productStatus: "ACTIVE",
+    variantStatus: "ACTIVE",
+    shopStatus: "ACTIVE",
   },
   {
     id: "ci_03",
@@ -56,6 +64,10 @@ const INITIAL_MOCK_ITEMS: CartItem[] = [
     shopName: "An Yên Ceramic",
     imageUrl: "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=300",
     isSelected: false,
+    isAvailable: true,
+    productStatus: "ACTIVE",
+    variantStatus: "ACTIVE",
+    shopStatus: "ACTIVE",
   },
 ];
 
@@ -130,15 +142,18 @@ export class ApiCartRepository implements ICartRepository {
         variant_id: string;
         quantity: number;
         is_selected: boolean;
-        product_id?: string;
-        product_name?: string;
-        variant_name?: string;
-        price?: string;
-        original_price?: string | null;
-        stock?: number;
-        shop_id?: string;
-        shop_name?: string;
-        image_url?: string | null;
+        product_id: string;
+        product_name: string;
+        variant_name: string;
+        price: string;
+        stock_quantity: number;
+        shop_id: string;
+        shop_name: string;
+        image_url: string | null;
+        product_status: "ACTIVE" | "INACTIVE";
+        variant_status: "ACTIVE" | "INACTIVE";
+        shop_status: string;
+        is_available: boolean;
       }>;
     }>("/cart");
 
@@ -150,17 +165,21 @@ export class ApiCartRepository implements ICartRepository {
       return {
         id: apiItem.cart_item_id,
         variantId: apiItem.variant_id,
-        productId: apiItem.product_id || "prod_unknown",
-        productName: apiItem.product_name || `Sản phẩm ${apiItem.variant_id.slice(0, 8)}`,
-        variantName: apiItem.variant_name || "Mặc định",
-        price: apiItem.price || "100000.00",
-        originalPrice: apiItem.original_price || null,
+        productId: apiItem.product_id,
+        productName: apiItem.product_name,
+        variantName: apiItem.variant_name,
+        price: apiItem.price,
+        originalPrice: null,
         quantity: apiItem.quantity,
-        stock: apiItem.stock !== undefined ? apiItem.stock : 50,
-        shopId: apiItem.shop_id || "shop_01",
-        shopName: apiItem.shop_name || "Dino Shop",
-        imageUrl: apiItem.image_url || null,
+        stock: apiItem.stock_quantity,
+        shopId: apiItem.shop_id,
+        shopName: apiItem.shop_name,
+        imageUrl: apiItem.image_url,
         isSelected: apiItem.is_selected,
+        isAvailable: apiItem.is_available,
+        productStatus: apiItem.product_status,
+        variantStatus: apiItem.variant_status,
+        shopStatus: apiItem.shop_status,
       };
     });
   }

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ProtectedPage } from "../../components/navigation/protected-page";
@@ -8,56 +8,34 @@ import { Button } from "../../components/ui/button";
 import { Icon } from "../../components/ui/icon";
 import { TextInput } from "../../components/ui/form-controls";
 import { useToast } from "../../components/ui/toast";
-import { uploadMedia, validateMediaFile } from "../../lib/api/media.api";
+import { buyerApi } from "../../lib/api/buyer.api";
 
 export type AuthProfileSnapshot = { email?: string | null; fullName?: string | null; phone?: string | null; avatarUrl?: string | null };
 
 export function ProfilePageContent() {
   const { user } = useAuth();
-  const profile = user ? { email: user.email, fullName: user.fullName, phone: null, avatarUrl: null } : null;
+  const [profile, setProfile] = useState<AuthProfileSnapshot | null>(user ? { email: user.email, fullName: user.fullName, phone: null, avatarUrl: null } : null);
+  useEffect(() => {
+    if (!user) return;
+    buyerApi.getProfile().then(value => setProfile({ email: user.email, fullName: value.full_name, phone: value.phone, avatarUrl: value.avatar_url }))
+      .catch(() => setProfile(null));
+  }, [user]);
   return (
     <ProtectedPage>
-      <ProfileScreen profile={profile} />
+      <ProfileScreen key={`${user?.id ?? "guest"}:${profile?.fullName ?? ""}:${profile?.phone ?? ""}`} profile={profile} />
     </ProtectedPage>
   );
 }
 
 export function ProfileScreen({ profile }: { profile: AuthProfileSnapshot | null }) {
-  const fileRef = useRef<HTMLInputElement>(null);
   const showToast = useToast();
 
   const [fullName, setFullName] = useState(profile?.fullName || "");
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(profile?.avatarUrl || null);
-  const [isUploading, setIsUploading] = useState(false);
+  const [phone, setPhone] = useState(profile?.phone || "");
   const [isSaving, setIsSaving] = useState(false);
 
   const displayName = fullName.trim() || profile?.fullName?.trim() || "Tài khoản Dino";
   const initials = displayName === "Tài khoản Dino" ? "D" : displayName.slice(0, 1).toLocaleUpperCase("vi-VN");
-
-  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const validation = validateMediaFile(file);
-    if (!validation.valid) {
-      showToast(validation.error || "File không hợp lệ", "error");
-      return;
-    }
-
-    setIsUploading(true);
-    try {
-      const url = await uploadMedia(file, { folder: "avatars" });
-      setAvatarUrl(url);
-      showToast("Tải ảnh đại diện thành công!", "success");
-    } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : "Tải ảnh đại diện thất bại", "error");
-    } finally {
-      setIsUploading(false);
-      if (fileRef.current) {
-        fileRef.current.value = "";
-      }
-    }
-  };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,8 +46,9 @@ export function ProfileScreen({ profile }: { profile: AuthProfileSnapshot | null
 
     setIsSaving(true);
     try {
-      // Simulate profile save or call API
-      await new Promise((r) => setTimeout(r, 400));
+      const saved = await buyerApi.updateProfile({ full_name: fullName.trim(), phone: phone.trim() || null });
+      setFullName(saved.full_name || "");
+      setPhone(saved.phone || "");
       showToast("Cập nhật thông tin hồ sơ thành công!", "success");
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Cập nhật hồ sơ thất bại", "error");
@@ -100,10 +79,10 @@ export function ProfileScreen({ profile }: { profile: AuthProfileSnapshot | null
 
       <div className="profile-grid">
         <section className="profile-summary surface-card" aria-label="Ảnh và tên tài khoản">
-          {avatarUrl ? (
+          {profile?.avatarUrl ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
-              src={avatarUrl}
+              src={profile.avatarUrl}
               alt={`Ảnh đại diện của ${displayName}`}
               className="w-20 h-20 rounded-full object-cover border-2 border-[var(--primary)] shadow-sm"
             />
@@ -117,25 +96,16 @@ export function ProfileScreen({ profile }: { profile: AuthProfileSnapshot | null
           <p className="profile-summary__email">{profile?.email || "Email chưa được cung cấp"}</p>
 
           <div className="avatar-picker">
-            <input
-              ref={fileRef}
-              className="hidden"
-              id="avatar-file"
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              onChange={handleAvatarChange}
-            />
             <Button
               variant="secondary"
-              disabled={isUploading}
+              disabled
               leadingIcon={<Icon name="user" />}
-              onClick={() => fileRef.current?.click()}
               className="min-h-[44px]"
             >
-              {isUploading ? "Đang tải ảnh..." : "Đổi ảnh đại diện"}
+              Tải ảnh đại diện (chưa hỗ trợ)
             </Button>
             <span className="field-help" id="avatar-hint">
-              Hỗ trợ ảnh JPG, PNG, WebP tối đa 5MB.
+              Tính năng tải ảnh sẽ được bổ sung sau.
             </span>
           </div>
         </section>
@@ -172,9 +142,9 @@ export function ProfileScreen({ profile }: { profile: AuthProfileSnapshot | null
                 <span className="field-label">Số điện thoại</span>
                 <TextInput
                   id="profile-phone"
-                  value={profile?.phone || ""}
+                  value={phone}
                   placeholder="Chưa có số điện thoại"
-                  readOnly
+                  onChange={(e) => setPhone(e.target.value)}
                 />
               </label>
             </div>

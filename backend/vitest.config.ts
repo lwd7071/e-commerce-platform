@@ -4,6 +4,8 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'node',
+    testTimeout: 60000,
+    hookTimeout: 60000,
     // Supabase session mode is capped at 15 clients. Some concurrency suites
     // intentionally lease 5-6 connections, so only two test files may run in
     // parallel without turning healthy tests into EMAXCONNSESSION failures.

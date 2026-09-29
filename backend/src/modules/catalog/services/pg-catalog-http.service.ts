@@ -1,6 +1,6 @@
 import type { Pool, PoolClient } from 'pg';
 import type { RequestContext } from '../../../contracts/request-context.contract.ts';
-import { PgProductRepository, PgProductVariantRepository } from '../repositories/pg-catalog.repository.ts';
+import { PgCategoryRepository, PgProductRepository, PgProductVariantRepository } from '../repositories/pg-catalog.repository.ts';
 import type { Product, ProductImage, ProductVariant } from '../domain/types.ts';
 import {
   ValidationError,
@@ -18,10 +18,21 @@ const objectValue = (value: unknown): Record<string, unknown> =>
 export class PgCatalogHttpService {
   private readonly products: PgProductRepository;
   private readonly variants: PgProductVariantRepository;
+  private readonly categories: PgCategoryRepository;
 
   constructor(private readonly pool: Pool) {
     this.products = new PgProductRepository(pool);
     this.variants = new PgProductVariantRepository(pool);
+    this.categories = new PgCategoryRepository(pool);
+  }
+
+  async listCategories() {
+    return (await this.categories.findActive()).map(category => ({
+      category_id: category.categoryId,
+      parent_category_id: category.parentCategoryId,
+      category_name: category.categoryName,
+      description: category.description,
+    }));
   }
 
   async listProducts(input: Record<string, unknown>) {

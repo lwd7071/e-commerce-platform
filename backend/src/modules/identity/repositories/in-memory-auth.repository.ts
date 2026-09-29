@@ -26,4 +26,8 @@ export class InMemoryAuthRepository implements IAuthRepository {
   public async findShopByOwnerId(ownerId: string): Promise<string | null> {
     return this.shopOwners.get(ownerId) || null;
   }
+
+  public async findShopStatusByOwnerId(ownerId: string): Promise<string | null> {
+    return this.shopOwners.has(ownerId) ? 'ACTIVE' : null;
+  }
 }

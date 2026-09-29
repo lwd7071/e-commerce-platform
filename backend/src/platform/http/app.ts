@@ -12,13 +12,22 @@ import { loadDatabaseConfig } from '../../../db/config.ts';
 import { PgAuthRepository } from '../../modules/identity/repositories/pg-auth.repository.ts';
 import { SupabaseJwtVerifier } from './middlewares/supabase-jwt.ts';
 import { createAuthMiddleware } from './middlewares/auth.ts';
-import { PgBuyerHttpService } from '../../modules/buyer/services/pg-buyer-http.service.ts';
 import { PgCheckoutService } from '../../modules/checkout/services/pg-checkout.service.ts';
 import { PgCatalogHttpService } from '../../modules/catalog/services/pg-catalog-http.service.ts';
 import { ModerationService } from '../../modules/moderation/services/moderation.service.ts';
 import { PgModerationTargetRepository } from '../../modules/moderation/repositories/pg-target.repository.ts';
 import { PgAuditRepository } from '../audit/pg-audit.repository.ts';
 import { PgTransactionManager } from '../database/pg-transaction-manager.ts';
+import type { IAuthRepository } from '../../modules/identity/repositories/auth.repository.ts';
+import { PgOnboardingService } from '../../modules/identity/services/pg-onboarding.service.ts';
+import { createIdentityRouter } from './routes/identity-routes.ts';
+import { PgOrderRepository } from '../../modules/order/repositories/pg-order.repository.ts';
+import { OrderQueryService } from '../../modules/order/services/order-query.service.ts';
+import { AddressService } from '../../modules/buyer/services/address.service.ts';
+import { ProfileService } from '../../modules/buyer/services/profile.service.ts';
+import { PostgresAddressRepository } from '../../modules/buyer/infrastructure/postgres-address.repository.ts';
+import { PostgresUserProfileRepository } from '../../modules/buyer/infrastructure/postgres-user-profile.repository.ts';
+import { PgBuyerHttpService } from '../../modules/buyer/services/pg-buyer-http.service.ts';
 
 import { createSecurityHeadersMiddleware, createCorsMiddleware, type CorsOptions } from './middlewares/security-headers.ts';
 import { createLayeredRateLimiter } from './middlewares/rate-limiter.ts';
@@ -40,6 +49,8 @@ export interface PlatformApplications extends T1RouteApplications {
   pool?: Pool;
   buyerServices?: BuyerServices;
   orderServices?: OrderServices;
+  authRepository?: IAuthRepository;
+  onboardingService?: PgOnboardingService;
   rateLimiter?: RequestHandler | false;
   trustProxy?: boolean | string | number;
   cors?: CorsOptions;
@@ -67,6 +78,7 @@ export function createApp(applications: PlatformApplications = {}): Application 
 
   app.use('/api/v1/health', createHealthRouter(applications.pool));
   const auth = applications.auth;
+  app.use('/api/v1', createIdentityRouter(applications.authRepository, applications.onboardingService, auth));
   app.use('/api/v1', createCatalogRouter(applications.catalog, auth));
 
   const buyerTarget = applications.buyerServices ?? applications.buyer;
@@ -100,6 +112,9 @@ export function createRuntimeApp(environment: NodeJS.ProcessEnv = process.env): 
     throw new AuthConfigurationError('SUPABASE_URL and SUPABASE_JWKS_URL are required for runtime auth');
   }
   const authRepository = new PgAuthRepository(pool);
+  const onboardingService = new PgOnboardingService(pool);
+  const checkoutService = new PgCheckoutService(pool);
+  const orderQueryService = new OrderQueryService(new PgOrderRepository(pool), pool);
   const verifier = new SupabaseJwtVerifier({
     jwksUrl: new URL(jwksUrl),
     issuer: new URL('/auth/v1', supabaseUrl).toString().replace(/\/$/, ''),
@@ -111,9 +126,22 @@ export function createRuntimeApp(environment: NodeJS.ProcessEnv = process.env): 
       trustProxy: envConfig.trustProxy,
       cors: { allowedOrigins: envConfig.corsAllowedOrigins },
       auth: createAuthMiddleware(authRepository, verifier),
+      authRepository,
+      onboardingService,
       catalog: new PgCatalogHttpService(pool),
-      buyer: new PgBuyerHttpService(pool),
-      orders: new PgCheckoutService(pool),
+      buyerServices: {
+        legacyHttpApplication: new PgBuyerHttpService(pool),
+        addressService: new AddressService(new PostgresAddressRepository(pool)),
+        profileService: new ProfileService(new PostgresUserProfileRepository(pool)),
+      },
+      orderServices: {
+        checkoutService,
+        orderQueryService,
+        cancelOrder: (context, orderId, input) => checkoutService.cancelOrder(context, orderId, input),
+        confirmOrder: (context, orderId) => checkoutService.confirmOrder(context, orderId),
+        transitionOrder: (context, orderId, input) => checkoutService.transitionOrder(context, orderId, input),
+        retryPayment: (context, orderId, input) => checkoutService.retryPayment(context, orderId, input),
+      },
       moderation: new ModerationService(
         new PgModerationTargetRepository(pool),
         new PgAuditRepository(pool),

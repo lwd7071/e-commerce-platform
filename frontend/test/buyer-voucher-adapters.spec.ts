@@ -239,17 +239,20 @@ describe("Buyer & Voucher Adapters (Plan v3.2 Specification)", () => {
   });
 
   // ==========================================
-  // 4. GAP-07 Profile Fail-Fast Tests
+  // 4. Live Profile API
   // ==========================================
-  describe("GAP-07 Profile Fail-Fast", () => {
-    it("4.1: getProfile rejects fast with GAP-07 without calling network", async () => {
-      await expect(buyerApi.getProfile()).rejects.toThrow("GAP-07");
-      expect(apiClient.get).not.toHaveBeenCalled();
+  describe("Profile API", () => {
+    it("4.1: getProfile reads the authenticated profile endpoint", async () => {
+      const profile = { user_id: "u1", full_name: "Test User", phone: null, avatar_url: null, updated_at: "2026-09-29T00:00:00Z" };
+      vi.mocked(apiClient.get).mockResolvedValueOnce(profile);
+      await expect(buyerApi.getProfile()).resolves.toEqual(profile);
+      expect(apiClient.get).toHaveBeenCalledWith("/profile");
     });
 
-    it("4.2: updateProfile rejects fast with GAP-07 without calling network", async () => {
-      await expect(buyerApi.updateProfile({ full_name: "Test" })).rejects.toThrow("GAP-07");
-      expect(apiClient.patch).not.toHaveBeenCalled();
+    it("4.2: updateProfile writes only editable profile fields", async () => {
+      vi.mocked(apiClient.patch).mockResolvedValueOnce({});
+      await buyerApi.updateProfile({ full_name: "Test", phone: "0901234567" });
+      expect(apiClient.patch).toHaveBeenCalledWith("/profile", { full_name: "Test", phone: "0901234567" });
     });
   });
 

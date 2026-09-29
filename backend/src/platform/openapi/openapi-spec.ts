@@ -109,6 +109,66 @@ export function generateOpenApiSpec(): OpenApiSpec {
       },
     },
     paths: {
+      '/auth/me': {
+        get: {
+          summary: 'Get current authenticated user profile context',
+          security: [{ BearerAuth: [] }],
+          responses: {
+            '200': successResponse('Authenticated user context'),
+            '401': errorResponse('Authentication required'),
+          },
+        },
+      },
+      '/auth/onboarding': {
+        post: {
+          summary: 'Complete initial onboarding for Buyer or Seller',
+          security: [{ BearerAuth: [] }],
+          requestBody: jsonRequest({
+            type: 'object',
+            additionalProperties: true,
+          }),
+          responses: {
+            '200': successResponse('Onboarding completed'),
+            '401': errorResponse('Authentication required'),
+            '403': errorResponse('Role not permitted'),
+          },
+        },
+      },
+      '/categories': {
+        get: {
+          summary: 'List active public categories',
+          responses: { '200': successResponse('Active categories'), '503': errorResponse('Category service unavailable') },
+        },
+      },
+      '/profile': {
+        get: {
+          summary: 'Get current user profile',
+          security: [{ BearerAuth: [] }],
+          responses: {
+            '200': successResponse('User profile'),
+            '401': errorResponse('Authentication required'),
+            '501': errorResponse('Profile service not available'),
+          },
+        },
+        patch: {
+          summary: 'Update current user profile',
+          security: [{ BearerAuth: [] }],
+          requestBody: jsonRequest({
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              full_name: { type: 'string', minLength: 2, maxLength: 150 },
+              phone: { type: 'string', nullable: true },
+            },
+          }),
+          responses: {
+            '200': successResponse('Profile updated'),
+            '401': errorResponse('Authentication required'),
+            '422': errorResponse('Validation failed'),
+            '501': errorResponse('Profile service not available'),
+          },
+        },
+      },
       '/products': {
         get: {
           summary: 'List public products',
