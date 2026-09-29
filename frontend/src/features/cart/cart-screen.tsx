@@ -403,7 +403,7 @@ export function CartScreen() {
                       <div className="flex items-center border border-[var(--border)] rounded-md bg-[var(--card)]">
                         <button
                           type="button"
-                          className="w-8 h-8 flex items-center justify-center text-sm font-semibold hover:bg-[var(--card-muted)] disabled:opacity-40"
+                          className="w-11 h-11 flex items-center justify-center text-sm font-semibold hover:bg-[var(--card-muted)] disabled:opacity-40"
                           disabled={item.quantity <= 1}
                           onClick={() => handleQuantityChange(item.id, -1)}
                           aria-label="Giảm số lượng"
@@ -415,7 +415,7 @@ export function CartScreen() {
                         </span>
                         <button
                           type="button"
-                          className="w-8 h-8 flex items-center justify-center text-sm font-semibold hover:bg-[var(--card-muted)] disabled:opacity-40"
+                          className="w-11 h-11 flex items-center justify-center text-sm font-semibold hover:bg-[var(--card-muted)] disabled:opacity-40"
                           disabled={item.quantity >= item.stock}
                           onClick={() => handleQuantityChange(item.id, 1)}
                           aria-label="Tăng số lượng"

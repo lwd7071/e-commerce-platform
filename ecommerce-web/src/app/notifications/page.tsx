@@ -122,15 +122,15 @@ export default function NotificationsPage() {
       <main className="max-w-4xl mx-auto px-4 py-6">
         {/* Filter Tabs */}
         <div className="flex items-center gap-2 overflow-x-auto pb-3 mb-5 scrollbar-none">
-          {[
+          {([
             { key: "ALL", label: `Tất cả (${notifications.length})` },
             { key: "ORDER", label: "Đơn hàng" },
             { key: "PROMOTION", label: "Khuyến mãi & Voucher" },
             { key: "SYSTEM", label: "Hệ thống sàn" },
-          ].map(tab => (
+          ] as const).map(tab => (
             <button
               key={tab.key}
-              onClick={() => setActiveTab(tab.key as any)}
+              onClick={() => setActiveTab(tab.key)}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                 activeTab === tab.key
                   ? "bg-[#FF7AAC] text-white"

@@ -154,7 +154,7 @@ export function CatalogListScreen({ initialSearch = "", initialCategoryId = "" }
             <button
               type="button"
               onClick={() => setSelectedCategory("")}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+              className={`min-h-11 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
                 selectedCategory === ""
                   ? "bg-[var(--primary-active)] text-white"
                   : "bg-[var(--card-muted)] text-[var(--subtext)] hover:text-[var(--foreground)]"
@@ -167,7 +167,7 @@ export function CatalogListScreen({ initialSearch = "", initialCategoryId = "" }
                 key={cat.id}
                 type="button"
                 onClick={() => setSelectedCategory(cat.id)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                className={`min-h-11 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
                   selectedCategory === cat.id
                     ? "bg-[var(--primary-active)] text-white"
                     : "bg-[var(--card-muted)] text-[var(--subtext)] hover:text-[var(--foreground)]"

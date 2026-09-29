@@ -4,12 +4,20 @@
 
 - Phase/ticket: Phase 0 D-001–003; Phase 2 U-201–206; Phase 6 P-602/P-604–605/P-607b (UI mock/gated); Q-802/Q-803 scoped QA
 - Cập nhật lần cuối: 2026-09-29
-- Đang làm: U-201–206 và QA scoped cho shared shell/profile/notifications đã hoàn tất; D-004 đã rà homepage/checkout/Seller orders tại 360/1280px, còn chờ Admin page sample. Các thay đổi shared UI, notification/navigation helpers, Node 24 và frontend CI đã được tích hợp vào `dev`. P-604/P-605/P-607b vẫn gated theo readiness backend.
-- Nhánh/PR: Các commit từ `codex/node-24-runtime`, `codex/frontend-ci-workspace` và `codex/member2-pr-a/b/c` đã merge vào `dev` cục bộ. PR GitHub chưa tạo được theo nhật ký vì GitHub CLI credential invalid.
+- Đang làm: U-201–206 và QA scoped cho shared shell/profile/notifications đã hoàn tất; D-004 đã rà homepage/checkout/Seller orders tại 360/1280px, còn chờ Admin page sample. Đang chốt semantic token, touch target và type safety trên các màn hiện có. P-604/P-605/P-607b vẫn gated theo readiness backend.
+- Nhánh/PR: Các commit từ `codex/node-24-runtime`, `codex/frontend-ci-workspace` và `codex/member2-pr-a/b/c` đã merge vào `dev`; FE polish mới nhất được đẩy trực tiếp lên `origin/dev` (xem commit trên nhánh). Không có PR riêng.
 - Bị block bởi: Local PostgreSQL smoke chưa chạy được do worktree thiếu `DIRECT_URL`/DB test; cần PostgreSQL service CI xanh làm evidence. P-601/P-603/P-606 chờ backend contract/runtime (GAP-07/GAP-01/GAP-09). Handoff contrast ở login/register và seller status cần owner Người 1/3 xác nhận. Route metadata `/orders`, `/orders/[id]/review` và `/notifications` đã được đồng bộ Buyer-only theo RBAC spec.
 - Việc tiếp theo: Hoàn tất D-004 khi Admin dashboard có route/page mẫu; theo dõi owner xử lý các handoff contrast; các ticket chờ backend giữ gated.
 
 ## Nhật ký theo ngày
+
+### 2026-09-29 — FE polish: semantic tokens, touch targets, typed handlers
+
+- Đồng bộ các state màu ở form, notice, navigation, skeleton, order/status, toast, cart/catalog/seller screens sang CSS semantic tokens trong `frontend/`; thêm `--success-border` để success badge/toast giữ viền phân biệt trên nền success.
+- Giữ phản hồi hover của danger button bằng token danger-border; filter tabs và nút tăng/giảm số lượng đạt vùng chạm tối thiểu 44×44px theo [UI/UX rules §4](../09-ui-ux-rules.md).
+- Bổ sung type assertions cho Buyer-only route guard vào test hợp đồng. Route metadata `/orders` và `/notifications` hiện đã được sửa ở commit upstream `552e2a6`.
+- Thay `any` bằng literal union/generic update trong hai màn prototype `ecommerce-web/`; phần này là type-only cleanup, không thay đổi contract hay runtime của ứng dụng `frontend/`.
+- Kiểm tra lượt này: chưa chạy lại frontend quality gates; cần chạy `typecheck`, `lint`, `test` và `build` trước khi đóng QA FE.
 
 ### 2026-09-29 — D-004 visual review (đã rà các page hiện có)
 

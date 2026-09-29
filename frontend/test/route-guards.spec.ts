@@ -25,6 +25,15 @@ describe("RouteGuards & Open Redirect Protection (F-106)", () => {
     expect(sellerRule?.requireAuth).toBe(true);
     expect(sellerRule?.allowedRoles).toContain("SELLER");
 
+    const ordersRule = matchRouteRule("/orders");
+    expect(ordersRule?.allowedRoles).toEqual(["BUYER"]);
+
+    const reviewRule = matchRouteRule("/orders/123/review");
+    expect(reviewRule?.allowedRoles).toEqual(["BUYER"]);
+
+    const notificationsRule = matchRouteRule("/notifications");
+    expect(notificationsRule?.allowedRoles).toEqual(["BUYER"]);
+
     const loginRule = matchRouteRule("/login");
     expect(loginRule?.requireAuth).toBe(false);
   });

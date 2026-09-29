@@ -107,7 +107,7 @@ export function OrdersScreen() {
 
         {/* Newly created order banner */}
         {createdOrderIds.length > 0 && (
-          <div className="p-4 rounded-xl bg-[var(--success-surface)] border border-[#b2e5c8] flex items-start gap-3 text-sm text-[#126239]">
+          <div className="p-4 rounded-xl bg-[var(--success-surface)] border border-[var(--border)] flex items-start gap-3 text-sm text-[var(--success-text)]">
             <Icon name="check" className="w-5 h-5 shrink-0 mt-0.5" />
             <div className="flex-1">
               <strong className="block font-semibold">Đặt hàng thành công!</strong>
