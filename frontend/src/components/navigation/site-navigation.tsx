@@ -28,7 +28,7 @@ export function SiteHeader({ role = null }: { role?: AppRole }) {
             </Link>
           ))}
         </nav>
-        <div className="header-actions"><Link className="button button--secondary" href={role ? "/profile" : "/login"}>{role ? "Tài khoản" : "Đăng nhập"}</Link></div>
+        {!role && <div className="header-actions"><Link className="button button--secondary" href="/login">Đăng nhập</Link></div>}
       </div>
     </header>
   );
