@@ -10,7 +10,7 @@
 | Login | `authRepository.signIn` | Supabase Auth | email/password | `PARTIAL` | tích hợp; kiểm tra app user sau login |
 | Register | `authRepository.signUp` | Supabase + onboarding | account data | `BLOCKED` | mock/feature flag |
 | Product list | `catalogRepository.list` | `GET /products` | search/category/sort/cursor | `AVAILABLE` | tích hợp thật |
-| Category filter | `categoryRepository.list` | `GET /categories` | — | `MISSING` (route chưa mount) | Ẩn khi không có UUID xác thực; không gọi endpoint giả định |
+| Category filter | `categoryRepository.list` | `GET /categories` | — | `MISSING` (route chưa mount) | Chỉ dùng static dev config sau khi chạy [guarded category seed](../architecture/backend-run-guide.md) trên đúng DB dev/test; production tiếp tục ẩn tới khi API có |
 | Product detail | `catalogRepository.get` | `GET /products/:id` | product ID | `PARTIAL` | tích hợp core; placeholder ảnh/shop |
 | Add cart | `cartRepository.add` | `POST /cart/items` | variant_id, quantity | `AVAILABLE` | tích hợp thật |
 | Load cart | `cartRepository.get` | `GET /cart` | — | `PARTIAL` | chờ enriched data/mock |

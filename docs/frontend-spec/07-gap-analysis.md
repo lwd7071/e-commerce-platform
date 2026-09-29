@@ -48,7 +48,7 @@ Phân biệt hoàn tất mốc backend với integration readiness FE: T3 harden
 - **Severity:** BLOCKER cho seller create/admin category; MEDIUM cho homepage.
 - **Hiện trạng (source audit 2026-09-29):** categories exist in the database/domain, but no `/categories` route is mounted in `t1-routes.ts`; frontend `category_id` filtering only works with a known valid UUID. A backend progress entry claiming `GET /categories` is corrected in that log; current runtime code is authoritative.
 - **Giải pháp:** public `GET /categories`; admin create/update/status với validation parent cycle và active status.
-- **Fallback:** static config chỉ dùng development và chỉ chứa category UUID sao chép/xác minh từ seed hoặc DB thật của đúng environment. Không tự bịa/generate UUID: product filter so khớp trực tiếp `category_id` trong DB nên UUID không tồn tại trả mảng rỗng. Nếu chưa xác minh được ID thì ẩn filter.
+- **Fallback:** static config chỉ dùng development và chỉ chứa category UUID sau khi chạy [guarded dev/test seed](../architecture/backend-run-guide.md) trên đúng DB runtime. Không tự bịa/generate UUID: product filter so khớp trực tiếp `category_id` trong DB nên UUID không tồn tại trả mảng rỗng. Nếu chưa xác minh được seed trên đúng target thì ẩn filter.
 
 ### GAP-06 — Authentication onboarding
 

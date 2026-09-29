@@ -22,6 +22,7 @@
     "test:cross-platform": "node scripts/run-tests.js",
     "db:ci:bootstrap": "node scripts/ci-bootstrap-auth.mjs",
     "db:ci:migrate": "prisma migrate deploy",
+    "db:seed:dev-categories": "tsx scripts/seed-development-categories.ts",
     "db:storage:deploy": "tsx scripts/deploy-storage-policies.ts",
     "test:storage": "tsx scripts/storage-policy-smoke.ts",
     "test:auth-smoke": "tsx scripts/auth-smoke.ts",

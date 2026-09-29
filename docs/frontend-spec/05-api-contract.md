@@ -53,7 +53,7 @@ Status meanings below:
 | Catalog | `GET /products/:product_id` | Public | `PARTIAL` | Thiếu images/shop/reviews/metrics |
 | Catalog | `POST /products` | Seller | `PARTIAL` | Runtime tạo sản phẩm/variants; chỉ nhận URL ảnh, không có media upload; không có category list runtime |
 | Catalog | `PATCH /product-variants/:variant_id/stock` | Seller | `AVAILABLE` | Body `{ quantity }` |
-| Catalog | `GET /categories`, `GET /shops/:id` | Public | `MISSING` | Không có route trong router đang mount; `GET /products` chấp nhận `category_id` đã biết nhưng không có category discovery API |
+| Catalog | `GET /categories`, `GET /shops/:id` | Public | `MISSING` | Không có route trong router đang mount. Dev/test có thể seed 3 category UUID theo [Backend Run Guide](../architecture/backend-run-guide.md); seed không tạo discovery API |
 | Catalog | `GET /seller/products` hoặc `GET /products?shop_id=...` | Seller | `MISSING` | Không có seller-scoped list; `shop_id` bị từ chối như query không hỗ trợ |
 | Address | `GET /addresses` | Buyer | `AVAILABLE` | Runtime legacy service |
 | Address | `POST /addresses` | Buyer | `AVAILABLE` | Runtime legacy service |

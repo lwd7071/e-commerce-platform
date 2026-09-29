@@ -4,12 +4,21 @@
 
 - Phase/ticket: Phase 0 D-001–003; Phase 2 U-201–206; Phase 6 P-602/P-604–605/P-607b (UI mock/gated); Q-802/Q-803 scoped QA
 - Cập nhật lần cuối: 2026-09-29
-- Đang làm: U-201–206 và QA scoped cho shared shell/profile/notifications đã hoàn tất; các thay đổi shared UI, notification/navigation helpers, Node 24 và frontend CI đã được tích hợp vào `dev`. P-604/P-605/P-607b vẫn gated theo readiness backend.
+- Đang làm: U-201–206 và QA scoped cho shared shell/profile/notifications đã hoàn tất; D-004 đã rà homepage/checkout/Seller orders tại 360/1280px, còn chờ Admin page sample. Các thay đổi shared UI, notification/navigation helpers, Node 24 và frontend CI đã được tích hợp vào `dev`. P-604/P-605/P-607b vẫn gated theo readiness backend.
 - Nhánh/PR: Các commit từ `codex/node-24-runtime`, `codex/frontend-ci-workspace` và `codex/member2-pr-a/b/c` đã merge vào `dev` cục bộ. PR GitHub chưa tạo được theo nhật ký vì GitHub CLI credential invalid.
-- Bị block bởi: Local PostgreSQL smoke chưa chạy được do worktree thiếu `DIRECT_URL`/DB test; cần PostgreSQL service CI xanh làm evidence. D-004 chờ đủ page mẫu; P-601/P-603/P-606 chờ backend contract/runtime (GAP-07/GAP-01/GAP-09). Handoff contrast ở login/register và seller status cần owner Người 1/3 xác nhận. Route metadata `/orders`, `/orders/[id]/review` và `/notifications` đã được đồng bộ Buyer-only theo RBAC spec.
-- Việc tiếp theo: Nhận xác nhận/review của owner cho runtime và các handoff; hoàn tất D-004 khi đủ page mẫu; tiếp tục các ticket đang chờ backend readiness.
+- Bị block bởi: Local PostgreSQL smoke chưa chạy được do worktree thiếu `DIRECT_URL`/DB test; cần PostgreSQL service CI xanh làm evidence. P-601/P-603/P-606 chờ backend contract/runtime (GAP-07/GAP-01/GAP-09). Handoff contrast ở login/register và seller status cần owner Người 1/3 xác nhận. Route metadata `/orders`, `/orders/[id]/review` và `/notifications` đã được đồng bộ Buyer-only theo RBAC spec.
+- Việc tiếp theo: Hoàn tất D-004 khi Admin dashboard có route/page mẫu; theo dõi owner xử lý các handoff contrast; các ticket chờ backend giữ gated.
 
 ## Nhật ký theo ngày
+
+### 2026-09-29 — D-004 visual review (đã rà các page hiện có)
+
+- Đã review `frontend/` trên browser với mock session/data tại 360px và 1280px cho homepage, checkout và Seller orders. Kiểm tra `document.documentElement.scrollWidth` không vượt viewport ở cả ba trang tại hai kích thước; các nút chính và Seller actions được đo tối thiểu 44px.
+- Homepage: hierarchy hero → benefits → catalog rõ và co về một cột trên mobile. Handoff Người 3: bỏ emoji trang trí `✨` ở hero để theo UI rule dùng icon SVG/wordmark chữ Dino; đây là phần page owner xử lý.
+- Checkout: desktop có nhịp section và thứ tự nội dung dễ theo dõi; mobile không tràn ngang. Handoff Người 4: hàng tiêu đề địa chỉ bị chật ở 360px, hai nút “Đổi địa chỉ”/“Thêm mới” xuống nhiều dòng; chuyển actions thành hàng riêng hoặc xếp dọc để giữ scanability.
+- Seller orders: desktop table/mobile cards đều hiển thị được; filter tabs cuộn ngang trên mobile, touch target 44px. Không thấy lỗi tràn ngang ở 360/1280px.
+- Admin dashboard chưa có route/page trong `frontend/src/app/`, nên chưa thể review phần này. D-004 hoàn tất một phần, chờ đúng page sample Admin; không sửa chéo page owners.
+- Môi trường QA: local Next dev server, `NEXT_PUBLIC_USE_MOCK=true`, mock Buyer/Seller; đây là visual/DOM review, không xác nhận API production hay PostgreSQL.
 
 ### 2026-09-29 — Tích hợp các nhánh runtime, CI và shared UI vào dev
 

@@ -38,7 +38,7 @@ Mỗi ticket có đúng một owner FE chịu trách nhiệm tích hợp và ngh
 | Người | Phạm vi và file sở hữu chính | Ticket FE chính | Làm ngay, không chờ người khác | Điểm bàn giao / điều kiện nối thật |
 |---|---|---|---|---|
 | 1 — FE platform/integration | `src/lib/api`, `src/lib/auth`, `src/lib/config`, `src/lib/repositories` (shared), `/login`, `/register`, config/CI | C-001, C-003–005, F-101–107, B-303–304, Q-801, Q-806–808 | Chốt type/error parser, env/feature flags, repository interface, auth shell; dùng fake token/session trong test | Bàn giao API client, auth guard, mock/API switch và contract test cho 3/4/5. Chỉ bật auth thật khi Supabase/env được kiểm chứng. |
-| 2 — UI/UX và account | `frontend/src/app/globals.css`, `layout.tsx`, `components/ui`, `components/navigation`, `features/profile`, `features/notifications`, routes `/profile` `/notifications` | D-001–004, U-201–206, P-602, P-604–605, P-607b, Q-802–803 | Hoàn thiện shared shell, role navigation, profile read-only và notification demo/gated; test accessibility/responsive | Token/component/shell cho 3/4/5. Profile/notifications chỉ nối thật sau P-601/P-603; P-605 không gọi bulk endpoint chưa tồn tại; P-607b gated. D-004 chờ page sample; QA shell/profile/notifications không chờ owner khác. |
+| 2 — UI/UX và account | `frontend/src/app/globals.css`, `layout.tsx`, `components/ui`, `components/navigation`, `features/profile`, `features/notifications`, routes `/profile` `/notifications` | D-001–004, U-201–206, P-602, P-604–605, P-607b, Q-802–803 | Hoàn thiện shared shell, role navigation, profile read-only và notification demo/gated; test accessibility/responsive | Token/component/shell cho 3/4/5. Profile/notifications chỉ nối thật sau P-601/P-603; P-605 không gọi bulk endpoint chưa tồn tại; P-607b gated. D-004 đã review homepage/checkout/Seller orders; còn Admin sample. QA shell/profile/notifications không chờ owner khác. |
 | 3 — Catalog/seller catalog | `/`, `/products/[id]`, `/seller/products/new`, feature catalog/seller product/category/media | B-301–302, B-305, B-401, O-508–509, P-607a, A-700/A-702 | Làm list/detail với API catalog sẵn có; dựng seller form và category view bằng adapter/mock đúng trạng thái readiness | Bàn giao selection/add-to-cart UI contract cho 4. O-508 chờ GAP-04; category API chờ A-701/GAP-05; upload chờ P-606/GAP-09. |
 | 4 — Buyer cart/checkout | `/cart`, `/checkout`, feature cart/address/voucher/checkout | B-402–408, Q-804 | Dựng cart và checkout states/form bằng repository mock; viết contract fixture, money/idempotency cases | Nhận API client từ 1 và add-to-cart contract từ 3; cart full data chờ GAP-03. B-408 chạy với backend/test DB thật. |
 | 5 — Orders/review/admin | `/orders`, `/orders/[id]/review`, `/seller` (order/dashboard), `/admin`, `/admin/categories`, feature orders/review/admin/stats | O-502–505, O-507, P-607c, A-704–705, A-708–709, Q-805 | Dựng order timeline, seller transition, review/admin states bằng mock adapter; viết transition/RBAC cases | Order read chờ O-501/GAP-01; review submit chờ O-506; admin reads chờ A-703/GAP-08; seller KPI chờ A-707/GAP-12. |
@@ -65,7 +65,7 @@ Các đường dẫn `src/...` trong bảng ownership dưới đây tính tươn
 | D-001 | Người 2 | Screen inventory và luồng Buyer/Seller/Admin dựa trên file 02 | Đủ 14 route, role, owner, navigation, loading/empty/error/unauthorized và mobile/desktop state; [handoff 10](./10-ui-ux-handoff.md) |
 | D-002 | Người 2 | Khóa [UI/UX rules](./09-ui-ux-rules.md) và component contract | token/font/breakpoint/CTA contrast đã chốt; stack/scaffold limitation nêu rõ; component contract ở file 10 |
 | D-003 | Người 2 | UX handoff cho 3/4/5 | Mỗi vertical slice có bố cục/interaction/state/data readiness checklist tại file 10; prototype không phải contract |
-| D-004 | Người 2 | Sau U-201 và các page mẫu, soát trang chủ, checkout, seller order, admin dashboard ở 360/1280px | thống nhất hierarchy/spacing/CTA/ảnh/trạng thái và contrast trước khi nhân rộng style; Người 3/4/5 cung cấp page mẫu, không phải chờ để viết fixture/mock |
+| D-004 | Người 2 | Sau U-201 và các page mẫu, soát trang chủ, checkout, seller order, admin dashboard ở 360/1280px | Đã review homepage/checkout/seller orders ở 360/1280px ngày 2026-09-29; còn Admin dashboard vì chưa có route/page mẫu. Handoff page-level ghi trong progress Người 2; không chờ Admin để hoàn tất review ba trang đã có |
 
 ### Ranh giới file và cách bàn giao
 
@@ -116,7 +116,7 @@ Thứ tự tiếp tục: Người 1 duy trì nền F-102–107; Người 2 nghi�
 
 **Ponytail:** `@ponytail` khi triển khai; `@ponytail-review` khi rà diff của phase.
 
-**Owner:** Người 2. D-002 và [UI/UX rules](./09-ui-ux-rules.md) là đầu vào của U-201; prop/state contract ở [handoff 10](./10-ui-ux-handoff.md). Source ở `frontend/`; gate/evidence được ghi trong [progress Người 2](./progress/nguoi-2.md). D-004 vẫn chờ page samples.
+**Owner:** Người 2. D-002 và [UI/UX rules](./09-ui-ux-rules.md) là đầu vào của U-201; prop/state contract ở [handoff 10](./10-ui-ux-handoff.md). Source ở `frontend/`; gate/evidence được ghi trong [progress Người 2](./progress/nguoi-2.md). D-004 đã review các page mẫu hiện có; Admin dashboard còn chờ route/page.
 
 | ID | Depends | Task | Acceptance criteria |
 |---|---|---|---|
