@@ -321,10 +321,10 @@ export function SellerProductsScreen() {
                             <span
                               className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold border ${
                                 item.total_stock > 10
-                                  ? "bg-[#edfbf2] text-[#126239] border-[#b2e5c8]"
+                                  ? "bg-[var(--success-surface)] text-[var(--success)] border-[var(--success-border)]"
                                   : item.total_stock > 0
-                                  ? "bg-[#fff7e8] text-[#794600] border-[#f3dfb6]"
-                                  : "bg-[#fff0f2] text-[#8e2638] border-[#f0c2ca]"
+                                  ? "bg-[var(--warning-surface)] text-[var(--warning)] border-[var(--warning-border)]"
+                                  : "bg-[var(--danger-surface)] text-[var(--danger)] border-[var(--danger-border)]"
                               }`}
                             >
                               {item.total_stock > 0 ? item.total_stock : "Hết hàng"}
