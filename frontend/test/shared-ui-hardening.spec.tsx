@@ -26,6 +26,7 @@ describe("shared data-state heading IDs", () => {
 
   it("keeps an accessible polite live region in the shared toast provider", () => {
     const markup = renderToStaticMarkup(<ToastProvider><main>Page</main></ToastProvider>);
+    expect(markup).toContain('role="region" aria-label="Thông báo"');
     expect(markup).toContain('aria-label="Thông báo"');
     expect(markup).toContain('aria-live="polite"');
     expect(markup).toContain('aria-atomic="false"');

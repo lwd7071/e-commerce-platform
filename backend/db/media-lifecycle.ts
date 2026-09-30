@@ -22,6 +22,8 @@ export function detectImageMimeFromMagicBytes(bytes: Uint8Array): 'image/jpeg' |
 const isValidPurposeBucket = (purpose: MediaPurpose, bucketId: MediaBucket): boolean =>
   (purpose === 'PRODUCT' && bucketId === 'product-media')
   || (purpose === 'REVIEW' && bucketId === 'review-media');
+const isUuid = (value: string): boolean =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 
 export async function registerPresignedMedia(
   client: LifecycleQueryable,
@@ -38,11 +40,13 @@ export async function registerPresignedMedia(
     ? media.objectPath.startsWith('shops/')
     : media.objectPath.startsWith('users/');
   const pathMetadata = parseStoragePath(media.objectPath);
-  if (!isValidPurposeBucket(media.purpose, media.bucketId)
+  if (!isUuid(media.mediaId) || !isUuid(media.ownerId)
+    || !isValidPurposeBucket(media.purpose, media.bucketId)
     || !pathPurposeMatches
     || !validateStoragePath(media.bucketId, media.objectPath)
-    || (media.purpose === 'PRODUCT' && pathMetadata?.type !== 'product_image')
-    || (media.purpose === 'REVIEW' && (pathMetadata?.type !== 'review_image' || pathMetadata.userId !== media.ownerId))) {
+    || (media.purpose === 'PRODUCT' && (pathMetadata?.type !== 'product_image' || pathMetadata.imageId !== media.mediaId))
+    || (media.purpose === 'REVIEW' && (pathMetadata?.type !== 'review_image'
+      || pathMetadata.userId !== media.ownerId || pathMetadata.imageId !== media.mediaId))) {
     throw new Error(`invalid ${media.purpose.toLowerCase()} media path`);
   }
   const now = Date.now();
@@ -53,7 +57,11 @@ export async function registerPresignedMedia(
     throw new Error('media presigned expiry cannot exceed 10 minutes');
   }
   if (pathMetadata?.type === 'product_image') {
-    const shop = await client.query('SELECT owner_id FROM shops WHERE shop_id=$1 AND status=\'ACTIVE\'', [pathMetadata.shopId]);
+    const shop = await client.query(`
+      SELECT s.owner_id
+      FROM shops s JOIN products p ON p.shop_id=s.shop_id
+      WHERE s.shop_id=$1 AND p.product_id=$2 AND s.status='ACTIVE'
+    `, [pathMetadata.shopId, pathMetadata.productId]);
     if (shop.rows?.[0]?.owner_id !== media.ownerId) throw new Error('product media shop is not owned by this user');
   }
   const result = await client.query(`
@@ -88,6 +96,11 @@ export async function attachFinalizedMedia(
   },
 ): Promise<void> {
   const expectedPurpose = media.resource.kind;
+  if (!isUuid(media.mediaId) || !isUuid(media.ownerId)
+    || !isUuid(media.resource.kind === 'PRODUCT' ? media.resource.shopId : media.resource.reviewId)
+    || (media.resource.kind === 'PRODUCT' && !isUuid(media.resource.productId))) {
+    throw new Error('media attachment IDs must be valid UUIDs');
+  }
   if (media.purpose !== expectedPurpose) throw new Error('media purpose does not match attachment resource');
   const objectPathPrefix = media.resource.kind === 'PRODUCT'
     ? `shops/${media.resource.shopId}/products/${media.resource.productId}/`

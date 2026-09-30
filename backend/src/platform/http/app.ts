@@ -7,6 +7,7 @@ import { createCatalogRouter, type T1RouteApplications } from './routes/t1-route
 import { createBuyerDomainRouter, type BuyerServices } from './routes/buyer-routes.ts';
 import { createOrderDomainRouter, type OrderServices } from './routes/order-routes.ts';
 import { createAdminRouter } from './routes/admin-routes.ts';
+import { createMediaRouter } from './routes/media-routes.ts';
 import { createDatabasePool, closeDatabasePool } from '../../../db/client.ts';
 import { loadDatabaseConfig } from '../../../db/config.ts';
 import { PgAuthRepository } from '../../modules/identity/repositories/pg-auth.repository.ts';
@@ -92,7 +93,8 @@ export function createApp(applications: PlatformApplications = {}): Application 
   const orderTarget = applications.orderServices ?? applications.orders;
   app.use('/api/v1', createOrderDomainRouter(orderTarget, auth));
 
-  app.use('/api/v1', createAdminRouter(applications.moderation, auth));
+  app.use('/api/v1', createAdminRouter(applications.moderation, auth, applications.catalog));
+  app.use('/api/v1', createMediaRouter(auth));
 
   app.use(errorHandlerMiddleware);
 

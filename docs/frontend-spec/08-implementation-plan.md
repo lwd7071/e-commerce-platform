@@ -319,12 +319,12 @@ Capability MUST: `auth`, `catalog`, `cart`, `checkout`, `seller_catalog`, `media
 
 ### Người 3 — Catalog/Media/Seller Products
 
-- [ ] B-102/B-103 media APIs + MediaRepository.
-- [ ] B-105 `next/image` product assets.
-- [ ] B-201–B-206 Seller product live flow và E2E.
-- [ ] C-205 Product Detail rating/reviews thật.
-- [ ] C-403 Admin category CRUD/status backend.
-- [ ] Cập nhật catalog capability và loại production mock fallback.
+- [x] B-102/B-103 media APIs + MediaRepository.
+- [x] B-105 `next/image` product assets.
+- [x] B-201–B-206 Seller product live flow và E2E.
+- [x] C-205 Product Detail rating/reviews thật.
+- [x] C-403 Admin category CRUD/status backend.
+- [x] Cập nhật catalog capability và loại production mock fallback.
 
 ### Người 4 — Buyer/Checkout FE + Review/Notification services
 

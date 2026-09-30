@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState } from "@/components/ui/data-states";
-import { FormField, TextInput } from "@/components/ui/form-controls";
+import { ErrorSummary, FormField, TextInput } from "@/components/ui/form-controls";
 import { StatusBadge } from "@/components/ui/status-badge";
 
 const globalStyles = readFileSync(new URL("../src/app/globals.css", import.meta.url), "utf8");
@@ -43,6 +43,28 @@ describe("semantic text contrast tokens", () => {
 });
 
 describe("shared UI server-rendered contracts", () => {
+  it("renders linked ErrorSummary errors accessibly and nothing for a valid form", () => {
+    const errors = [
+      { fieldId: "email", message: "Email chưa hợp lệ" },
+      { fieldId: "password", message: "Mật khẩu quá ngắn" },
+    ];
+    const html = renderToStaticMarkup(<form>
+      <ErrorSummary errors={errors} />
+      <FormField id="email" label="Email" error="Email chưa hợp lệ"><TextInput id="email" /></FormField>
+      <FormField id="password" label="Mật khẩu" error="Mật khẩu quá ngắn"><TextInput id="password" /></FormField>
+    </form>);
+    expect(html).toContain('role="alert"');
+    expect(html).toContain('tabindex="-1"');
+    expect(html).toContain('href="#email"');
+    expect(html).toContain('href="#password"');
+    expect(html).toContain('id="email-error"');
+    expect(html).toContain('id="password-error"');
+    expect(html).toContain('aria-describedby="email-error"');
+    expect(html).toContain('aria-describedby="password-error"');
+    expect(html).toContain('aria-invalid="true"');
+    expect(renderToStaticMarkup(<ErrorSummary errors={[]} />)).toBe("");
+  });
+
   it("renders Button variants, native disabled state and loading semantics", () => {
     const html = renderToStaticMarkup(
       <Button variant="secondary" disabled aria-describedby="save-help">Lưu thay đổi</Button>,

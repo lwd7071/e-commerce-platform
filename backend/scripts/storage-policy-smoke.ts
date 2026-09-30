@@ -41,8 +41,10 @@ const uploaded: Array<{ bucket: string; path: string }> = [];
 let cleanupError: unknown;
 const fixtureIds: {
   shopId?: string;
+  pendingShopId?: string;
   categoryId?: string;
   productId?: string;
+  pendingProductId?: string;
   variantId?: string;
   orderId?: string;
   orderItemId?: string;
@@ -117,10 +119,14 @@ try {
   const otherBuyer = await createUser('BUYER');
   const shop = await createFixtureShop(db, seller.userId);
   fixtureIds.shopId = shop.shopId;
+  const pendingShop = await createFixtureShop(db, otherSeller.userId, { status: 'PENDING' });
+  fixtureIds.pendingShopId = pendingShop.shopId;
   const category = await createFixtureCategory(db);
   fixtureIds.categoryId = category.categoryId;
   const product = await createFixtureProduct(db, shop.shopId, category.categoryId);
   fixtureIds.productId = product.productId;
+  const pendingProduct = await createFixtureProduct(db, pendingShop.shopId, category.categoryId);
+  fixtureIds.pendingProductId = pendingProduct.productId;
   const variant = await createFixtureVariant(db, product.productId);
   fixtureIds.variantId = variant.variantId;
   const order = await createFixtureOrder(db, buyer.userId, shop.shopId, { status: 'COMPLETED' });
@@ -152,6 +158,9 @@ try {
     throw new Error('Storage ownership preflight did not match the authenticated seller and product fixture');
   }
   if (ownership.rows[0]?.folder_parts.length !== 4) throw new Error('Storage product path did not parse to four folders');
+  const pendingProductPath = `shops/${pendingShop.shopId}/products/${pendingProduct.productId}/${randomUUID()}.png`;
+  await expectDenied(() => upload(otherSeller.client, 'product-media', pendingProductPath));
+  process.stdout.write('Pending shop product upload denied as expected.\n');
   await db.query('ROLLBACK');
   const apiUser = await seller.client.auth.getUser();
   if (apiUser.error || apiUser.data.user?.id !== seller.userId) {
@@ -238,7 +247,9 @@ try {
     if (fixtureIds.variantId) await db.query('DELETE FROM product_variants WHERE variant_id = $1', [fixtureIds.variantId]);
     if (fixtureIds.productId) await db.query('DELETE FROM product_images WHERE product_id = $1', [fixtureIds.productId]);
     if (fixtureIds.productId) await db.query('DELETE FROM products WHERE product_id = $1', [fixtureIds.productId]);
+    if (fixtureIds.pendingProductId) await db.query('DELETE FROM products WHERE product_id = $1', [fixtureIds.pendingProductId]);
     if (fixtureIds.shopId) await db.query('DELETE FROM shops WHERE shop_id = $1', [fixtureIds.shopId]);
+    if (fixtureIds.pendingShopId) await db.query('DELETE FROM shops WHERE shop_id = $1', [fixtureIds.pendingShopId]);
     if (fixtureIds.categoryId) await db.query('DELETE FROM categories WHERE category_id = $1', [fixtureIds.categoryId]);
     if (createdUsers.length > 0) await db.query('DELETE FROM app_users WHERE user_id = ANY($1::uuid[])', [createdUsers]);
     await db.query('COMMIT');

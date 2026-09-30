@@ -222,6 +222,7 @@ export function OrderReviewScreen({ orderId }: OrderReviewScreenProps) {
                       </label>
                       <FileUploadZone
                         values={mediaUrls[item.id] || []}
+                        purpose="review"
                         onChange={(urls) =>
                           setMediaUrls((prev) => ({
                             ...prev,

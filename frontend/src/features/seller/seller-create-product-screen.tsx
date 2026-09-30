@@ -211,6 +211,7 @@ export function SellerCreateProductScreen() {
               </h2>
               <FileUploadZone
                 values={images}
+                purpose="product"
                 onChange={setImages}
                 maxFiles={5}
               />
