@@ -61,10 +61,13 @@ export function createPostgresMediaCleanupStore(pool: Pool): MediaCleanupStore {
         WITH candidates AS (
           SELECT media_id
           FROM media_uploads
-          WHERE (status='FINALIZED' AND finalized_at < now() - interval '24 hours'
+          WHERE (status='PRESIGNED' AND expires_at < now())
+             OR (status='FINALIZED' AND finalized_at < now() - interval '24 hours'
                    AND (cleanup_error IS NULL OR updated_at < now() - interval '30 minutes'))
-             OR (status='DELETE_PENDING' AND updated_at < now() - interval '30 minutes')
-          ORDER BY COALESCE(finalized_at, updated_at), media_id
+             OR (status='DELETE_PENDING' AND updated_at < now() - interval '30 minutes'
+                   AND ((finalized_at IS NULL AND expires_at < now())
+                     OR (finalized_at IS NOT NULL AND finalized_at < now() - interval '24 hours')))
+          ORDER BY COALESCE(finalized_at, expires_at, updated_at), media_id
           LIMIT $1
           FOR UPDATE SKIP LOCKED
         )
@@ -72,9 +75,10 @@ export function createPostgresMediaCleanupStore(pool: Pool): MediaCleanupStore {
         SET status='DELETE_PENDING', updated_at=now(), cleanup_error=NULL
         FROM candidates
         WHERE media.media_id=candidates.media_id
-          AND media.status IN ('FINALIZED', 'DELETE_PENDING')
+          AND media.status IN ('PRESIGNED', 'FINALIZED', 'DELETE_PENDING')
           AND media.attached_at IS NULL
-          AND media.finalized_at < now() - interval '24 hours'
+          AND ((media.status='PRESIGNED' AND media.expires_at < now())
+            OR (media.finalized_at IS NOT NULL AND media.finalized_at < now() - interval '24 hours'))
         RETURNING media.media_id, media.bucket_id, media.object_path
       `, [batchSize]);
       return result.rows.map((row) => ({
@@ -97,7 +101,8 @@ export function createPostgresMediaCleanupStore(pool: Pool): MediaCleanupStore {
     async makeRetryable(mediaId, error) {
       await pool.query(
         `UPDATE media_uploads
-         SET status='FINALIZED', cleanup_error=$2, updated_at=now()
+         SET status=CASE WHEN finalized_at IS NULL THEN 'PRESIGNED' ELSE 'FINALIZED' END,
+             cleanup_error=$2, updated_at=now()
          WHERE media_id=$1 AND status='DELETE_PENDING' AND attached_at IS NULL`,
         [mediaId, error],
       );
