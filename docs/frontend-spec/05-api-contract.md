@@ -72,16 +72,16 @@ Status meanings below:
 | Orders | cancel/confirm/transition | Theo route | `AVAILABLE` | Được `PgCheckoutService` xử lý; chỉ dùng khi có order ID hợp lệ |
 | Payment | `POST /orders/:id/payments` | Buyer | `AVAILABLE` | Chỉ retry payment; không tạo provider session, QR hoặc link |
 | Review | `POST /order-items/:id/review`, `POST /reviews`, `GET /products/:product_id/reviews` | Buyer/Public | `AVAILABLE` | `ReviewService` được inject trong `app.ts`; route vẫn có defensive 501 nếu service không được cung cấp. Cần DB/test-project smoke để xác nhận môi trường triển khai |
-| Notification | list/detail/read | Buyer | `AVAILABLE` | `NotificationService` được inject trong `app.ts`; FE chưa có API NotificationRepository/generated DTO wiring nên UI production còn gated |
+| Notification | list/detail/read | Buyer | `AVAILABLE` | Runtime có `NotificationService`; FE API repository đã nối theo payload camelCase và OpenAPI có `NotificationDTO`, nhưng FE DTO chưa sinh tự động; production mặc định BLOCKED đến khi cấu hình capability và xác minh authenticated host |
 | Identity | `GET /auth/me`, `POST /auth/onboarding` | Authenticated | `AVAILABLE` | Role lấy từ `app_users`; onboarding Buyer/Seller chạy transaction; shop Seller ban đầu PENDING |
-| Profile | `GET/PATCH /profile` | Authenticated | `AVAILABLE` | Chỉ sửa `full_name`, `phone`; email/role/avatar là read-only hoặc chưa hỗ trợ |
+| Profile | `GET/PATCH /profile`, `PATCH /profile/avatar` | Authenticated | `AVAILABLE` | Chỉ sửa `full_name`, `phone`; avatar nhận `media_id` đã finalize, không nhận URL tùy ý |
 | Admin | `GET /admin/users`, lock/unlock | Admin | `AVAILABLE/PARTIAL` | List/filter và mutation đã mount; cần pagination, protected Admin target và side-effect tests |
 | Admin | `GET /admin/shops`, approve/lock/unlock | Admin | `AVAILABLE/PARTIAL` | Routes đã mount; cần pagination và atomic audit evidence |
 | Admin | category writes | Admin | `AVAILABLE` | CRUD/status routes được mount; logs và product/review moderation nâng cao vẫn chưa có |
 | Seller | seller stats | Seller | `MISSING` | Không có HTTP stats route |
-| Media | presign/finalize/attach/delete | Authenticated | `PARTIAL` | Router được mount tại `/api/v1`; cần Supabase Storage credentials/project phù hợp để xác minh luồng upload thật. `POST /products` cũng nhận URL ảnh đã có |
+| Media | presign/finalize/attach/delete; `PATCH /profile/avatar` | Authenticated | `PARTIAL` | Product và avatar dùng Supabase Storage thật; avatar attach cập nhật profile transactionally. Review-media runtime vẫn chưa được nối; cần Storage host smoke trước release |
 
-Order reads, profile, public categories, addresses, enriched cart, seller product routes, review/notification services và Admin category routes hiện có trong runtime composition. Điều đó không thay thế live smoke: media phụ thuộc cấu hình Storage; frontend Notifications API repository chưa được nối; Seller full-flow E2E chưa có trong `frontend/e2e`. Seller stats, Admin log/moderation nâng cao và online payment provider chưa có. Google OAuth, email OTP/recovery vẫn phụ thuộc cấu hình provider tại Supabase/Google Cloud.
+Order reads, profile, public categories, addresses, enriched cart, seller product routes, review/notification services và Admin category routes hiện có trong runtime composition. Product/avatar media và Notifications có E2E trên Supabase test; backend host smoke vẫn mở do `/health/readiness` trả HTTP 404 trong cấu hình hiện tại. Seller stats, Admin log/moderation nâng cao và online payment provider chưa có. Google OAuth, email OTP/recovery vẫn phụ thuộc cấu hình provider tại Supabase/Google Cloud.
 
 ## 3. Catalog
 

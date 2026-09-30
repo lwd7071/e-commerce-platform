@@ -309,12 +309,12 @@ Capability MUST: `auth`, `catalog`, `cart`, `checkout`, `seller_catalog`, `media
 
 ### Người 2 — Database/Storage/UI/Notifications
 
-- [ ] P0-03 ErrorSummary behavior test.
-- [ ] P0-05/P0-06 seed E2E + Product/Storage fixture.
-- [ ] B-101 Storage RLS/cleanup.
-- [ ] B-104 revoke object URL/FileUploadZone.
-- [ ] C-303–C-305 Notification FE, rollback và bounded concurrency.
-- [ ] Profile/avatar nối media thật.
+- [x] P0-03 ErrorSummary behavior test.
+- [x] P0-05/P0-06 seed E2E + Product/Storage fixture (allowlisted project test; reset hook trước mỗi critical spec).
+- [x] B-101 Storage RLS/cleanup code + chạy cleanup thật; GitHub schedule còn cần secrets/vars được cấu hình và xác nhận.
+- [x] B-104 purpose limits/validation/preview lifecycle; upload thật được dùng ở Seller Product và Profile avatar.
+- [x] C-303–C-305 Notification FE, rollback và bounded concurrency; live Buyer E2E mark-read còn bền sau reload.
+- [x] Profile/avatar nối media thật; `lvvd.jpg` upload và reload pass trên Supabase test.
 - [ ] Axe/manual keyboard/responsive QA và defect handoff.
 
 ### Người 3 — Catalog/Media/Seller Products
@@ -322,7 +322,7 @@ Capability MUST: `auth`, `catalog`, `cart`, `checkout`, `seller_catalog`, `media
 - [x] B-102/B-103 media APIs + MediaRepository.
 - [x] B-105 `next/image` product assets.
 - [x] B-201–B-205 Seller product implementation/UI live routes.
-- [ ] B-206 Seller product E2E (upload → create → list → stock → hide/show); chưa thấy test này trong `frontend/e2e`.
+- [x] B-206 Seller product E2E (upload → create → list → stock → hide/show), chạy với Storage thật.
 - [x] C-205 Product Detail rating/reviews thật.
 - [x] C-403 Admin category CRUD/status backend.
 - [x] Cập nhật catalog capability và loại production mock fallback.
@@ -346,7 +346,7 @@ Capability MUST: `auth`, `catalog`, `cart`, `checkout`, `seller_catalog`, `media
 
 Mỗi checkbox chỉ được tick khi progress file có link PR/commit, test đã chạy và blocker còn lại.
 
-**Đối chiếu code/progress 2026-09-30:** Checkbox phản ánh acceptance, không chỉ source tồn tại. Người 2 đã có seed/storage safety code và UI behavior tests, nhưng reset/Storage chưa chạy trên allowlisted test project; Notification backend runtime đã được Người 4 inject, còn FE API repository/typed DTO chưa nối. Người 3 có seller/media/category routes và UI, nhưng B-206 E2E chưa được chứng minh. Người 5 có UI/routes và mock/live fallback được ghi trong progress; Buyer order→review và Admin RBAC Playwright acceptance chưa có trong `frontend/e2e`. Không đánh dấu các acceptance này xong chỉ từ unit tests hoặc component tồn tại.
+**Đối chiếu code/progress 2026-09-30:** Người 2 đã chạy fixture reset, Storage RLS smoke, expired-media cleanup runner và các live E2E cho buyer login, notifications, avatar và seller product trên project test. Frontend production build, typecheck, lint, responsive/Axe QA local đều có kết quả; lint hiện còn warning `orders-screen.tsx` không thuộc thay đổi Người 2. D-004/release gate vẫn mở cho keyboard-only manual/authenticated Admin cross-browser và Vercel/backend-host smoke. GitHub cleanup workflow có schedule/manual trigger trong repo nhưng secret/vars và lần chạy trên GitHub chưa được xác nhận. Các luồng Buyer order→review và Admin RBAC E2E của Người 5 vẫn còn mở; không xem release tổng thể là hoàn tất chỉ vì phần Người 2 đã pass.
 
 ## 14. Backlog sau MVP
 
