@@ -18,6 +18,7 @@ describe("Contract Drift & API Consistency (Q-807 Acceptance Gate)", () => {
     "/orders",
     "/orders/{id}",
     "/orders/{id}/cancel",
+    "/orders/{id}/confirm-received",
     "/order-items/{id}/review",
     "/reviews",
     "/addresses",
