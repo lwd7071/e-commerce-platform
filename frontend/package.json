@@ -13,6 +13,8 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "api:types": "node scripts/generate-api-types.mjs",
+    "api:types:check": "node scripts/generate-api-types.mjs --check",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:qa": "playwright test --config=playwright.qa.config.ts"
@@ -36,6 +38,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
     "jsdom": "^30.1.1",
+    "openapi-typescript": "^7.13.0",
     "tailwindcss": "^4",
     "typescript": "^5.8.2",
     "vitest": "^3.0.7"

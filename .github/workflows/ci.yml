@@ -122,6 +122,12 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Install backend OpenAPI generator dependencies
+        run: npm ci --prefix ../backend
+
+      - name: Check generated API types
+        run: npm run api:types:check
+
       - name: Verify frontend lockfile is clean
         run: git diff --exit-code -- package-lock.json
 

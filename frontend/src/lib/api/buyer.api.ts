@@ -1,44 +1,19 @@
 import { apiClient } from "./client";
+import type { components } from "./generated/openapi";
 
-export interface WireProfile {
-  user_id?: string;
+export type WireProfile = Pick<components["schemas"]["ProfileDTO"], "full_name" | "phone" | "avatar_url"> & Partial<components["schemas"]["ProfileDTO"]> & {
   id?: string;
   email?: string;
-  full_name: string | null;
-  phone: string | null;
-  avatar_url: string | null;
-  updated_at?: string;
   role?: "BUYER" | "SELLER" | "ADMIN";
-}
+};
 
-/** Runtime Notification DTO; kept aligned with the canonical OpenAPI schema. */
-export interface WireNotification {
-  notificationId: string;
-  recipientId: string;
-  type: "ORDER" | "PAYMENT" | "SHIPPING" | "VIOLATION" | "SYSTEM";
-  title: string;
-  content: string;
-  isRead: boolean;
-  createdAt: string;
-  readAt: string | null;
-}
+export type WireNotification = components["schemas"]["NotificationDTO"];
 
 /**
  * Address DTO matching runtime PgAddressRepository (camelCase).
  */
-export interface WireAddress {
-  addressId: string;
-  userId?: string;
-  recipientName: string;
-  phone: string;
-  province: string;
-  district: string;
-  ward: string;
-  detailAddress: string;
-  isDefault: boolean;
-  createdAt?: string;
-  updatedAt?: string;
-}
+export type WireAddress = Omit<components["schemas"]["AddressDTO"], "userId" | "createdAt" | "updatedAt"> &
+  Partial<Pick<components["schemas"]["AddressDTO"], "userId" | "createdAt" | "updatedAt">>;
 
 export type UpdateAddressPayload = Partial<Omit<CreateAddressPayload, "isDefault">> & { isDefault?: boolean };
 

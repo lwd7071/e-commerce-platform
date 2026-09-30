@@ -1,32 +1,9 @@
 import { apiClient } from "./client";
 import type { OrderStatus } from "@/components/ui/status-badge";
+import type { components } from "./generated/openapi";
 
 /** Backend read contract. Components consume the mapped OrderViewModel below. */
-export interface OrderReadDTO {
-  order_id: string;
-  buyer_id: string;
-  shop_id: string;
-  shop_name: string;
-  status: OrderStatus;
-  subtotal: string;
-  discount_amount: string;
-  shipping_fee: string;
-  total_amount: string;
-  cancel_reason: string | null;
-  created_at: string;
-  updated_at: string;
-  items: Array<{
-    order_item_id: string;
-    product_id: string;
-    variant_id: string;
-    product_name: string;
-    variant_name: string;
-    unit_price: string;
-    quantity: number;
-    line_total: string;
-    image_url: string | null;
-  }>;
-}
+export type OrderReadDTO = components["schemas"]["OrderReadDTO"];
 
 export interface WireOrderItem {
   id: string;
