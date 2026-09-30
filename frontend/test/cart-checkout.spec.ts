@@ -177,3 +177,39 @@ describe("Cart UI Stepper Touch Target Specification (09-ui-ux-rules.md)", () =>
   });
 });
 
+describe("Checkout Address Section DOM & Responsive Invariant (Plan v3.3, 09-ui-ux-rules.md, 10-ui-ux-handoff.md)", () => {
+  it("enforces DOM hierarchy where heading and actions container are separate flex children", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const checkoutScreenPath = path.resolve(__dirname, "../src/features/checkout/checkout-screen.tsx");
+    const content = fs.readFileSync(checkoutScreenPath, "utf-8");
+
+    // 1. Heading must have accessible id matching aria-labelledby
+    expect(content).toContain('<section className="surface-card p-6 space-y-4" aria-labelledby="heading-address">');
+    expect(content).toContain('<h2 id="heading-address"');
+
+    // 2. Container must be responsive flex-col sm:flex-row to avoid crowding at 360px
+    expect(content).toContain('flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-[var(--border)] gap-2');
+
+    // 3. Actions container must allow flex-wrap on narrow viewports
+    expect(content).toContain('flex items-center gap-2 flex-wrap');
+
+    // 4. Buttons must enforce minimum 44x44px touch target per 09-ui-ux-rules.md Rule 4
+    expect(content).toContain('min-h-[44px] min-w-[44px]');
+  });
+
+  it("verifies address action buttons render with correct accessible semantics", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const checkoutScreenPath = path.resolve(__dirname, "../src/features/checkout/checkout-screen.tsx");
+    const content = fs.readFileSync(checkoutScreenPath, "utf-8");
+
+    // Both action buttons exist in the address header
+    expect(content).toContain("Đổi địa chỉ ({addresses.length})");
+    expect(content).toContain("+ Thêm mới");
+    // Handlers correctly wired
+    expect(content).toContain("setIsAddressModalOpen(true)");
+    expect(content).toContain("setIsNewAddressModalOpen(true)");
+  });
+});
+

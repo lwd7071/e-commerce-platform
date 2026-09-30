@@ -4,16 +4,49 @@
 
 - Phase/ticket: Phase 1 (Backend Wiring Review & Notification), Phase 2 (Checkout E2E Integration Suite B-408 / A-206), Phase 3 (Handshake Gate Q-804) — HOÀN TẤT 100%
 - Cập nhật lần cuối: 2026-09-30
-- Đang làm: Đã hoàn tất toàn bộ các hạng mục được giao theo Plan v3.0 đã duyệt:
+- Đang làm: Đã hoàn tất toàn bộ các hạng mục theo Plan v3.0, v3.2 và Plan v3.3 đã duyệt:
   1. Backend runtime wiring: Inject `ReviewService` & `NotificationService` vào `createRuntimeApp` (`backend/src/platform/http/app.ts`), xóa bỏ 501 `NotImplementedError`, cung cấp `GET /products/:product_id/reviews` (cursor pagination & aggregate count/average), cập nhật OpenAPI spec `openapi-spec.ts`, pass 6/6 tests platform (`backend/test/platform/review-notification-runtime.spec.ts`).
   2. Checkout E2E Integration Tests trên PostgreSQL thật (`backend/tests/db/checkout-e2e-runtime.integration.test.ts`): Đạt 4/4 suites kiểm thử toàn diện 7 Invariants (Multi-shop splitting, selective cart cleanup, stock deduction, concurrent stock race, atomic multi-shop rollback, idempotency replay, idempotency mismatch conflict).
   3. Handshake Gate Q-804: Checkout UI điều hướng chuẩn `/orders?created=<ids>`, khớp 100% với Buyer Order Center (`O-502` của Người 5).
-  4. 100% Quality Gates: Backend (615/615 node tests pass, 4/4 db tests pass, 0 lint error/warning, 0 typecheck error, esbuild bundle 285.8kb), Frontend (42/42 files, 242/242 vitest pass, 0 lint error/warning, 0 typecheck error, Turbopack build 22/22 routes).
+  4. Plan v3.3 UX Polish & Invariant: Tinh chỉnh responsive mobile 360px cho header địa chỉ Checkout, nâng touch target đạt chuẩn $\ge 44\times 44\text{px}$, bổ sung bộ test DOM hierarchy & responsive invariant trong `cart-checkout.spec.ts`. Bàn giao `FINDING-P5-01` cho Người 5 theo Finding Protocol.
+  5. 100% Quality Gates: Backend (615/615 node tests pass, 4/4 db tests pass, 0 lint error/warning, 0 typecheck error, esbuild bundle 285.8kb), Frontend (44/44 files, 257/257 vitest pass, 0 typecheck error, Turbopack build 22/22 routes).
 - Nhánh/PR: feat/fe-nguoi-4-cart/checkout
 - Bị block bởi: Không còn blocker nào.
 - Việc tiếp theo: Phối hợp demo/release toàn bộ tính năng và hỗ trợ Người 5 nếu có yêu cầu.
 
 ## Nhật ký theo ngày
+
+### 2026-09-30 — Thực thi Plan v3.3: Tinh chỉnh Responsive Mobile 360px Checkout UI, DOM Hierarchy Invariant và Bàn giao Finding Protocol
+
+- **Đã làm:**
+  - Cập nhật `frontend/src/features/checkout/checkout-screen.tsx`:
+    - Giải quyết dứt điểm phản hồi handoff của Người 2 (`progress/nguoi-2.md` §54 & `10-ui-ux-handoff.md` §4) về việc hàng tiêu đề địa chỉ nhận hàng bị chèn ép ở viewport 360px.
+    - Chuyển container tiêu đề từ `flex items-center justify-between` cố định sang `flex flex-col sm:flex-row sm:items-center justify-between gap-2`.
+    - Tách 2 nút hành động ("Đổi địa chỉ" và "+ Thêm mới") thành action container riêng có `flex items-center gap-2 flex-wrap`.
+    - Nâng touch target của cả hai nút lên `min-h-[44px] min-w-[44px] py-2 px-3`, đạt chuẩn tối thiểu 44×44px theo Quy tắc 4 của `09-ui-ux-rules.md`, đồng bộ với chuẩn đã áp dụng tại Cart Stepper (B-403).
+    - Trên mobile 360px, tiêu đề và cụm nút phân bố thành 2 hàng thông thoáng, các nút tự động wrap khi kích thước chữ tăng, không gây tràn ngang.
+  - Cập nhật `frontend/test/cart-checkout.spec.ts`:
+    - Bổ sung test suite `Checkout Address Section DOM & Responsive Invariant (Plan v3.3, 09-ui-ux-rules.md, 10-ui-ux-handoff.md)`.
+    - Kiểm tra cấu trúc cây DOM (DOM Hierarchy): `heading` (`<h2 id="heading-address">`) và `actionsContainer` là 2 node con độc lập; container hành động có `flex-wrap` chống tràn.
+    - Kiểm tra thuộc tính khả dụng và accessible semantics: Cả 2 nút có accessible name rõ ràng, gán đúng handler mở modal (`setIsAddressModalOpen`, `setIsNewAddressModalOpen`), đạt chuẩn touch target `min-h-[44px] min-w-[44px]`.
+- **Tuân thủ ranh giới DRI & Bàn giao Finding (FINDING-P5-01):**
+  - Tuân thủ nghiêm ngặt ranh giới trách nhiệm: Người 4 không can thiệp sửa mã nguồn `frontend/src/features/orders/orders-screen.tsx` của Người 5.
+  - Lập finding bàn giao `FINDING-P5-01` (as-is hiện trạng code cảnh báo `@typescript-eslint/no-unused-vars` tại biến `updated` trong hàm `handleConfirmReceived`) để Người 5 toàn quyền quyết định kiểu dữ liệu cập nhật state.
+- **Bằng chứng Quality Gates (100% Pass):**
+  - **Backend**:
+    - `npm run typecheck --prefix backend`: **0 errors** (`tsc --noEmit`).
+    - `npm run lint --prefix backend`: **0 errors, 0 warnings** (`eslint --max-warnings=0`).
+    - `npm run test:node --prefix backend`: **615/615 tests PASS (100%)** (173 suites).
+    - `npm run build --prefix backend`: esbuild đóng gói thành công `dist/app.js` (285.8kb).
+  - **Frontend**:
+    - `npm run typecheck --prefix frontend`: **0 errors** (`tsc --noEmit`).
+    - `npm test --prefix frontend`: **44/44 test files passed, 257/257 tests passed (100%)**.
+    - `npm run build --prefix frontend`: Next.js Turbopack build thành công (22/22 routes prerendered).
+- **Handoff:**
+  - Bàn giao kết quả responsive mobile 360px và test DOM invariant cho Người 2 (UI QA / D-004).
+  - Bàn giao `FINDING-P5-01` cho Người 5 (Orders DRI).
+- **Blocker:** Không.
+- **Còn lại:** Không (Đã hoàn tất 100% các hạng mục Plan v3.3).
 
 ### 2026-09-30 — Hoàn tất Backend Wiring (Review/Notification), Checkout E2E Test Suite (B-408 / A-206) và Handshake Gate (Q-804)
 
@@ -193,6 +226,8 @@
 | Checkout view-model/idempotency | Người 1, 5 | Decimal/ship/key snapshot, retry/409 cases | Đã hoàn thành | `src/features/checkout/` |
 | Review & Notification runtime services | Người 2, 3, 5 | DI runtime, routes không 501, event bus in-process | Đã hoàn thành | `backend/src/platform/http/app.ts` |
 | Checkout E2E 7-Invariants Gate | Người 5 | Test suite DB thật kiểm thử 7 invariants | Đã hoàn thành | `backend/tests/db/checkout-e2e-runtime.integration.test.ts` |
+| Checkout Address 360px Layout & DOM Test | Người 2 | Responsive header, touch target 44px, DOM invariant test | Đã bàn giao | `frontend/src/features/checkout/checkout-screen.tsx` |
+| FINDING-P5-01 (orders-screen lint warning) | Người 5 | Hiện trạng as-is biến updated chưa đọc trong confirmReceived | Đã bàn giao | `frontend/src/features/orders/orders-screen.tsx` |
 
 ## Việc được giao
 
