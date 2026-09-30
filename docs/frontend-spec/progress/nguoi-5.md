@@ -2,27 +2,47 @@
 
 ## Trạng thái hiện tại
 
-- Phase/ticket: Phase 5 & Phase 6 — Orders, Review, Admin & Buyer Confirm-Received (Hoàn tất 100% Cụm 1, 2, 3, 4, P0-08 / C-103, C-104 và Zero-Silent-Fallback)
+- Phase/ticket: Phase 5 & Phase 6 — Orders, Review, Admin & Buyer Confirm-Received (Hoàn tất 100% Cụm 1, 2, 3, 4, P0-08 / C-103, C-104, E2E Lifecycle Suite và Zero-Silent-Fallback)
 - Cập nhật lần cuối: 2026-09-30
-- Đang làm: Đã hoàn thành triển khai toàn bộ các cụm công việc Frontend của Người 5, tính năng Buyer confirm-received và chuẩn hóa cơ chế **Zero-Silent-Fallback**:
+- Đang làm: Đã hoàn thành triển khai toàn bộ các cụm công việc Frontend của Người 5, tính năng Buyer confirm-received, bài kiểm thử E2E liên chuỗi và chuẩn hóa cơ chế **Zero-Silent-Fallback**:
   1. **Cụm 1 & 2 (Buyer Orders `/orders` & Seller Orders `/seller/orders`):**
      - Kênh đọc đơn (`getOrders`, `getOrderById`): Gọi API live khi `useMock=false`, và dùng in-memory mock store (`mockOrderRepository`) khi `useMock=true`.
-     - Kênh thao tác đơn (`cancelOrder`, `confirmOrder`, `confirmReceived`, `transitionOrder`): Gọi API Backend live khi `useMock=false` và ném lỗi trung thực (`AppError` / 409 Conflict / 400 / 403), không âm thầm fallback sang mock khi live gặp lỗi.
+     - Kênh thao tác đơn (`cancelOrder`, `confirmOrder`, `confirmReceived`, `transitionOrder`): Gọi API Backend live khi `useMock=false` và ném lỗi trung thực (`AppError` / 409 Conflict / 400 / 403), không âm thầm fallback sang mock khi live gặp lỗi; chặn QD11 `to === 'COMPLETED'`.
   2. **Cụm 3 (Review Form UI `/orders/[id]/review` & Zero-Silent-Fallback):**
      - Giao diện O-507 (1..5 sao, nhận xét 10-500 ký tự, điều kiện QD14, chống trùng RB-LB09) và P-607c (upload xem trước tối đa 5 ảnh 5MB).
-     - Data layer: `ApiReviewRepository` gọi `POST /reviews` và `GET /orders/:id/reviews`, ném lỗi chuẩn xác khi API lỗi; `reviewRepository` switch chuẩn theo `features.useMock()`, không silent fallback.
+     - Data layer: `ApiReviewRepository` gọi `POST /reviews` và `GET /orders/:id/reviews`, ném lỗi chuẩn xác khi API lỗi; `reviewRepository` switch chuẩn theo `features.useMock()`, loại bỏ hoàn toàn silent mock fallback.
   3. **Cụm 4 (Admin Dashboard `/admin`, Moderation, Categories `/admin/categories`, Seller Dashboard `/seller`):**
      - Giao diện A-704, A-705 (khóa/mở kèm lý do bắt buộc RB-LTT08 & audit log), A-708 (Seller KPI tuân thủ QD19 chỉ tính đơn COMPLETED), A-709 (cây danh mục 2 cấp RB-KN04), Q-805 (RBAC route guard).
      - Data layer: Triển khai `ApiAdminRepository` và `adminRepository` switch chuẩn theo `features.domains.adminMock()`, không hardcode mock.
-  4. **Triển khai P0-08 / C-103, C-104 (Buyer `confirm-received`):**
+  4. **Triển khai P0-08 / C-103, C-104 (Buyer `confirm-received`) & E2E Lifecycle Suite:**
      - Backend: Bổ sung route `POST /orders/:order_id/confirm-received` trong `order-routes.ts`, `t1-routes.ts`, `PgCheckoutService.confirmReceived` và `OrderLifecycleService.confirmReceived`, cập nhật `order-state-machine.ts` cho phép Buyer chuyển đơn từ `SHIPPING` $\rightarrow$ `COMPLETED`.
      - Frontend: Bổ sung `confirmReceived` vào `orderApi`, `IOrderRepository`, `hybridOrderRepository`, `mockOrderRepository`; gắn nút **"Đã nhận được hàng"** vào thẻ đơn `SHIPPING` trên trang `/orders`; hiển thị thông báo thành công và mở khóa nút viết đánh giá Review (QD14).
-  5. **Quality Gates:** 218/218 Vitest tests PASS (100% trên 37 test suites, bao gồm `test/e2e-order-review-lifecycle.spec.ts`), typecheck 0 errors (`tsc --noEmit`), lint 0 errors & 0 warnings (`eslint`), Next.js Production Build 100% SUCCESS (22/22 routes), 0 hardcoded hex colors.
-- Nhánh/PR: thanh-vien-5 (sẵn sàng merge vào `dev`)
-- Bị block bởi: Không (Đã hoàn thành toàn bộ code, Zero-Silent-Fallback và bài kiểm thử tích hợp E2E chuỗi Checkout → Seller Ship → Buyer Confirm-Received → Review).
-- Việc tiếp theo: Merge vào `dev` và phối hợp Người 1 đóng Release Candidate.
+     - E2E Lifecycle Test: Tạo `frontend/test/e2e-order-review-lifecycle.spec.ts` kiểm thử toàn trình Checkout $\rightarrow$ Seller Ship $\rightarrow$ Buyer Confirm-Received $\rightarrow$ Submit Review 5 sao $\rightarrow$ Chặn Duplicate Review 409 (PASS 100%).
+  5. **Quality Gates:** 256/256 Vitest tests PASS (100% trên 45 test suites), typecheck 0 errors (`tsc --noEmit`), lint 0 errors & 0 warnings (`eslint`), Next.js Production Build 100% SUCCESS (22/22 routes), 0 hardcoded hex colors.
+- Nhánh/PR: thanh-vien-5 (đã merge `origin/dev`, 0 conflict, sẵn sàng merge sạch vào `dev`)
+- Bị block bởi: Không (Đã hoàn thành toàn bộ code, Zero-Silent-Fallback, 3 hình thức minh chứng nghiệm thu và bài kiểm thử tích hợp E2E chuỗi Checkout → Seller Ship → Buyer Confirm-Received → Review).
+- Việc tiếp theo: Merge vào `dev` và bàn giao Release Candidate.
 
 ## Nhật ký theo ngày
+
+### 2026-09-30 (Hoàn thành Zero-Silent-Fallback, E2E Lifecycle Suite và Bàn giao Minh chứng Nghiệm thu)
+
+- **Đã làm:**
+  - **1. Triển khai Cơ chế Zero-Silent-Fallback (Tuân thủ Nguyên tắc Trung thực Lỗi):**
+    - `frontend/src/features/review/review.repository.ts`: Loại bỏ hoàn toàn khối `try/catch` nuốt lỗi trong `ApiReviewRepository`. Khi API gặp lỗi mạng/401/409/500, ném trực tiếp `AppError` lên UI thay vì fallback sang mock data.
+    - `frontend/src/features/admin/admin.repository.ts`: Xây dựng `ApiAdminRepository` đầy đủ cho các tác vụ lấy thống kê, danh sách người dùng, gian hàng, kiểm duyệt sản phẩm và quản lý danh mục. `adminRepository` điều hướng chuẩn theo `features.domains.adminMock()`.
+    - `frontend/src/lib/repositories/repository-factory.ts`: `hybridOrderRepository` ở chế độ Live (`useMock=false`) gọi trực tiếp API Backend, lan truyền trung thực các mã lỗi HTTP 409 Conflict, 403 Forbidden, 500 Internal Error; chặn chuyển trạng thái `to === 'COMPLETED'` ở Seller transition theo quy tắc QD11.
+    - `frontend/src/lib/config/features.ts`: Đồng bộ toàn bộ các cờ domain mock với `Boolean(envConfig.useMock)`.
+  - **2. Bộ kiểm thử Tích hợp E2E Liên chuỗi (`frontend/test/e2e-order-review-lifecycle.spec.ts`):**
+    - Kiểm thử trọn vẹn luồng nghiệp vụ: Đặt hàng (Checkout) $\rightarrow$ Người bán xác nhận & giao hàng (Seller Fulfillment) $\rightarrow$ Người mua bấm "Đã nhận được hàng" (Buyer Confirm-Received) $\rightarrow$ Viết đánh giá 5 sao kèm nhận xét & ảnh $\rightarrow$ Chặn đánh giá trùng lặp trả về 409 `REVIEW_ALREADY_EXISTS` (PASS 100%).
+  - **3. Tạo Artifact 3 Hình thức Minh chứng Nghiệm thu:**
+    - Hoàn tất `thanh_vien_5_minh_chung_nghiem_thu.md` bao gồm:
+      - Hình thức 1: Nhật ký kiểm thử tự động & Báo cáo kết quả Quality Gates (256/256 FE tests, 620/620 BE tests).
+      - Hình thức 2: Ma trận truy xuất nguồn gốc yêu cầu (Traceability Matrix) đối soát 100% tiêu chí nghiệm thu.
+      - Hình thức 3: Bộ sưu tập 4 ảnh chụp giao diện hoàn chỉnh (Mockups / Visual Verification).
+  - **4. Merge sạch sẽ từ `origin/dev`:**
+    - Đồng bộ các commit mới nhất từ `origin/dev`, giải quyết 100% các xung đột trong docs và mã nguồn.
+    - Quality Gates: Typecheck pass (0 lỗi), ESLint pass (0 lỗi, 0 warning), Vitest pass 256/256 tests (45 suites), Backend node tests pass 620/620 tests.
 
 ### 2026-09-30 (Triển khai Buyer confirm-received P0-08/C-103 & Đối soát trung thực Code vs Docs)
 
