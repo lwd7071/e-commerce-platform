@@ -52,7 +52,7 @@ Status meanings below:
 | System | `GET /openapi.json` | Public | `AVAILABLE` | Kiểm tra method+path hai chiều; schema cụ thể tiếp tục được hoàn thiện theo backend |
 | Catalog | `GET /products` | Public | `AVAILABLE` | Cursor pagination |
 | Catalog | `GET /products/:product_id` | Public | `PARTIAL` | Thiếu images/shop/reviews/metrics |
-| Catalog | `POST /products` | Seller | `PARTIAL` | Runtime tạo sản phẩm/variants; category list đã có; media upload production còn thiếu |
+| Catalog | `POST /products` | Seller | `AVAILABLE/PARTIAL_RELEASE` | Runtime tạo sản phẩm/variants; category và upload ảnh Storage thật đã có; Seller live E2E pass trên Supabase test. Backend-host/release smoke còn mở |
 | Catalog | `PATCH /product-variants/:variant_id/stock` | Seller | `AVAILABLE` | Body `{ quantity }` |
 | Catalog | `GET /seller/products`, `PATCH /seller/products/:id/status` | Seller | `AVAILABLE` | Routes mounted; scope/ownership và trạng thái shop do catalog runtime kiểm tra. Seller full flow E2E chưa được chứng minh trong `frontend/e2e` |
 | Catalog | `GET /categories` | Public | `AVAILABLE` | Chỉ category ACTIVE, danh sách phẳng, roots trước; dùng `PgCategoryRepository` |

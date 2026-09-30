@@ -15,13 +15,13 @@ Các route dưới đây là route sản phẩm dự kiến. Đối chiếu sour
 | `/cart` | Buyer | `LIVE` | Enriched cart; unavailable rows vẫn hiển thị nhưng không checkout |
 | `/checkout` | Buyer | `LIVE` | COD thật, idempotent; không QR/provider giả |
 | `/orders` | Buyer | `LIVE/PARTIAL_TIMELINE` | Order reads live; timeline và confirm-received theo C-101–C-106 |
-| `/orders/[id]/review` | Buyer | `UI_READY/BLOCKED_RUNTIME` | Route/UI có; chuyển live sau ReviewService và media gate |
-| `/notifications` | Buyer | `UI_READY/BLOCKED_RUNTIME` | UI có; chuyển live sau NotificationService injection |
-| `/profile` | Authenticated | `LIVE/PARTIAL_MEDIA` | GET/PATCH live; avatar chờ media contract |
+| `/orders/[id]/review` | Buyer | `LIVE/PARTIAL_MEDIA` | Review text/rating dùng API từng OrderItem; live UI không cho chọn ảnh vì runtime reject purpose REVIEW |
+| `/notifications` | Buyer | `LIVE/PARTIAL_RELEASE` | Runtime/API nối; authenticated Buyer E2E trên Supabase test pass; host smoke còn mở |
+| `/profile` | Authenticated | `LIVE/PARTIAL_RELEASE` | GET/PATCH live; avatar media upload thật, E2E reload pass trên Supabase test |
 | `/login` | Public-only | `PARTIAL_PROVIDER` | Source live; bắt buộc provider/env smoke |
 | `/register` | Public-only | `PARTIAL_ONBOARDING` | `/auth/onboarding` tồn tại; hoàn thiện Seller PENDING flow |
 | `/seller` | Seller | `LIVE/PARTIAL` | Order queue live; stats nằm backlog |
-| `/seller/products/new` | Seller | `UI_READY/PARTIAL_MEDIA` | Route/UI có; production cần media finalize và Shop ACTIVE |
+| `/seller/products/new` | Seller | `LIVE/PARTIAL_RELEASE` | Product media upload thật; Seller E2E trên Supabase test pass; Shop phải ACTIVE, host smoke còn mở |
 | `/admin` | Admin | `LIVE/PARTIAL` | Users/shops routes live; hardening/audit trong C-401/C-402 |
 | `/admin/categories` | Admin | `UI_READY/BLOCKED_RUNTIME` | UI có; local mutation phải thay bằng Admin Category API |
 

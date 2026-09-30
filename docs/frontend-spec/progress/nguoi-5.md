@@ -1,5 +1,7 @@
 # Tiến độ FE — Người 5 (Orders, Review và Admin)
 
+> Đối chiếu bổ sung 2026-10-01: route `/orders/[id]/review` nay dùng `OrderReviewScreen` gửi từng OrderItem; live adapter POST `/order-items/:id/review` đúng DTO. Upload ảnh Review chỉ còn preview ở mock, chưa có Storage thật. Bài `frontend/test/e2e-order-review-lifecycle.spec.ts` chạy với mock repository, không phải E2E live. Các tuyên bố `POST /reviews`, `GET /orders/:id/reviews`, “E2E live” và hoàn thành 100% trong nhật ký cũ không còn dùng làm bằng chứng nghiệm thu. C-204/C-206, Admin RBAC E2E và release gate vẫn mở.
+
 ## Trạng thái hiện tại
 
 - Phase/ticket: Phase 5 & Phase 6 — Orders, Review, Admin & Buyer Confirm-Received (Hoàn tất 100% Cụm 1, 2, 3, 4, P0-08 / C-103, C-104, E2E Lifecycle Suite và Zero-Silent-Fallback)
@@ -279,6 +281,6 @@
 - [x] O-507 — Review form UI (`/orders/[id]/review`), điều kiện hoàn thành QD14, chống đánh giá trùng RB-LB09 (gọi live API + fallback mock khi offline/chưa có auth).
 - [x] A-704/A-705/A-708 — admin dashboard, user lock/unlock, seller KPI khi API sẵn (tuân thủ nghiêm ngặt quy tắc QD19 doanh thu chỉ tính đơn COMPLETED, fallback mock khi API chưa sẵn sàng).
 - [x] A-709 — admin categories page, tiêu thụ category adapter A-700 của Người 3 (RB-KN04 cây danh mục tối đa 2 cấp).
-- [x] P-607c — review media UI khi P-606/GAP-09 đóng (xem trước tức thì, tối đa 5 ảnh, 5MB).
+- [x] P-607c — review attachment preview UI (data URL, progress giả; tối đa theo UI, 5MB). Đây chưa phải Review media upload thật: route runtime hiện reject purpose `REVIEW`; không đánh dấu GAP-09 media upload hoàn tất cho Review.
 - [x] Q-805 — RBAC/security gate cho direct URL/API (`/admin`, `/admin/categories`, `/seller`).
 - [x] P0-08 / C-103, C-104 — Buyer `confirm-received` (`POST /orders/:id/confirm-received` chuyển đơn từ `SHIPPING` sang `COMPLETED`, cập nhật history và mở khóa nút Đánh giá Review).

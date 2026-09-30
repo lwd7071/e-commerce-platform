@@ -60,27 +60,26 @@ Phân biệt hoàn tất mốc backend với integration readiness FE: T3 harden
 ### GAP-07 — Profile API
 
 - **Severity:** HIGH.
-- **Hiện trạng:** `GET/PATCH /profile` đã mount; chỉ sửa họ tên/số điện thoại; email/role/avatar không được nhận trong PATCH. Frontend tải/lưu profile; upload avatar bị disabled.
-- **Còn lại:** external smoke test và bổ sung API rate limit evidence.
+- **Hiện trạng:** `GET/PATCH /profile` đã mount; chỉ sửa họ tên/số điện thoại; email/role không sửa qua PATCH. Avatar dùng endpoint riêng `PATCH /profile/avatar` với `media_id` đã finalize; FE upload thật và avatar còn sau reload trong E2E Supabase test.
+- **Còn lại:** backend-host smoke (`/health/readiness` đang trả 404) và bổ sung API rate limit evidence.
 
 ### GAP-08 — Admin read APIs và moderation scope
 
-- **Severity:** BLOCKER cho admin UI.
-- **Hiện trạng (source audit 2026-09-29):** `POST /admin/users/:id/lock` and `/unlock` are mounted and wired to `ModerationService`; there are no user/log/shop/product list routes or shop/product moderation routes.
-- **Giải pháp:** cursor pagination + filters; expose moderation actions có audit; không dùng client-supplied target type tùy ý.
+- **Severity:** HIGH cho Admin UI/release.
+- **Hiện trạng:** Admin users/shops list và lock/approve actions cùng category CRUD/status routes đã có; frontend Admin UI/RBAC acceptance còn mở theo plan. Log viewer và product/review moderation nâng cao chưa có; một số list/action còn cần pagination, protected target và atomic audit evidence.
+- **Còn lại:** hoàn thiện Admin UI/RBAC E2E và các hardening items còn mở trong C-401–C-406.
 
 ### GAP-09 — Media upload
 
 - **Severity:** HIGH.
-- **Hiện trạng:** UI cần product/avatar/review images nhưng API chỉ nhận URL; chưa có presign/finalize contract.
-- **Giải pháp:** định nghĩa bucket/path ownership, MIME/size/count, signed upload, finalize/cleanup và authorization.
-- **Fallback:** URL text input chỉ cho development.
+- **Hiện trạng:** Product và avatar có presign/upload/finalize/attach qua Supabase Storage với lifecycle/cleanup và policy. Review image chưa được hỗ trợ runtime: purpose `REVIEW` bị reject; live UI không hiển thị upload giả.
+- **Còn lại:** nối Review media vào lifecycle/authorization contract; generated FE OpenAPI types đã có nhưng chưa chuyển hết các wire DTO viết tay.
 
 ### GAP-10 — Notification completeness
 
 - **Severity:** MEDIUM.
-- **Hiện trạng:** runtime chưa wire; không có mark-all-read; không có realtime transport.
-- **Giải pháp:** wire REST trước, thêm bulk read; realtime là phase riêng bằng Supabase Realtime/SSE/WebSocket sau khi có yêu cầu.
+- **Hiện trạng:** REST list/read runtime và FE đã nối; authenticated Buyer E2E trên Supabase test xác nhận mark-read còn sau reload. Không có mark-all-read endpoint hoặc realtime transport.
+- **Còn lại:** backend-host smoke; bulk tiếp tục gọi read từng item có giới hạn, không giả định bulk endpoint. Realtime là phase riêng nếu có yêu cầu.
 
 ### GAP-11 — Error/OpenAPI drift
 
@@ -113,10 +112,10 @@ Phân biệt hoàn tất mốc backend với integration readiness FE: T3 harden
 | Online provider payment | `BLOCKED` | UI prototype | GAP-02 |
 | Order center | `READY` for API | Live query service and DTO adapter | PostgreSQL runtime ownership tests; production order E2E |
 | Cancel/confirm/transition/payment retry | `READY` for mutation only | có thể dùng contract thật với order ID hợp lệ | reads/order IDs cần GAP-01; payment provider vẫn GAP-02 |
-| Review submit/read | `UI_READY/BLOCKED_RUNTIME` | Text/rating UI + fake boundary | C-201–C-205; media phụ thuộc Workstream B |
-| Notifications | `UI_READY/BLOCKED_RUNTIME` | UI gated, không production fixture | C-301–C-305; runtime service + event catalog |
-| Profile | `PARTIAL` | Live GET/PATCH UI/API for name/phone | API rate limit evidence and live auth smoke |
-| Seller create product | `UI_READY/PARTIAL_MEDIA` | Form/variant UI | B-101–B-206; media finalized + Shop ACTIVE |
+| Review submit/read | `READY/PARTIAL_MEDIA` | Text/rating + review API; image preview is not a real upload | C-201–C-206; implement REVIEW media lifecycle |
+| Notifications | `READY` | Live list/read UI/API; Buyer E2E mark-read survives reload on Supabase test | Host smoke; realtime is not implemented |
+| Profile | `READY/PARTIAL_RELEASE` | Live GET/PATCH and avatar upload/attach; avatar survives reload on Supabase test | Backend-host smoke and API rate limit evidence |
+| Seller create product | `READY/PARTIAL_RELEASE` | Live form/API and real Storage image upload; Seller E2E passed on Supabase test | Host/release verification; Shop must be ACTIVE |
 | Seller fulfillment | `READY/PARTIAL_SHIPMENT` | Live order query/actions | C-101–C-107 timeline/shipment/confirm-received |
 | Seller KPI | `BLOCKED` | mock | GAP-12 |
 | Admin users/shops | `AVAILABLE/PARTIAL_HARDENING` | Nối API thật | C-401/C-402 pagination, side effects, atomic audit |

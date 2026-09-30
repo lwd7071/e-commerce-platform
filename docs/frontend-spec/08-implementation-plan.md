@@ -298,7 +298,7 @@ Capability MUST: `auth`, `catalog`, `cart`, `checkout`, `seller_catalog`, `media
 ### Người 1 — Platform/Auth/Integration
 
 - [x] P0-01 khóa OpenAPI.
-- [x] P0-02 test tooling + generated FE types.
+- [ ] P0-02 test tooling + generated FE types: đã có `frontend/scripts/generate-api-types.mjs`, generated DTO và `api:types:check` trong CI; Buyer/Order DTO đã dùng type sinh ra. Các adapter còn lại vẫn dùng wire type viết tay nên chưa đóng mục này.
 - [x] P0-04 capability registry/build guard.
 - [x] P0-07 login `/auth/me` smoke.
 - [x] P0-08 Change Request confirm-received.
@@ -316,6 +316,7 @@ Capability MUST: `auth`, `catalog`, `cart`, `checkout`, `seller_catalog`, `media
 - [x] C-303–C-305 Notification FE, rollback và bounded concurrency; live Buyer E2E mark-read còn bền sau reload.
 - [x] Profile/avatar nối media thật; `lvvd.jpg` upload và reload pass trên Supabase test.
 - [ ] Keyboard-only QA cho luồng đã đăng nhập và cross-browser QA màn Admin; backend-host readiness smoke đang bị 404. GitHub cleanup workflow cần secrets/vars và lần chạy xác nhận.
+- [ ] Upload ảnh Review: route upload runtime hiện reject purpose `REVIEW`; màn live đã ẩn upload preview giả, chỉ cho gửi sao/nhận xét. Chưa có upload Storage thật.
 
 ### Người 3 — Catalog/Media/Seller Products
 
@@ -334,20 +335,22 @@ Capability MUST: `auth`, `catalog`, `cart`, `checkout`, `seller_catalog`, `media
 - [x] A-206 Buyer checkout E2E.
 - [x] C-201–C-203 Review runtime/write/read/rating aggregate.
 - [x] C-301/C-302 Notification runtime và event catalog.
-- [x] Xác minh Profile/Address/Voucher adapters dùng generated types.
+- [x] Xác minh Profile/Address/Voucher adapters dùng wire types theo contract (không phải generated OpenAPI types; P0-02 còn mở).
 - [x] Bàn giao review/notification fixtures và error codes cho Người 2/3/5.
 
 ### Người 5 — Transaction/Order/Review/Admin FE
 
 - [ ] A-203–A-205 inventory race, cancel/restore và exceptional cancellation (cần kiểm thử race tồn kho, hủy/hoàn tồn trên DB test thật).
 - [ ] C-101–C-107 timeline, shipment, confirm-received, delivery-failed và Order UI (chốt timeline/Shipment/DELIVERY_FAILED trên môi trường tích hợp).
-- [x] C-204/C-206 Review form và Order → Review E2E (`frontend/test/e2e-order-review-lifecycle.spec.ts`).
+- [ ] C-204/C-206 Review form đã nối POST từng OrderItem đúng DTO; `frontend/test/e2e-order-review-lifecycle.spec.ts` vẫn chỉ dùng mock, chưa có Order → Review E2E trên backend thật.
 - [ ] C-404–C-406 Admin UI + RBAC E2E (live Admin UI và RBAC E2E; đã cấu hình Zero-Silent-Fallback).
 - [ ] Buyer/Seller critical Playwright path và release evidence.
 
 Mỗi checkbox chỉ được tick khi progress file có link PR/commit, test đã chạy và blocker còn lại.
 
 **Đối chiếu code/progress 2026-09-30:** Người 2 đã chạy fixture reset, Storage RLS smoke, expired-media cleanup runner và các live E2E cho buyer login, notifications, avatar và seller product trên project test. Frontend production build, typecheck, lint, responsive/Axe QA local đều có kết quả; lint hiện còn warning `orders-screen.tsx` không thuộc thay đổi Người 2. D-004/release gate vẫn mở cho keyboard-only manual/authenticated Admin cross-browser và Vercel/backend-host smoke. GitHub cleanup workflow có schedule/manual trigger trong repo nhưng secret/vars và lần chạy trên GitHub chưa được xác nhận. Các luồng Buyer order→review và Admin RBAC E2E của Người 5 vẫn còn mở; không xem release tổng thể là hoàn tất chỉ vì phần Người 2 đã pass.
+
+**Bổ sung 2026-10-01:** `api:types:check` so generated OpenAPI types với backend trong CI; Buyer/Order DTO đã chuyển sang generated types. Route Review đã dùng form gửi từng OrderItem và live adapter gửi đúng backend DTO; upload ảnh giả không xuất hiện ở live. Frontend 273/273 test, typecheck, lint và production build pass. Các kiểm chứng Supabase/GitHub/backend host và live Order → Review/Admin E2E ở trên vẫn chưa đóng.
 
 ## 14. Backlog sau MVP
 

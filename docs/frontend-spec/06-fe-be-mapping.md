@@ -47,7 +47,7 @@ Các kiểu/path dưới đây trong `frontend/src/lib/api/` chưa khớp runtim
 | FE module hiện tại | Sai lệch với runtime | Cách dùng/sửa trước khi bật |
 |---|---|---|
 | `buyer.api.ts` | Runtime Address DTO là camelCase; profile API dùng snake_case; enriched cart dùng snake_case | Mỗi API boundary khai báo contract tương ứng; không đổi casing toàn cục |
-| `buyer.api.ts` profile | Live profile tại `/profile`, chỉ nhận `full_name` và `phone` khi PATCH | UI tải và lưu profile qua API; email/role chỉ đọc; avatar đang disabled |
+| `buyer.api.ts` profile | Live profile tại `/profile`, chỉ nhận `full_name` và `phone` khi PATCH; avatar có endpoint attach riêng | UI tải/lưu profile; email/role chỉ đọc; avatar upload/attach bằng media ID, E2E qua reload trên Supabase test pass |
 | `buyer.api.ts` cart | Enriched GET gồm current price, stock, product/shop display fields và availability | Adapter ánh xạ sang CartItem view model; lỗi API không chuyển sang fixture |
 | `order.api.ts` | Backend `OrderReadDTO` dùng `order_id`, `total_amount`, `unit_price`, `line_total` | `mapOrder` đổi DTO sang UI model; không gửi `shop_id` filter từ client |
 | `voucher.api.ts` | `EvaluateVoucherResult` dùng `is_valid/discount_amount`; runtime trả camelCase union `isValid` + `voucherId/discountAmount` hoặc `errorCode/errorMessage` | Sửa DTO/adapter trước khi dùng response runtime |

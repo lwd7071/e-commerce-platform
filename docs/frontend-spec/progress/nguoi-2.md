@@ -2,12 +2,12 @@
 
 ## Trạng thái hiện tại
 
-- Phase/ticket: Phase 0 D-001–003/P0-03/P0-05/06; Phase 2 B-101/B-104; Profile request states (avatar pending media); C-303–C-305 FE API repository implemented, generated-contract/authenticated runtime verification pending; Q-802/Q-803 scoped QA
+- Phase/ticket: Phase 0 D-001–003/P0-03/P0-05/06; Phase 2 B-101/B-104; Profile/avatar and C-303–C-305 Notifications integration; Q-802/Q-803 scoped QA
 - Cập nhật lần cuối: 2026-09-30
-- Trạng thái: P0-05/06 seed/reset fixture, safety guard và Playwright reset hook có trong source; live DB/Storage chưa chạy vì thiếu DB URL, test secret, fixture password và allowlist project/host. B-101 có lifecycle migration, RLS, cleanup runner/workflow nhưng chưa apply/test trên project trong lượt hiện tại. B-104, Profile request states, ErrorSummary test và Notifications UI behavior đã có. Notifications FE API repository/OpenAPI schema vừa được nối; generated DTO, authenticated browser test và host smoke còn mở. Upload media route hiện vẫn fake/in-memory, avatar/product upload thật chưa đạt. Responsive/Axe guest QA cũ có evidence; authenticated Admin và production-host smoke chưa có. Lượt kiểm tra mới trong phiên này: FE/BE typecheck pass; focused FE notification tests 14/14 và backend OpenAPI tests 6/6 pass. Evidence cũ 242/242, build/lint, QA 4/4 là từ lượt trước, chưa chạy lại trong phiên này.
+- Trạng thái code hiện tại: seed/reset guard, media lifecycle/cleanup, upload sản phẩm và avatar thật, Profile API/UI, Notifications API/UI đã được nối. E2E trên Supabase test xác nhận Buyer login, Notifications mark-read qua reload, avatar upload qua reload và Seller product upload; QA record 4/4 pass. Đây là kết quả ghi nhận ngày 2026-09-30, không phải test chạy lại trong lần cập nhật docs này. Review image upload còn thiếu (runtime reject `REVIEW`; live UI đã ẩn upload giả). Generated OpenAPI FE types đã có nhưng chưa phủ hết wire DTO. Còn release checks: authenticated keyboard/Admin cross-browser, GitHub cleanup workflow dispatch/secrets và backend-host readiness smoke.
 - Nhánh/PR: Các commit từ `codex/node-24-runtime`, `codex/frontend-ci-workspace` và `codex/member2-pr-a/b/c` đã merge vào `dev`; FE polish mới nhất được đẩy trực tiếp lên `origin/dev` (xem commit trên nhánh). Không có PR riêng.
-- Chưa xác minh live: Không có cấu hình DB URL, test secret, fixture password hoặc allowlist project/host nên reset dừng ở guard trước mọi thao tác DB; chưa apply migration hoặc chạy Storage smoke/cleanup trên Supabase. Workflow cleanup chưa chạy. Notifications repository đã nối trong source nhưng chưa generated từ OpenAPI hoặc chạy browser bằng Buyer thật; deployment capability chỉ LIVE khi có `NEXT_PUBLIC_NOTIFICATIONS_API=live`. Chưa có host credentials cho Vercel/backend smoke; `/admin` responsive smoke trước đó chỉ kiểm tra guest route.
-- Việc tiếp theo: Hoàn tất media runtime/lifecycle contract với owner Người 3, bổ sung AVATAR purpose/profile attach transaction, sau đó nối FileUploadZone và nghiệm thu `lvvd.jpg`; chạy seed/reset, migration, Storage smoke/cleanup trên allowlisted project sau khi cấu hình test env; generated DTO; authenticated browser/Axe và production-host smoke.
+- Chưa xác minh live/release: GitHub cleanup workflow chưa dispatch/xác nhận với secrets/vars; authenticated keyboard-only/Admin cross-browser QA chưa xong; backend host đang trả 404 ở `/health/readiness`. E2E Supabase được ghi ở nhật ký 2026-09-30, không đồng nghĩa production-host verification.
+- Việc tiếp theo: Nối media upload thật cho Review theo contract an toàn; thiết lập generation/diff guard cho OpenAPI FE types; hoàn tất các release checks ở trên. `FileUploadZone` là preview-only helper, không phải upload implementation; Product/Profile hiện dùng upload media API riêng.
 
 ## Nhật ký theo ngày
 
@@ -166,16 +166,16 @@ Defect/handoff ngoài ownership Người 2 (không sửa chéo):
 |---|---|---|---|---|
 | UI/UX rules + screen inventory | Người 1, 3, 4, 5 | Token, 14-route inventory, readiness/responsive/keyboard states | Đã viết; chờ consumer review | [Rules](../09-ui-ux-rules.md), [handoff](../10-ui-ux-handoff.md) |
 | Shared UI + shell | Người 1, 3, 4, 5 | button/forms/dialog/toast/status/data states/navigation; source trong `frontend/src/components` | Typecheck/lint/test/build pass; browser QA theo Q-802/Q-803 ở trên | [Workspace](../../../frontend/README.md) |
-| Profile/notifications UI | Người 1 | Read-only auth metadata, buyer-only notifications, demo gated; không gọi API thiếu | UI/role guard đã implement; API integration blocked | [Handoff 10](../10-ui-ux-handoff.md) |
+| Profile/notifications UI | Người 1 | Profile read/update + avatar media; Buyer notifications list/read API, không fallback demo | Đã nối runtime và có Supabase test E2E; production-host smoke còn mở | [Handoff 10](../10-ui-ux-handoff.md) |
 
 ## Việc được giao
 
 - [x] D-001–003 — screen inventory, UI rules và route/owner UX handoff; D-004 còn chờ page samples.
 - [ ] D-004 — local responsive/guest/Axe checks đã pass; còn authenticated admin dashboard, full cross-browser visual review và production-host smoke.
 - [x] U-201–206 — source implementation, quality gates và browser QA trong phạm vi shared UI đã có evidence; xem nhật ký ngày 2026-09-28.
-- [x] P-602 — read-only auth metadata (email/full name), phone/avatar không giả dữ liệu; profile mutations vẫn chờ GAP-07.
-- [x] P-604/P-605 — notifications loading/error/retry/filter/optimistic rollback/bulk/concurrency/429 UI đã test; production service/wire DTO vẫn gated theo runtime/GAP-10.
-- [x] P-607b — upload purpose limits/preview lifecycle/keyboard behavior đã test; production upload vẫn báo chưa khả dụng, không fallback API/mock URL.
+- [x] P-602 — email/role read-only; full name/phone qua Profile API; avatar upload/attach thật bằng media ID và giữ sau reload trên Supabase test.
+- [x] P-604/P-605 — Notifications API list/read, loading/error/retry/filter/rollback/bulk/concurrency/429; authenticated Buyer E2E mark-read còn sau reload. Wire DTO hiện viết tay, chưa generated; host smoke còn mở.
+- [x] P-607b — purpose limits/preview lifecycle/keyboard behavior; Product và Profile dùng upload Storage thật. Review ảnh vẫn chưa upload thật; live route đã ẩn upload giả.
 - [x] Q-802 — đạt trong phạm vi shared shell/profile/notifications, gồm dialog keyboard/focus; contrast defect của page owner khác đã handoff; không đóng gate toàn dự án.
 - [x] Q-803 — đạt trong phạm vi shared shell/profile/notifications; browser smoke 320/360/768/1280 và homepage sau merge; không đóng gate toàn dự án.
 
