@@ -17,12 +17,15 @@ export type AuthProfileSnapshot = ProfileSnapshot & { avatarUrl?: string | null 
 
 export function ProfilePageContent() {
   const { user, isLoading: authLoading } = useAuth();
+  const userId = user?.id;
+  const userEmail = user?.email;
+  const userRole = user?.role;
   const [requestState, setRequestState] = useState<ProfileRequestState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let active = true;
-    if (authLoading || !user) return () => { active = false; };
+    if (authLoading || !userId || !userEmail || !userRole) return () => { active = false; };
     buyerApi.getProfile()
       .then((value) => {
         if (!value || (value.full_name !== null && typeof value.full_name !== "string") || (value.phone !== null && typeof value.phone !== "string")) {
@@ -30,14 +33,14 @@ export function ProfilePageContent() {
         }
         if (active) setRequestState({
           status: "ready",
-          profile: { email: user.email, role: user.role, fullName: value.full_name, phone: value.phone },
+          profile: { email: userEmail, role: userRole, fullName: value.full_name, phone: value.phone },
         });
       })
       .catch((error: unknown) => {
         if (active) setRequestState(profileFailureState(error));
       });
     return () => { active = false; };
-  }, [authLoading, attempt, user?.email, user?.id, user?.role]);
+  }, [authLoading, attempt, userEmail, userId, userRole]);
 
   const retry = () => {
     setRequestState({ status: "loading" });

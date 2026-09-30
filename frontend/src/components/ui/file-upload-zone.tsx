@@ -82,7 +82,7 @@ export function FileUploadZone({
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = (e: React.DragEvent<HTMLButtonElement>) => {
     e.preventDefault();
     if (disabled) return;
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
@@ -173,11 +173,13 @@ export function FileUploadZone({
 
       {/* Upload Box */}
       {canUploadMore ? (
-        <div
+        <button
+          type="button"
+          disabled={disabled}
           onDragOver={(e) => e.preventDefault()}
           onDrop={handleDrop}
           onClick={() => !disabled && fileInputRef.current?.click()}
-          className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ${
+          className={`block w-full border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] ${
             disabled
               ? "opacity-50 cursor-not-allowed border-[var(--border)] bg-[var(--card-muted)]/20"
               : "border-[var(--border)] hover:border-[var(--primary)] bg-[var(--card)] hover:bg-[var(--card-muted)]/40"
@@ -196,7 +198,7 @@ export function FileUploadZone({
               </p>
             </div>
           </div>
-        </div>
+        </button>
       ) : (
         <p className="text-xs text-[var(--subtext)] text-center py-2 bg-[var(--card-muted)]/30 rounded-lg border border-[var(--border)]">
           Đã đạt giới hạn tối đa {effectiveMaxFiles} ảnh

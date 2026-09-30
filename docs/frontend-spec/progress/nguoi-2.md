@@ -4,10 +4,10 @@
 
 - Phase/ticket: Phase 0 D-001–003/P0-03; Phase 2 U-201–206/B-104; Phase 6 Profile request states/P-602/P-604–605/P-607b (UI mock/gated); Q-802/Q-803 scoped QA
 - Cập nhật lần cuối: 2026-09-30
-- Trạng thái: P0-05/06 có seed/reset fixture ảnh Storage thật, safety guard, reset địa chỉ/cart về baseline; Playwright có seeded Buyer login smoke tự reset trước mỗi test, suite chạy tuần tự. B-101 có lifecycle migration, RLS, cleanup runner và scheduled workflow. B-104, Profile states, ErrorSummary interaction test và Notifications fake boundary đã implement. Notification API còn chờ generated OpenAPI/runtime. D-004 viewport QA còn mở.
+- Trạng thái: P0-05/06 có seed/reset fixture ảnh Storage thật, safety guard, reset địa chỉ/cart về baseline; Playwright có seeded Buyer login smoke tự reset trước mỗi test, suite chạy tuần tự. B-101 có lifecycle migration, RLS, cleanup runner và scheduled workflow. B-104, Profile states/UI tests, ErrorSummary interaction test và Notifications fake boundary đã implement. D-004 local responsive/Axe/guest-route QA có lệnh chạy lại và evidence; admin dashboard authenticated/browser audit và production-host smoke vẫn cần môi trường thật. Notification API còn chờ generated OpenAPI/runtime.
 - Nhánh/PR: Các commit từ `codex/node-24-runtime`, `codex/frontend-ci-workspace` và `codex/member2-pr-a/b/c` đã merge vào `dev`; FE polish mới nhất được đẩy trực tiếp lên `origin/dev` (xem commit trên nhánh). Không có PR riêng.
-- Chưa xác minh live: Không có cấu hình test project/allowlist trong môi trường hiện tại nên reset dừng ở safety guard trước mọi thao tác DB; chưa apply migration hoặc chạy Storage smoke/cleanup trên Supabase. Scheduled workflow cần secrets/vars đúng target production trước khi được bật. Notification wire DTO/runtime chờ generated OpenAPI types và Người 4. D-004 viewport QA còn mở.
-- Việc tiếp theo: Cấu hình Supabase test + allowlist để chạy reset, migration và Storage smoke; cấu hình secrets/vars cleanup workflow; chạy Playwright smoke với frontend/backend test host; nối NotificationRepository sau OpenAPI/runtime handoff; hoàn tất D-004 viewport/browser QA.
+- Chưa xác minh live: Không có cấu hình test project/allowlist trong môi trường hiện tại nên reset dừng ở safety guard trước mọi thao tác DB; chưa apply migration hoặc chạy Storage smoke/cleanup trên Supabase. Scheduled workflow cần secrets/vars đúng target production trước khi được bật. Notification wire DTO/runtime chờ generated OpenAPI types và Người 4. Chưa có credentials/URL production để chạy Vercel + backend-host smoke; `/admin` responsive smoke tại local chỉ kiểm tra guest route, không giả nhận là dashboard authenticated.
+- Việc tiếp theo: Cấu hình Supabase test + allowlist để chạy reset, migration và Storage smoke; cấu hình secrets/vars cleanup workflow; chạy Playwright smoke với frontend/backend test host; nối NotificationRepository sau OpenAPI/runtime handoff; chạy dashboard authenticated và production-host smoke khi có môi trường.
 
 ## Nhật ký theo ngày
 
@@ -19,9 +19,10 @@
 - **P0-03:** Bổ sung jsdom, React Testing Library và user-event. Interaction test xác nhận submit nhiều lỗi chuyển focus vào ErrorSummary, link trỏ đúng field, inline errors và `aria-describedby`/`aria-invalid` vẫn có; submit hợp lệ không render summary và giữ focus ở nút submit. Test focus đã được kiểm chứng đỏ khi tạm bỏ focus effect, rồi xanh sau khi khôi phục. DOM interaction pass 2/2; SSR contract pass 10/10.
 - **B-104:** Purpose cap Product 5/Review 3/Avatar 1, JPEG/PNG/WebP ≤5 MB, preview URL lifecycle/revoke, demo badge và production gate trước legacy uploader. Review/product consumers khai báo purpose.
 - **Profile:** state loading/signed_out/missing/error/ready, missing chỉ cho `404 RESOURCE_NOT_FOUND`, giữ code/request ID, retry, signed-out CTA `returnTo`, và avatar gate; thêm classifier tests.
+- **Task 3–6 follow-up:** FileUploadZone upload target dùng native button và có keyboard-activation test; Profile UI tests xác nhận loading/signed-out/missing/error states và giữ nguyên input khi save lỗi. Toast live region thêm role `region` theo lỗi Axe.
 - **Notifications C-303–305:** Screen nhận repository injectable; demo provider chỉ chạy non-production. Production gate không gọi repository hay render dữ liệu demo. Có loading/error/retry, filter/empty state, mark-one optimistic rollback, bulk tối đa 20 unread đang hiển thị, concurrency tối đa 4, giữ item thành công và rollback riêng item lỗi/chưa được gửi khi gặp 429. Test focused notification 14/14 pass. API repository dùng generated Notification DTO và runtime service vẫn là handoff riêng; chưa có generated types hoặc NotificationService wiring trong app runtime nên production tiếp tục gated.
-- **Kiểm chứng:** frontend typecheck pass; full Vitest **41 files / 239 tests pass**; lint không có error (còn 2 warning ở Admin repository/Profile effect). Playwright list thấy 1 seeded Buyer smoke; chạy thật vào hook nhưng safety guard từ chối trước kết nối/ghi DB. Backend typecheck/lint pass; 41 focused tests về fixture reset, seed/migration/policy guard và media lifecycle/cleanup pass. PNG seed bytes xác thực được metadata 1×1 PNG. Chưa chạy PostgreSQL/Storage integration hoặc browser login do thiếu target test được allowlist.
-- **D-004:** Route `/admin` hiện có; review viewport thực tế chưa làm trong lượt này. Không ghi nhận viewport/accessibility pass khi chưa có evidence; tiếp tục là phần QA còn lại.
+- **Kiểm chứng:** frontend typecheck pass; full Vitest **42 files / 242 tests pass**; lint sạch, 0 warning; production build pass. `npm run test:qa` pass 3 browser tests: 8 route × 360/768/1280px không overflow; Axe 0 critical/serious ở `/`, `/login`, `/products`; guest `returnTo` route checks pass. QA bắt được toast `aria-label` thiếu role, đã thêm test đỏ/xanh và sửa thành named region. Playwright seeded Buyer smoke vào reset hook nhưng safety guard dừng trước kết nối/ghi DB vì local `DATABASE_ENVIRONMENT` chưa phải `test`. Backend typecheck/lint pass; 41 focused tests về fixture reset, seed/migration/policy guard và media lifecycle/cleanup pass. Chưa chạy PostgreSQL/Storage integration do thiếu target test được allowlist.
+- **D-004:** Đã thêm `frontend/qa/ui-release.spec.ts` + `npm run test:qa`. Local build smoke đo 8 route ở 360/768/1280px và kiểm tra guest `returnTo`; Axe scan ba public screens. `/admin` hiện có nhưng browser QA ở lượt này là guest redirect, chưa phải dashboard authenticated. Production Vercel/backend/CORS/Supabase smoke vẫn pending cấu hình môi trường thật.
 
 ### 2026-09-30 — Task 4 B-104 và Task 5 Profile states
 
@@ -160,10 +161,10 @@ Defect/handoff ngoài ownership Người 2 (không sửa chéo):
 ## Việc được giao
 
 - [x] D-001–003 — screen inventory, UI rules và route/owner UX handoff; D-004 còn chờ page samples.
-- [ ] D-004 — visual review trang chủ, checkout, seller order, admin dashboard tại 360/1280px.
+- [ ] D-004 — local responsive/guest/Axe checks đã pass; còn authenticated admin dashboard, full cross-browser visual review và production-host smoke.
 - [x] U-201–206 — source implementation, quality gates và browser QA trong phạm vi shared UI đã có evidence; xem nhật ký ngày 2026-09-28.
 - [x] P-602 — read-only auth metadata (email/full name), phone/avatar không giả dữ liệu; profile mutations vẫn chờ GAP-07.
-- [ ] P-604/P-605 — demo UI có nhãn và gated; API integration/bulk behavior chờ runtime/GAP-10.
-- [ ] P-607b — upload UI được giải thích và khóa; chờ media contract P-606.
+- [x] P-604/P-605 — notifications loading/error/retry/filter/optimistic rollback/bulk/concurrency/429 UI đã test; production service/wire DTO vẫn gated theo runtime/GAP-10.
+- [x] P-607b — upload purpose limits/preview lifecycle/keyboard behavior đã test; production upload vẫn báo chưa khả dụng, không fallback API/mock URL.
 - [x] Q-802 — đạt trong phạm vi shared shell/profile/notifications, gồm dialog keyboard/focus; contrast defect của page owner khác đã handoff; không đóng gate toàn dự án.
 - [x] Q-803 — đạt trong phạm vi shared shell/profile/notifications; browser smoke 320/360/768/1280 và homepage sau merge; không đóng gate toàn dự án.
