@@ -32,17 +32,24 @@ export async function cleanExpiredMedia(
   }
 
   const candidates = await store.claimExpired(batchSize);
-  const result: MediaCleanupResult = { claimed: candidates.length, deleted: 0, failed: 0 };
-  for (const candidate of candidates) {
-    try {
-      await storage.remove(candidate.bucketId, candidate.objectPath);
-      await store.markDeleted(candidate.mediaId);
-      result.deleted += 1;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      await store.makeRetryable(candidate.mediaId, message.slice(0, 1000));
-      result.failed += 1;
+  const result: MediaCleanupResult = { claimed: 0, deleted: 0, failed: 0 };
+  let batch = candidates;
+  while (batch.length > 0) {
+    result.claimed += batch.length;
+    for (const candidate of batch) {
+      try {
+        await storage.remove(candidate.bucketId, candidate.objectPath);
+        await store.markDeleted(candidate.mediaId);
+        result.deleted += 1;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        await store.makeRetryable(candidate.mediaId, message.slice(0, 1000));
+        result.failed += 1;
+      }
     }
+    // A failed item becomes retryable with a cooldown; full pages can safely drain onward.
+    if (batch.length < batchSize) break;
+    batch = await store.claimExpired(batchSize);
   }
   return result;
 }
@@ -54,7 +61,8 @@ export function createPostgresMediaCleanupStore(pool: Pool): MediaCleanupStore {
         WITH candidates AS (
           SELECT media_id
           FROM media_uploads
-          WHERE (status='FINALIZED' AND finalized_at < now() - interval '24 hours')
+          WHERE (status='FINALIZED' AND finalized_at < now() - interval '24 hours'
+                   AND (cleanup_error IS NULL OR updated_at < now() - interval '30 minutes'))
              OR (status='DELETE_PENDING' AND updated_at < now() - interval '30 minutes')
           ORDER BY COALESCE(finalized_at, updated_at), media_id
           LIMIT $1
