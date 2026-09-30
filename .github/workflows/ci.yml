@@ -226,6 +226,24 @@ jobs:
           test -n "$SUPABASE_TEST_SECRET_KEY"
           test -n "$SUPABASE_TEST_JWKS_URL"
 
+      - name: Verify auth smoke test project reference
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from 'node:fs';
+
+          const supabaseUrl = new URL(process.env.SUPABASE_URL);
+          const directUrl = new URL(process.env.DIRECT_URL);
+          const urlProjectRef = supabaseUrl.hostname.split('.')[0];
+          const directDatabaseUser = decodeURIComponent(directUrl.username);
+          const directUserProjectRef = directDatabaseUser.match(/\.([a-z0-9]+)$/i)?.[1];
+
+          if (!urlProjectRef || directUserProjectRef !== urlProjectRef) {
+            throw new Error('Supabase test URL and direct database project reference do not match');
+          }
+
+          appendFileSync(process.env.GITHUB_ENV, `EXPECTED_SUPABASE_PROJECT_REF=${urlProjectRef}\n`);
+          NODE
+
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
