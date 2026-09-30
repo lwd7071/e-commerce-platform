@@ -1,5 +1,9 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { validateMediaFile, uploadMedia } from "../src/lib/api/media.api";
+
+vi.mock("../src/lib/auth/supabase-client", () => ({
+  getSupabaseClient: () => null,
+}));
 
 describe("Media Upload Helper (Người 1 - TDD)", () => {
   it("chấp nhận file ảnh hợp lệ (JPEG, PNG, WebP) dưới 5MB", () => {

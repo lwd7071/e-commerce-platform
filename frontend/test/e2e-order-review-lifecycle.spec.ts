@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, vi } from "vitest";
-import type { IOrderRepository, IReviewRepository } from "../src/lib/repositories/types";
-import type { ICheckoutRepository } from "../src/features/checkout/checkout.types";
+import type { IOrderRepository } from "../src/lib/repositories/types";
+import type { ICheckoutRepository } from "../src/features/checkout/checkout.repository";
+import type { IReviewRepository } from "../src/features/review/review.repository";
 import { isOrderEligibleForReview } from "../src/features/orders/order-review-validator";
 
 describe("E2E Critical Chain: Checkout -> Seller Fulfillment -> Buyer Confirm-Received -> Review (Người 5 E2E)", () => {
