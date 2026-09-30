@@ -202,4 +202,3 @@
 - [x] Q-804 — Buyer/Seller critical E2E gate, phối hợp evidence với Người 5 (`/orders?created=<ids>`).
 - [x] C-201–C-203 — Review runtime/write/read/rating aggregate (`ReviewService` injection, `GET /products/:id/reviews`).
 - [x] C-301/C-302 — Notification runtime và event catalog (`NotificationService` injection, `InMemoryTransactionEventPort`).
-

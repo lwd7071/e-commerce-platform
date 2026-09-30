@@ -331,7 +331,7 @@ export class PgCatalogHttpService {
     }
 
     const query = `
-      SELECT 
+      SELECT
         p.product_id,
         p.shop_id,
         p.category_id,
