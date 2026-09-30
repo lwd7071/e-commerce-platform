@@ -6,6 +6,7 @@ export interface AuthUser {
   role: UserRole;
   fullName?: string | null;
   shopId?: string | null;
+  shopStatus?: "PENDING" | "ACTIVE" | "SUSPENDED" | "LOCKED" | null;
 }
 
 export interface AuthContextType {
@@ -21,6 +22,7 @@ export interface AuthContextType {
   requestPasswordReset: (email: string) => Promise<void>;
   updatePassword: (password: string) => Promise<void>;
   completeOnboarding: (fullName: string, role: UserRole, shopName?: string) => Promise<void>;
+  reloadUser: () => Promise<void>;
   logout: () => Promise<void>;
   hasRole: (role: UserRole) => boolean;
 }

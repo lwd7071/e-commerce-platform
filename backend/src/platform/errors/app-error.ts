@@ -37,6 +37,12 @@ export class UserLockedError extends AppError {
   }
 }
 
+export class AdminTargetProtectedError extends AppError {
+  constructor(message = 'Admin accounts are protected and cannot be moderated', details?: unknown) {
+    super(403, 'ADMIN_TARGET_PROTECTED', message, details);
+  }
+}
+
 export class ValidationFailedError extends AppError {
   constructor(message = 'Validation failed', details?: unknown) {
     super(422, 'VALIDATION_FAILED', message, details);

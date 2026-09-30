@@ -3,8 +3,13 @@ import { describe, it, expect } from "vitest";
 describe("Contract Drift & API Consistency (Q-807 Acceptance Gate)", () => {
   const CANONICAL_BACKEND_PATHS = [
     "/health",
+    "/auth/me",
+    "/auth/onboarding",
+    "/categories",
+    "/profile",
     "/products",
     "/products/{id}",
+    "/product-variants/{id}/stock",
     "/cart",
     "/cart/items",
     "/cart/items/{id}",
@@ -12,10 +17,14 @@ describe("Contract Drift & API Consistency (Q-807 Acceptance Gate)", () => {
     "/orders",
     "/orders/{id}",
     "/orders/{id}/cancel",
+    "/order-items/{id}/review",
+    "/reviews",
     "/addresses",
     "/vouchers/applicable",
     "/vouchers/evaluate",
     "/notifications",
+    "/admin/users",
+    "/admin/shops",
   ];
 
   it("[Q-807-01] Frontend routes conform to OpenAPI 3.1 relative path standards", () => {
@@ -74,5 +83,10 @@ describe("Contract Drift & API Consistency (Q-807 Acceptance Gate)", () => {
     expect(CANONICAL_BACKEND_PATHS).toContain("/products");
     expect(CANONICAL_BACKEND_PATHS).toContain("/checkout");
     expect(CANONICAL_BACKEND_PATHS).toContain("/orders/{id}/cancel");
+    expect(CANONICAL_BACKEND_PATHS).toContain("/auth/onboarding");
+    expect(CANONICAL_BACKEND_PATHS).toContain("/admin/users");
+    expect(CANONICAL_BACKEND_PATHS).toContain("/admin/shops");
+    expect(CANONICAL_BACKEND_PATHS).toContain("/order-items/{id}/review");
+    expect(CANONICAL_BACKEND_PATHS).toContain("/categories");
   });
 });

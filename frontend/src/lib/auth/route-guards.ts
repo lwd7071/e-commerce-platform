@@ -37,8 +37,8 @@ export const ROUTE_RULES: RouteRule[] = [
  */
 export function sanitizeReturnTo(url: string | null | undefined): string {
   if (!url) return "/";
-  // Must start with '/' and not '//' (which browsers treat as protocol-relative external URLs)
-  if (url.startsWith("/") && !url.startsWith("//")) {
+  // Must start with '/' and not '//' or '/\' (which browsers can treat as protocol-relative external URLs)
+  if (url.startsWith("/") && !url.startsWith("//") && !url.startsWith("/\\")) {
     return url;
   }
   return "/";

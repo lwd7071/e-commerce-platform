@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Skeleton, ErrorState, EmptyState } from "@/components/ui/data-states";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
+import { useAuth } from "@/lib/auth/auth-context";
 import { adminRepository } from "@/features/admin/admin.repository";
 import { repositories } from "@/lib/repositories/repository-factory";
 import type { SellerKPIStats } from "@/features/admin/admin.types";
@@ -15,6 +16,8 @@ import type { WireOrder } from "@/lib/api/order.api";
 import type { WireCatalogProductItem } from "@/lib/api/catalog.api";
 
 export function SellerDashboardScreen() {
+  const { user } = useAuth();
+  const isShopPending = user?.role === "SELLER" && user?.shopStatus === "PENDING";
   const [kpi, setKpi] = useState<SellerKPIStats | null>(null);
   const [recentOrders, setRecentOrders] = useState<WireOrder[]>([]);
   const [lowStockProducts, setLowStockProducts] = useState<WireCatalogProductItem[]>([]);
@@ -134,6 +137,16 @@ export function SellerDashboardScreen() {
             </Link>
           </div>
         </div>
+
+        {/* Shop Pending Warning Banner (A-103) */}
+        {isShopPending && (
+          <div className="mt-6 notice notice--warning" role="alert" data-testid="shop-pending-banner">
+            <Icon name="info" />
+            <div>
+              <strong>Gian hàng đang chờ duyệt:</strong> Gian hàng của bạn đang ở trạng thái chờ Admin duyệt. Bạn chưa thể tạo sản phẩm hoặc thay đổi tồn kho cho đến khi được kích hoạt.
+            </div>
+          </div>
+        )}
 
         {/* Loading State */}
         {isLoading && (

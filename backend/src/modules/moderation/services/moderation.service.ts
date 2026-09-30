@@ -17,7 +17,8 @@ import {
   ReasonRequiredError,
   NotFoundError,
   InvalidStateTransitionError,
-  AuditWriteFailedError
+  AuditWriteFailedError,
+  AdminTargetProtectedError
 } from '../../../platform/errors/app-error.ts';
 
 const UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -64,6 +65,13 @@ export class ModerationService {
 
     // 5. Bước 5 (State & Idempotency Check)
     if (cmd.target_type === 'USER') {
+      if (this.targetRepo.getUserRole) {
+        const role = await this.targetRepo.getUserRole(cleanTargetId);
+        if (role === 'ADMIN') {
+          throw new AdminTargetProtectedError('Cannot moderate an admin account');
+        }
+      }
+
       const currentStatus = await this.targetRepo.getUserStatus(cleanTargetId);
       if (cmd.action === 'LOCK' && currentStatus === 'LOCKED') {
         throw new InvalidStateTransitionError('USER_ALREADY_LOCKED', 'User is already locked');

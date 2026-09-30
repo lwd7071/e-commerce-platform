@@ -19,7 +19,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const syncSession = useCallback(async (session: { access_token: string; user: { id: string; email?: string; user_metadata?: Record<string, unknown> } }) => {
     setAccessToken(session.access_token);
     setAuthTokenProvider(() => session.access_token);
-    let identity: { user_id: string; email: string; role: UserRole; shop_id: string | null };
+    let identity: {
+      user_id: string;
+      email: string;
+      role: UserRole;
+      shop_id: string | null;
+      shop_status?: "PENDING" | "ACTIVE" | "SUSPENDED" | "LOCKED" | null;
+    };
     try {
       identity = await apiClient.get("/auth/me");
     } catch (error) {
@@ -36,6 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       role: identity.role,
       fullName: (session.user.user_metadata?.full_name as string) || null,
       shopId: identity.shop_id,
+      shopStatus: identity.shop_status ?? null,
     });
   }, []);
 
@@ -187,11 +194,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const completeOnboarding = useCallback(async (fullName: string, role: UserRole, shopName?: string) => {
-    const result = await apiClient.post<{ user_id: string; email: string; role: UserRole; profile_completed: boolean; shop: { shop_id: string } | null }>("/auth/onboarding", {
+    const result = await apiClient.post<{ user_id: string; email: string; role: UserRole; profile_completed: boolean; shop: { shop_id: string; status?: "PENDING" | "ACTIVE" | "SUSPENDED" | "LOCKED" } | null }>("/auth/onboarding", {
       full_name: fullName.trim(), requested_role: role, shop_name: role === "SELLER" ? shopName?.trim() ?? null : null,
     });
-    setUser(current => current ? { ...current, id: result.user_id, email: result.email, role: result.role, fullName: fullName.trim(), shopId: result.shop?.shop_id ?? null } : current);
+    setUser(current => current ? { ...current, id: result.user_id, email: result.email, role: result.role, fullName: fullName.trim(), shopId: result.shop?.shop_id ?? null, shopStatus: result.shop?.status ?? (role === "SELLER" ? "PENDING" : null) } : current);
   }, []);
+
+  const reloadUser = useCallback(async () => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      await syncSession(session);
+    }
+  }, [syncSession]);
 
   const verifySignupOtp = useCallback(async (email: string, token: string) => {
     const supabase = getSupabaseClient();
@@ -264,10 +280,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       requestPasswordReset,
       updatePassword,
       completeOnboarding,
+      reloadUser,
       logout,
       hasRole,
     }),
-    [user, accessToken, isLoading, login, register, loginWithGoogle, verifySignupOtp, resendSignupOtp, requestPasswordReset, updatePassword, completeOnboarding, logout, hasRole]
+    [user, accessToken, isLoading, login, register, loginWithGoogle, verifySignupOtp, resendSignupOtp, requestPasswordReset, updatePassword, completeOnboarding, reloadUser, logout, hasRole]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -68,6 +68,7 @@ export interface AdminUserItem {
 export interface ITargetLookupRepository {
   userExists(userId: string): Promise<boolean>;
   getUserStatus(userId: string): Promise<UserStatus | null>;
+  getUserRole?(userId: string): Promise<'BUYER' | 'SELLER' | 'ADMIN' | null>;
   updateUserStatus(trx: unknown, userId: string, status: UserStatus): Promise<UserStatusUpdateResult>;
   shopExists(shopId: string): Promise<boolean>;
   getShopStatus?(shopId: string): Promise<ShopStatus | null>;

@@ -34,6 +34,12 @@ export class PgModerationTargetRepository implements ITargetLookupRepository {
     return res.rows[0].status as UserStatus;
   }
 
+  async getUserRole(userId: string): Promise<'BUYER' | 'SELLER' | 'ADMIN' | null> {
+    const res = await this.pool.query('SELECT role FROM app_users WHERE user_id = $1', [userId]);
+    if (!res.rows || res.rows.length === 0) return null;
+    return res.rows[0].role as 'BUYER' | 'SELLER' | 'ADMIN';
+  }
+
   async updateUserStatus(trx: unknown, userId: string, status: UserStatus): Promise<UserStatusUpdateResult> {
     const executor = this.getExecutor(trx);
     const res = await executor.query(

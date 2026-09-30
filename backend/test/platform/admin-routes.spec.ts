@@ -25,6 +25,11 @@ class InMemoryAuthAndTargetRepository implements ITargetLookupRepository, IAuthR
     return u ? u.status : null;
   }
 
+  async getUserRole(userId: string): Promise<'BUYER' | 'SELLER' | 'ADMIN' | null> {
+    const u = this.users.get(userId);
+    return u ? u.role : null;
+  }
+
   async updateUserStatus(_trx: unknown, userId: string, status: UserStatus): Promise<{ user_id: string; status: UserStatus; updated_at: string }> {
     const u = this.users.get(userId);
     if (!u) throw new Error('User not found');
@@ -265,6 +270,17 @@ describe('Phase 4 — Admin Lock & Unlock Endpoints (TDD Cycle 4.1 & 4.2)', () =
         .expect(403);
 
       assert.strictEqual(protectedRes.body.error.code, 'USER_LOCKED');
+    });
+
+    it('Case 8 (C-402 ADMIN_TARGET_PROTECTED): rejects locking an ADMIN user with 403 ADMIN_TARGET_PROTECTED', async () => {
+      const app = createApp({ auth: authMiddleware, moderation: moderationService });
+      const res = await request(app)
+        .post(`/api/v1/admin/users/${adminId}/lock`)
+        .set('Authorization', `Bearer stub-token-${adminId}`)
+        .send({ reason: 'Attempt to lock admin' })
+        .expect(403);
+
+      assert.strictEqual(res.body.error.code, 'ADMIN_TARGET_PROTECTED');
     });
   });
 

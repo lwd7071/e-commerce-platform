@@ -76,6 +76,7 @@ export function SellerProductsScreen() {
 
   // Scope products strictly to seller context (O-508)
   const sellerShopId = user?.shopId || "00000000-0000-0000-0000-000000000001";
+  const isShopPending = user?.role === "SELLER" && user?.shopStatus === "PENDING";
   const scopedProducts = useMemo(() => {
     return products.filter((p) => {
       if (sellerShopId && p.shop_id && p.shop_id !== sellerShopId) {
@@ -109,6 +110,7 @@ export function SellerProductsScreen() {
   }, [filteredProducts, currentPage, itemsPerPage]);
 
   const handleOpenStockDialog = async (prod: WireCatalogProductItem) => {
+    if (isShopPending) return;
     setActiveProduct(prod);
     setIsLoadingDetail(true);
     try {
@@ -131,6 +133,10 @@ export function SellerProductsScreen() {
   };
 
   const handleSaveStock = async () => {
+    if (isShopPending) {
+      showToast("Gian hàng đang chờ duyệt. Không thể thay đổi tồn kho.", "error");
+      return;
+    }
     const catalogRepo = repositories.catalog();
     if (!editingVariant || !catalogRepo.updateStock) return;
 
@@ -197,14 +203,37 @@ export function SellerProductsScreen() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Link
-            href="/seller/products/new"
-            className="button button--primary h-10 px-4 text-xs font-bold shadow-xs"
-          >
-            + Thêm sản phẩm mới
-          </Link>
+          {isShopPending ? (
+            <Button
+              variant="secondary"
+              disabled
+              title="Gian hàng đang chờ Admin duyệt"
+              className="h-10 px-4 text-xs font-bold opacity-60 cursor-not-allowed"
+              data-testid="add-product-btn-disabled"
+            >
+              + Thêm sản phẩm mới (Chờ duyệt)
+            </Button>
+          ) : (
+            <Link
+              href="/seller/products/new"
+              className="button button--primary h-10 px-4 text-xs font-bold shadow-xs"
+              data-testid="add-product-btn"
+            >
+              + Thêm sản phẩm mới
+            </Link>
+          )}
         </div>
       </div>
+
+      {/* Shop Pending Warning Banner (A-103) */}
+      {isShopPending && (
+        <div className="notice notice--warning" role="alert" data-testid="shop-pending-banner">
+          <Icon name="info" />
+          <div>
+            <strong>Gian hàng đang chờ duyệt:</strong> Gian hàng của bạn đang ở trạng thái chờ Admin duyệt. Bạn chưa thể tạo sản phẩm hoặc thay đổi tồn kho cho đến khi được kích hoạt.
+          </div>
+        </div>
+      )}
 
       {/* GAP-04 Notice Banner */}
       <div className="notice notice--warning" role="status">
@@ -248,14 +277,22 @@ export function SellerProductsScreen() {
       ) : scopedProducts.length === 0 ? (
         <EmptyState
           icon="bag"
-          title="Gian hàng chưa có sản phẩm nào"
-          description="Hãy tạo sản phẩm đầu tiên để bắt đầu bán hàng trên Dino."
-          action={{
-            label: "Thêm sản phẩm",
-            onClick: () => {
-              router.push("/seller/products/new");
-            },
-          }}
+          title={isShopPending ? "Gian hàng đang chờ duyệt" : "Gian hàng chưa có sản phẩm nào"}
+          description={
+            isShopPending
+              ? "Gian hàng đang chờ Admin xét duyệt. Bạn sẽ có thể tạo sản phẩm mới ngay khi được kích hoạt."
+              : "Hãy tạo sản phẩm đầu tiên để bắt đầu bán hàng trên Dino."
+          }
+          action={
+            isShopPending
+              ? undefined
+              : {
+                  label: "Thêm sản phẩm",
+                  onClick: () => {
+                    router.push("/seller/products/new");
+                  },
+                }
+          }
         />
       ) : (
         <div className="space-y-4">
@@ -353,6 +390,8 @@ export function SellerProductsScreen() {
                               <Button
                                 variant="secondary"
                                 onClick={() => handleOpenStockDialog(item)}
+                                disabled={isShopPending}
+                                title={isShopPending ? "Gian hàng đang chờ duyệt" : undefined}
                                 className="h-8 px-3 text-xs"
                               >
                                 Chỉnh tồn kho
