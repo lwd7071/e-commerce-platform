@@ -1,9 +1,12 @@
 # Frontend Specification & API Contract
 
-> **Dự án:** E-Commerce Platform  
-> **Phiên bản:** 1.1.0  
-> **Cập nhật:** 28/09/2026  
-> **Trạng thái:** READY FOR FE FOUNDATION — FEATURE INTEGRATION SUBJECT TO READINESS MATRIX
+> **Dự án:** E-Commerce Platform
+>
+> **Phiên bản:** 1.4.0
+>
+> **Cập nhật:** 30/09/2026
+>
+> **Trạng thái:** MVP CONTRACT FREEZE — FIVE-OWNER EXECUTION PLAN IN FILE 08
 
 ## Mục đích
 
@@ -32,6 +35,20 @@ Không được tích hợp một tính năng `RUNTIME_BLOCKED` hoặc `MISSING`
 11. [Progress FE](./progress/README.md) — nhật ký và bằng chứng bàn giao của 5 người.
 
 QA trong phạm vi Người 2 được ghi ngay trong [progress Người 2](./progress/nguoi-2.md), không tách thành file riêng.
+
+## MVP freeze ngày 30/09/2026
+
+Mục 6 của đặc tả gốc được triển khai thành năm luồng ưu tiên: mua hàng, quản lý sản phẩm, xử lý/hoàn thành đơn, đánh giá và xử lý vi phạm cơ bản. Quyết định khóa cho đợt này:
+
+- Brand hiển thị là **Dino**; không đổi tên repo/package/API/database.
+- Seller onboarding tạo Shop `PENDING`; Admin duyệt trước khi Seller được mutation catalog/order.
+- Tồn kho bị trừ tại checkout trong transaction và được hoàn đúng một lần khi hủy ở trạng thái cho phép.
+- Buyer xác nhận đã nhận hàng để chuyển Shipment sang `DELIVERED` và Order sang `COMPLETED`; Seller không được tự hoàn tất đơn.
+- Media production dùng presign/finalize theo `media_id`; không fallback ảnh giả trong production.
+- Review có cả write và public read/rating summary; notifications có event catalog MVP.
+- OpenAPI runtime là nguồn wire type duy nhất; FE types được sinh tự động.
+- Production build fail nếu capability MVP còn `MOCK_DEV_ONLY`; capability chưa live phải `BLOCKED` và có unavailable UX rõ ràng.
+- Kế hoạch ngày, DRI và checklist riêng cho từng người nằm tại [08-implementation-plan.md](./08-implementation-plan.md).
 
 ## Bắt đầu làm FE
 

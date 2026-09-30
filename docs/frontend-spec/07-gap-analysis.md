@@ -1,7 +1,8 @@
 # 07. Gap analysis và integration readiness
 
-> **Phiên bản:** 1.1.0  
-> **Trạng thái:** MVP user/buyer runtime work in progress; provider smoke tests remain pending (updated 2026-09-29)
+> **Phiên bản:** 1.4.0
+>
+> **Trạng thái:** MVP CONTRACT FREEZE; EXECUTION/READINESS TRACKED IN FILE 08 (updated 2026-09-30)
 
 ## 1. Cách đánh giá
 
@@ -112,29 +113,44 @@ Phân biệt hoàn tất mốc backend với integration readiness FE: T3 harden
 | Online provider payment | `BLOCKED` | UI prototype | GAP-02 |
 | Order center | `READY` for API | Live query service and DTO adapter | PostgreSQL runtime ownership tests; production order E2E |
 | Cancel/confirm/transition/payment retry | `READY` for mutation only | có thể dùng contract thật với order ID hợp lệ | reads/order IDs cần GAP-01; payment provider vẫn GAP-02 |
-| Review submit | `NOT_IMPLEMENTED` | UI text/rating bằng mock, production submit off | GAP-01; images còn GAP-09 |
-| Notifications | `NOT_IMPLEMENTED` | UI mock/gated | GAP-01 và GAP-10; route hiện trả 501 |
+| Review submit/read | `UI_READY/BLOCKED_RUNTIME` | Text/rating UI + fake boundary | C-201–C-205; media phụ thuộc Workstream B |
+| Notifications | `UI_READY/BLOCKED_RUNTIME` | UI gated, không production fixture | C-301–C-305; runtime service + event catalog |
 | Profile | `PARTIAL` | Live GET/PATCH UI/API for name/phone | API rate limit evidence and live auth smoke |
-| Seller create product | `PARTIAL` | form/URL images | GAP-05, GAP-09 |
-| Seller fulfillment | `STUB` for list; mutation ready | mock queue; action handler có thật khi có order ID | GAP-01 order query/repository |
+| Seller create product | `UI_READY/PARTIAL_MEDIA` | Form/variant UI | B-101–B-206; media finalized + Shop ACTIVE |
+| Seller fulfillment | `READY/PARTIAL_SHIPMENT` | Live order query/actions | C-101–C-107 timeline/shipment/confirm-received |
 | Seller KPI | `BLOCKED` | mock | GAP-12 |
-| Admin | `PARTIAL` | mock reads; có thể dựng isolated lock/unlock action | GAP-08 reads; mutation cần target ID |
+| Admin users/shops | `AVAILABLE/PARTIAL_HARDENING` | Nối API thật | C-401/C-402 pagination, side effects, atomic audit |
+| Admin categories | `UI_READY/BLOCKED_RUNTIME` | Tree/form UI, production mutation off | C-403/C-405 Admin CRUD/status |
 
-## 4. Quyết định sản phẩm/API cần chốt cho phase tiếp theo
+## 4. Quyết định sản phẩm/API đã khóa
 
-Các mục sau không làm milestone T3 chưa hoàn tất; đây là các capability hoặc quyết định ngoài phạm vi hardening hiện tại, cần chốt nếu muốn mở rộng FE production:
-
-1. Online payment có nằm trong MVP không; provider nào và callback model gì?
-2. Media upload dùng Supabase Storage trực tiếp hay backend presign?
-3. Admin/seller management APIs nào sẽ thuộc phase kế tiếp?
+1. COD là payment production MVP; online provider không chặn release.
+2. Media dùng backend presign/finalize theo `media_id`, magic-byte validation và Supabase Storage policy.
+3. Admin MVP gồm users, shops, categories và atomic audit write; audit viewer/product-review moderation/KPI nằm backlog.
+4. Seller MVP gồm onboarding Shop PENDING, approve, create product có media, stock và ACTIVE↔INACTIVE.
 
 ## 5. Hướng triển khai FE theo runtime hiện có
 
 - Dùng API thật cho categories, profile, addresses, enriched cart, orders, checkout, vouchers và các catalog endpoints hiện có.
 - Không dùng client cart prices để tính checkout; backend đọc lại giá/tồn kho trong transaction.
-- Không gọi review/notification writes/reads trong production; hiện trả 501. Làm UI độc lập bằng fixture, giữ submit gated.
-- Seller product discovery, admin reads, seller stats và media routes vẫn chưa được mount.
+- Review/notification giữ `BLOCKED` trong production cho tới khi runtime services/integration tests pass; development fake boundary phải có badge demo.
+- Seller product/media/Admin category là target contract trong file 05/08; Admin users/shops reads đã có và phải chuyển sang API thật.
 - Không dùng `/buyers/addresses`, `/buyers/profile` hoặc FE DTO hiện có nếu chưa sửa theo `06-fe-be-mapping.md`.
 - Google/OTP/recovery cần cấu hình dashboard tương ứng; Gmail SMTP mặc định phù hợp demo, cần chuyển email provider và rà rate limits trước production.
 
 Cho tới khi các quyết định trên được chốt, FE phải giữ repository boundary và feature flags để tránh khóa kiến trúc vào mock.
+
+## 6. Quyết định đóng gap ngày 30/09/2026
+
+Các câu hỏi ở mục 4 đã được chốt cho MVP:
+
+- Online payment không chặn MVP; COD là luồng production.
+- Media dùng backend presign/finalize theo `media_id`, Storage policy của Supabase và magic-byte validation.
+- Seller onboarding dùng `/auth/onboarding`, tạo Shop `PENDING`; Admin approve trước mutation.
+- Buyer `confirm-received` là đường MVP đưa Order `SHIPPING → COMPLETED`; thiếu Shipment trả conflict, không tự tạo.
+- Review runtime phải có cả create, public list và rating aggregate.
+- Notification runtime phải phát event cho order lifecycle, confirm-received và moderation.
+- Admin MVP gồm users, shops, categories và atomic audit writes. Audit viewer, product/review moderation và KPI được hoãn.
+- Production readiness dùng build manifest + `/health/readiness`; không silent mock fallback.
+
+Gap còn lại và owner/acceptance cụ thể nằm trong [08-implementation-plan.md](./08-implementation-plan.md); nội dung readiness cũ phía trên chỉ dùng làm lịch sử audit nếu mâu thuẫn với section này.

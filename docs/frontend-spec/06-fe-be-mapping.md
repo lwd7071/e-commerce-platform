@@ -1,6 +1,7 @@
 # 06. FE–BE mapping
 
-> **Phiên bản:** 1.1.0  
+> **Phiên bản:** 1.4.0
+>
 > **Trạng thái:** IMPLEMENTATION MATRIX
 
 ## 1. Mapping theo hành động
@@ -33,10 +34,10 @@
 | Submit review | `reviewRepository.create` | `POST /order-items/:id/review` | product_id/rating/content/images | `NOT_IMPLEMENTED` (501) | làm UI text/rating bằng mock; production submit tắt |
 | Notifications | `notificationRepository` | `GET/PATCH /notifications...` | is_read | `NOT_IMPLEMENTED` (501) | mock/feature flag; route có nhưng runtime service chưa inject |
 | Profile | `profileRepository` | `GET/PATCH /profile` | `full_name`, `phone` | `AVAILABLE` | Email/role server-owned; avatar upload remains unsupported |
-| Seller product list | `sellerCatalogRepository.list` | `GET /seller/products` | filters | `MISSING` (404) | mock/gated; không dùng public list với `shop_id` |
+| Seller product list | `sellerCatalogRepository.list` | `GET /seller/products` | filters/cursor | `TARGET B-201` | fake boundary chạy song song; live sau owner-scope runtime test |
 | Seller stock | `sellerCatalogRepository.updateStock` | `PATCH /product-variants/:id/stock` | quantity | `AVAILABLE` | integrate if variant IDs known |
 | Create product | `sellerCatalogRepository.create` | `POST /products` | create DTO | `PARTIAL` | static categories + URL images in dev |
-| Admin users/logs | `adminRepository` | proposed admin reads | filters/cursor | `MISSING` (404) | mock; không có route để lấy danh sách target |
+| Admin users/shops | `adminRepository` | `GET /admin/users`, `GET /admin/shops` | filters/cursor | `AVAILABLE/PARTIAL` | nối API thật; harden pagination/audit/side effects |
 | Lock/unlock user | `adminRepository.moderateUser` | `POST /admin/users/:id/lock|unlock` | reason | `AVAILABLE` | có mutation/audit; UI chỉ gọi khi có target ID hợp lệ |
 
 ## 1.1. Đối chiếu API modules hiện có trong FE
@@ -116,17 +117,21 @@ Parser lỗi phải xác nhận payload là JSON object và `error` là object t
 - Một checkout thành công kết thúc intent; lần checkout mới dùng key mới.
 - Lưu key/snapshot qua reload (session storage) để không làm mất khả năng retry.
 
-## 6. Feature flags
+## 6. Capability readiness
 
-Đề xuất:
+Không dùng nhiều boolean rời rạc. Registry typed có ba trạng thái:
 
-```text
-NEXT_PUBLIC_ENABLE_REGISTRATION=false
-NEXT_PUBLIC_ENABLE_ORDER_CENTER=false
-NEXT_PUBLIC_ENABLE_REVIEWS=false
-NEXT_PUBLIC_ENABLE_NOTIFICATIONS=false
-NEXT_PUBLIC_ENABLE_PROFILE_EDIT=false
-NEXT_PUBLIC_ENABLE_ADMIN_READS=false
+```ts
+type CapabilityState = "LIVE" | "MOCK_DEV_ONLY" | "BLOCKED";
 ```
 
-Feature flag chỉ kiểm soát UI rollout, không thay thế RBAC backend.
+Capability MVP: `auth`, `catalog`, `cart`, `checkout`, `seller_catalog`, `media`, `orders`, `reviews`, `notifications`, `admin_users`, `admin_shops`, `admin_categories`.
+
+- Development được dùng `MOCK_DEV_ONLY` và phải hiện badge demo.
+- Production cấm `NEXT_PUBLIC_USE_MOCK=true`.
+- `next.config.ts` fail build nếu capability MVP không phải `LIVE`.
+- Capability `BLOCKED`: ẩn menu/CTA; direct route dùng `FeatureUnavailable`.
+- Live request lỗi: giữ route và hiển thị error/retry/request ID, không đổi sang mock.
+- Backend `/health/readiness` phải khớp manifest FE trước khi promote deployment.
+
+Feature readiness chỉ điều khiển rollout/UX, không thay RBAC backend.

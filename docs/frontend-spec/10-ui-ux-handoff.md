@@ -1,5 +1,7 @@
 # 10. UI/UX handoff theo route
 
+> **Phiên bản:** 1.4.0 — MVP freeze 30/09/2026
+
 > **Owner:** Người 2 cho token/shared UI; từng route có page owner ở file 08. <br>
 > **Workspace:** `frontend/` (không sửa prototype `ecommerce-web/`). <br>
 > **Mục tiêu:** đủ khung bố cục, vai trò, dữ liệu, trạng thái và responsive để từng owner có thể implement mà không tự suy diễn contract.
@@ -33,14 +35,14 @@
 | `/products/[id]` | Public — Người 3 | Gallery/placeholder; title/price/stock/variant; quantity; add-to-cart. | Loading detail; not-found; unavailable stock; API error retry; guest login returnTo. | Gallery trên info; variant bằng keyboard; CTA full-width. | Detail thiếu images/shop/review; ẩn section chưa có data. |
 | `/login` | Public-only — Người 1 | Form email/password; show password; submit; help/forgot chỉ khi flow configured. | Pending; invalid credential generic; locked/missing app user; service unavailable. | Form 1 cột; label + errors; focus field/summary hợp lý. | Supabase config/bootstrap. |
 | `/register` | Public-only — Người 1 | Email/password/confirm/name; account type chỉ khi onboarding được chốt. | Blocked/coming later; không giả thành công. | Form 1 cột, errors và pending. | GAP-AUTH-ONBOARDING; production submit tắt. |
-| `/cart` | Buyer — Người 4 | Selected items; quantity/remove; subtotal/checkout summary. | Loading; empty có CTA về catalog; unavailable/error; stale item rollback. | Item card thay table; tổng tiền cuối trang không che dock; nút checkout dễ chạm. | Cart response thiếu dữ liệu gắn product; dùng adapter/mock tới GAP-03. |
+| `/cart` | Buyer — Người 4 | Selected items; quantity/remove; subtotal/checkout summary. | Loading; empty có CTA về catalog; unavailable/error; stale item rollback. | Item card thay table; tổng tiền cuối trang không che dock; nút checkout dễ chạm. | Enriched cart live; API lỗi không fallback fixture. |
 | `/checkout` | Buyer — Người 4 | Address; item summary; voucher theo shop; COD/ONLINE; server quote; submit. | Address missing/create; voucher rejection tại field/summary; submit pending; timeout giữ snapshot+key để retry; success orders. | 1 cột; summary có thể thu gọn; không sticky che form. | Shipping `0`, không tự cộng phí; payload và idempotency theo 02/05. |
-| `/orders` | Buyer — Người 5 | Status tabs; order list/card; cancel qua dialog có reason bắt buộc. | Loading; empty; error; cancel 409 refresh; unauthorized. | Cards thay grid/table; dialog mobile vừa viewport. | FE page tồn tại; runtime GET hiện trả 200 empty/placeholder, chưa dùng làm live order data (GAP-01). |
-| `/orders/[id]/review` | Buyer — Người 5 | Chỉ item đủ điều kiện; rating; nội dung; preview ảnh gated. | No eligible items; submit pending; service chưa wire báo rõ; lỗi field. | Rating keyboard accessible; ảnh preview có remove khi API sẵn. | Review service và media GAP-01/GAP-09. |
+| `/orders` | Buyer — Người 5 | Status tabs; timeline; cancel; Buyer confirm received ở SHIPPING. | Loading; empty; error; 409 refresh; unauthorized; shipment missing conflict. | Cards thay grid/table; dialog mobile vừa viewport. | Order reads live; timeline/confirm-received theo C-101–C-106. |
+| `/orders/[id]/review` | Buyer — Người 5 | Chỉ item của Order COMPLETED; rating/content; tối đa 3 ảnh. | No eligible items; submit pending; duplicate/blocked/error states. | Rating keyboard accessible; preview remove/revoke URL. | Text/rating live sau ReviewService; media chờ capability B. |
 | `/notifications` | Buyer — Người 2 | Filter tất cả/chưa đọc; list; mark one; bounded bulk demo tối đa 20 item. | Loading; empty; runtime 501; unauthorized; mutation rollback khi nối thật. | List card; controls 44px; count có text. | Runtime 501; không realtime. Demo chỉ non-production/local state; production gated và không gọi endpoint 501. |
-| `/profile` | Authenticated — Người 2 | Read-only auth metadata (name/email); phone/avatar chỉ hiển thị chưa có dữ liệu/API; address shortcut chỉ khi destination sẵn sàng. | Loading metadata; absent metadata; error; signed-out prompt; mutation disabled đến GAP-07. | Summary trên form; fields 1 cột; avatar initials tới khi media contract. | Auth metadata không phải business profile; avatar URL không render, upload gated GAP-09. |
+| `/profile` | Authenticated — Người 2 | Email read-only; full name/phone qua Profile API; avatar qua media capability. | Phân biệt loading, signed-out, missing profile và API error; save giữ input. | Summary trên form; fields 1 cột; avatar preview accessible. | `/profile` live; avatar chờ media presign/finalize. |
 | `/seller` | Seller — Người 5 | Queue, bảng product/stock, KPI section. | Skeleton; empty; API blocked; unauthorized; mutation pending/refetch. | Bảng thành cards hoặc horizontal scroller có label; KPI không ước tính. | Orders/stats blocked; stock mutation sẵn theo contract. |
-| `/seller/products/new` | Seller — Người 3 | Basic info; category; variants; image URL/upload placeholder; submit. | Validation; category empty/blocked; row add/remove; upload unavailable. | Form 1 cột; variant rows không ép chữ nhỏ. | `stock_quantity` khi create; category UUID phải từ DB; media GAP-09. |
+| `/seller/products/new` | Seller — Người 3 | Basic info; category; variants; upload 1–5 ảnh finalized; submit. | Validation; Shop PENDING/LOCKED; upload retry/remove; create rollback/cleanup. | Form 1 cột; variant rows không ép chữ nhỏ. | Category UUID thật; media IDs; Shop phải ACTIVE. |
 | `/admin` | Admin — Người 5 | Dashboard/tabs user/shop/product/log; lock/unlock cần reason. | Empty/mock marked; permission; API list error; pending/refetch. | KPI stack; tables chuyển list/card hoặc labeled scroll. | Lists/moderation gaps 08; production mock off. |
 | `/admin/categories` | Admin — Người 5 | Tree/list; create/edit/status. | Empty; form validation; conflict/error; unauthorized. | Tree có disclosure accessible; action menu keyboard. | Category API missing; local mock only, production disabled. |
 
@@ -58,5 +60,21 @@
 
 1. Nền scaffold/API/auth/repository/test runner đã tồn tại (commit `5ace145`); không tạo lại hoặc sửa package/lockfile ngoài ownership Người 1.
 2. `AuthProvider` cấp role và metadata cho shell/Profile; chỉ đọc email/full name, không xem đó là business profile contract.
-3. Notifications chỉ đổi mock repository sang API khi 501 runtime wiring đã pass; bulk action không gọi endpoint chưa tồn tại. Lúc nối API, xử lý từng ID tối đa 20 mỗi batch hoặc chờ GAP-10.
+3. Notifications đổi sang API khi runtime wiring pass; bulk UI gọi từng item tối đa 20, concurrency 4, partial rollback và dừng queue khi 429; không tự tạo bulk endpoint.
 4. Homepage, checkout và Seller orders đã được Người 2 rà ở 360/1280px; xem handoff trong `progress/nguoi-2.md`. Admin dashboard chưa có route/page nên D-004 chỉ còn chờ sample Admin; Q-802/Q-803 chỉ đạt trong phạm vi đã kiểm, không đóng gate toàn hệ thống.
+
+## Handoff bổ sung đã khóa
+
+| Route/flow | Owner | Bổ sung bắt buộc |
+|---|---|---|
+| `/register`, `/complete-profile` | 1 | Seller onboarding tạo Shop `PENDING`; hiển thị chờ duyệt; refresh `/auth/me` sau onboarding |
+| `/seller/products/new` | 3 | Upload 1–5 ảnh thật trước create product; lỗi upload giữ form; Shop chưa ACTIVE nhận unavailable state |
+| `/seller/products` | 3 | Search/filter/create/stock và ACTIVE↔INACTIVE; không có production mock fallback |
+| `/orders` | 5 | Timeline từ history DTO; Buyer SHIPPING có “Đã nhận hàng”; cancel actions đúng actor/status |
+| `/orders/[id]/review` | 5 | Chỉ mở cho item thuộc Order COMPLETED; text/rating không chờ media, ảnh tối đa 3 |
+| `/products/[id]` | 3 | Sau review integration hiển thị rating average/count và review list thật |
+| `/notifications` | 2 | REST thật; mark tối đa 20 với concurrency 4, partial failure và rollback |
+| `/admin`, `/admin/shops` | 5 | Live APIs; Admin target không có lock action; moderation mutation phải tạo audit |
+| `/admin/categories` | 5 | CRUD/status API thật; không tạo ID local; tree tối đa hai cấp |
+
+Khi capability chưa live, menu/CTA bị ẩn trong production; direct URL phải dùng `FeatureUnavailable`. Development được dùng fake repository nhưng phải gắn badge demo.

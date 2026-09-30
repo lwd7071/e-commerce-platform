@@ -1,5 +1,7 @@
 # 09. Quy chuẩn UI/UX khi triển khai Frontend
 
+> **Phiên bản:** 1.4.0 — MVP freeze 30/09/2026
+
 > **Trạng thái:** Design handoff cho 5 owner FE
 > **Phạm vi:** `frontend/` — Buyer, Seller, Admin. `ecommerce-web/` chỉ là prototype tham khảo, không sửa.
 > **Owner:** Người 2; thay đổi ảnh hưởng domain cần owner page tương ứng duyệt
@@ -118,3 +120,14 @@ Người 2 ghi một bản mô tả hoặc wireframe cho mỗi route trước kh
 - WCAG 2.2 AA mục tiêu: text thường ≥4.5:1, text lớn/UI/focus indicator ≥3:1; focus-visible, skip link, landmarks, reduced motion, alt phù hợp. Người 2 kiểm tra toàn hệ thống; owner page sửa lỗi phần mình.
 - Motion chỉ dùng khi có ích cho feedback, khoảng 150–200ms; tôn trọng `prefers-reduced-motion`. Không autoplay/animation lặp làm nhiễu thao tác.
 - Ticket chỉ đóng khi UI states, responsive, keyboard, role và dữ liệu/contract qua review; evidence và tồn đọng ghi vào `docs/frontend-spec/progress/nguoi-N.md`.
+
+## 8. Readiness và media UX cho MVP
+
+- Development mock phải có badge “Dữ liệu demo”; production không được render fixture.
+- Capability `BLOCKED`: ẩn navigation/action khi người dùng không thể hoàn thành; direct URL dùng `FeatureUnavailable` có hướng quay lại.
+- Capability `LIVE` nhưng request lỗi: ErrorState + retry + request ID; không fallback mock.
+- Seller `PENDING|SUSPENDED|LOCKED` thấy shop status và lý do không thể mutation; không hiển thị CTA giả thành công.
+- Order `SHIPPING` của Buyer có CTA “Đã nhận hàng”; Seller không thấy action `COMPLETED` hoặc `DELIVERY_FAILED`.
+- File upload phải có progress, retry, remove, preview alt, revoke object URL và giữ form khi upload lỗi.
+- Axe release gate là 0 critical/serious nhưng không thay keyboard-only/manual accessibility review.
+- Breakpoint MVP bắt buộc: 360/768/1280px. Chrome là browser release chính; Edge smoke login/checkout/admin.

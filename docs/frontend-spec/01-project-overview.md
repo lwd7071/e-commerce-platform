@@ -1,11 +1,14 @@
 # 01. Tổng quan dự án và kiến trúc kỹ thuật
 
-> **Phiên bản:** 1.1.0  
-> **Trạng thái:** FOUNDATION EXISTS — FEATURE INTEGRATION SUBJECT TO READINESS MATRIX
+> **Phiên bản:** 1.4.0
+>
+> **Trạng thái:** MVP CONTRACT FREEZE — EXECUTION 30/09/2026
 
 ## 1. Phạm vi
 
 E-Commerce Platform là marketplace đa người bán với bốn nhóm người dùng: Guest, Buyer, Seller và Admin. Frontend cần hỗ trợ khám phá sản phẩm, giỏ hàng, checkout tách đơn theo shop, quản lý đơn, đánh giá, thông báo, seller portal và admin moderation.
+
+MVP thêm hai invariant xuyên suốt: Seller phải hoàn tất onboarding để có Shop `PENDING` và chờ Admin duyệt; Order chỉ review được sau khi Buyer xác nhận đã nhận hàng làm Order `COMPLETED`. Media thật là dependency bắt buộc của Seller create product, không phải phase bổ sung sau cùng.
 
 Phạm vi bản triển khai đầu tiên:
 

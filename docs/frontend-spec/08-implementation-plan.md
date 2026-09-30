@@ -1,262 +1,367 @@
-# 08. Implementation plan
+# 08. Implementation plan — Dino MVP 30/09/2026
 
-> **Phiên bản:** 1.3.0
-> **Trạng thái:** FOUNDATION EXISTS — VERTICAL SLICES READY SUBJECT TO READINESS
+> **Phiên bản:** 1.4.0
+>
+> **Deadline:** cuối ngày 30/09/2026 (Asia/Saigon)
+>
+> **Trạng thái:** CONTRACT FREEZE — FIVE OWNER PARALLEL EXECUTION
+>
+> **Workspace FE:** `frontend/`; không sửa hoặc phát triển tiếp `ecommerce-web/`
 
-## 1. Chiến lược
+## 1. Mục tiêu giao
 
-Triển khai theo vertical slice trong workspace `frontend/`; `ecommerce-web/` chỉ là prototype test-only, không tiếp tục sửa. Không giả vờ backend blocker đã sẵn sàng:
+MVP phải chạy được các luồng sau bằng API/runtime thật:
 
-- Phase 0–2 có thể bắt đầu ngay.
-- Product list/detail core có thể dùng API thật.
-- Cart UI đầy đủ, order center, review, notifications, profile và admin dùng repository mock cho tới khi backend gap tương ứng đóng.
-- Mock và API adapter phải cùng interface để thay implementation mà không sửa component.
-- Không đưa feature mock vào production nếu feature flag chưa tắt.
+1. Buyer đăng nhập, tìm sản phẩm, cart và COD checkout không oversell.
+2. User onboarding thành Seller, tạo Shop `PENDING`, Admin approve, Seller upload ảnh thật và tạo sản phẩm.
+3. Seller xử lý Order đến `SHIPPING`; Buyer xác nhận đã nhận để Order `COMPLETED`.
+4. Buyer review OrderItem đã hoàn thành; review/rating xuất hiện trên Product Detail.
+5. Profile và notifications REST dùng API thật.
+6. Admin quản lý users, shops và categories cơ bản; mọi moderation mutation có audit.
 
-### Ponytail skills theo phase
+Nếu capability MUST chưa qua runtime/integration gate, giữ `BLOCKED` và ẩn trong production. Không bật mock để giả hoàn tất.
 
-Ponytail đang để chế độ gọi thủ công, không tự chạy. Chỉ áp dụng skill khi người làm FE chủ động tag skill trong Codex; nếu không tag thì làm theo workflow và acceptance criteria bình thường. `@ponytail` hỗ trợ giữ phạm vi triển khai tối thiểu, còn `@ponytail-review` chỉ soi độ phức tạp/overengineering — không thay thế test, review tính đúng đắn, bảo mật hay accessibility.
+## 2. DRI và ranh giới sở hữu
 
-| Phase | Skill gợi ý khi chủ động gọi | Phạm vi |
-|---|---|---|
-| 0 — Contract freeze | Không cần skill | Chốt contract/decision với FE-BE; không dùng skill để thay xác nhận nghiệp vụ. |
-| 1 — FE foundation | `@ponytail`, `@ponytail-review` | Giữ API client/auth/repository vừa đủ; review diff sau khi hoàn tất foundation. |
-| 2 — Shared UI/app shell | `@ponytail`, `@ponytail-review` | Tránh abstraction UI thừa; vẫn giữ đầy đủ accessibility và trạng thái component. |
-| 3 — Catalog/auth | `@ponytail`, `@ponytail-review` | Áp dụng theo vertical slice/ticket; review phần vừa làm trước khi đóng phase. |
-| 4 — Cart/checkout | `@ponytail`, `@ponytail-review` | Không giản lược contract, decimal-safe money, idempotency hoặc xử lý lỗi để giảm code. |
-| 5 — Orders/seller/review | `@ponytail`, `@ponytail-review` | Không giản lược state machine, ownership, reason bắt buộc hoặc RBAC. |
-| 6 — Profile/notifications/media | `@ponytail`, `@ponytail-review` | Giữ implementation tối thiểu nhưng không bỏ kiểm tra quyền, upload constraints hay trạng thái lỗi. |
-| 7 — Admin/categories/analytics | `@ponytail`, `@ponytail-review` | Tránh framework nội bộ không cần thiết; không bỏ audit/RBAC hoặc quy tắc số liệu. |
-| 8 — Hardening/release | `@ponytail-review`; `@ponytail-audit` tùy chọn một lần; `@ponytail-debt` có điều kiện | Review độ phức tạp diff cuối; audit toàn repo một lần nếu cần. Chỉ chạy debt khi code có marker `ponytail:` cần tổng hợp. |
+Mỗi task có đúng một DRI. Người khác chỉ review contract hoặc tiêu thụ đầu ra.
 
-`@ponytail-gain` (xem benchmark) và `@ponytail-help` (tra cách dùng) là skill tiện ích theo nhu cầu, không phải bước/gate của phase nào. Dù có gọi skill nào, vẫn phải chạy kiểm tra và nghiệm thu riêng theo ticket.
+| Người | Phạm vi DRI |
+|---|---|
+| **Người 1** | Platform/Auth, Seller onboarding FE, OpenAPI, generated FE types, readiness, error envelope, deploy |
+| **Người 2** | Database/Storage policy, E2E seed, shared UI/accessibility, Profile/Notifications FE |
+| **Người 3** | Catalog, media API/repository, Seller products, Product Detail/review read UI |
+| **Người 4** | Cart/Checkout FE, Review/Notification backend services và contract |
+| **Người 5** | Checkout/Order/Shipment backend, Orders/Review/Admin FE, moderation integration |
 
-## Phân công 5 người FE
+Quy tắc file chung:
 
-Mỗi ticket có đúng một owner FE chịu trách nhiệm tích hợp và nghiệm thu. Nhiệm vụ backend trong cột dependency là đầu ra cần nhận từ BE, không tự nhận là phần FE đã hoàn tất. Năm người có thể bắt đầu cùng lúc bằng UI/mock adapter theo contract đã ghi trong file 04–07; chỉ nối API thật sau khi endpoint và test runtime đạt điều kiện sẵn sàng.
+- Người 1 duy nhất sửa package/lockfile, API client/config/auth/shared repository interface và generated OpenAPI setup.
+- Người 2 duy nhất sửa global tokens, shared UI/navigation và Storage policy/migration theo ownership hiện hành.
+- Người 3 sở hữu catalog/Seller product/media feature.
+- Người 4 sở hữu cart/checkout FE và buyer supporting services được giao.
+- Người 5 sở hữu orders/review/admin screens và transaction order/shipment.
 
-| Người | Phạm vi và file sở hữu chính | Ticket FE chính | Làm ngay, không chờ người khác | Điểm bàn giao / điều kiện nối thật |
-|---|---|---|---|---|
-| 1 — FE platform/integration | `src/lib/api`, `src/lib/auth`, `src/lib/config`, `src/lib/repositories` (shared), `/login`, `/register`, config/CI | C-001, C-003–005, F-101–107, B-303–304, Q-801, Q-806–808 | Chốt type/error parser, env/feature flags, repository interface, auth shell; dùng fake token/session trong test | Bàn giao API client, auth guard, mock/API switch và contract test cho 3/4/5. Chỉ bật auth thật khi Supabase/env được kiểm chứng. |
-| 2 — UI/UX và account | `frontend/src/app/globals.css`, `layout.tsx`, `components/ui`, `components/navigation`, `features/profile`, `features/notifications`, routes `/profile` `/notifications` | D-001–004, U-201–206, P-602, P-604–605, P-607b, Q-802–803 | Hoàn thiện shared shell, role navigation, profile read-only và notification demo/gated; test accessibility/responsive | Token/component/shell cho 3/4/5. Profile/notifications chỉ nối thật sau P-601/P-603; P-605 không gọi bulk endpoint chưa tồn tại; P-607b gated. D-004 đã review homepage/checkout/Seller orders; còn Admin sample. QA shell/profile/notifications không chờ owner khác. |
-| 3 — Catalog/seller catalog | `/`, `/products/[id]`, `/seller/products/new`, feature catalog/seller product/category/media | B-301–302, B-305, B-401, O-508–509, P-607a, A-700/A-702 | Làm list/detail với API catalog sẵn có; dựng seller form và category view bằng adapter/mock đúng trạng thái readiness | Bàn giao selection/add-to-cart UI contract cho 4. O-508 chờ GAP-04; category API chờ A-701/GAP-05; upload chờ P-606/GAP-09. |
-| 4 — Buyer cart/checkout | `/cart`, `/checkout`, feature cart/address/voucher/checkout | B-402–408, Q-804 | Dựng cart và checkout states/form bằng repository mock; viết contract fixture, money/idempotency cases | Nhận API client từ 1 và add-to-cart contract từ 3; cart full data chờ GAP-03. B-408 chạy với backend/test DB thật. |
-| 5 — Orders/review/admin | `/orders`, `/orders/[id]/review`, `/seller` (order/dashboard), `/admin`, `/admin/categories`, feature orders/review/admin/stats | O-502–505, O-507, P-607c, A-704–705, A-708–709, Q-805 | Dựng order timeline, seller transition, review/admin states bằng mock adapter; viết transition/RBAC cases | Order read chờ O-501/GAP-01; review submit chờ O-506; admin reads chờ A-703/GAP-08; seller KPI chờ A-707/GAP-12. |
+## 3. Lịch ngày 30/09
 
-Các đường dẫn `src/...` trong bảng ownership dưới đây tính tương đối từ `frontend/`; tất cả page/component FE triển khai phải nằm trong workspace này.
+### Block 0 — Hai giờ đầu: contract/test freeze
 
-### Brand contract toàn nhóm
+- Chốt OpenAPI/DTO/error/state transition.
+- Setup generated FE types, component/browser test tooling.
+- Seed E2E và capability manifest.
+- Không thay public contract sau block này nếu chưa có Change Request.
 
-- Tên sản phẩm hiển thị duy nhất là **Dino**. Wordmark chỉ là text `Dino`, không logo, biểu tượng thương hiệu hay emoji.
-- Người 2 sở hữu header, metadata và profile fallback; Người 1 đổi copy thuộc `/login` và `/register`; Người 3 đổi banner/footer/copy ở trang chủ, catalog và seller catalog của mình; Người 4/5 dùng Dino cho nội dung mới.
-- Không đổi tên repository, package, API, database hay thuật ngữ kỹ thuật. Mỗi owner chỉ sửa page/copy thuộc phạm vi của mình.
+### Block 1 — Năm giờ tiếp theo: ba workstream song song
 
-### Batch độc lập của Người 2
+- **A — Auth/Buyer/Inventory:** Người 1, 4, 5.
+- **B — Media/Catalog/Seller:** Người 2, 3.
+- **C — Orders/Review/Notifications/Admin:** Người 1–5 theo ticket riêng.
 
-1. Hoàn thiện shared shell, navigation theo role, `/profile` read-only từ auth metadata và `/notifications` demo/gated; role guard phía FE chỉ phục vụ UX, không thay backend authorization.
-2. Kiểm tra form ARIA, dialog focus/ESC/return-focus, toast live region, skip link/landmarks, focus visibility, touch target, reduced motion và responsive.
-3. Chạy typecheck/lint/unit/build bằng Node `24.15.0` và npm `11.12.1`; browser smoke trên Chrome/Edge tại 320/360/768/1280px; ghi QA evidence và gán defect cho đúng owner.
-4. Cập nhật README, files 01/03/08/09/10 và progress. Q-802/Q-803 chỉ đạt trong phạm vi shell/profile/notifications; không đóng gate toàn dự án.
+Review text/rating làm song song bằng fake boundary; review media chỉ nối sau khi Media finalize được Người 3 bàn giao.
 
-`D-*` là đầu ra thiết kế cần chốt trước khi biến prototype thành màn hình mới:
+### Block 2 — Ba giờ tiếp theo: integration
 
-| ID | Owner | Task | Acceptance criteria |
-|---|---|---|---|
-| D-001 | Người 2 | Screen inventory và luồng Buyer/Seller/Admin dựa trên file 02 | Đủ 14 route, role, owner, navigation, loading/empty/error/unauthorized và mobile/desktop state; [handoff 10](./10-ui-ux-handoff.md) |
-| D-002 | Người 2 | Khóa [UI/UX rules](./09-ui-ux-rules.md) và component contract | token/font/breakpoint/CTA contrast đã chốt; stack/scaffold limitation nêu rõ; component contract ở file 10 |
-| D-003 | Người 2 | UX handoff cho 3/4/5 | Mỗi vertical slice có bố cục/interaction/state/data readiness checklist tại file 10; prototype không phải contract |
-| D-004 | Người 2 | Sau U-201 và các page mẫu, soát trang chủ, checkout, seller order, admin dashboard ở 360/1280px | Đã review homepage/checkout/seller orders ở 360/1280px ngày 2026-09-29; còn Admin dashboard vì chưa có route/page mẫu. Handoff page-level ghi trong progress Người 2; không chờ Admin để hoàn tất review ba trang đã có |
+- Sinh lại FE wire types từ OpenAPI.
+- Nối repository thật và chuyển capability sang `LIVE` khi runtime test pass.
+- Chạy PostgreSQL race tests và bốn Playwright critical paths.
+- Không thêm feature mới sau khi bắt đầu block này.
 
-### Ranh giới file và cách bàn giao
+### Block 3 — Hai giờ cuối: release
 
-- Người 1 duy nhất sửa `package.json`, lockfile, env example, config chung, API client, auth và shared repository interface. Người khác đề xuất thay đổi kèm ví dụ payload/test; Người 1 cập nhật seam dùng chung.
-- Người 2 duy nhất sửa token/global CSS, layout, shared UI components và navigation. Người 3/4/5 sở hữu page/feature của mình; cần thay đổi component chung thì mở yêu cầu cho Người 2. Tránh hai người sửa cùng một page.
-- Người 3 sở hữu nút add-to-cart ở product detail; Người 4 sở hữu cart command/repository. Hai người khóa input/output của action trước khi nối. Product media P-607a thuộc Người 3; avatar UI P-607b thuộc Người 2; review media UI P-607c thuộc Người 5, đều chờ media contract P-606.
-- `/seller` và `/admin/categories` do Người 5 sở hữu page; Người 3 bàn giao category adapter A-700 qua export riêng, không sửa trực tiếp page của Người 5. `A-702` chỉ đổi category UI trên các page thuộc Người 3; `A-709` là admin categories UI của Người 5. Hai UI task chạy song song sau A-700.
-- Mỗi người làm trên nhánh riêng `codex/fe-nguoi-N-<ticket>` hoặc tên nhánh nhóm thống nhất; PR giới hạn file thuộc owner. Review chéo tối thiểu: Người 1 kiểm API/auth/contract, Người 2 kiểm UI/accessibility, owner consumer kiểm payload/hành vi. PR chạm file chung phải có owner file duyệt.
-- Một handoff chỉ coi là xong khi có type/interface, ví dụ fixture request/response/error, test liên quan và đường dẫn PR/commit ghi trong [progress FE](./progress/README.md). Dependency chưa tới thì làm phần UI/mock/test độc lập; ghi rõ blocker, owner cung cấp và điều kiện nghiệm thu trong progress, không tự tạo API field/UUID giả làm dữ liệu thật.
+- Sửa defect P0/P1, chạy quality gates, deploy Vercel/backend host.
+- Smoke CORS/env/Supabase Auth/Storage và `/health/readiness`.
+- Cập nhật progress của từng người bằng test/PR/commit thật.
 
-## Bắt đầu ngay
+### Critical path
 
-Scaffold Next.js, package/lockfile, API client, AuthProvider, repositories/adapters và test runner đã có trong `frontend/` (nền `5ace145`). Dùng Node `24.15.0` theo `.nvmrc` và npm `11.12.1`. Runtime migration PR 0 là ngoại lệ được duyệt để cập nhật package/lockfile; PR A/B/C không sửa package/lockfile. Không chạy feature implementation trong `ecommerce-web/`. Backend và frontend dùng chung root `.env` theo `.env.example`; frontend chỉ nhận các biến `NEXT_PUBLIC_*`, không đưa secret/service-role key vào bundle. OpenAPI backend ở `http://localhost:3001/api/v1/openapi.json`.
-
-Thứ tự tiếp tục: Người 1 duy trì nền F-102–107; Người 2 nghiệm thu Phase 2 và các batch độc lập; Người 3/4/5 chuẩn bị fixture/mock interface trong phạm vi riêng. D-004 là lượt soát visual sau page mẫu. Catalog public B-301/B-302 nối API theo readiness; cart/address/voucher/checkout chỉ nối sau contract tests; order center, review, notifications, profile, category/admin reads vẫn gated/mock cho đến khi gap đóng. `ecommerce-web/` không phải nguồn dữ liệu hay hành vi nghiệp vụ.
-
-## 2. Phase 0 — Contract freeze và guardrails
-
-**Ponytail:** Không cần skill; ưu tiên xác nhận contract và quyết định FE-BE.
-
-**Làm song song:** Người 1 C-001/C-003–005; Người 2 D-001–003; Người 3/4/5 lập fixture và checklist state cho các route mình sở hữu. C-002 do BE thực hiện; FE theo dõi kết quả.
-
-| ID | Owner | Task | Acceptance criteria |
-|---|---|---|---|
-| C-001 | FE+BE | Chấp thuận contract v1.1 này | checkout, cart selection, order states và money representation được xác nhận; không chặn foundation |
-| C-002 | BE | Thêm runtime integration smoke test | test dùng `createRuntimeApp()`, không chỉ inject mock service |
-| C-003 | FE | Tạo feature flag config | dev/prod defaults rõ ràng; production tắt feature blocked |
-| C-004 | FE | Tạo repository interfaces và mock boundary | page không import mock literal trực tiếp |
-| C-005 | FE+BE | Chốt onboarding/payment/media decisions | ghi ADR hoặc change request cho từng quyết định |
-
-## 3. Phase 1 — FE foundation
-
-**Ponytail:** `@ponytail` khi triển khai; `@ponytail-review` khi rà diff của phase.
-
-**Owner:** Người 1. Nền scaffold, API client, AuthProvider, repository/adapters và Vitest runner đã có tại commit `5ace145`; phase này không còn bị chặn bởi việc khởi tạo workspace. Người 1 tiếp tục xác minh/bổ sung acceptance criteria còn thiếu; Người 3/4/5 không cùng sửa API client.
-
-| ID | Depends | Task | Acceptance criteria |
-|---|---|---|---|
-| F-101 | C-001 | Cài Supabase client và env validation | thiếu env fail với message rõ; token không log |
-| F-102 | F-101 | API client | base URL, Bearer token, envelopes, 204, timeout, AppError, request_id |
-| F-103 | F-102 | Endpoint modules | catalog/cart/address/voucher/checkout/order tách module |
-| F-104 | F-103 | Endpoint-specific adapters | unit test decimal/null/unknown enum |
-| F-105 | F-101 | Auth/session provider | refresh session, sign-out, safe returnTo |
-| F-106 | F-105 | Route guards | public/buyer/seller/admin behavior; không thay backend auth |
-| F-107 | C-003 | Mock/API repository switch | switch bằng dependency/config, không branch trong component |
-
-## 4. Phase 2 — Shared UI và app shell
-
-**Ponytail:** `@ponytail` khi triển khai; `@ponytail-review` khi rà diff của phase.
-
-**Owner:** Người 2. D-002 và [UI/UX rules](./09-ui-ux-rules.md) là đầu vào của U-201; prop/state contract ở [handoff 10](./10-ui-ux-handoff.md). Source ở `frontend/`; gate/evidence được ghi trong [progress Người 2](./progress/nguoi-2.md). D-004 đã review các page mẫu hiện có; Admin dashboard còn chờ route/page.
-
-| ID | Depends | Task | Acceptance criteria |
-|---|---|---|---|
-| U-201 | — | Đồng bộ tokens tại `frontend/src/app/globals.css` | palette user; CTA đạt contrast; light theme/reduced motion |
-| U-202 | U-201 | Button/form controls tại `frontend/src/components/ui/` | focus-visible, error, disabled, loading, ARIA |
-| U-203 | U-201 | Dialog/toast | modal containment, ESC, return focus, live region |
-| U-204 | U-201 | StatusBadge | đủ 7 order states, có text không chỉ dùng màu |
-| U-205 | U-201 | Skeleton/Empty/Error | dùng lại được trên mọi data screen |
-| U-206 | U-202 | Header/mobile dock | responsive, safe area; auth wiring thuộc F-105/F-106 Người 1 |
-
-## 5. Phase 3 — Public catalog và auth
-
-**Ponytail:** `@ponytail` theo ticket; `@ponytail-review` khi rà diff trước khi đóng phase.
-
-**Owner:** Người 3 nhận B-301/B-302/B-305; Người 1 nhận B-303/B-304. Người 3 chỉ dùng category UUID có thật hoặc ẩn filter.
-
-| ID | Depends | Task | Backend dependency | Acceptance criteria |
-|---|---|---|---|---|
-| B-301 | F-103,U-205 | Product list/search/sort/load-more | available | URL giữ filter; cursor không trùng |
-| B-302 | F-104,U-202 | Product detail core | partial | variant price/stock đúng; unsupported section ẩn |
-| B-303 | F-105 | Login | Supabase config | login, invalid credential, locked/missing app user handled |
-| B-304 | F-107 | Registration UI | GAP-06 | mock only; production flag off |
-| B-305 | F-107 | Category adapter | GAP-05 | static dev config chỉ dùng UUID xác minh từ seed/DB của đúng môi trường; nếu thiếu thì ẩn filter; không tự tạo UUID |
-
-## 6. Phase 4 — Cart, address, voucher và checkout
-
-**Ponytail:** `@ponytail` theo ticket; `@ponytail-review` khi rà diff. Không giản lược các invariant checkout nêu trong acceptance criteria.
-
-**Owner:** Người 4 nhận B-402–408; Người 3 nhận B-401 trong product detail và bàn giao cart command cho Người 4.
-
-| ID | Depends | Task | Backend dependency | Acceptance criteria |
-|---|---|---|---|---|
-| B-401 | B-302 | Add to cart | available | guest returnTo; server error displayed |
-| B-402 | F-107,U-205 | Cart screen | GAP-03 for real data | mock/API implementations share interface |
-| B-403 | B-402 | Quantity/selection/delete | available | optimistic rollback; is_selected persisted |
-| B-404 | F-103 | Address list/create | available | validation + refetch |
-| B-405 | B-404 | Address edit/default/delete UI | GAP-01 | mock/disabled in production |
-| B-406 | B-402 | Voucher list/preview | available | per-shop preview, decimal-safe totals |
-| B-407 | B-403,B-404,B-406 | Checkout | available | phí ship hiển thị 0; key gắn snapshot; retry cùng payload dùng key cũ, đổi payload dùng key mới; resolve request mơ hồ trước intent mới |
-| B-408 | B-407 | Checkout E2E | test DB | creates one order/shop, clears selected items, prevents duplicate |
-
-## 7. Phase 5 — Orders, seller và review
-
-**Ponytail:** `@ponytail` theo ticket; `@ponytail-review` khi rà diff. Skill không thay việc kiểm tra quyền và chuyển trạng thái hợp lệ.
-
-**Owner:** Người 5 nhận O-502–505/O-507; Người 3 nhận O-508–509. O-501/O-506 là runtime wiring phía BE; Người 5 theo dõi readiness rồi mới nối thật.
-
-| ID | Depends | Task | Backend dependency | Acceptance criteria |
-|---|---|---|---|---|
-| O-501 | C-002 | Wire order list/detail runtime | GAP-01 | buyer/seller/admin scoping integration tests pass |
-| O-502 | O-501,F-107 | Buyer order center | order reads ready | filter, detail, empty/error |
-| O-503 | O-502 | Cancel order | available | reason required; 409 refreshes state |
-| O-504 | O-501 | Seller order table | order reads ready | only own shop orders |
-| O-505 | O-504 | Confirm/transition | available | tuần tự `PENDING_CONFIRMATION → CONFIRMED → PREPARING → SHIPPING`; Seller không được hoàn tất; xử lý 403/409 |
-| O-506 | C-002 | Wire review runtime | GAP-01 | create review integration test |
-| O-507 | O-502,O-506 | Review form | GAP-09 for images | text/rating works; images gated |
-| O-508 | B-301 | Seller product list API | GAP-04 | owner-scoped pagination/filter |
-| O-509 | O-508 | Seller stock edit | available | quantity payload; ownership errors handled |
-
-## 8. Phase 6 — Profile, notifications và media
-
-**Ponytail:** `@ponytail` theo ticket; `@ponytail-review` khi rà diff.
-
-**Owner:** Người 2 nhận P-602/P-604–605 và avatar UI; Người 3 nhận product media; Người 5 nhận review media. P-601/P-603/P-606 là dependency BE cần xác nhận trước khi nối thật.
-
-| ID | Depends | Task | Backend dependency | Acceptance criteria |
-|---|---|---|---|---|
-| P-601 | C-005 | Implement profile API | GAP-07 | GET/PATCH scoped to caller |
-| P-602 | P-601 | Profile screen | profile API | metadata view có thể read-only trước; edit/refetch chỉ bật khi profile API sẵn |
-| P-603 | C-002 | Wire notification runtime | GAP-01 | list/detail/read integration tests |
-| P-604 | P-603 | Notification center | REST ready | filters, optimistic read, no realtime claim |
-| P-605 | P-603 | Bulk mark-read UI; tối đa 20 item/call, không tự tạo API | GAP-10 | idempotent per-item khi runtime sẵn, partial failure rollback/report; production ẩn khi read API/mutation chưa sẵn |
-| P-606 | C-005 | Media upload contract | GAP-09 | ownership, MIME/size/count, cleanup tested |
-| P-607a | P-606 | Product upload UI (Người 3) | media API | progress, retry, remove, accessible preview |
-| P-607b | P-606 | Avatar upload UI (Người 2) | media API | progress, retry, remove, accessible preview |
-| P-607c | P-606,O-507 | Review image upload UI (Người 5) | media API | progress, retry, remove, accessible preview |
-
-## 9. Phase 7 — Admin, categories và seller analytics
-
-**Ponytail:** `@ponytail` theo ticket; `@ponytail-review` khi rà diff. Không bỏ qua RBAC, audit hoặc định nghĩa số liệu.
-
-**Owner:** Người 3 nhận A-700 category adapter và A-702 homepage/seller catalog; Người 5 nhận A-709 admin categories/dashboard, A-704/A-705/A-708. A-701/A-703/A-706/A-707 là dependency BE; chỉ nối khi contract/runtime sẵn sàng.
-
-| ID | Depends | Task | Backend dependency | Acceptance criteria |
-|---|---|---|---|---|
-| A-700 | F-107 | Category repository/adapter interface (Người 3) | GAP-05 | mock/API cùng interface, fixture và UUID có thật hoặc ẩn filter; bàn giao sớm cho Người 5 |
-| A-701 | C-005 | Category public/admin APIs | GAP-05 | tree/list/create/update/status tests |
-| A-702 | A-700,A-701 | Homepage/seller catalog category UI (Người 3) | category APIs | bỏ static config sau API ready |
-| A-703 | C-005 | Admin read APIs | GAP-08 | cursor/filter users/logs/shops/products |
-| A-704 | A-703 | Admin dashboard | admin reads | tables, filters, empty/error |
-| A-705 | A-703 | User lock/unlock | available | reason, audit, refetch |
-| A-706 | A-703 | Shop/product moderation routes | GAP-08 | ownership/audit/status semantics tested |
-| A-707 | O-501 | Seller stats API | GAP-12 | date range/timezone/revenue definition documented |
-| A-708 | A-707 | Seller KPI UI | stats API | no client-side financial approximation |
-| A-709 | A-700,A-701 | Admin categories UI (Người 5) | category APIs | CRUD/status theo quyền; dùng adapter đã bàn giao |
-
-## 10. Phase 8 — Hardening và release
-
-**Ponytail:** `@ponytail-review` cho diff cuối; tùy chọn `@ponytail-audit` một lần cho toàn repo. Dùng `@ponytail-debt` chỉ khi có marker `ponytail:` cần thu gom; đây không thay thế các gate QA bên dưới.
-
-**Owner gate:** Người 1 Q-801/Q-806–808; Người 2 Q-802/Q-803; Người 4 Q-804; Người 5 Q-805. Mỗi owner feature cung cấp evidence/test cho gate và sửa lỗi trong phạm vi mình.
-
-| ID | Depends | Task | Acceptance criteria |
-|---|---|---|---|
-| Q-801 | Phase 1–7 | Typecheck/lint/build | pass sạch |
-| Q-802 | Phase 1–7 | Accessibility audit | keyboard, focus, labels, contrast, reduced motion |
-| Q-803 | Phase 1–7 | Responsive/browser QA | 360px+, Chrome/Edge; no covered content |
-| Q-804 | B-408,O-505 | Buyer/Seller E2E | critical paths pass against runtime backend |
-| Q-805 | A-705 | RBAC/security test | direct URL/API access không bypass role/ownership |
-| Q-806 | F-102 | Resilience test | 401/403/409/422/429/503/timeout behavior đúng |
-| Q-807 | C-002 | Contract drift CI | runtime/OpenAPI/spec fixtures không lệch |
-| Q-808 | all | Remove release mocks | production flags off hoặc backend ready; không có fake metric |
-
-## 11. Dependency graph
-
-```mermaid
-flowchart TD
-  C[Phase 0 Contract] --> F[Phase 1 Foundation]
-  F --> U[Phase 2 Shared UI]
-  F --> CAT[Phase 3 Catalog/Auth]
-  U --> CAT
-  CAT --> CART[Phase 4 Cart/Checkout]
-  CART --> ORD[Phase 5 Orders/Seller/Review]
-  ORD --> PN[Phase 6 Profile/Notifications/Media]
-  PN --> ADM[Phase 7 Admin/Categories/Analytics]
-  ADM --> QA[Phase 8 Hardening]
-  C --> BE1[GAP-01 Runtime Wiring]
-  BE1 --> ORD
+```text
+OpenAPI freeze
+  → login + E2E seed
+  → media presign/finalize
+  → Seller create product có ảnh
+  → checkout/order SHIPPING
+  → Buyer confirm-received
+  → review write/read model
+  → critical E2E
+  → production smoke
 ```
 
-## 12. Definition of Done theo ticket
+Phase A/B/C gần như độc lập sau Block 0. Cụm review media trong C phụ thuộc Media ở B; release phụ thuộc cả ba.
 
-Mỗi ticket FE phải ghi:
+## 4. Contract-first workflow
 
-- source endpoint hoặc mock repository;
-- request/response types và adapter;
-- loading/empty/error/unauthorized states;
-- cache invalidation sau mutation;
-- responsive và keyboard behavior;
-- unit/integration/E2E coverage phù hợp;
-- feature flag và điều kiện bỏ flag nếu backend chưa ready.
+Mỗi endpoint mới đi theo một chuỗi duy nhất:
 
-Không đóng ticket chỉ vì giao diện giống mock trong khi API contract hoặc error path chưa được kiểm chứng.
+1. DRI backend cập nhật OpenAPI: method/path/request/response/error/role.
+2. Người 1 sinh FE wire types từ OpenAPI.
+3. DRI FE cập nhật view-model/repository và fake boundary cho development.
+4. DRI backend viết red test qua public HTTP/runtime seam rồi implement tối thiểu.
+5. DRI FE viết red behavior test rồi nối API thật.
+6. Runtime integration và E2E pass.
+7. Capability chuyển `BLOCKED|MOCK_DEV_ONLY → LIVE`.
+
+Không viết lại wire DTO bằng tay. Fixture chỉ là dữ liệu ví dụ, không phải schema thứ hai.
+
+## 5. Block 0 tasks
+
+| ID | DRI | Task | Acceptance |
+|---|---|---|---|
+| P0-01 | Người 1 | Khóa OpenAPI onboarding, media, Seller products, confirm-received, timeline, reviews, notifications, Admin categories | Contract drift fail nếu OpenAPI/runtime lệch method hoặc path |
+| P0-02 | Người 1 | Thêm Testing Library, user-event, jsdom, Playwright, Axe và `openapi-typescript` | Component/E2E chạy CI; generated file có diff guard |
+| P0-03 | Người 2 | Red test: form nhiều lỗi focus ErrorSummary và link tới field | Test đỏ do hành vi thiếu, không phải thiếu tooling |
+| P0-04 | Người 1 | Capability registry `LIVE | MOCK_DEV_ONLY | BLOCKED` | Production build fail nếu capability MUST chưa LIVE hoặc mock bật |
+| P0-05 | Người 2 | Seed E2E idempotent | Chạy hai lần không lỗi unique và giữ stable logical fixtures |
+| P0-06 | Người 2 | Seed Category/Product/Storage | Có product ACTIVE, variant stock 1 và ảnh finalized thật |
+| P0-07 | Người 1 | Login email/password + `/auth/me` smoke là MUST | Buyer/Seller/Admin seed nhận đúng role/shop status |
+| P0-08 | Người 1 | Change Request `confirm-received` | Cập nhật spec, state machine, OpenAPI, tests; Seller vẫn không COMPLETED |
+| P0-09 | Người 1 | Error envelope completeness | Mọi 4xx/5xx/404/429 có `meta.request_id` |
+
+Seed bắt buộc gồm Buyer ACTIVE, Seller PENDING, Seller ACTIVE, Admin, Category thật, Product ACTIVE có media finalized, variant stock thường và stock `1`, Address/cart/voucher, Orders ở các state cần cho UI và một notification unread. Seed chỉ chạy trên development/test database đã xác minh; không tự chạy production.
+
+## 6. Quy tắc nghiệp vụ khóa
+
+### 6.1. Seller onboarding
+
+`POST /auth/onboarding` nhận `requested_role=SELLER`, `full_name`, `shop_name`; transaction tạo profile, đổi role thành Seller và tạo Shop `PENDING`. Seller đăng nhập được nhưng mọi mutation catalog/order trả `403 SHOP_NOT_ACTIVE` cho tới khi Admin approve.
+
+MVP không hỗ trợ Buyer đã hoàn tất profile nâng cấp thành Seller. Errors: `ONBOARDING_ALREADY_COMPLETED`, `ONBOARDING_STATE_CONFLICT`, `SHOP_ALREADY_EXISTS`, `SHOP_NOT_ACTIVE`, `USER_LOCKED`, `VALIDATION_FAILED`.
+
+### 6.2. Inventory/cancel
+
+- Trừ tồn tại checkout trong transaction; lock variants theo thứ tự ổn định và conditional update `stock_quantity >= quantity`.
+- Hai Buyer mua item cuối: chỉ một transaction thành công, transaction kia `409 INVENTORY_INSUFFICIENT`.
+- Buyer chỉ cancel `PENDING_CONFIRMATION`; Seller/Admin cancel `PENDING_CONFIRMATION|CONFIRMED|PREPARING`.
+- Cancel luôn cần reason và hoàn tồn đúng một lần trong cùng transaction.
+- Không cancel `SHIPPING`; `DELIVERY_FAILED` không tự hoàn tồn trong MVP.
+
+### 6.3. Shipment/completion
+
+- Seller confirm tạo Shipment `PENDING` nếu chưa có; retry không tạo trùng.
+- `PREPARING → SHIPPING` đồng thời đưa Shipment sang `HANDED_OVER`.
+- `POST /orders/:id/confirm-received`: Buyer owner, Order SHIPPING, Shipment bắt buộc tồn tại; thiếu trả `409 SHIPMENT_REQUIRED`.
+- Lock Order/Shipment; conditional update `WHERE status='SHIPPING'`; atomically Shipment `DELIVERED`, Order `COMPLETED`, history và notification.
+- Admin/shipment integration đặt `DELIVERY_FAILED` từ SHIPPING với Shipment `FAILED` và reason bắt buộc.
+- Seller không được đặt `COMPLETED` hoặc `DELIVERY_FAILED`.
+
+### 6.4. Idempotency
+
+Scope `user_id + endpoint + key`, TTL 24 giờ. Cùng fingerprint replay response đầu; khác payload trả `409 IDEMPOTENCY_KEY_REUSED`; request đang chạy trả `409 REQUEST_IN_PROGRESS`. Replay không trừ tồn/consume voucher/tạo notification lần hai.
+
+### 6.5. Moderation side effects
+
+- User lock: auth middleware chặn request kế tiếp bằng `USER_LOCKED`; FE sign out. Order/data lịch sử không bị xóa.
+- Shop không ACTIVE: bị loại khỏi public catalog và không được mutation; order lịch sử không tự hủy; Admin xử lý outstanding orders.
+- Không lock/unlock bất kỳ tài khoản `ADMIN`; trả `403 ADMIN_TARGET_PROTECTED`.
+- Approve/lock/unlock user/shop/category phải ghi audit trong cùng transaction; audit write lỗi thì mutation rollback.
+
+## 7. Workstream A — Auth, Buyer, inventory
+
+| ID | DRI | Task | Red slice/acceptance |
+|---|---|---|---|
+| A-101 | Người 1 | Nối register/complete-profile với onboarding thật | Seller onboarding tạo Shop PENDING |
+| A-102 | Người 1 | Refresh AuthContext sau onboarding/approve | Role/shop status mới xuất hiện không cần mock |
+| A-103 | Người 1 | Gate Seller navigation theo Shop status | PENDING thấy chờ duyệt, không thấy mutation CTA |
+| A-104 | Người 1 | Safe returnTo | Guest login quay về route nội bộ; external URL về `/` |
+| A-201 | Người 4 | Cart optimistic rollback | Mutation lỗi rollback đúng item |
+| A-202 | Người 4 | Checkout idempotency UI | Timeout retry giữ snapshot/key |
+| A-203 | Người 5 | PostgreSQL last-item race | Hai checkout song song chỉ một thành công |
+| A-204 | Người 5 | Cancel + stock restore | Cancel hợp lệ hoàn tồn một lần; repeat không hoàn lần hai |
+| A-205 | Người 5 | Seller/Admin exceptional cancel | Chỉ pending/confirmed/preparing; reason bắt buộc |
+| A-206 | Người 4 | Buyer checkout E2E | Catalog → cart → address → voucher → COD tạo một order/shop |
+
+## 8. Workstream B — Media, catalog, Seller products
+
+Media endpoints: `POST /media/uploads/presign`, `POST /media/uploads/:media_id/finalize`, `DELETE /media/uploads/:media_id`.
+
+- Presign TTL 10 phút; JPEG/PNG/WebP; tối đa 5 MB/file.
+- Product tối đa 5 ảnh, review 3, avatar 1.
+- Server sinh object path và gắn owner/purpose.
+- Finalize kiểm magic bytes, không tin Content-Type/extension client.
+- Chỉ xóa media chưa attached; attach vào target trong transaction.
+- Finalized chưa attached sau 24 giờ được cleanup; create product lỗi thì FE DELETE best-effort.
+
+| ID | DRI | Task | Red slice/acceptance |
+|---|---|---|---|
+| B-101 | Người 2 | Storage bucket/RLS/cleanup | Cross-owner upload/finalize/delete bị chặn |
+| B-102 | Người 3 | Presign/finalize/delete API | Sai magic bytes bị từ chối |
+| B-103 | Người 3 | MediaRepository FE | Lỗi upload giữ form; không fallback ảnh giả |
+| B-104 | Người 2 | FileUploadZone hardening | Object URL revoke khi remove/unmount |
+| B-105 | Người 3 | Product image dùng `next/image` | Kích thước ổn định, alt đúng |
+| B-201 | Người 3 | `GET /seller/products` | Scope JWT/shop, không arbitrary `shop_id` |
+| B-202 | Người 3 | Create product với media IDs | Product có ảnh finalized; Shop chưa ACTIVE bị 403 |
+| B-203 | Người 3 | Stock update | Integer không âm, ownership và Shop ACTIVE |
+| B-204 | Người 3 | Product ACTIVE↔INACTIVE | Public catalog ẩn product/shop không ACTIVE |
+| B-205 | Người 3 | Seller product UI live | Search/filter/create/stock/hide/show, không mock production |
+| B-206 | Người 3 | Seller product E2E | Upload → create → list → stock → hide/show |
+
+Edit name/description/price/variant structure nằm backlog sau MVP.
+
+## 9. Workstream C — Orders, review, notifications, Admin
+
+### 9.1. Orders/timeline
+
+`GET /orders/:id` trả timeline từ `order_status_history` theo `changed_at ASC`; FE không tự suy từ status hiện tại.
+
+| ID | DRI | Task | Red slice/acceptance |
+|---|---|---|---|
+| C-101 | Người 5 | Timeline DTO/query | History đúng thứ tự và scope |
+| C-102 | Người 5 | Shipment create/handover | Confirm retry không tạo Shipment trùng |
+| C-103 | Người 5 | Confirm-received transaction | Missing Shipment conflict; happy path đổi đúng hai entity |
+| C-104 | Người 5 | Confirm-received race | Hai transition race chỉ một thắng, phía sau refetch |
+| C-105 | Người 5 | Admin delivery-failed | Reason bắt buộc; Seller bị từ chối |
+| C-106 | Người 5 | Buyer/Seller Order UI | Timeline và actions đúng actor/status |
+| C-107 | Người 5 | Negative state-machine test | Seller vẫn không đặt được COMPLETED |
+
+### 9.2. Review write/read
+
+- `POST /order-items/:id/review`: server suy Product/Order từ OrderItem, không tin `product_id` client; Buyer owner; Order COMPLETED; một review/OrderItem.
+- `GET /products/:id/reviews?cursor=&limit=` trả public reviews và `rating_summary {average,count}`.
+
+| ID | DRI | Task | Red slice/acceptance |
+|---|---|---|---|
+| C-201 | Người 4 | Inject ReviewService runtime | Route không còn 501 |
+| C-202 | Người 4 | Review ownership/eligibility | Wrong owner/not completed/duplicate bị chặn |
+| C-203 | Người 4 | Review list + rating aggregate | Average/count chỉ từ review đúng Product |
+| C-204 | Người 5 | Review form API thật | Rating/content/media, inline errors, duplicate UX |
+| C-205 | Người 3 | Product Detail review UI | Rating/count/list thật; không rating giả |
+| C-206 | Người 5 | Order → review E2E | SHIPPING → confirm received → COMPLETED → review |
+
+### 9.3. Notifications
+
+Event MVP: Order mới cho Seller; Seller confirm/prepare/ship cho Buyer; cancel cho phía đối ứng; confirm-received cho Seller; delivery-failed cho Buyer+Seller; approve/lock/unlock Shop cho owner; lock/unlock User cho target; review mới cho Seller. Mỗi event có deterministic `event_id`.
+
+| ID | DRI | Task | Red slice/acceptance |
+|---|---|---|---|
+| C-301 | Người 4 | Inject NotificationService | List/detail/read không 501 |
+| C-302 | Người 4 | Emit event catalog | Retry không tạo notification trùng |
+| C-303 | Người 2 | NotificationRepository FE | Không demoRows production |
+| C-304 | Người 2 | Mark-one rollback | API lỗi trả item về unread |
+| C-305 | Người 2 | Mark tối đa 20 | Concurrency 4, partial failure, dừng queue khi 429 |
+
+### 9.4. Admin MVP
+
+| ID | DRI | Task | Red slice/acceptance |
+|---|---|---|---|
+| C-401 | Người 1 | Admin users/shops API hardening | Pagination/filter/error envelope chuẩn |
+| C-402 | Người 1 | Moderation effects + audit | Mutation/audit atomic; Admin target 403 |
+| C-403 | Người 3 | Admin category CRUD/status | Hai cấp, chặn parent cycle |
+| C-404 | Người 5 | Admin users/shops UI live | Không fixture production |
+| C-405 | Người 5 | Admin category UI live | Không local ID/create giả |
+| C-406 | Người 5 | Admin RBAC E2E | Buyer/Seller bị chặn route và API |
+
+Audit viewer, product/review moderation và KPI nằm backlog; audit write không được hoãn.
+
+## 10. Capability readiness
+
+Capability MUST: `auth`, `catalog`, `cart`, `checkout`, `seller_catalog`, `media`, `orders`, `reviews`, `notifications`, `admin_users`, `admin_shops`, `admin_categories`.
+
+- Development `MOCK_DEV_ONLY`: UI có badge “Dữ liệu demo”.
+- Production `BLOCKED`: ẩn menu/CTA; direct route dùng `FeatureUnavailable`.
+- Production `LIVE` lỗi request: error/retry/request ID, không fallback mock.
+- `next.config.ts` chạy `validateReleaseReadiness()` và fail build nếu capability MUST chưa LIVE.
+- Backend `/health/readiness` trả commit/version, DB/Auth/Storage và capability state; deployment chỉ promote khi khớp manifest FE.
+
+## 11. TDD seams đã khóa
+
+- **UI seam:** render screen qua public props/provider, thao tác bằng role/label/text, assert nội dung/focus/navigation; không đọc state nội bộ.
+- **Repository/API seam:** test public repository, chỉ mock HTTP/Storage/time/provider; wire type dùng generated OpenAPI types.
+- **Browser seam:** Playwright dùng backend/test DB và account seed; không query DB trực tiếp để chứng minh UI.
+- Mỗi red slice chỉ kiểm tra một hành vi. Confirm-received và review chỉ nối trong E2E, không gộp thành một red test.
+
+## 12. Release gate
+
+### Automated
+
+- FE lint 0 warning, typecheck, unit/component tests, build pass.
+- BE lint/typecheck/unit/integration/PostgreSQL pass.
+- Race tests: last-item checkout, cancel/restore, confirm-received, notification idempotency và checkout idempotency.
+- Playwright Chromium: Buyer checkout; Seller onboarding/Admin approve/create product; fulfillment→confirm-received→review; Admin moderation.
+- Axe: **0 critical, 0 serious** trên critical pages.
+
+### Manual accessibility/responsive
+
+- Keyboard-only hoàn thành bốn critical paths.
+- Focus summary, dialog containment/ESC/return focus và sticky UI không che focus.
+- Status không chỉ dùng màu.
+- Viewport MVP: 360/768/1280px.
+- Chrome là browser release chính; Edge smoke login/checkout/admin.
+
+### Production smoke
+
+- Vercel gọi đúng backend host; CORS chỉ cho allowed origin.
+- Security headers còn hiệu lực; frontend không có service-role key.
+- Supabase Auth và Storage presign/upload/finalize chạy thật.
+- `/health/readiness` xanh và khớp FE manifest.
+- Production không gọi mock; mọi lỗi có request ID.
+
+## 13. Checklist riêng từng người
+
+### Người 1 — Platform/Auth/Integration
+
+- [ ] P0-01 khóa OpenAPI.
+- [ ] P0-02 test tooling + generated FE types.
+- [ ] P0-04 capability registry/build guard.
+- [ ] P0-07 login `/auth/me` smoke.
+- [ ] P0-08 Change Request confirm-received.
+- [ ] P0-09 request ID mọi error.
+- [ ] A-101–A-104 Seller onboarding, AuthContext, navigation gate, returnTo.
+- [ ] C-401/C-402 Admin API hardening, moderation effects và atomic audit.
+- [ ] `/health/readiness`, contract drift CI và production deploy smoke.
+
+### Người 2 — Database/Storage/UI/Notifications
+
+- [ ] P0-03 ErrorSummary behavior test.
+- [ ] P0-05/P0-06 seed E2E + Product/Storage fixture.
+- [ ] B-101 Storage RLS/cleanup.
+- [ ] B-104 revoke object URL/FileUploadZone.
+- [ ] C-303–C-305 Notification FE, rollback và bounded concurrency.
+- [ ] Profile/avatar nối media thật.
+- [ ] Axe/manual keyboard/responsive QA và defect handoff.
+
+### Người 3 — Catalog/Media/Seller Products
+
+- [ ] B-102/B-103 media APIs + MediaRepository.
+- [ ] B-105 `next/image` product assets.
+- [ ] B-201–B-206 Seller product live flow và E2E.
+- [ ] C-205 Product Detail rating/reviews thật.
+- [ ] C-403 Admin category CRUD/status backend.
+- [ ] Cập nhật catalog capability và loại production mock fallback.
+
+### Người 4 — Buyer/Checkout FE + Review/Notification services
+
+- [ ] A-201/A-202 cart rollback và checkout idempotency UX.
+- [ ] A-206 Buyer checkout E2E.
+- [ ] C-201–C-203 Review runtime/write/read/rating aggregate.
+- [ ] C-301/C-302 Notification runtime và event catalog.
+- [ ] Xác minh Profile/Address/Voucher adapters dùng generated types.
+- [ ] Bàn giao review/notification fixtures và error codes cho Người 2/3/5.
+
+### Người 5 — Transaction/Order/Review/Admin FE
+
+- [ ] A-203–A-205 inventory race, cancel/restore và exceptional cancellation.
+- [ ] C-101–C-107 timeline, shipment, confirm-received, delivery-failed và Order UI.
+- [ ] C-204/C-206 Review form và Order→Review E2E.
+- [ ] C-404–C-406 Admin UI + RBAC E2E.
+- [ ] Buyer/Seller critical Playwright path và release evidence.
+
+Mỗi checkbox chỉ được tick khi progress file có link PR/commit, test đã chạy và blocker còn lại.
+
+## 14. Backlog sau MVP
+
+- Edit product name/description/price/variant structure.
+- Audit log viewer, product/review moderation UI, Seller/Admin analytics.
+- Dynamic SEO metadata từng Product và SSR optimization nâng cao.
+- Online payment provider và realtime notifications.
+- Auto-complete SHIPPING bằng shipment webhook/job.
+- Tách `CheckoutScreen`/`SellerOrdersScreen` sau behavior tests.
+- Visual regression và full Edge/375/1024/1440 matrix.
+- Rate-limit tuning ngoài baseline hiện có.
+- Buyer đã hoàn tất profile nâng cấp thành Seller.
+- Quy trình nhập lại kho sau `DELIVERY_FAILED`.
+
+## 15. Rủi ro chấp nhận
+
+- Order có thể kẹt `SHIPPING` nếu Buyer không xác nhận; demo dùng Buyer seed, chưa có auto-complete.
+- Admin không thể khóa Admin khác, kể cả admin xấu; quản lý Admin account ngoài portal MVP.
+- `DELIVERY_FAILED` không hoàn tồn tự động.
+- Refund/return không thuộc MVP.
+- Capability chưa qua integration cutoff giữ `BLOCKED`; không dùng mock production để che blocker.
