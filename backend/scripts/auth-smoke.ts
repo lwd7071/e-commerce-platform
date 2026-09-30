@@ -27,6 +27,7 @@ const password = `T1-${crypto.randomUUID()}-Aa1!`;
 let userId: string | undefined;
 let server: http.Server | undefined;
 let runtime: ReturnType<typeof createRuntimeApp> | undefined;
+let cleanupError: Error | undefined;
 
 const request = (port: number, token: string) => new Promise<{ status: number; body: string }>((resolve, reject) => {
   const req = http.request({ hostname: '127.0.0.1', port, path: '/api/v1/addresses', method: 'GET', headers: { Authorization: `Bearer ${token}` } }, (res) => {
@@ -77,9 +78,11 @@ try {
   if (userId) {
     await pool.query('DELETE FROM app_users WHERE user_id = $1', [userId]);
     const deleted = await admin.auth.admin.deleteUser(userId);
-    if (deleted.error) throw new Error(`Supabase Auth test user cleanup failed: ${deleted.error.message}`);
+    if (deleted.error) cleanupError = new Error(`Supabase Auth test user cleanup failed: ${deleted.error.message}`);
     const remaining = await pool.query('SELECT 1 FROM app_users WHERE user_id = $1', [userId]);
-    if (remaining.rowCount !== 0) throw new Error('Supabase Auth smoke left an app_users test row behind');
+    if (remaining.rowCount !== 0) cleanupError ??= new Error('Supabase Auth smoke left an app_users test row behind');
   }
   await pool.end();
 }
+
+if (cleanupError) throw cleanupError;
