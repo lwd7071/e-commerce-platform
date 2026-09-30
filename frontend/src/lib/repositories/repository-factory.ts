@@ -938,4 +938,10 @@ export const repositories = {
   media: (): IMediaRepository =>
     features.useMock() ? mockMediaRepository : apiMediaRepository,
 };
-export { mockCatalogRepository, apiCatalogRepository };
+
+export {
+  mockCatalogRepository,
+  apiCatalogRepository,
+  mockOrderRepository,
+  apiOrderRepository,
+};

@@ -1,7 +1,10 @@
 import { apiClient } from "@/lib/api/client";
 import { features } from "@/lib/config/features";
 import { categoryAdapter, DEV_CATEGORY_FIXTURES, type CategoryItem, type CategoryTreeNode } from "@/lib/adapters/category.adapter";
-import { repositories } from "@/lib/repositories/repository-factory";
+import {
+  mockOrderRepository,
+  mockCatalogRepository,
+} from "@/lib/repositories/repository-factory";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
 import type {
   UserAccount,
@@ -195,7 +198,7 @@ export function resetMockAdminStore() {
 
 export class MockAdminRepository implements IAdminRepository {
   async getDashboardStats(): Promise<DashboardStats> {
-    const orders = await repositories.order().getOrders();
+    const orders = await mockOrderRepository.getOrders();
     // Rule QD19: Only COMPLETED orders contribute to platform GMV
     const completedOrders = orders.filter((o) => o.status === "COMPLETED");
     const totalGMV = completedOrders.reduce((sum, o) => {
@@ -349,7 +352,7 @@ export class MockAdminRepository implements IAdminRepository {
   }
 
   async getSellerKPI(shopId = "00000000-0000-0000-0000-000000000001"): Promise<SellerKPIStats> {
-    const allOrders = await repositories.order().getOrders({ shop_id: shopId });
+    const allOrders = await mockOrderRepository.getOrders({ shop_id: shopId });
 
     // Rule QD19: Only COMPLETED orders count into revenue
     const completedOrders = allOrders.filter((o) => o.status === "COMPLETED");
@@ -360,7 +363,7 @@ export class MockAdminRepository implements IAdminRepository {
     const pendingOrders = allOrders.filter((o) => o.status === "PENDING_CONFIRMATION");
     let activeProductsCount = 18;
     try {
-      const catalogProducts = await repositories.catalog().getProducts();
+      const catalogProducts = await mockCatalogRepository.getProducts();
       const shopProducts = catalogProducts.filter((p) => p.shop_id === shopId);
       if (shopProducts.length > 0) {
         activeProductsCount = shopProducts.length;

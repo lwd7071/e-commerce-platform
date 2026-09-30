@@ -1,7 +1,16 @@
-import { describe, it, expect } from "vitest";
-import { reviewRepository } from "../src/features/review/review.repository";
+import { beforeAll, describe, it, expect, vi } from "vitest";
 import { RATING_LABELS, type CreateReviewPayload } from "../src/features/review/review.types";
-import { repositories } from "../src/lib/repositories/repository-factory";
+
+let reviewRepository: typeof import("../src/features/review/review.repository").reviewRepository;
+let repositories: typeof import("../src/lib/repositories/repository-factory").repositories;
+
+beforeAll(async () => {
+  // These review tests exercise the in-memory fixture repository explicitly.
+  vi.stubEnv("NEXT_PUBLIC_USE_MOCK", "true");
+  vi.resetModules();
+  ({ reviewRepository } = await import("../src/features/review/review.repository"));
+  ({ repositories } = await import("../src/lib/repositories/repository-factory"));
+});
 
 describe("Review Management and Form Validation (O-507 & P-607c)", () => {
   it("provides human-readable labels for all 5 star ratings", () => {
