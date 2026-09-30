@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth/auth-context";
+import { AppError } from "@/lib/api/app-error";
 import { ProtectedPage } from "../../components/navigation/protected-page";
 import { Button } from "../../components/ui/button";
 import { EmptyState } from "../../components/ui/data-states";
 import { Icon } from "../../components/ui/icon";
-import { demoNotificationRepository, markNotificationsReadBounded, type NotificationRepository } from "./notification-repository";
+import { apiNotificationRepository, demoNotificationRepository, markNotificationsReadBounded, type NotificationRepository } from "./notification-repository";
 import {
   countUnreadNotifications,
   filterNotifications,
@@ -16,25 +17,34 @@ import {
   type NotificationRow,
 } from "./notification-state";
 
-export function NotificationsScreen({ production, repository = demoNotificationRepository }: { production: boolean; repository?: NotificationRepository }) {
+export function NotificationsScreen({ production, repository = production ? apiNotificationRepository : demoNotificationRepository, liveAvailable = !production }: { production: boolean; repository?: NotificationRepository; liveAvailable?: boolean }) {
   const [rows, setRows] = useState<NotificationRow[]>([]);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const [loadError, setLoadError] = useState<{ message: string; requestId?: string } | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [filter, setFilter] = useState<NotificationFilter>("all");
   const unreadCount = countUnreadNotifications(rows);
   const visibleRows = useMemo(() => filterNotifications(rows, filter), [filter, rows]);
 
   useEffect(() => {
-    if (production) return;
+    if (production && !liveAvailable) return;
     let active = true;
     repository.list().then((data) => {
       if (active) { setRows(data); setLoadState("ready"); }
-    }).catch(() => { if (active) setLoadState("error"); });
+    }).catch((error: unknown) => {
+      if (!active) return;
+      setLoadError({
+        message: error instanceof Error ? error.message : "Đã có lỗi khi tải thông báo.",
+        requestId: error instanceof AppError ? error.requestId : undefined,
+      });
+      setLoadState("error");
+    });
     return () => { active = false; };
-  }, [production, repository, loadAttempt]);
+  }, [production, liveAvailable, repository, loadAttempt]);
 
   const retryLoad = () => {
+    setLoadError(null);
     setLoadState("loading");
     setLoadAttempt((attempt) => attempt + 1);
   };
@@ -46,7 +56,9 @@ export function NotificationsScreen({ production, repository = demoNotificationR
     try { await repository.markRead(id); }
     catch (error) {
       setRows((current) => current.map((row) => row.id === id ? { ...row, isRead: wasRead } : row));
-      setActionMessage(error instanceof Error ? error.message : "Chưa thể cập nhật thông báo.");
+      const message = error instanceof Error ? error.message : "Chưa thể cập nhật thông báo.";
+      const requestId = error instanceof AppError ? error.requestId : undefined;
+      setActionMessage(requestId ? `${message} (Mã yêu cầu: ${requestId})` : message);
     }
   }
 
@@ -61,9 +73,10 @@ export function NotificationsScreen({ production, repository = demoNotificationR
       setRows((current) => current.map((row) => rollbackIds.has(row.id)
         ? { ...row, isRead: previous.find((item) => item.id === row.id)?.isRead ?? row.isRead }
         : row));
-      setActionMessage(result.stoppedByRateLimit
+      const requestIdText = result.requestIds.length ? ` Mã yêu cầu: ${[...new Set(result.requestIds)].join(", ")}.` : "";
+      setActionMessage((result.stoppedByRateLimit
         ? "Máy chủ đang giới hạn yêu cầu. Các mục chưa cập nhật vẫn được giữ để thử lại."
-        : `${rollbackIds.size} thông báo chưa cập nhật; bạn có thể thử lại.`);
+        : `${rollbackIds.size} thông báo chưa cập nhật; bạn có thể thử lại.`) + requestIdText);
     }
   }
 
@@ -73,10 +86,10 @@ export function NotificationsScreen({ production, repository = demoNotificationR
         <div><p className="eyebrow">Cập nhật mới nhất</p><h1 className="page-title">Thông báo</h1><p className="page-description">Theo dõi cập nhật về đơn hàng và tài khoản.</p></div>
         {!production && <span className="dev-data-note"><Icon name="warning" />Dữ liệu demo — chỉ lưu trong màn hình này</span>}
       </header>
-      {production ? (
-        <section className="error-state surface-card" role="status"><span className="empty-state__icon"><Icon name="info" /></span><h2>Thông báo chưa khả dụng</h2><p>API thông báo hiện chưa được backend cấu hình (runtime trả 501). Không có dữ liệu giả hoặc thao tác ghi nào được thực hiện.</p></section>
+      {production && !liveAvailable ? (
+        <section className="error-state surface-card" role="status"><span className="empty-state__icon"><Icon name="info" /></span><h2>Thông báo chưa khả dụng</h2><p>Dịch vụ thông báo chưa được bật cho bản phát hành này. Dữ liệu mẫu sẽ không được dùng thay thế.</p></section>
       ) : loadState === "loading" ? <section className="surface-card section-card" role="status" aria-live="polite">Đang tải thông báo…</section>
-      : loadState === "error" ? <section className="surface-card section-card" role="alert"><h2>Chưa tải được thông báo</h2><Button variant="secondary" onClick={retryLoad}>Thử lại</Button></section>
+      : loadState === "error" ? <section className="surface-card section-card" role="alert"><h2>Chưa tải được thông báo</h2><p>{loadError?.message ?? "Đã có lỗi khi tải thông báo."}</p>{loadError?.requestId && <p className="field-help">Mã yêu cầu: {loadError.requestId}</p>}<Button variant="secondary" onClick={retryLoad}>Thử lại</Button></section>
       : (
         <section className="surface-card section-card" aria-label="Danh sách thông báo">
           <div className="notification-toolbar">
@@ -105,5 +118,6 @@ export function NotificationsScreen({ production, repository = demoNotificationR
 
 export function NotificationsPageContent({ production }: { production: boolean }) {
   const { user } = useAuth();
-  return <ProtectedPage allowedRoles={["BUYER"]}><NotificationsScreen production={production && Boolean(user)} /></ProtectedPage>;
+  const liveAvailable = Boolean(user) && process.env.NEXT_PUBLIC_NOTIFICATIONS_API === "live";
+  return <ProtectedPage allowedRoles={["BUYER"]}><NotificationsScreen production={production && Boolean(user)} liveAvailable={production ? liveAvailable : Boolean(user)} /></ProtectedPage>;
 }

@@ -72,4 +72,20 @@ describe("Seller Product Creation Validation (Người 3 - TDD)", () => {
     expect(res.valid).toBe(false);
     expect(res.errors["variants_0_stock"]).toContain("số nguyên");
   });
+
+  it("chặn khi số lượng ảnh sản phẩm vượt quá 5 ảnh (B-202)", () => {
+    const res = validateProductCreationInput({
+      ...validProduct,
+      images: [
+        "img1.png",
+        "img2.png",
+        "img3.png",
+        "img4.png",
+        "img5.png",
+        "img6.png",
+      ],
+    });
+    expect(res.valid).toBe(false);
+    expect(res.errors.images).toContain("tối đa 5");
+  });
 });

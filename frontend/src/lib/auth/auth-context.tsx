@@ -92,23 +92,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session) {
-        try { await syncSession(session); }
-        catch { setAccessToken(null); setUser(null); }
+      try {
+        if (session) await syncSession(session);
+      } catch {
+        setAccessToken(null); setUser(null);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
+    }).catch(() => {
+      setAccessToken(null); setUser(null); setIsLoading(false);
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      // INITIAL_SESSION is emitted before getSession() has necessarily finished.
+      // Treating its transient null as signed-out races ProtectedPage redirects
+      // against persisted-session restoration after a full page reload.
+      if (event === "INITIAL_SESSION") return;
       if (session) {
-        void syncSession(session).catch(() => { setAccessToken(null); setUser(null); });
+        void syncSession(session)
+          .catch(() => { setAccessToken(null); setUser(null); })
+          .finally(() => setIsLoading(false));
       } else {
         setAccessToken(null);
         setUser(null);
+        setIsLoading(false);
       }
-      setIsLoading(false);
     });
 
     return () => {

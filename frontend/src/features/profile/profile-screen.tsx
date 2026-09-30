@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ProtectedPage } from "../../components/navigation/protected-page";
@@ -10,6 +10,7 @@ import { Icon } from "../../components/ui/icon";
 import { TextInput } from "../../components/ui/form-controls";
 import { useToast } from "../../components/ui/toast";
 import { buyerApi } from "../../lib/api/buyer.api";
+import { uploadMediaAsset } from "../../lib/api/media.api";
 import { AddressManager } from "./address-manager";
 import { profileFailureState, type ProfileRequestState, type ProfileSnapshot } from "./profile-request-state";
 
@@ -33,7 +34,7 @@ export function ProfilePageContent() {
         }
         if (active) setRequestState({
           status: "ready",
-          profile: { email: userEmail, role: userRole, fullName: value.full_name, phone: value.phone },
+          profile: { email: userEmail, role: userRole, fullName: value.full_name, phone: value.phone, avatarUrl: value.avatar_url },
         });
       })
       .catch((error: unknown) => {
@@ -79,6 +80,9 @@ function ProfileReadyScreen({ profile }: { profile: AuthProfileSnapshot }) {
   const [fullName, setFullName] = useState(profile?.fullName || "");
   const [phone, setPhone] = useState(profile?.phone || "");
   const [isSaving, setIsSaving] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState(profile.avatarUrl ?? null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const avatarInput = useRef<HTMLInputElement>(null);
 
   const displayName = fullName.trim() || profile?.fullName?.trim() || "Tài khoản Dino";
   const initials = displayName === "Tài khoản Dino" ? "D" : displayName.slice(0, 1).toLocaleUpperCase("vi-VN");
@@ -103,6 +107,25 @@ function ProfileReadyScreen({ profile }: { profile: AuthProfileSnapshot }) {
     }
   };
 
+  const handleAvatarSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    if (!file) return;
+    setIsUploadingAvatar(true);
+    try {
+      const uploaded = await uploadMediaAsset(file, { purpose: "avatar_image" });
+      if (!uploaded.mediaId) throw new Error("Máy chủ chưa xác nhận ảnh đại diện. Vui lòng thử lại.");
+      const saved = await buyerApi.updateAvatar(uploaded.mediaId);
+      setAvatarUrl(saved.avatar_url);
+      showToast("Đã cập nhật ảnh đại diện", "success");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Tải ảnh đại diện thất bại", "error");
+    } finally {
+      setIsUploadingAvatar(false);
+      input.value = "";
+    }
+  };
+
   return (
     <>
       <header className="page-heading">
@@ -117,10 +140,10 @@ function ProfileReadyScreen({ profile }: { profile: AuthProfileSnapshot }) {
 
       <div className="profile-grid">
         <section className="profile-summary surface-card" aria-label="Ảnh và tên tài khoản">
-          {profile?.avatarUrl ? (
+          {avatarUrl ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
-              src={profile.avatarUrl}
+              src={avatarUrl}
               alt={`Ảnh đại diện của ${displayName}`}
               className="w-20 h-20 rounded-full object-cover border-2 border-[var(--primary)] shadow-sm"
             />
@@ -136,15 +159,16 @@ function ProfileReadyScreen({ profile }: { profile: AuthProfileSnapshot }) {
           <div className="avatar-picker">
             <Button
               variant="secondary"
-              disabled
+              type="button"
+              disabled={isUploadingAvatar}
+              onClick={() => avatarInput.current?.click()}
               leadingIcon={<Icon name="user" />}
               className="min-h-[44px]"
             >
-              Tải ảnh đại diện (chưa hỗ trợ)
+              {isUploadingAvatar ? "Đang tải ảnh…" : avatarUrl ? "Đổi ảnh đại diện" : "Tải ảnh đại diện"}
             </Button>
-            <span className="field-help" id="avatar-hint">
-              Tính năng tải ảnh sẽ được bổ sung sau.
-            </span>
+            <input ref={avatarInput} data-testid="profile-avatar-upload" className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" aria-describedby="avatar-hint" onChange={handleAvatarSelected} />
+            <span className="field-help" id="avatar-hint">JPG, PNG hoặc WebP; tối đa 5 MB.</span>
           </div>
         </section>
 

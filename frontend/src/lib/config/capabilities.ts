@@ -28,6 +28,33 @@ export type MustCapability = (typeof MUST_CAPABILITIES)[number];
 
 export type CapabilityManifest = Record<MustCapability, CapabilityState>;
 
+function configuredProductionOverrides(): Partial<CapabilityManifest> {
+  const configured: Partial<CapabilityManifest> = {};
+  const rawManifest = process.env.NEXT_PUBLIC_CAPABILITIES;
+  if (rawManifest) {
+    try {
+      const value: unknown = JSON.parse(rawManifest);
+      if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+        for (const capability of MUST_CAPABILITIES) {
+          const state = (value as Record<string, unknown>)[capability];
+          if (state === "LIVE" || state === "BLOCKED" || state === "MOCK_DEV_ONLY") {
+            configured[capability] = state;
+          }
+        }
+      }
+    } catch {
+      // Invalid configuration deliberately leaves the capability blocked.
+    }
+  }
+  if (configured.notifications === undefined && process.env.NEXT_PUBLIC_NOTIFICATIONS_API === "live") {
+    configured.notifications = "LIVE";
+  }
+  if (configured.media === undefined && process.env.NEXT_PUBLIC_MEDIA_API === "live") {
+    configured.media = "LIVE";
+  }
+  return configured;
+}
+
 /**
  * Resolves current capability states based on runtime environment and feature flags.
  */
@@ -40,7 +67,7 @@ export function getCapabilityManifest(options?: {
   const useMock = options?.useMock ?? (process.env.NEXT_PUBLIC_USE_MOCK === "true");
 
   const defaultState: CapabilityState = isProduction
-    ? (useMock ? "MOCK_DEV_ONLY" : "LIVE")
+    ? (useMock ? "MOCK_DEV_ONLY" : "BLOCKED")
     : (useMock ? "MOCK_DEV_ONLY" : "LIVE");
 
   const manifest: CapabilityManifest = {
@@ -49,15 +76,23 @@ export function getCapabilityManifest(options?: {
     cart: defaultState,
     checkout: defaultState,
     seller_catalog: defaultState,
-    media: "LIVE",
+    media: isProduction && !useMock
+      ? (process.env.NEXT_PUBLIC_MEDIA_API === "live" ? "LIVE" : "BLOCKED")
+      : defaultState,
     orders: defaultState,
     reviews: defaultState,
-    notifications: defaultState,
+    notifications: isProduction && !useMock
+      ? (process.env.NEXT_PUBLIC_NOTIFICATIONS_API === "live" ? "LIVE" : "BLOCKED")
+      : defaultState,
     admin_users: defaultState,
     admin_shops: defaultState,
     admin_categories: defaultState,
-    ...options?.overrides,
   };
+
+  if (isProduction && !useMock) {
+    Object.assign(manifest, configuredProductionOverrides());
+  }
+  Object.assign(manifest, options?.overrides);
 
   return manifest;
 }

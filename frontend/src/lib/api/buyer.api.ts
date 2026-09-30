@@ -11,6 +11,18 @@ export interface WireProfile {
   role?: "BUYER" | "SELLER" | "ADMIN";
 }
 
+/** Runtime Notification DTO; kept aligned with the canonical OpenAPI schema. */
+export interface WireNotification {
+  notificationId: string;
+  recipientId: string;
+  type: "ORDER" | "PAYMENT" | "SHIPPING" | "VIOLATION" | "SYSTEM";
+  title: string;
+  content: string;
+  isRead: boolean;
+  createdAt: string;
+  readAt: string | null;
+}
+
 /**
  * Address DTO matching runtime PgAddressRepository (camelCase).
  */
@@ -96,6 +108,7 @@ export interface UpdateCartItemPayload {
 export const buyerApi = {
   getProfile: () => apiClient.get<WireProfile>("/profile"),
   updateProfile: (data: { full_name?: string | null; phone?: string | null; avatar_url?: string | null }) => apiClient.patch<WireProfile>("/profile", { full_name: data.full_name, phone: data.phone }),
+  updateAvatar: (mediaId: string) => apiClient.patch<WireProfile>("/profile/avatar", { media_id: mediaId }),
 
   // Address operations (AVAILABLE in runtime at /addresses)
   getAddresses: () => apiClient.get<WireAddress[]>("/addresses"),
@@ -119,6 +132,6 @@ export const buyerApi = {
   removeSelectedCartItems: () => apiClient.delete<void>("/cart/selected"),
 
   // Notification operations (legacy scaffold code from Person 1, Person 2 owns domain)
-  getNotifications: () => apiClient.get<unknown[]>("/notifications"),
+  getNotifications: () => apiClient.get<WireNotification[]>("/notifications"),
   markNotificationRead: (id: string) => apiClient.patch(`/notifications/${id}/read`),
 };

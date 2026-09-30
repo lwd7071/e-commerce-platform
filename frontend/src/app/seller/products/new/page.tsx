@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { ProtectedPage } from "@/components/navigation/protected-page";
-import { SellerCreateProductScreen } from "@/features/seller/seller-create-product-screen";
+import { SellerProductCreateScreen } from "@/features/seller/seller-product-create-screen";
 
 export const metadata: Metadata = {
   title: "Thêm sản phẩm mới | Kênh Người Bán",
@@ -11,7 +11,7 @@ export default function NewProductPage() {
   return (
     <ProtectedPage allowedRoles={["SELLER", "ADMIN"]}>
       <div className="py-6">
-        <SellerCreateProductScreen />
+        <SellerProductCreateScreen />
       </div>
     </ProtectedPage>
   );

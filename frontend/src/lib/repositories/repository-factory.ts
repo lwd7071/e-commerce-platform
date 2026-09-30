@@ -118,7 +118,7 @@ const apiMediaRepository: IMediaRepository = {
     return { url };
   },
   presign: (filename, contentType, purpose) => mediaApi.presign(filename, contentType, purpose),
-  finalize: (mediaId, magicBytes) => mediaApi.finalize(mediaId, magicBytes),
+  finalize: (mediaId) => mediaApi.finalize(mediaId),
   deleteMedia: (mediaId) => mediaApi.deleteMedia(mediaId),
 };
 

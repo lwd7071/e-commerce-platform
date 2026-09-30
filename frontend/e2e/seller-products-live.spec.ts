@@ -9,7 +9,6 @@ test('B-206: seller uploads to Supabase, creates product, edits stock, and hides
 
   const productName = `B206 E2E ${Date.now()}`;
   const sku = `B206-${Date.now()}`;
-  let createdProductId: string | undefined;
 
   await page.goto('/login?returnTo=%2Fseller%2Fproducts');
   await page.getByLabel('Địa chỉ Email').fill(sellerEmail!);
@@ -52,7 +51,7 @@ test('B-206: seller uploads to Supabase, creates product, edits stock, and hides
   const created = await createResponsePromise;
   expect(created.status()).toBe(201);
   const createdPayload = await created.json();
-  createdProductId = createdPayload.data.product_id as string;
+  const createdProductId = createdPayload.data.product_id as string;
   expect(objectPath).toContain(`/products/${createdProductId}/`);
   expect(createdPayload.data.images?.[0]?.image_url ?? imageUrl).toContain('/storage/v1/object/public/product-media/');
   test.info().annotations.push({ type: 'cleanup-product-id', description: createdProductId });

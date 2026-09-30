@@ -27,6 +27,24 @@ test("public entry and catalog screens have no critical or serious Axe violation
   }
 });
 
+test("profile and notification guest states remain accessible on mobile and desktop", async ({ page }) => {
+  for (const [route, width] of [["/profile", 360], ["/profile", 1280], ["/notifications", 360], ["/notifications", 1280]] as const) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(route, { waitUntil: "networkidle" });
+
+    if (route === "/profile") {
+      await expect(page.locator("#main-content").getByRole("link", { name: "Đăng nhập" })).toBeVisible();
+    } else {
+      await expect(page).toHaveURL(/\/login\?returnTo=%2Fnotifications/);
+      await expect(page.getByRole("button", { name: /^đăng nhập$/i })).toBeVisible();
+    }
+
+    const results = await new AxeBuilder({ page }).analyze();
+    const blocking = results.violations.filter((item) => item.impact === "critical" || item.impact === "serious");
+    expect(blocking, `${route} at ${width}px: ${JSON.stringify(blocking.map(({ id, description, nodes }) => ({ id, description, nodes: nodes.map((node) => node.target) })))}`).toEqual([]);
+  }
+});
+
 test("guest account flows keep a usable sign-in path", async ({ page }) => {
   for (const route of ["/profile", "/notifications", "/checkout", "/seller/orders", "/admin"]) {
     await page.goto(route, { waitUntil: "networkidle" });

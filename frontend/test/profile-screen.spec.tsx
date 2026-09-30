@@ -10,7 +10,11 @@ vi.mock("@/features/profile/address-manager", () => ({ AddressManager: () => <di
 vi.mock("@/lib/api/buyer.api", () => ({
   buyerApi: {
     updateProfile: vi.fn().mockRejectedValue(new Error("Máy chủ tạm thời không khả dụng")),
+    updateAvatar: vi.fn().mockResolvedValue({ avatar_url: "https://storage.test/profile/avatar.jpg" }),
   },
+}));
+vi.mock("@/lib/api/media.api", () => ({
+  uploadMediaAsset: vi.fn().mockResolvedValue({ mediaId: "avatar-media-id", url: "https://storage.test/profile/avatar.jpg" }),
 }));
 
 const ready: ProfileRequestState = {
@@ -47,5 +51,18 @@ describe("ProfileScreen request state UI", () => {
     expect(await screen.findByRole("alert")).toBeTruthy();
     expect((name as HTMLInputElement).value).toBe("Tên vừa chỉnh");
     expect((screen.getByLabelText("Số điện thoại") as HTMLInputElement).value).toBe("0900000000");
+  });
+
+  it("uploads an avatar through media_id and renders the server URL", async () => {
+    const user = userEvent.setup();
+    render(<ToastProvider><ProfileScreen state={ready} onRetry={vi.fn()} /></ToastProvider>);
+    const input = screen.getByTestId("profile-avatar-upload") as HTMLInputElement;
+    const avatar = new File([new Uint8Array([1, 2, 3])], "lvvd.jpg", { type: "image/jpeg" });
+    await user.upload(input, avatar);
+
+    const renderedAvatar = await screen.findByRole("img", { name: "Ảnh đại diện của Nguyễn An" });
+    expect(renderedAvatar.getAttribute("src")).toBe("https://storage.test/profile/avatar.jpg");
+    const { buyerApi } = await import("@/lib/api/buyer.api");
+    expect(buyerApi.updateAvatar).toHaveBeenCalledWith("avatar-media-id");
   });
 });

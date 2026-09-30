@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   MUST_CAPABILITIES,
   getCapabilityManifest,
@@ -29,6 +29,7 @@ describe("Capability Readiness Registry & Release Build Guard (P0-04)", () => {
     const liveManifest = getCapabilityManifest({
       isProduction: true,
       useMock: false,
+      overrides: Object.fromEntries(MUST_CAPABILITIES.map((capability) => [capability, "LIVE"])) as Record<typeof MUST_CAPABILITIES[number], "LIVE">,
     });
     const result = validateReleaseReadiness({
       manifest: liveManifest,
@@ -39,6 +40,30 @@ describe("Capability Readiness Registry & Release Build Guard (P0-04)", () => {
     expect(result.valid).toBe(true);
     expect(result.errors).toHaveLength(0);
     expect(isCapabilityLive("auth", liveManifest)).toBe(true);
+  });
+
+  it("keeps unverified production capabilities blocked by default", () => {
+    const manifest = getCapabilityManifest({ isProduction: true, useMock: false });
+    expect(manifest.notifications).toBe("BLOCKED");
+    expect(manifest.media).toBe("BLOCKED");
+    expect(manifest.orders).toBe("BLOCKED");
+  });
+
+  it("requires an explicit production capability manifest rather than inferring readiness", () => {
+    const release = validateReleaseReadiness({ isProduction: true, useMock: false });
+    expect(release.valid).toBe(false);
+    expect(release.errors).toContain('Capability MUST "notifications" is not LIVE (current: BLOCKED).');
+  });
+
+  it("accepts readiness only for capabilities explicitly declared LIVE in the build environment", () => {
+    const liveSettings = Object.fromEntries(MUST_CAPABILITIES.map((capability) => [capability, "LIVE"]));
+    vi.stubEnv("NEXT_PUBLIC_CAPABILITIES", JSON.stringify(liveSettings));
+    try {
+      const release = validateReleaseReadiness({ isProduction: true, useMock: false });
+      expect(release.valid).toBe(true);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("fails production release validation if any capability is MOCK_DEV_ONLY or BLOCKED", () => {

@@ -29,6 +29,12 @@ describe("Next.js root environment loading", () => {
       path.join(frontendDir, "next.config.ts"),
       readFileSync(path.join(projectDir, "next.config.ts")),
     );
+    const configSupportDir = path.join(frontendDir, "src", "lib", "config");
+    mkdirSync(configSupportDir, { recursive: true });
+    writeFileSync(
+      path.join(configSupportDir, "capabilities.ts"),
+      readFileSync(path.join(projectDir, "src", "lib", "config", "capabilities.ts")),
+    );
     symlinkSync(path.join(projectDir, "node_modules"), path.join(frontendDir, "node_modules"), "junction");
 
     const childEnv = { ...process.env };

@@ -1,7 +1,7 @@
 import { AppError } from "../../lib/api/app-error";
 import type { UserRole } from "../../lib/auth/types";
 
-export type ProfileSnapshot = { email: string; role: UserRole; fullName: string | null; phone: string | null };
+export type ProfileSnapshot = { email: string; role: UserRole; fullName: string | null; phone: string | null; avatarUrl?: string | null };
 export type ProfileRequestState =
   | { status: "loading" }
   | { status: "signed_out" }

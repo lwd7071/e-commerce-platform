@@ -32,6 +32,10 @@ export function validateProductCreationInput(input: ProductCreationInput): Produ
     errors.category_id = "Vui lòng chọn danh mục cho sản phẩm";
   }
 
+  if (input.images && input.images.length > 5) {
+    errors.images = "Sản phẩm chỉ cho phép tải lên tối đa 5 hình ảnh";
+  }
+
   if (!input.variants || input.variants.length === 0) {
     errors.variants = "Sản phẩm phải có ít nhất 1 phân loại biến thể (SKU)";
   } else {

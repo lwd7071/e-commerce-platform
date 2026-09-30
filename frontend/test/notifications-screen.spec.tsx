@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { NotificationsScreen } from "@/features/notifications/notifications-screen";
 import type { NotificationRepository } from "@/features/notifications/notification-repository";
 import type { NotificationRow } from "@/features/notifications/notification-state";
+import { AppError } from "@/lib/api/app-error";
 
 function rows(count: number): NotificationRow[] {
   return Array.from({ length: count }, (_, index) => ({
@@ -31,6 +32,17 @@ describe("NotificationsScreen", () => {
     expect(screen.queryByText("Thông báo 1")).toBeNull();
   });
 
+  it("loads and persists notifications in production when the live repository is injected", async () => {
+    const user = userEvent.setup();
+    const repo = repository(rows(1));
+    render(<NotificationsScreen production repository={repo} liveAvailable />);
+
+    expect(await screen.findByText("Thông báo 1")).not.toBeNull();
+    await user.click(screen.getByRole("button", { name: "Đánh dấu đã đọc" }));
+    await waitFor(() => expect(repo.markRead).toHaveBeenCalledWith("notice-1"));
+    expect(screen.queryByText("Thông báo chưa khả dụng")).toBeNull();
+  });
+
   it("shows a load error and retries the repository", async () => {
     const user = userEvent.setup();
     const item = rows(1)[0];
@@ -43,6 +55,15 @@ describe("NotificationsScreen", () => {
     await user.click(await screen.findByRole("button", { name: "Thử lại" }));
     expect(await screen.findByText("Thông báo 1")).not.toBeNull();
     expect(repo.list).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows the backend request ID when live notification loading fails", async () => {
+    const repo: NotificationRepository = {
+      list: vi.fn(async () => { throw new AppError({ status: 503, code: "SERVICE_UNAVAILABLE", message: "Unavailable", requestId: "req-notify-1" }); }),
+      markRead: vi.fn(async () => undefined),
+    };
+    render(<NotificationsScreen production repository={repo} liveAvailable />);
+    expect(await screen.findByText("Mã yêu cầu: req-notify-1")).not.toBeNull();
   });
 
   it("shows loading, filters unread rows, and renders the empty state", async () => {
@@ -84,6 +105,18 @@ describe("NotificationsScreen", () => {
 
     expect(await screen.findByRole("button", { name: "Đánh dấu đã đọc" })).not.toBeNull();
     expect(await screen.findByRole("alert")).not.toBeNull();
+  });
+
+  it("includes the request ID when mark-read fails", async () => {
+    const user = userEvent.setup();
+    const item = rows(1)[0];
+    const repo: NotificationRepository = {
+      list: vi.fn(async () => [item]),
+      markRead: vi.fn(async () => { throw new AppError({ status: 503, code: "SERVICE_UNAVAILABLE", message: "Unavailable", requestId: "req-mark-2" }); }),
+    };
+    render(<NotificationsScreen production repository={repo} liveAvailable />);
+    await user.click(await screen.findByRole("button", { name: "Đánh dấu đã đọc" }));
+    expect(await screen.findByText(/Mã yêu cầu: req-mark-2/)).not.toBeNull();
   });
 
   it("keeps successful bulk writes, restores failed and unattempted rows after 429", async () => {
