@@ -28,6 +28,11 @@ import { AddressService } from '../../modules/buyer/services/address.service.ts'
 import { ProfileService } from '../../modules/buyer/services/profile.service.ts';
 import { PostgresAddressRepository } from '../../modules/buyer/infrastructure/postgres-address.repository.ts';
 import { PostgresUserProfileRepository } from '../../modules/buyer/infrastructure/postgres-user-profile.repository.ts';
+import { PostgresReviewRepository } from '../../modules/buyer/infrastructure/postgres-review.repository.ts';
+import { PostgresNotificationRepository } from '../../modules/buyer/infrastructure/postgres-notification.repository.ts';
+import { ReviewService } from '../../modules/buyer/services/review.service.ts';
+import { NotificationService } from '../../modules/buyer/services/notification.service.ts';
+import { InMemoryTransactionEventPort } from '../../modules/buyer/ports/buyer-event.port.ts';
 import { PgBuyerHttpService } from '../../modules/buyer/services/pg-buyer-http.service.ts';
 
 import { createSecurityHeadersMiddleware, createCorsMiddleware, type CorsOptions } from './middlewares/security-headers.ts';
@@ -100,6 +105,7 @@ export const app = createApp();
 
 export interface RuntimeApp {
   app: Application;
+  eventPort?: InMemoryTransactionEventPort;
   close(): Promise<void>;
 }
 
@@ -121,6 +127,9 @@ export function createRuntimeApp(
   const onboardingService = new PgOnboardingService(pool);
   const checkoutService = new PgCheckoutService(pool);
   const orderQueryService = new OrderQueryService(new PgOrderRepository(pool), pool);
+  const sharedEventPort = new InMemoryTransactionEventPort();
+  const reviewService = new ReviewService(new PostgresReviewRepository(pool), orderQueryService);
+  const notificationService = new NotificationService(new PostgresNotificationRepository(pool), sharedEventPort, orderQueryService);
   const verifier = runtimeOverrides.tokenVerifier ?? new SupabaseJwtVerifier({
     jwksUrl: new URL(jwksUrl!),
     issuer: new URL('/auth/v1', supabaseUrl!).toString().replace(/\/$/, ''),
@@ -139,6 +148,8 @@ export function createRuntimeApp(
         legacyHttpApplication: new PgBuyerHttpService(pool),
         addressService: new AddressService(new PostgresAddressRepository(pool)),
         profileService: new ProfileService(new PostgresUserProfileRepository(pool)),
+        reviewService,
+        notificationService,
       },
       orderServices: {
         checkoutService,
@@ -154,6 +165,7 @@ export function createRuntimeApp(
         new PgTransactionManager(pool)
       ),
     }),
+    eventPort: sharedEventPort,
     close: () => ownsPool ? closeDatabasePool(pool) : Promise.resolve(),
   };
 }

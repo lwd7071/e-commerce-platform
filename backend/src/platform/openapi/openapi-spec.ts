@@ -228,6 +228,20 @@ export function generateOpenApiSpec(): OpenApiSpec {
           responses: { '200': successResponse('Product detail'), '404': errorResponse('Product not found') },
         },
       },
+      '/products/{product_id}/reviews': {
+        get: {
+          summary: 'List public product reviews with aggregate rating',
+          parameters: [
+            { name: 'product_id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'limit', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 } },
+            { name: 'cursor', in: 'query', required: false, schema: { type: 'string' } },
+          ],
+          responses: {
+            '200': successResponse('Public product reviews'),
+            '501': errorResponse('Review service not available'),
+          },
+        },
+      },
       '/product-variants/{variant_id}/stock': {
         patch: {
           summary: 'Update owned product variant stock',
