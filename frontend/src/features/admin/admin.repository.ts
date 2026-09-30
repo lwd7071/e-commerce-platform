@@ -1,4 +1,4 @@
-import { categoryAdapter, DEV_CATEGORY_FIXTURES, type CategoryItem, type CategoryTreeNode } from "@/lib/adapters/category.adapter";
+import { DEV_CATEGORY_FIXTURES, type CategoryItem, type CategoryTreeNode } from "@/lib/adapters/category.adapter";
 import { repositories } from "@/lib/repositories/repository-factory";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
 import type {
