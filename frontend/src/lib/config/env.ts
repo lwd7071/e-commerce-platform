@@ -7,6 +7,7 @@ export interface AppEnvConfig {
   apiUrl: string;
   supabaseUrl: string;
   supabaseAnonKey: string;
+  siteUrl: string;
   useMock: boolean;
   debugLogs: boolean;
 }
@@ -29,11 +30,12 @@ export function validateEnvConfig(): AppEnvConfig {
     }
   }
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
 
   // When mock mode is disabled, Supabase credentials are required
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
   if (!useMock) {
     if (!supabaseUrl && typeof window !== "undefined") {
@@ -52,6 +54,7 @@ export function validateEnvConfig(): AppEnvConfig {
     apiUrl,
     supabaseUrl,
     supabaseAnonKey,
+    siteUrl,
     useMock,
     debugLogs,
   };

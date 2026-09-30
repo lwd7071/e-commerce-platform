@@ -1,26 +1,29 @@
 # 02. Pages và user flows
 
-> **Phiên bản:** 1.1.0  
-> **Trạng thái:** IMPLEMENTATION-READY WITH DECLARED BLOCKERS
+> **Phiên bản:** 1.4.0
+>
+> **Trạng thái:** ROUTES EXIST — LIVE INTEGRATION SUBJECT TO CAPABILITY READINESS
 
 ## 1. Route map
 
+Các route dưới đây là route sản phẩm dự kiến. Đối chiếu source ngày 30/09/2026 trong `frontend/src/app`, toàn bộ route mô tả trong file này đã tồn tại, gồm `/orders/[id]/review`, `/seller/products/new`, `/admin`, `/admin/shops` và `/admin/categories`. Việc route tồn tại không đồng nghĩa capability production đã live; dùng capability registry và readiness matrix thay vì suy từ JSX.
+
 | Route | Role | Data readiness | Strategy |
 |---|---|---|---|
-| `/` | Public | `PARTIAL` | API catalog + static category config |
-| `/products/[id]` | Public | `PARTIAL` | API detail + placeholders; reviews hidden/flagged |
-| `/cart` | Buyer | `PARTIAL` | API identity/selection + blocker cho joined display data |
-| `/checkout` | Buyer | `AVAILABLE` sau cart selection | API thật; không QR |
-| `/orders` | Buyer | `RUNTIME_BLOCKED` | mock repository cho tới khi order query được wire |
-| `/orders/[id]/review` | Buyer | `RUNTIME_BLOCKED` | UI/mock; disable production submit |
-| `/notifications` | Buyer | `RUNTIME_BLOCKED` | UI/mock; không hứa realtime |
-| `/profile` | Authenticated | `MISSING` | Supabase metadata read-only hoặc mock |
-| `/login` | Public-only | `PARTIAL` | Supabase login; cần cấu hình SDK/env |
-| `/register` | Public-only | `BLOCKED` | cần app user/seller onboarding |
-| `/seller` | Seller | `RUNTIME_BLOCKED/PARTIAL` | order table mock; stock mutation thật |
-| `/seller/products/new` | Seller | `PARTIAL` | create thật sau category/media fallback |
-| `/admin` | Admin | `PARTIAL` | lock/unlock thật; lists dùng mock |
-| `/admin/categories` | Admin | `MISSING` | mock/local-only cho tới khi có API |
+| `/` | Public | `LIVE/PARTIAL_DETAIL` | API catalog/category thật; rating chỉ bật sau review read model |
+| `/products/[id]` | Public | `PARTIAL` | Core live; media/shop/review read model là task B/C trong file 08 |
+| `/cart` | Buyer | `LIVE` | Enriched cart; unavailable rows vẫn hiển thị nhưng không checkout |
+| `/checkout` | Buyer | `LIVE` | COD thật, idempotent; không QR/provider giả |
+| `/orders` | Buyer | `LIVE/PARTIAL_TIMELINE` | Order reads live; timeline và confirm-received theo C-101–C-106 |
+| `/orders/[id]/review` | Buyer | `UI_READY/BLOCKED_RUNTIME` | Route/UI có; chuyển live sau ReviewService và media gate |
+| `/notifications` | Buyer | `UI_READY/BLOCKED_RUNTIME` | UI có; chuyển live sau NotificationService injection |
+| `/profile` | Authenticated | `LIVE/PARTIAL_MEDIA` | GET/PATCH live; avatar chờ media contract |
+| `/login` | Public-only | `PARTIAL_PROVIDER` | Source live; bắt buộc provider/env smoke |
+| `/register` | Public-only | `PARTIAL_ONBOARDING` | `/auth/onboarding` tồn tại; hoàn thiện Seller PENDING flow |
+| `/seller` | Seller | `LIVE/PARTIAL` | Order queue live; stats nằm backlog |
+| `/seller/products/new` | Seller | `UI_READY/PARTIAL_MEDIA` | Route/UI có; production cần media finalize và Shop ACTIVE |
+| `/admin` | Admin | `LIVE/PARTIAL` | Users/shops routes live; hardening/audit trong C-401/C-402 |
+| `/admin/categories` | Admin | `UI_READY/BLOCKED_RUNTIME` | UI có; local mutation phải thay bằng Admin Category API |
 
 ## 2. Quy tắc chung cho page
 
@@ -43,7 +46,7 @@ Mỗi route tải dữ liệu phải có:
 
 **API:** `GET /products?search=&category_id=&sort=&cursor=&limit=`.
 
-**Lưu ý:** category API chưa có; chỉ bật filter tĩnh khi có category UUID lấy từ seed/DB thật của đúng môi trường. Không tự sinh hoặc tự đặt UUID (category_id được lọc trực tiếp trong DB nên UUID giả sẽ luôn cho danh sách rỗng); nếu chưa có fixture xác thực thì ẩn filter. Không hiển thị rating/sold count giả. Add-to-cart nhanh chỉ bật khi item có thể chọn variant; nếu nhiều variant thì đi tới detail.
+**Lưu ý:** category API đã có cho public ACTIVE categories. Không tự sinh UUID. Không hiển thị rating/sold count giả; rating chỉ bật sau C-203/C-205. Add-to-cart nhanh chỉ bật khi item có thể chọn variant; nếu nhiều variant thì đi tới detail.
 
 **Acceptance:** search debounce; URL giữ filter; load more không trùng item; empty/error/retry đầy đủ.
 
@@ -65,7 +68,7 @@ Mỗi route tải dữ liệu phải có:
 
 **Selection:** checkbox gọi `PATCH { is_selected }`; quantity gọi `PATCH { quantity }`. Checkout chỉ bật khi có ít nhất một item selected.
 
-**Blocker:** runtime cart chưa trả product name/image/price/stock/shop. Không thể hoàn thiện UI production chỉ với response hiện tại. Dùng `CartRepository` interface để mock trong lúc chờ enriched cart response.
+**Runtime:** enriched cart đã trả product/variant/shop/image/current price/stock/availability. Adapter không được fallback fixture khi API lỗi.
 
 ### 3.4. Checkout `/checkout`
 
@@ -85,7 +88,7 @@ Mỗi route tải dữ liệu phải có:
 
 **API mục tiêu:** `GET /orders`, `GET /orders/:id`, `POST /orders/:id/cancel`.
 
-**Runtime:** list/detail bị blocked. Trong development dùng mock repository cùng DTO mục tiêu; production feature flag tắt cho tới khi integration test backend pass.
+**Runtime:** list/detail đã có. Phase tiếp theo bổ sung timeline DTO, shipment lifecycle và Buyer confirm-received.
 
 **Cancel:** luôn hỏi reason; sau success refetch list. Chỉ hiển thị nút khi status `PENDING_CONFIRMATION`.
 
@@ -95,7 +98,7 @@ Mỗi route tải dữ liệu phải có:
 
 **API mục tiêu:** `POST /order-items/:order_item_id/review`.
 
-**Blocker:** runtime review service chưa wire; media upload contract chưa có. Có thể triển khai form và validation bằng mock, nhưng production submit phải tắt.
+**Gate:** route/UI đã có; production submit chỉ bật sau ReviewService runtime, eligibility integration và media capability. Review text/rating có thể làm trước media.
 
 ### 3.7. Thông báo `/notifications`
 
@@ -103,15 +106,13 @@ Mỗi route tải dữ liệu phải có:
 
 **API mục tiêu:** `GET /notifications?is_read=`, `PATCH /notifications/:id/read`.
 
-**Blocker:** runtime trả 501. Không ghi “realtime”; contract hiện là request/response. Nút “đánh dấu tất cả đã đọc” ẩn cho tới khi có bulk endpoint hoặc thực hiện từng item với giới hạn rõ ràng.
+**Gate:** source route có nhưng runtime service cần inject. Không ghi “realtime”. Mark visible thực hiện tối đa 20 request, concurrency 4, có partial rollback và dừng queue khi 429.
 
 ### 3.8. Hồ sơ `/profile`
 
 **UI:** avatar, full name, phone, email read-only, address shortcut.
 
-**Data:** ưu tiên `/profile` khi backend bổ sung. Tạm thời chỉ đọc email/metadata từ Supabase; không coi metadata là nguồn nghiệp vụ chính.
-
-**Blocker:** chưa có profile API và media upload. Save production bị tắt cho tới khi có contract.
+**Data:** `GET/PATCH /profile` là nguồn business profile; Supabase cung cấp email/session. Avatar chờ media capability, còn full name/phone save qua API thật.
 
 ### 3.9. Đăng nhập `/login`
 
@@ -125,7 +126,7 @@ Mỗi route tải dữ liệu phải có:
 
 **UI mục tiêu:** email, password, confirm password, full name, account type Buyer/Seller; seller fields chỉ xuất hiện khi onboarding đã được thiết kế.
 
-**Blocker:** chưa có cách đáng tin cậy tạo `app_users`, profile và shop sau Supabase signup. Không phát hành flow production cho tới khi GAP-AUTH-ONBOARDING đóng.
+**Flow:** Supabase signup provision `app_users` Buyer, sau đó `POST /auth/onboarding`. Seller first-time onboarding tạo Shop `PENDING`; Admin approve trước khi Seller mutation. Buyer đã hoàn tất profile nâng cấp Seller nằm ngoài MVP.
 
 ### 3.11. Seller portal `/seller`
 
@@ -133,29 +134,27 @@ Mỗi route tải dữ liệu phải có:
 
 **Available:** `PATCH /product-variants/:id/stock`, order confirm/transition khi biết order ID.
 
-**Blocked:** `GET /orders` runtime trả rỗng; `GET /products?shop_id` không được hỗ trợ; seller stats chưa có. Dùng mock repository để phát triển layout, không tự suy luận doanh thu từ dữ liệu thiếu.
+**Còn lại:** Seller orders dùng order query thật; Seller product discovery cần `GET /seller/products`; seller stats nằm backlog. Không tự suy luận doanh thu.
 
 ### 3.12. Tạo sản phẩm `/seller/products/new`
 
-**UI:** basic info, category, image URLs/upload placeholder, variant rows.
+**UI:** basic info, category, media upload thật và variant rows.
 
 **API:** `POST /products` với `stock_quantity`, `variant_name`, `variant_value`, `sort_order`.
 
-**Blockers:** category API và media upload chưa có. Development chỉ dùng category config tĩnh với UUID xác thực từ DB/seed của môi trường; tuyệt đối không tự bịa UUID. Production cần category/media contract trước khi bật.
+**Gate:** dùng category API thật và media presign/finalize theo `media_id`; Shop phải ACTIVE. Production không nhận ảnh fallback/URL demo.
 
 ### 3.13. Admin `/admin`
 
 **UI:** users, shops, products, logs tabs.
 
-**Available:** lock/unlock user nếu đã biết user ID.
-
-**Blocked:** chưa có list users/logs/shops/products; chưa có shop/product moderation routes. Dùng mock để xây UI; chỉ mutation user lock/unlock được bật sau khi danh sách thật tồn tại hoặc admin nhập ID qua internal-only tool.
+**Available:** users/shops list và approve/lock/unlock routes. MVP hardening yêu cầu pagination/filter, side effects và atomic audit. Product/review moderation và audit viewer nằm backlog.
 
 ### 3.14. Admin categories `/admin/categories`
 
 **UI mục tiêu:** tree/table, create/edit, active toggle.
 
-**Blocker:** không có category HTTP API. Toàn màn hình dùng mock/local adapter và không phát hành production.
+**Gate:** public category API không đủ cho Admin. C-403/C-405 bổ sung Admin CRUD/status; local create/ID phải bị loại khỏi production.
 
 ## 4. User flows
 

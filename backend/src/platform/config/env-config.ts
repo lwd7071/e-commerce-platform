@@ -7,7 +7,7 @@ export interface ValidatedEnvConfig {
   supabaseUrl?: string;
   supabaseJwksUrl?: string;
   supabaseJwtAudience?: string;
-  corsOrigin: string;
+  corsAllowedOrigins: string[];
   trustProxy?: boolean | string | number;
 }
 
@@ -15,12 +15,26 @@ export function validateEnvConfig(environment: NodeJS.ProcessEnv = process.env):
   const nodeEnv = environment.NODE_ENV || 'development';
   const isProduction = nodeEnv === 'production';
 
-  const port = parseInt(environment.PORT || '3000', 10);
+  const port = parseInt(environment.PORT || '3001', 10);
   const databaseUrl = environment.DATABASE_URL;
   const supabaseUrl = environment.SUPABASE_URL;
   const supabaseJwksUrl = environment.SUPABASE_JWKS_URL;
   const supabaseJwtAudience = environment.SUPABASE_JWT_AUDIENCE || 'authenticated';
-  const corsOrigin = environment.CORS_ORIGIN || (isProduction ? '' : 'http://localhost:3000');
+  const rawCorsOrigins = environment.CORS_ALLOWED_ORIGINS;
+  const corsAllowedOrigins = rawCorsOrigins === undefined || rawCorsOrigins.trim() === ''
+    ? (isProduction ? [] : ['http://localhost:3000', 'http://127.0.0.1:3000'])
+    : rawCorsOrigins.split(',').map(origin => origin.trim()).filter(Boolean).map(origin => {
+      let parsed: URL;
+      try {
+        parsed = new URL(origin);
+      } catch {
+        throw new AppError(500, 'CONFIGURATION_ERROR', `Invalid origin in CORS_ALLOWED_ORIGINS: ${origin}`);
+      }
+      if (parsed.origin !== origin || (isProduction && parsed.protocol !== 'https:')) {
+        throw new AppError(500, 'CONFIGURATION_ERROR', `CORS_ALLOWED_ORIGINS must contain exact origins${isProduction ? ' using HTTPS' : ''}: ${origin}`);
+      }
+      return parsed.origin;
+    });
 
   const rawTrustProxy = environment.TRUST_PROXY;
   let trustProxy: boolean | string | number | undefined;
@@ -37,6 +51,9 @@ export function validateEnvConfig(environment: NodeJS.ProcessEnv = process.env):
   }
 
   if (isProduction) {
+    if (corsAllowedOrigins.length === 0) {
+      throw new AppError(500, 'CONFIGURATION_ERROR', 'CORS_ALLOWED_ORIGINS is required in production environment');
+    }
     if (!databaseUrl) {
       throw new AppError(
         500,
@@ -62,12 +79,12 @@ export function validateEnvConfig(environment: NodeJS.ProcessEnv = process.env):
 
   return {
     nodeEnv,
-    port: isNaN(port) ? 3000 : port,
+    port: isNaN(port) ? 3001 : port,
     databaseUrl,
     supabaseUrl,
     supabaseJwksUrl,
     supabaseJwtAudience,
-    corsOrigin,
+    corsAllowedOrigins,
     trustProxy,
   };
 }

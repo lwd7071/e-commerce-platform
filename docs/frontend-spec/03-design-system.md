@@ -1,6 +1,7 @@
 # 03. Design system và UI components
 
-> **Phiên bản:** 1.1.0  
+> **Phiên bản:** 1.4.0
+>
 > **Trạng thái:** IMPLEMENTED IN `frontend/`; BROWSER QA IN PROGRESS
 
 ## 1. Art direction
@@ -108,3 +109,11 @@ src/components/ui/
 ```
 
 Tách component theo từng vertical slice; không refactor toàn bộ UI trước khi có nhu cầu sử dụng thực tế.
+
+## 7. MVP additions ngày 30/09/2026
+
+- `FeatureUnavailable`: direct route của capability `BLOCKED` phải giải thích rõ, không render màn trắng hoặc fixture production.
+- `ErrorSummary`: sau submit nhiều lỗi phải nhận focus, giữ inline errors và link tới field tương ứng.
+- `FileUploadZone`: revoke object URL khi remove/unmount; production không được fallback URL ảnh giả.
+- Product image dùng `next/image` với container có kích thước ổn định; alt mô tả sản phẩm, ảnh trang trí alt rỗng.
+- Shared UX được hoàn thiện trong từng vertical slice. Việc tách `CheckoutScreen`/`SellerOrdersScreen` chỉ làm sau khi behavior tests đã xanh và không chặn MVP.

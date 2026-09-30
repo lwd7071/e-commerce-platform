@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { CategoryAdapterImpl, DEV_CATEGORY_FIXTURES } from "@/lib/adapters/category.adapter";
+import { catalogApi } from "@/lib/api/catalog.api";
 
 describe("CategoryAdapter (A-700 / B-305 / RB-KN04 / GAP-05)", () => {
   it("returns active categories in mock mode conforming to RB-KN04", async () => {
@@ -22,10 +23,17 @@ describe("CategoryAdapter (A-700 / B-305 / RB-KN04 / GAP-05)", () => {
     }
   });
 
-  it("returns empty list in live mode when categories API/seed is unverified (GAP-05 safe hide)", async () => {
+  it("loads and caches real category DTOs in live mode", async () => {
+    const getCategories = vi.spyOn(catalogApi, "getCategories").mockResolvedValue([
+      { category_id: "root", parent_category_id: null, category_name: "Thời trang", description: null },
+      { category_id: "child", parent_category_id: "root", category_name: "Áo", description: "Trang phục" },
+    ]);
     const liveAdapter = new CategoryAdapterImpl(DEV_CATEGORY_FIXTURES, false);
     const categories = await liveAdapter.getCategories();
-    expect(categories).toEqual([]);
+    expect(categories.map(category => category.id)).toEqual(["root", "child"]);
+    expect(await liveAdapter.isValidCategory("child")).toBe(true);
+    expect(getCategories).toHaveBeenCalledTimes(1);
+    getCategories.mockRestore();
   });
 
   it("verifies known category IDs safely in mock mode and rejects unknown/null in live mode", async () => {
@@ -37,6 +45,8 @@ describe("CategoryAdapter (A-700 / B-305 / RB-KN04 / GAP-05)", () => {
     expect(await mockAdapter.isValidCategory(undefined)).toBe(false);
 
     const liveAdapter = new CategoryAdapterImpl(DEV_CATEGORY_FIXTURES, false);
+    vi.spyOn(catalogApi, "getCategories").mockResolvedValue([]);
     expect(await liveAdapter.isValidCategory(validId)).toBe(false);
+    vi.restoreAllMocks();
   });
 });

@@ -45,7 +45,7 @@ export default function NewProductPage() {
     setVariants(prev => prev.filter(v => v.id !== id));
   };
 
-  const updateVariant = (id: string, field: keyof Variant, value: any) => {
+  const updateVariant = <K extends keyof Variant,>(id: string, field: K, value: Variant[K]) => {
     setVariants(prev => prev.map(v => v.id === id ? { ...v, [field]: value } : v));
   };
 

@@ -1,0 +1,18 @@
+# ==========================================
+# VERCEL PRODUCTION ENVIRONMENT VARIABLES
+# Sao chép và dán toàn bộ nội dung này vào:
+# Vercel Project Settings -> Environment Variables
+# ==========================================
+
+# 1. API Backend URL (URL Backend production của Luna sau khi deploy, ví dụ: Render, Railway, VPS)
+# LƯU Ý: Thay thế URL này bằng domain backend thực tế khi Luna deploy xong!
+NEXT_PUBLIC_API_URL=https://api.your-backend-domain.com/api/v1
+
+# 2. Supabase Auth Configuration (Client-side safe keys ONLY, tuyệt đối không dán service_role_key)
+NEXT_PUBLIC_SUPABASE_URL=https://putywqmxtjttfdezlswf.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_ZXw4cszWPlXI7v_jWHQdjg_QkGXa7mt
+
+# 3. Feature Flags cho Production
+# Luôn đặt false khi lên Production để kết nối API và Auth thật
+NEXT_PUBLIC_USE_MOCK=false
+NEXT_PUBLIC_ENABLE_DEBUG_LOGS=false

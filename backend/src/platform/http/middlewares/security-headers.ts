@@ -45,14 +45,7 @@ export function createSecurityHeadersMiddleware(): RequestHandler {
  * Creates configurable CORS middleware validating Origin against whitelist.
  */
 export function createCorsMiddleware(options: CorsOptions = {}): RequestHandler {
-  const envOrigins = (process.env.CORS_ALLOWED_ORIGINS || '')
-    .split(',')
-    .map(o => o.trim())
-    .filter(Boolean);
-
-  const allowedOrigins = options.allowedOrigins ?? (
-    envOrigins.length > 0 ? envOrigins : ['http://localhost:3000', 'http://127.0.0.1:3000']
-  );
+  const allowedOrigins = options.allowedOrigins ?? ['http://localhost:3000', 'http://127.0.0.1:3000'];
 
   const allowedMethods = options.allowedMethods ?? DEFAULT_ALLOWED_METHODS;
   const allowedHeaders = options.allowedHeaders ?? DEFAULT_ALLOWED_HEADERS;

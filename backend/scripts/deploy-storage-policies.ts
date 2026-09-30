@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import '../src/platform/config/load-root-env.ts';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';

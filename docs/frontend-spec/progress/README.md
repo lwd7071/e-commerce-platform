@@ -2,13 +2,15 @@
 
 Đọc [implementation plan](../08-implementation-plan.md#phân-công-5-người-fe) và [UI/UX rules](../09-ui-ux-rules.md) trước khi nhận ticket. Mỗi người chỉ cập nhật file của mình; Người 1 quản lý bảng tổng quan và điều phối handoff trong README này. File progress là bằng chứng tiến độ, không thay thông báo trực tiếp hoặc review PR khi contract đổi.
 
-| Người | Phạm vi | File | Trạng thái khởi tạo |
+| Người | Phạm vi | File | Trạng thái hiện tại (2026-09-29) |
 |---|---|---|---|
-| 1 | Platform, API, auth, tích hợp | [nguoi-1.md](./nguoi-1.md) | Chưa bắt đầu FE |
-| 2 | UI/UX, shared UI, account | [nguoi-2.md](./nguoi-2.md) | Batch độc lập xong; Q-802/803 scoped pass; D-004 và nghiệm thu dialog/contrast còn mở |
-| 3 | Catalog, seller catalog, category | [nguoi-3.md](./nguoi-3.md) | Chưa bắt đầu FE |
-| 4 | Cart, address, voucher, checkout | [nguoi-4.md](./nguoi-4.md) | Chưa bắt đầu FE |
-| 5 | Orders, review, admin | [nguoi-5.md](./nguoi-5.md) | Chưa bắt đầu FE |
+| 1 | Platform, API, auth, tích hợp | [nguoi-1.md](./nguoi-1.md) | Foundation, auth/API, login/register, route guards BUYER và Q-806/Q-807 hoàn tất; các gate được báo cáo đạt. Xem file cá nhân để biết phạm vi và evidence. |
+| 2 | UI/UX, shared UI, account | [nguoi-2.md](./nguoi-2.md) | Shared UI/account và polish semantic token/touch-target/type-safety đã tích hợp vào `dev`; D-004 còn chờ Admin page sample, backend-gated features còn chờ runtime. QA evidence và gate còn lại ghi trong file cá nhân. |
+| 3 | Catalog, seller catalog, category | [nguoi-3.md](./nguoi-3.md) | Catalog, product detail, seller catalog, stock edit và category adapter đã triển khai; còn P-607a chờ GAP-09 và phối hợp nghiệm thu handoff. |
+| 4 | Cart, address, voucher, checkout | [nguoi-4.md](./nguoi-4.md) | Cart và checkout B-402–B-407 hoàn tất; còn B-408 E2E với DB thật và Q-804. |
+| 5 | Orders, review, admin | [nguoi-5.md](./nguoi-5.md) | Buyer order center/cancel và seller orders/fulfillment O-502–O-505 hoàn tất; còn review, admin, media và Q-805. |
+
+Các trạng thái trên phản ánh nhật ký cá nhân và code đã tích hợp; ticket có điều kiện backend hoặc E2E chỉ được coi là hoàn tất khi có evidence nghiệm thu tương ứng.
 
 ## Mẫu cập nhật bắt buộc
 

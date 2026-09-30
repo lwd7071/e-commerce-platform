@@ -6,27 +6,33 @@ import { ProtectedPage } from "../../components/navigation/protected-page";
 import { Button } from "../../components/ui/button";
 import { EmptyState } from "../../components/ui/data-states";
 import { Icon } from "../../components/ui/icon";
+import {
+  countUnreadNotifications,
+  filterNotifications,
+  markNotificationRead,
+  markVisibleNotificationsRead,
+  type NotificationFilter,
+  type NotificationRow,
+} from "./notification-state";
 
-type Notice = { id: string; title: string; body: string; createdAt: string; isRead: boolean };
-const demoRows: Notice[] = [
+const demoRows: NotificationRow[] = [
   { id: "demo-order-1", title: "Đơn hàng đang được chuẩn bị", body: "Cửa hàng đã xác nhận đơn hàng của bạn.", createdAt: "Ví dụ: hôm nay", isRead: false },
   { id: "demo-promo-1", title: "Ưu đãi dành cho bạn", body: "Đây là dữ liệu giao diện mẫu, không phải ưu đãi đang hoạt động.", createdAt: "Ví dụ: hôm qua", isRead: true },
 ];
 
 export function NotificationsScreen({ production }: { production: boolean }) {
   const [rows, setRows] = useState(demoRows);
-  const [filter, setFilter] = useState<"all" | "unread">("all");
-  const unreadCount = rows.filter((row) => !row.isRead).length;
-  const visibleRows = useMemo(() => rows.filter((row) => filter === "all" || !row.isRead), [filter, rows]);
+  const [filter, setFilter] = useState<NotificationFilter>("all");
+  const unreadCount = countUnreadNotifications(rows);
+  const visibleRows = useMemo(() => filterNotifications(rows, filter), [filter, rows]);
 
   function markRead(id: string) {
-    setRows((current) => current.map((row) => row.id === id ? { ...row, isRead: true } : row));
+    setRows((current) => markNotificationRead(current, id));
   }
 
   function markVisibleRead() {
     // Deliberately bounded to 20 IDs; current demo writes only local state. Replace with per-item API calls until GAP-10 adds bulk.
-    const ids = visibleRows.filter((row) => !row.isRead).slice(0, 20).map((row) => row.id);
-    setRows((current) => current.map((row) => ids.includes(row.id) ? { ...row, isRead: true } : row));
+    setRows((current) => markVisibleNotificationsRead(current, filter));
   }
 
   return (

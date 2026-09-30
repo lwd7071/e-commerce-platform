@@ -1,19 +1,12 @@
-import 'dotenv/config';
-import { createRuntimeApp, createApp } from './platform/http/app.ts';
+// Load the shared root .env before composing the backend runtime.
+import './platform/config/load-root-env.ts';
 
-const port = Number(process.env.PORT) || 3000;
+import { createRuntimeApp } from './platform/http/app.ts';
 
-let runtime: ReturnType<typeof createRuntimeApp> | undefined;
-let app;
-
-try {
-  runtime = createRuntimeApp(process.env);
-  app = runtime.app;
-  console.log('[Server] Initialized with PostgreSQL database pool and Supabase auth.');
-} catch (error) {
-  console.warn('[Server] Runtime initialization fallback to standalone app:', (error as Error).message);
-  app = createApp();
-}
+const runtime = createRuntimeApp(process.env);
+const port = Number(process.env.PORT) || 3001;
+const app = runtime.app;
+console.log('[Server] Initialized with PostgreSQL database pool and Supabase auth.');
 
 const server = app.listen(port, () => {
   console.log(`[Server] E-Commerce Platform API is listening on http://localhost:${port}`);

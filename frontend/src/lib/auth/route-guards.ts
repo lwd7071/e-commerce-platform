@@ -21,8 +21,8 @@ export const ROUTE_RULES: RouteRule[] = [
   // Buyer protected routes
   { pathPrefix: "/cart", requireAuth: true, allowedRoles: ["BUYER"] },
   { pathPrefix: "/checkout", requireAuth: true, allowedRoles: ["BUYER"] },
-  { pathPrefix: "/orders", requireAuth: true, allowedRoles: ["BUYER", "SELLER", "ADMIN"] },
-  { pathPrefix: "/notifications", requireAuth: true },
+  { pathPrefix: "/orders", requireAuth: true, allowedRoles: ["BUYER"] },
+  { pathPrefix: "/notifications", requireAuth: true, allowedRoles: ["BUYER"] },
 
   // Seller portal
   { pathPrefix: "/seller", requireAuth: true, allowedRoles: ["SELLER", "ADMIN"] },

@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
 import type { RequestHandler } from 'express';
+import type { Pool } from 'pg';
 import { createApp } from '../../src/platform/http/app.ts';
 import { createRequestContext } from '../../src/platform/context/request-context.ts';
 import { AddressService } from '../../src/modules/buyer/services/address.service.ts';
@@ -9,6 +10,7 @@ import { CartService } from '../../src/modules/buyer/services/cart.service.ts';
 import { VoucherService } from '../../src/modules/buyer/services/voucher.service.ts';
 import { ReviewService } from '../../src/modules/buyer/services/review.service.ts';
 import { NotificationService } from '../../src/modules/buyer/services/notification.service.ts';
+import { PgBuyerHttpService } from '../../src/modules/buyer/services/pg-buyer-http.service.ts';
 import type { IAddressRepository, ICartRepository, IVoucherRepository, IReviewRepository, INotificationRepository } from '../../src/modules/buyer/domain/repositories.ts';
 import type { ICatalogPort } from '../../src/contracts/catalog.port.ts';
 import type { IOrderQueryPort } from '../../src/modules/buyer/ports/order-query.port.ts';
@@ -253,6 +255,22 @@ function createMockBuyerServices() {
 }
 
 describe('Buyer Domain Routes Integration (/api/v1/...) [Mốc T2]', () => {
+  it('returns the standard error envelope for a buyer feature that is not wired in this runtime', async () => {
+    const app = createApp({ auth: buyerAuth });
+    const res = await request(app).get('/api/v1/addresses/11111111-1111-4111-8111-111111111111').expect(501);
+    assert.equal(res.body.error.code, 'NOT_IMPLEMENTED');
+    assert.equal(typeof res.body.error.message, 'string');
+    assert.equal(typeof res.body.request_id, 'string');
+  });
+
+  it('does not report a successful address delete when runtime service is absent', async () => {
+    const res = await request(createApp({ auth: buyerAuth }))
+      .delete('/api/v1/addresses/11111111-1111-4111-8111-111111111111')
+      .expect(501);
+    assert.equal(res.body.error.code, 'NOT_IMPLEMENTED');
+    assert.ok(res.body.request_id);
+  });
+
   it('enforces RBAC: returns 401 when no auth is provided', async () => {
     const app = createApp({ buyerServices: createMockBuyerServices() });
     await request(app).get('/api/v1/addresses').expect(401);
@@ -422,6 +440,52 @@ describe('Buyer Domain Routes Integration (/api/v1/...) [Mốc T2]', () => {
 
       assert.strictEqual(res.body.data.isRead, true);
       assert.ok(res.body.data.readAt);
+    });
+  });
+
+  describe('Production PostgreSQL buyer adapter guardrails', () => {
+    it('rejects unknown fields before PostgreSQL for address and cart writes', async () => {
+      const app = createApp({ auth: buyerAuth, buyer: new PgBuyerHttpService({} as Pool) });
+      const address = await request(app).post('/api/v1/addresses').send({
+        recipient_name: 'Buyer', phone: '0900000000', province: 'HCM', district: '1', ward: '1', detail_address: 'Street', id: 'forbidden',
+      }).expect(422);
+      assert.equal(address.body.error.code, 'VALIDATION_FAILED');
+
+      const cart = await request(app).post('/api/v1/cart/items').send({
+        variant_id: '11111111-1111-4111-8111-111111111111', quantity: 1, stock: 5,
+      }).expect(422);
+      assert.equal(cart.body.error.code, 'VALIDATION_FAILED');
+    });
+
+    it('does not delete a cart item that is not owned by the authenticated buyer', async () => {
+      const deleteStatements: string[] = [];
+      const pool = {
+        query: async (sql: string) => {
+          if (sql.includes('FROM carts')) return { rows: [{ cart_id: 'cart-1', buyer_id: BUYER_ID, created_at: new Date(), updated_at: new Date() }] };
+          if (sql.includes('FROM cart_items')) return { rows: [] };
+          if (sql.startsWith('DELETE')) deleteStatements.push(sql);
+          return { rows: [], rowCount: 0 };
+        },
+      } as unknown as Pool;
+      const app = createApp({ auth: buyerAuth, buyer: new PgBuyerHttpService(pool) });
+      const res = await request(app).delete('/api/v1/cart/items/other-buyers-item').expect(404);
+      assert.equal(res.body.error.code, 'RESOURCE_NOT_FOUND');
+      assert.equal(deleteStatements.length, 0);
+    });
+
+    it('clears only selected item IDs through a buyer-scoped delete', async () => {
+      let deleteArgs: unknown[] | undefined;
+      const pool = {
+        query: async (sql: string, args?: unknown[]) => {
+          if (sql.includes('FROM carts')) return { rows: [{ cart_id: 'cart-1', buyer_id: BUYER_ID, created_at: new Date(), updated_at: new Date() }] };
+          if (sql.includes('DELETE FROM cart_items ci USING carts c')) deleteArgs = args;
+          if (sql.includes('FROM cart_items')) return { rows: [{ cart_item_id: 'selected-1', cart_id: 'cart-1', variant_id: 'variant-1', quantity: 2, is_selected: true, created_at: new Date(), updated_at: new Date() }] };
+          return { rows: [], rowCount: 1 };
+        },
+      } as unknown as Pool;
+      const app = createApp({ auth: buyerAuth, buyer: new PgBuyerHttpService(pool) });
+      await request(app).delete('/api/v1/cart/selected').expect(204);
+      assert.deepEqual(deleteArgs, [BUYER_ID, ['selected-1']]);
     });
   });
 });

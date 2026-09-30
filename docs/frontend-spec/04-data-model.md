@@ -1,6 +1,7 @@
 # 04. Data model và FE adapters
 
-> **Phiên bản:** 1.1.0  
+> **Phiên bản:** 1.4.0
+>
 > **Trạng thái:** READY FOR FE FOUNDATION
 
 ## 1. Ba lớp dữ liệu
@@ -289,7 +290,7 @@ export interface NotificationDTO {
 }
 ```
 
-Address list/create hoạt động trong runtime. Address detail/update/delete/default, review và notification đang `RUNTIME_BLOCKED`.
+Address list/create/detail/update/delete/default hoạt động trong runtime. Review và notification routes có source contract nhưng chỉ chuyển `LIVE` sau khi services được inject và runtime integration tests pass.
 
 ## 7. View-model adapters
 
@@ -316,3 +317,34 @@ export function toProductCard(dto: ProductListItemDTO): ProductCardModel {
 ```
 
 Adapter phải có unit test cho null, decimal string, enum lạ và field thiếu. Không âm thầm thay rating/sold count bằng số giả; nếu thiếu dữ liệu thì ẩn UI hoặc hiển thị “Chưa có dữ liệu”.
+
+## 8. DTO bổ sung cho MVP freeze
+
+Wire type được sinh từ OpenAPI, không viết tay lại trong FE. View-model tối thiểu cần có:
+
+```ts
+type CapabilityState = "LIVE" | "MOCK_DEV_ONLY" | "BLOCKED";
+
+type OrderTimelineItem = {
+  history_id: string;
+  from_status: OrderStatus | null;
+  to_status: OrderStatus;
+  changed_at: string;
+  changed_by_role: UserRole;
+  reason: string | null;
+};
+
+type RatingSummary = {
+  average: string | null;
+  count: number;
+};
+
+type MediaUploadTicket = {
+  media_id: string;
+  upload_url: string;
+  expires_at: string;
+  required_headers: Record<string, string>;
+};
+```
+
+Product Detail nhận `rating_summary` và review page riêng theo cursor. Order Detail nhận timeline từ `order_status_history`; FE không tự suy timeline từ status hiện tại. Media attachment dùng `media_id`, không dùng object path do client tự tạo.

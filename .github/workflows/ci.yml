@@ -24,6 +24,9 @@ jobs:
       DATABASE_URL: postgresql://postgres.localtest:localtest@localhost:5432/postgres
       SUPABASE_URL: https://localtest.supabase.co
       DIRECT_URL: postgresql://postgres.localtest:localtest@localhost:5432/postgres
+      DATABASE_ENVIRONMENT: test
+      EXPECTED_SUPABASE_PROJECT_REF: localtest
+      ALLOW_MIGRATION_DEPLOY: "true"
       RUN_REMOTE_DB_TESTS: "true"
     services:
       postgres:
@@ -46,7 +49,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 22.20.0
+          node-version: 24.15.0
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
@@ -55,7 +58,7 @@ jobs:
 
       - name: Verify runtime
         run: |
-          test "$(node --version)" = "v22.20.0"
+          test "$(node --version)" = "v24.15.0"
           test "$(npm --version)" = "11.12.1"
 
       - name: Install backend dependencies
@@ -63,6 +66,9 @@ jobs:
 
       - name: Verify backend lockfile is clean
         run: git diff --exit-code -- package-lock.json
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
 
       - name: Prisma validate
         run: npx prisma validate
@@ -93,7 +99,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ecommerce-web
+        working-directory: frontend
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -101,16 +107,16 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 22.20.0
+          node-version: 24.15.0
           cache: npm
-          cache-dependency-path: ecommerce-web/package-lock.json
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Pin npm
         run: npm install --global npm@11.12.1
 
       - name: Verify runtime
         run: |
-          test "$(node --version)" = "v22.20.0"
+          test "$(node --version)" = "v24.15.0"
           test "$(npm --version)" = "11.12.1"
 
       - name: Install frontend dependencies
@@ -123,7 +129,10 @@ jobs:
         run: npm run lint
 
       - name: Typecheck
-        run: npx tsc --noEmit
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
 
       - name: Build
         run: npm run build
@@ -155,7 +164,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 22.20.0
+          node-version: 24.15.0
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
@@ -164,7 +173,7 @@ jobs:
 
       - name: Verify runtime
         run: |
-          test "$(node --version)" = "v22.20.0"
+          test "$(node --version)" = "v24.15.0"
           test "$(npm --version)" = "11.12.1"
 
       - name: Install backend dependencies
@@ -202,6 +211,7 @@ jobs:
       SUPABASE_TEST_JWKS_URL: ${{ secrets.SUPABASE_TEST_JWKS_URL }}
       SUPABASE_JWKS_URL: ${{ secrets.SUPABASE_TEST_JWKS_URL }}
       DATABASE_ENVIRONMENT: test
+      ALLOW_SUPABASE_AUTH_SMOKE: "true"
       RUN_REMOTE_DB_TESTS: "true"
     steps:
       - name: Checkout
@@ -216,15 +226,38 @@ jobs:
           test -n "$SUPABASE_TEST_SECRET_KEY"
           test -n "$SUPABASE_TEST_JWKS_URL"
 
+      - name: Verify auth smoke test project reference
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from 'node:fs';
+
+          const supabaseUrl = new URL(process.env.SUPABASE_URL);
+          const directUrl = new URL(process.env.DIRECT_URL);
+          const urlProjectRef = supabaseUrl.hostname.split('.')[0];
+          const directDatabaseUser = decodeURIComponent(directUrl.username);
+          const directUserProjectRef = directDatabaseUser.match(/\.([a-z0-9]+)$/i)?.[1];
+
+          if (!urlProjectRef || directUserProjectRef !== urlProjectRef) {
+            throw new Error('Supabase test URL and direct database project reference do not match');
+          }
+
+          appendFileSync(process.env.GITHUB_ENV, `EXPECTED_SUPABASE_PROJECT_REF=${urlProjectRef}\n`);
+          NODE
+
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 22.20.0
+          node-version: 24.15.0
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
       - name: Pin npm
         run: npm install --global npm@11.12.1
+
+      - name: Verify runtime
+        run: |
+          test "$(node --version)" = "v24.15.0"
+          test "$(npm --version)" = "11.12.1"
 
       - name: Install backend dependencies
         run: npm ci
@@ -282,12 +315,17 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 22.20.0
+          node-version: 24.15.0
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
       - name: Pin npm
         run: npm install --global npm@11.12.1
+
+      - name: Verify runtime
+        run: |
+          test "$(node --version)" = "v24.15.0"
+          test "$(npm --version)" = "11.12.1"
 
       - name: Install backend dependencies
         run: npm ci

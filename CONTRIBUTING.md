@@ -2,17 +2,17 @@
 
 ## Runtime bắt buộc
 
-Repository dùng Node.js `22.20.0` và npm `11.12.1`.
+Backend và frontend workspace dùng Node.js `24.15.0` và npm `11.12.1`.
 
 ```bash
-nvm install 22.20.0
-nvm use 22.20.0
+nvm install 24.15.0
+nvm use 24.15.0
 npm install --global npm@11.12.1
 node --version
 npm --version
 ```
 
-Kết quả bắt buộc là `v22.20.0` và `11.12.1`. Không dùng Node 20 hoặc Node 24 để xác nhận CI T1.
+Kết quả bắt buộc là `v24.15.0` và `11.12.1` cho backend và frontend workspace. `ecommerce-web/` là prototype riêng, không thuộc quality gates triển khai.
 
 ## Cài dependency
 
@@ -20,7 +20,7 @@ Chạy từ root repository:
 
 ```bash
 npm --prefix backend ci
-npm --prefix ecommerce-web ci
+npm --prefix frontend ci
 ```
 
 `npm ci` tự đồng bộ `node_modules`; không chạy lệnh xóa rộng. Không dùng `npm install` chỉ để chạy dự án sau khi pull.
@@ -33,8 +33,10 @@ npm --prefix backend run typecheck
 npm --prefix backend run build
 npm --prefix backend run test:node
 npm --prefix backend run test:vitest
-npm --prefix ecommerce-web run lint
-npm --prefix ecommerce-web run build
+npm --prefix frontend run typecheck
+npm --prefix frontend test
+npm --prefix frontend run build
+npm --prefix frontend run lint
 ```
 
 Prisma validation:
@@ -45,7 +47,7 @@ npm --prefix backend exec prisma validate
 
 ## Lockfile và secrets
 
-- Chỉ sinh lockfile bằng Node `22.20.0` và npm `11.12.1`.
+- Chỉ sinh lockfile backend/frontend bằng Node `24.15.0` và npm `11.12.1`.
 - Sau khi cài dependency, kiểm tra lockfile không dirty.
 - Không commit `.env`, Supabase key, service-role key, database URL hoặc password.
 - Không chạy `prisma db push`, `migrate reset` hoặc sửa migration đã phát hành.

@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import '../src/platform/config/load-root-env.ts';
 import { randomUUID } from 'node:crypto';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import pg from 'pg';

@@ -210,7 +210,7 @@ export function CatalogListScreen({
             <button
               type="button"
               onClick={() => setSelectedCategory("")}
-              className={`min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg px-3.5 py-2.5 text-xs font-semibold transition-colors ${
+              className={`min-h-11 min-w-11 inline-flex items-center justify-center rounded-lg px-3.5 py-2 text-xs font-semibold transition-colors ${
                 selectedCategory === ""
                   ? "bg-[var(--primary-active)] text-white"
                   : "bg-[var(--card-muted)] text-[var(--subtext)] hover:text-[var(--foreground)]"
@@ -223,7 +223,7 @@ export function CatalogListScreen({
                 key={cat.id}
                 type="button"
                 onClick={() => setSelectedCategory(cat.id)}
-                className={`min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg px-3.5 py-2.5 text-xs font-semibold transition-colors ${
+                className={`min-h-11 min-w-11 inline-flex items-center justify-center rounded-lg px-3.5 py-2 text-xs font-semibold transition-colors ${
                   selectedCategory === cat.id
                     ? "bg-[var(--primary-active)] text-white"
                     : "bg-[var(--card-muted)] text-[var(--subtext)] hover:text-[var(--foreground)]"

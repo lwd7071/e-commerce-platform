@@ -6,7 +6,7 @@ import { createApp } from '../../src/platform/http/app.ts';
 import { generateOpenApiSpec, resolveOperationUrl } from '../../src/platform/openapi/openapi-spec.ts';
 
 interface ExpressRouterLayer {
-  route?: { path: string };
+  route?: { path: string; methods: Record<string, boolean> };
   handle?: { stack?: ExpressRouterLayer[] };
   regexp: { source: string };
 }
@@ -21,7 +21,7 @@ function getRegisteredExpressRoutes(app: Application): Set<string> {
 
   for (const layer of routerApp._router.stack) {
     if (layer.route) {
-      routes.add(layer.route.path);
+      for (const method of Object.keys(layer.route.methods)) routes.add(`${method.toUpperCase()} ${layer.route.path}`);
     } else if (layer.handle?.stack) {
       let mountPrefix = '';
       const source = layer.regexp.source;
@@ -34,7 +34,7 @@ function getRegisteredExpressRoutes(app: Application): Set<string> {
       for (const child of layer.handle.stack) {
         if (child.route) {
           const subPath = child.route.path === '/' && mountPrefix ? '' : child.route.path;
-          routes.add(`${mountPrefix}${subPath}`);
+          for (const method of Object.keys(child.route.methods)) routes.add(`${method.toUpperCase()} ${mountPrefix}${subPath}`);
         }
       }
     }
@@ -73,6 +73,9 @@ describe('Draft OpenAPI 3.1 Spec Generation & RBAC Audit (Phase 5)', () => {
     assert.ok(spec.paths['/addresses/{address_id}']);
     assert.ok(spec.paths['/addresses/{address_id}'].patch);
     assert.ok(spec.paths['/addresses/{address_id}'].delete);
+    assert.ok((spec.paths['/addresses/{address_id}'].delete as { responses?: Record<string, unknown> }).responses?.['204']);
+    const addressRequest = (spec.paths['/addresses'].post as { requestBody?: { content?: Record<string, { schema?: { additionalProperties?: boolean } }> } }).requestBody;
+    assert.equal(addressRequest?.content?.['application/json']?.schema?.additionalProperties, false);
 
     // Cart
     assert.ok(spec.paths['/cart']);
@@ -98,6 +101,8 @@ describe('Draft OpenAPI 3.1 Spec Generation & RBAC Audit (Phase 5)', () => {
     assert.ok(spec.paths['/orders/{order_id}/transition'].post, 'Expected POST /orders/{order_id}/transition operation');
     assert.ok(spec.paths['/orders/{order_id}/payments'], 'Expected /orders/{order_id}/payments path to be present');
     assert.ok(spec.paths['/orders/{order_id}/payments'].post, 'Expected POST /orders/{order_id}/payments operation');
+    const checkoutParameters = (spec.paths['/checkout'].post as { parameters?: Array<{ name: string }> }).parameters;
+    assert.ok(checkoutParameters?.some(parameter => parameter.name === 'Idempotency-Key'));
 
     // Reviews (canonical /order-items/:order_item_id/review)
     assert.ok(spec.paths['/order-items/{order_item_id}/review']);
@@ -116,23 +121,13 @@ describe('Draft OpenAPI 3.1 Spec Generation & RBAC Audit (Phase 5)', () => {
     assert.ok(spec.paths['/notifications/{notification_id}/read'].patch, 'Expected PATCH /notifications/{notification_id}/read operation');
   });
 
-  it('[OAS-03]: intentionally excludes legacy alias routes and untested endpoints', () => {
+  it('[OAS-03]: documents all mounted canonical routes and supported aliases', () => {
     const spec = generateOpenApiSpec();
-
-    // 1. PATCH /cart/items/{cart_item_id} (pending route tests)
-    assert.strictEqual(spec.paths['/cart/items/{cart_item_id}'], undefined);
-
-    // 2. GET /notifications/{notification_id} (pending standalone route test)
-    assert.strictEqual(spec.paths['/notifications/{notification_id}'], undefined);
-
-    // 3. POST /reviews (legacy alias to /order-items/:id/review, deprecated)
-    assert.strictEqual(spec.paths['/reviews'], undefined);
-
-    // 4. GET /vouchers/preview (legacy alias to /vouchers/evaluate, deprecated)
-    assert.strictEqual(spec.paths['/vouchers/preview'], undefined);
-
-    // 5. GET /vouchers/applicable (legacy alias to /vouchers, deprecated)
-    assert.strictEqual(spec.paths['/vouchers/applicable'], undefined);
+    assert.ok(spec.paths['/cart/items/{cart_item_id}']?.patch);
+    assert.ok(spec.paths['/notifications/{notification_id}']?.get);
+    assert.ok(spec.paths['/reviews']?.post);
+    assert.ok(spec.paths['/vouchers/preview']?.post);
+    assert.ok(spec.paths['/vouchers/applicable']?.get);
   });
 
   it('[OAS-04]: components define standard ErrorEnvelope, SuccessEnvelope, and BearerAuth', () => {
@@ -154,7 +149,8 @@ describe('Draft OpenAPI 3.1 Spec Generation & RBAC Audit (Phase 5)', () => {
 
     assert.strictEqual(serverUrl, '/api/v1', 'Server URL must be /api/v1');
 
-    for (const openApiPath of Object.keys(spec.paths)) {
+    const openApiMethods = new Set(['get', 'post', 'put', 'patch', 'delete']);
+    for (const [openApiPath, pathItem] of Object.entries(spec.paths)) {
       // 1. Check resolveOperationUrl helper against raw string concatenation
       const resolvedUrl: string = resolveOperationUrl(serverUrl, openApiPath);
       const directConcat: string = `${serverUrl}${openApiPath}`;
@@ -171,12 +167,20 @@ describe('Draft OpenAPI 3.1 Spec Generation & RBAC Audit (Phase 5)', () => {
         `Resolved URL must start with /api/v1/: ${resolvedUrl}`
       );
 
-      // 3. Reconcile with registered Express route patterns
+      // 3. Reconcile each documented HTTP method with Express.
       const expressPattern = resolvedUrl.replace(/\{([^}]+)\}/g, ':$1');
-      assert.ok(
-        expressRoutes.has(expressPattern),
-        `OpenAPI path ${openApiPath} resolved to ${expressPattern} but was not found in Express routes: ${Array.from(expressRoutes).join(', ')}`
-      );
+      for (const method of Object.keys(pathItem)) {
+        if (openApiMethods.has(method)) {
+          assert.ok(expressRoutes.has(`${method.toUpperCase()} ${expressPattern}`), `OpenAPI ${method.toUpperCase()} ${expressPattern} is not registered in Express`);
+        }
+      }
+    }
+
+    for (const expressRoute of expressRoutes) {
+      const [method, ...routeParts] = expressRoute.split(' ');
+      if (method === 'OPTIONS') continue;
+      const openApiPath = routeParts.join(' ').replace(/:([^/]+)/g, '{$1}').replace(/^\/api\/v1/, '');
+      assert.ok(spec.paths[openApiPath]?.[method.toLowerCase()], `Express route ${expressRoute} is missing from OpenAPI`);
     }
   });
 

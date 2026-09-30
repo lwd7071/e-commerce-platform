@@ -213,6 +213,24 @@ export function SellerProductsScreen() {
           <strong>Chế độ cách ly gian hàng (GAP-04):</strong> Màn hình đang lọc sản phẩm theo gian hàng của bạn (Shop ID: <code>{sellerShopId}</code>). Chưa kết nối trực tiếp với endpoint public <code>GET /products</code> để tránh rò rỉ sản phẩm shop khác trong khi chờ backend triển khai endpoint seller-scoped <code>GET /seller/products</code>.
         </div>
       </div>
+      {/* Sub-navigation tabs between Orders and Products */}
+      <nav aria-label="Điều hướng kênh người bán" className="border-b border-[var(--border)]">
+        <div className="flex gap-6 text-sm font-semibold">
+          <Link
+            href="/seller/orders"
+            className="pb-3 border-b-2 border-transparent text-[var(--subtext)] hover:text-[var(--foreground)]"
+          >
+            Đơn hàng cần xử lý
+          </Link>
+          <Link
+            href="/seller/products"
+            className="pb-3 border-b-2 border-[var(--primary-active)] text-[var(--primary-active)]"
+            aria-current="page"
+          >
+            Danh sách sản phẩm
+          </Link>
+        </div>
+      </nav>
 
       {isLoading ? (
         <div className="space-y-3 surface-card p-6">
@@ -321,10 +339,10 @@ export function SellerProductsScreen() {
                             <span
                               className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold border ${
                                 item.total_stock > 10
-                                  ? "bg-[var(--success-surface)] text-[var(--success)] border-[var(--success-border)]"
+                                  ? "bg-[var(--success-surface)] text-[var(--success-text)] border-[var(--success-border)]"
                                   : item.total_stock > 0
-                                  ? "bg-[var(--warning-surface)] text-[var(--warning)] border-[var(--warning-border)]"
-                                  : "bg-[var(--danger-surface)] text-[var(--danger)] border-[var(--danger-border)]"
+                                  ? "bg-[var(--warning-surface)] text-[var(--warning-text)] border-[var(--warning-border)]"
+                                  : "bg-[var(--danger-surface)] text-[var(--danger-text)] border-[var(--danger-border)]"
                               }`}
                             >
                               {item.total_stock > 0 ? item.total_stock : "Hết hàng"}

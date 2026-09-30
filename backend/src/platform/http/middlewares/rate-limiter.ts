@@ -9,6 +9,7 @@ export interface RateLimitTierConfig {
 
 export interface SensitiveRouteTierConfig {
   pattern: RegExp | string;
+  method?: string;
   windowMs?: number;
   max: number;
 }
@@ -84,6 +85,8 @@ export function createLayeredRateLimiter(options: RateLimiterOptions = {}): Requ
   };
 
   const sensitiveTiers: SensitiveRouteTierConfig[] = options.sensitiveTiers ?? [
+    { pattern: /^\/api\/v1\/auth\/onboarding$/, method: 'POST', windowMs: 10 * 60_000, max: 10 },
+    { pattern: /^\/api\/v1\/profile$/, method: 'PATCH', windowMs: 60_000, max: 20 },
     { pattern: /^\/api\/v1\/checkout/, windowMs: 60_000, max: 20 },
     { pattern: /^\/api\/v1\/orders/, windowMs: 60_000, max: 30 },
   ];
@@ -131,12 +134,12 @@ export function createLayeredRateLimiter(options: RateLimiterOptions = {}): Requ
     // Check sensitive routes
     for (let i = 0; i < sensitiveTiers.length; i++) {
       const sensitive = sensitiveTiers[i];
-      const matches =
+      const pathMatches =
         typeof sensitive.pattern === 'string'
           ? path.startsWith(sensitive.pattern)
           : sensitive.pattern.test(path);
 
-      if (matches) {
+      if (pathMatches && (!sensitive.method || req.method.toUpperCase() === sensitive.method.toUpperCase())) {
         tierMax = sensitive.max;
         tierWindowMs = sensitive.windowMs ?? defaultTier.windowMs;
         tierPrefix = `sensitive_${i}`;

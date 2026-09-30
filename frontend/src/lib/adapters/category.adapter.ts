@@ -1,4 +1,5 @@
 import { features } from "../config/features";
+import { catalogApi } from "../api/catalog.api";
 
 /**
  * CategoryAdapter - Safe category retrieval and tree representation.
@@ -37,9 +38,10 @@ export interface ICategoryAdapter {
 
 /**
  * Development category fixtures for mock and UI testing.
- * Note: Under GAP-05, backend does not have public categories API or seed in DB.
- * Therefore, in live mode without verified DB categories, the adapter safely returns []
- * to hide the filter and prevent sending invalid UUIDs that would yield empty product lists.
+ * Stable IDs can be inserted into an explicitly selected development/test database
+ * with the backend's guarded db:seed:dev-categories command. GAP-05 still applies:
+ * the backend has no public categories API, so live mode safely returns [] until
+ * a category endpoint is mounted and wired.
  */
 export const DEV_CATEGORY_FIXTURES: CategoryItem[] = [
   // Cấp 1: Danh mục gốc (Roots - level 1)
@@ -91,6 +93,7 @@ export const DEV_CATEGORY_FIXTURES: CategoryItem[] = [
 export class CategoryAdapterImpl implements ICategoryAdapter {
   private mockFixtures: CategoryItem[];
   private forceMock: boolean | null;
+  private liveCategories: CategoryItem[] | null = null;
 
   constructor(initialData: CategoryItem[] = DEV_CATEGORY_FIXTURES, forceMock: boolean | null = null) {
     this.mockFixtures = initialData;
@@ -105,10 +108,16 @@ export class CategoryAdapterImpl implements ICategoryAdapter {
   }
 
   async getCategories(): Promise<CategoryItem[]> {
-    // GAP-05: In live mode, backend has no GET /categories route yet and DB seed is unverified.
-    // If not in mock mode, return empty list so UI safely hides the filter chips.
     if (!this.isMockMode()) {
-      return [];
+      const wireCategories = await catalogApi.getCategories();
+      this.liveCategories = wireCategories.map(category => ({
+        id: category.category_id,
+        parentId: category.parent_category_id,
+        name: category.category_name,
+        description: category.description,
+        status: "ACTIVE",
+      }));
+      return this.liveCategories.map(category => ({ ...category }));
     }
 
     // In mock mode, return active mock categories
@@ -130,7 +139,8 @@ export class CategoryAdapterImpl implements ICategoryAdapter {
 
   async getCategoryById(id: string): Promise<CategoryItem | null> {
     if (!this.isMockMode()) {
-      return null;
+      const categories = this.liveCategories ?? await this.getCategories();
+      return categories.find(category => category.id === id) ?? null;
     }
     const found = this.mockFixtures.find((c) => c.id === id);
     return found ? { ...found } : null;

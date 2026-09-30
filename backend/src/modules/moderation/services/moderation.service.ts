@@ -1,10 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import type { IAuditPort } from '../../../contracts/audit.port.ts';
 import type {
+  AdminShopItem,
+  AdminUserItem,
   ITargetLookupRepository,
   ITransactionManager,
   ModerateTargetCommand,
   ModerationTargetType,
+  ShopStatusUpdateResult,
+  UserStatus,
   UserStatusUpdateResult
 } from '../domain/moderation.types.ts';
 import { ALLOWED_MODERATION_TARGET_TYPES } from '../domain/moderation.types.ts';
@@ -34,7 +38,7 @@ export class ModerationService {
    * 5. State / Idempotency Check (409 CONFLICT)
    * 6. Atomic Transaction Execution with Audit Logging (QD20)
    */
-  public async moderateTarget(cmd: ModerateTargetCommand): Promise<UserStatusUpdateResult> {
+  public async moderateTarget(cmd: ModerateTargetCommand): Promise<UserStatusUpdateResult & { shop_id?: string }> {
     // 1. Bước 1 (Payload Type)
     if (!ALLOWED_MODERATION_TARGET_TYPES.includes(cmd.target_type as ModerationTargetType)) {
       throw new ValidationFailedError(
@@ -67,11 +71,23 @@ export class ModerationService {
       if (cmd.action === 'UNLOCK' && currentStatus === 'ACTIVE') {
         throw new InvalidStateTransitionError('USER_ALREADY_ACTIVE', 'User is already active');
       }
+    } else if (cmd.target_type === 'SHOP') {
+      const currentStatus = this.targetRepo.getShopStatus
+        ? await this.targetRepo.getShopStatus(cleanTargetId)
+        : null;
+      if (currentStatus) {
+        if ((cmd.action === 'APPROVE' || cmd.action === 'UNLOCK') && currentStatus === 'ACTIVE') {
+          throw new InvalidStateTransitionError('SHOP_ALREADY_ACTIVE', 'Shop is already active');
+        }
+        if (cmd.action === 'LOCK' && currentStatus === 'LOCKED') {
+          throw new InvalidStateTransitionError('SHOP_ALREADY_LOCKED', 'Shop is already locked');
+        }
+      }
     }
 
     // 6. Bước 6 (Atomic Transaction Execution, QD20)
     return await this.txManager.withTransaction(async (trx) => {
-      let updateResult: UserStatusUpdateResult = {
+      let updateResult: UserStatusUpdateResult & { shop_id?: string } = {
         user_id: cleanTargetId,
         status: cmd.action === 'LOCK' ? 'LOCKED' : 'ACTIVE',
         updated_at: new Date().toISOString()
@@ -80,6 +96,15 @@ export class ModerationService {
       if (cmd.target_type === 'USER') {
         const newStatus = cmd.action === 'LOCK' ? 'LOCKED' : 'ACTIVE';
         updateResult = await this.targetRepo.updateUserStatus(trx, cleanTargetId, newStatus);
+      } else if (cmd.target_type === 'SHOP' && this.targetRepo.updateShopStatus) {
+        const newShopStatus = cmd.action === 'LOCK' ? 'LOCKED' : 'ACTIVE';
+        const shopRes = await this.targetRepo.updateShopStatus(trx, cleanTargetId, newShopStatus);
+        updateResult = {
+          user_id: cleanTargetId,
+          shop_id: shopRes.shop_id,
+          status: (shopRes.status === 'LOCKED' ? 'LOCKED' : 'ACTIVE') as unknown as UserStatus,
+          updated_at: shopRes.updated_at
+        };
       }
 
       // Record in moderation_records
@@ -128,6 +153,65 @@ export class ModerationService {
       action: 'UNLOCK',
       reason
     });
+  }
+
+  public async approveShop(adminId: string, shopId: string, reason = 'Shop approved by admin'): Promise<ShopStatusUpdateResult> {
+    const res = await this.moderateTarget({
+      admin_id: adminId,
+      target_type: 'SHOP',
+      target_id: shopId,
+      action: 'APPROVE',
+      reason
+    });
+    return {
+      shop_id: res.shop_id || shopId,
+      status: 'ACTIVE',
+      updated_at: res.updated_at
+    };
+  }
+
+  public async lockShop(adminId: string, shopId: string, reason: string): Promise<ShopStatusUpdateResult> {
+    const res = await this.moderateTarget({
+      admin_id: adminId,
+      target_type: 'SHOP',
+      target_id: shopId,
+      action: 'LOCK',
+      reason
+    });
+    return {
+      shop_id: res.shop_id || shopId,
+      status: 'LOCKED',
+      updated_at: res.updated_at
+    };
+  }
+
+  public async unlockShop(adminId: string, shopId: string, reason = 'Shop unlocked by admin'): Promise<ShopStatusUpdateResult> {
+    const res = await this.moderateTarget({
+      admin_id: adminId,
+      target_type: 'SHOP',
+      target_id: shopId,
+      action: 'UNLOCK',
+      reason
+    });
+    return {
+      shop_id: res.shop_id || shopId,
+      status: 'ACTIVE',
+      updated_at: res.updated_at
+    };
+  }
+
+  public async listShops(params?: { status?: string; search?: string }): Promise<AdminShopItem[]> {
+    if (this.targetRepo.listShops) {
+      return this.targetRepo.listShops(params);
+    }
+    return [];
+  }
+
+  public async listUsers(params?: { role?: string; status?: string; search?: string }): Promise<AdminUserItem[]> {
+    if (this.targetRepo.listUsers) {
+      return this.targetRepo.listUsers(params);
+    }
+    return [];
   }
 
   private async verifyTargetExists(targetType: ModerationTargetType, targetId: string): Promise<void> {

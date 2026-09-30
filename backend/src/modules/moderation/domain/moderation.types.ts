@@ -5,7 +5,9 @@ export type { IAuditPort, AdminAuditRecord } from '../../../contracts/audit.port
 export const ALLOWED_MODERATION_TARGET_TYPES = ['USER', 'SHOP', 'PRODUCT', 'REVIEW'] as const;
 export type ModerationTargetType = typeof ALLOWED_MODERATION_TARGET_TYPES[number];
 
-export type ModerationAction = 'LOCK' | 'UNLOCK' | 'HIDE' | 'RESTORE';
+export type ModerationAction = 'LOCK' | 'UNLOCK' | 'HIDE' | 'RESTORE' | 'APPROVE';
+
+export type ShopStatus = 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'LOCKED';
 
 export interface ModerationRecord {
   moderation_id: string;
@@ -31,14 +33,50 @@ export interface UserStatusUpdateResult {
   updated_at: string;
 }
 
+export interface ShopStatusUpdateResult {
+  shop_id: string;
+  status: ShopStatus;
+  updated_at: string;
+}
+
+export interface AdminShopItem {
+  shop_id: string;
+  owner_id: string;
+  shop_name: string;
+  description: string | null;
+  logo_url: string | null;
+  pickup_address: string | null;
+  contact_phone: string | null;
+  status: ShopStatus;
+  product_count: number;
+  owner_email?: string;
+  owner_name?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminUserItem {
+  id: string;
+  email: string;
+  full_name: string;
+  role: 'BUYER' | 'SELLER' | 'ADMIN';
+  status: UserStatus;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ITargetLookupRepository {
   userExists(userId: string): Promise<boolean>;
   getUserStatus(userId: string): Promise<UserStatus | null>;
   updateUserStatus(trx: unknown, userId: string, status: UserStatus): Promise<UserStatusUpdateResult>;
   shopExists(shopId: string): Promise<boolean>;
+  getShopStatus?(shopId: string): Promise<ShopStatus | null>;
+  updateShopStatus?(trx: unknown, shopId: string, status: ShopStatus): Promise<ShopStatusUpdateResult>;
   productExists(productId: string): Promise<boolean>;
   reviewExists(reviewId: string): Promise<boolean>;
   insertModerationRecord(trx: unknown, record: ModerationRecord): Promise<void>;
+  listShops?(params?: { status?: string; search?: string }): Promise<AdminShopItem[]>;
+  listUsers?(params?: { role?: string; status?: string; search?: string }): Promise<AdminUserItem[]>;
 }
 
 export interface ITransactionManager {
@@ -46,7 +84,12 @@ export interface ITransactionManager {
 }
 
 export interface IModerationService {
-  moderateTarget(command: ModerateTargetCommand): Promise<UserStatusUpdateResult>;
+  moderateTarget(command: ModerateTargetCommand): Promise<UserStatusUpdateResult & { shop_id?: string }>;
   lockUser(adminId: string, userId: string, reason: string): Promise<UserStatusUpdateResult>;
   unlockUser(adminId: string, userId: string, reason: string): Promise<UserStatusUpdateResult>;
+  approveShop?(adminId: string, shopId: string, reason?: string): Promise<ShopStatusUpdateResult>;
+  lockShop?(adminId: string, shopId: string, reason: string): Promise<ShopStatusUpdateResult>;
+  unlockShop?(adminId: string, shopId: string, reason?: string): Promise<ShopStatusUpdateResult>;
+  listShops?(params?: { status?: string; search?: string }): Promise<AdminShopItem[]>;
+  listUsers?(params?: { role?: string; status?: string; search?: string }): Promise<AdminUserItem[]>;
 }
