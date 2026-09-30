@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 describe("Contract Drift & API Consistency (Q-807 Acceptance Gate)", () => {
   const CANONICAL_BACKEND_PATHS = [
     "/health",
+    "/health/readiness",
     "/auth/me",
     "/auth/onboarding",
     "/categories",

@@ -18,8 +18,11 @@
 ### 2026-09-30 — Dino MVP 30/09 (Block 0, Workstream A, Workstream C Admin API & Gating)
 
 - **Đã làm:**
-  - **P0-01 & P0-02 (OpenAPI & Contract Drift):**
-    - Mở rộng ma trận `CANONICAL_BACKEND_PATHS` trong `frontend/test/contract-drift-q807.spec.ts` với đầy đủ các endpoint mới (`/auth/me`, `/auth/onboarding`, `/categories`, `/profile`, `/admin/users`, `/admin/shops`, `/reviews`, `/order-items/{id}/review`, `/product-variants/{id}/stock`).
+  - **P0-01, P0-02 & P0-03 (OpenAPI, Contract Drift & /health/readiness):**
+    - Hiện thực endpoint `GET /api/v1/health/readiness` (và `/health/readiness`) trong `backend/src/platform/routes/health.ts`: trả về `version: 1.4.0`, `commit`, kiểm tra kết nối DB/Auth/Storage và 12 capabilities trạng thái `LIVE` khớp với manifest FE. Tự động trả 503 nếu DB degraded.
+    - Cập nhật tài liệu OpenAPI 3.1 `backend/src/platform/openapi/openapi-spec.ts` cho `/health/readiness`.
+    - Viết unit tests tích hợp trong `backend/test/platform/health-route.spec.ts` (PASS 100%).
+    - Mở rộng ma trận `CANONICAL_BACKEND_PATHS` trong `frontend/test/contract-drift-q807.spec.ts` với đầy đủ các endpoint mới (`/health/readiness`, `/auth/me`, `/auth/onboarding`, `/categories`, `/profile`, `/admin/users`, `/admin/shops`, `/reviews`, `/order-items/{id}/review`, `/product-variants/{id}/stock`).
   - **P0-04 (Capability Readiness Registry & Build Guard):**
     - Tạo `frontend/src/lib/config/capabilities.ts` quản lý 12 MUST capabilities (`LIVE | MOCK_DEV_ONLY | BLOCKED`) và hàm `validateReleaseReadiness()`.
     - Viết 5 unit tests trong `frontend/test/capabilities.spec.ts` (PASS 100%).

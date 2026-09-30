@@ -261,6 +261,30 @@ export function generateOpenApiSpec(): OpenApiSpec {
           },
         },
       },
+      '/health/readiness': {
+        get: {
+          summary: 'Platform Capability and Runtime Readiness',
+          description: 'Returns commit/version, DB/Auth/Storage connectivity, and capability state matching the frontend release manifest.',
+          responses: {
+            '200': {
+              description: 'Platform, dependencies and capabilities are operational and ready for promotion',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/SuccessEnvelope' },
+                },
+              },
+            },
+            '503': {
+              description: 'One or more critical dependencies are degraded or unhealthy',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/SuccessEnvelope' },
+                },
+              },
+            },
+          },
+        },
+      },
       '/openapi.json': {
         get: {
           summary: 'Get the OpenAPI contract',

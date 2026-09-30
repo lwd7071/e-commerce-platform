@@ -77,4 +77,69 @@ describe('Health Check Route Integration (/api/v1/health)', () => {
       waitingCount: 3,
     });
   });
+
+  it('GET /api/v1/health/readiness returns 200 with commit/version, DB/Auth/Storage checks, and capabilities', async () => {
+    const mockClient = {
+      query: async (queryText: string) => {
+        if (queryText.includes('SELECT 1')) {
+          return { rows: [{ probe: 1 }] };
+        }
+        return { rows: [] };
+      },
+      release: () => {},
+    } as unknown as PoolClient;
+
+    const mockPool = {
+      connect: async () => mockClient,
+      totalCount: 5,
+      idleCount: 5,
+      waitingCount: 0,
+    } as unknown as Pool;
+
+    const app = createApp({ pool: mockPool });
+    const res = await request(app).get('/api/v1/health/readiness').expect(200);
+
+    assert.strictEqual(res.body.data.status, 'ok');
+    assert.strictEqual(res.body.data.version, '1.4.0');
+    assert.ok(res.body.data.commit);
+    assert.ok(res.body.data.checks);
+    assert.strictEqual(res.body.data.checks.database.status, 'healthy');
+    assert.strictEqual(res.body.data.checks.auth.provider, 'supabase');
+    assert.strictEqual(res.body.data.checks.storage.provider, 'supabase-storage');
+    assert.ok(res.body.data.capabilities);
+    assert.strictEqual(res.body.data.capabilities.auth, 'LIVE');
+    assert.strictEqual(res.body.data.capabilities.catalog, 'LIVE');
+    assert.strictEqual(res.body.data.capabilities.cart, 'LIVE');
+    assert.strictEqual(res.body.data.capabilities.checkout, 'LIVE');
+    assert.strictEqual(res.body.data.capabilities.admin_shops, 'LIVE');
+    assert.strictEqual(typeof res.body.data.timestamp, 'string');
+    assert.ok(res.body.request_id);
+  });
+
+  it('GET /api/v1/health/readiness returns 503 degraded when DB probe fails', async () => {
+    const mockClient = {
+      query: async () => {
+        throw new Error('Connection refused to PostgreSQL');
+      },
+      release: () => {},
+    } as unknown as PoolClient;
+
+    const mockPool = {
+      connect: async () => mockClient,
+      totalCount: 1,
+      idleCount: 0,
+      waitingCount: 2,
+    } as unknown as Pool;
+
+    const app = createApp({ pool: mockPool });
+    const res = await request(app).get('/api/v1/health/readiness').expect(503);
+
+    assert.strictEqual(res.body.data.status, 'degraded');
+    assert.strictEqual(res.body.data.version, '1.4.0');
+    assert.strictEqual(res.body.data.checks.database.status, 'unhealthy');
+    assert.ok(res.body.data.checks.database.error.includes('Connection refused'));
+    assert.ok(res.body.data.capabilities);
+    assert.ok(res.body.request_id);
+  });
 });
+
