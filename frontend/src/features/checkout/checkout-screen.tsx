@@ -556,22 +556,22 @@ export function CheckoutScreen() {
 
       {/* STEP 1: DELIVERY ADDRESS */}
       <section className="surface-card p-6 space-y-4" aria-labelledby="heading-address">
-        <div className="flex items-center justify-between pb-3 border-b border-[var(--border)]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-[var(--border)] gap-2">
           <h2 id="heading-address" className="text-base font-semibold flex items-center gap-2">
             <Icon name="home" className="text-[var(--primary-active)] w-5 h-5" />
             <span>Địa chỉ nhận hàng</span>
           </h2>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button
               variant="secondary"
-              className="text-xs py-1 px-3"
+              className="text-xs py-2 px-3 min-h-[44px] min-w-[44px]"
               onClick={() => setIsAddressModalOpen(true)}
             >
               Đổi địa chỉ ({addresses.length})
             </Button>
             <Button
               variant="ghost"
-              className="text-xs py-1 px-3"
+              className="text-xs py-2 px-3 min-h-[44px] min-w-[44px]"
               onClick={() => setIsNewAddressModalOpen(true)}
             >
               + Thêm mới
