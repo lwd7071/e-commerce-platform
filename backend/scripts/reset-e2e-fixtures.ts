@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import pg from 'pg';
 import { loadDatabaseConfig } from '../db/config.ts';
 import { assertE2ESeedAllowed } from '../db/seed/e2e-seed-safety.ts';
+import { assertE2EFixtureAccountsSafe, type ExistingE2EAuthAccount } from '../db/seed/e2e-fixture-account-guard.ts';
 import { resetE2EBuyerAddress, resetE2EBuyerCart } from '../db/seed/e2e-fixture-reset.ts';
 import { buildProductImagePath } from '../db/storage.ts';
 
@@ -40,18 +41,20 @@ const users = [
 type UserKey = (typeof users)[number]['key'];
 const userIds = new Map<UserKey, string>();
 
-async function findAuthUser(email: string): Promise<{ id: string } | null> {
+async function findAuthUser(email: string): Promise<ExistingE2EAuthAccount | null> {
   for (let page = 1; ; page += 1) {
     const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 1000 });
     if (error) throw error;
     const match = data.users.find((user) => user.email?.toLowerCase() === email.toLowerCase());
-    if (match) return { id: match.id };
+    if (match) return { id: match.id, email: match.email ?? email, userMetadata: match.user_metadata };
     if (data.users.length < 1000) return null;
   }
 }
 
-async function ensureAuthUser(account: (typeof users)[number]): Promise<string> {
-  const existing = await findAuthUser(account.email);
+async function ensureAuthUser(
+  account: (typeof users)[number],
+  existing: ExistingE2EAuthAccount | null,
+): Promise<string> {
   if (existing) {
     const { data, error } = await supabase.auth.admin.updateUserById(existing.id, {
       password,
@@ -291,7 +294,15 @@ async function resetDatabaseFixtures(): Promise<void> {
 }
 
 try {
-  for (const account of users) userIds.set(account.key, await ensureAuthUser(account));
+  // Preflight every fixture email before changing any Auth account.
+  const existingAccounts = await Promise.all(users.map(({ email }) => findAuthUser(email)));
+  assertE2EFixtureAccountsSafe(
+    users.map(({ email }) => email),
+    existingAccounts.filter((account): account is ExistingE2EAuthAccount => account !== null),
+  );
+  for (const [index, account] of users.entries()) {
+    userIds.set(account.key, await ensureAuthUser(account, existingAccounts[index]));
+  }
   await resetDatabaseFixtures();
   process.stdout.write(JSON.stringify({
     project_ref: projectRef,

@@ -41,6 +41,13 @@ describe('assertE2ESeedAllowed', () => {
     })).toThrow('not in E2E_ALLOWED_SUPABASE_PROJECT_REFS');
   });
 
+  it('rejects a matching database host that is absent from its allowlist', () => {
+    expect(() => assertE2ESeedAllowed({ ...allowed, allowedDatabaseHosts: '127.0.0.1' }, {
+      projectRef: 'e2e-project',
+      databaseHost: 'db.e2e-project.supabase.co',
+    })).toThrow('not in E2E_ALLOWED_DATABASE_HOSTS');
+  });
+
   it('rejects URL-derived target drift for either project or database host', () => {
     expect(() => assertE2ESeedAllowed(allowed, {
       projectRef: 'different-project',

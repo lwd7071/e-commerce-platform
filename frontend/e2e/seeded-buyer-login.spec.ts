@@ -7,7 +7,7 @@ test("seeded Buyer can sign in and open their profile", async ({ page }) => {
   await page.goto("/login?returnTo=%2Fprofile");
   await page.getByLabel("Địa chỉ Email").fill("buyer@dino-e2e.test");
   await page.getByLabel("Mật khẩu").fill(password);
-  await page.getByRole("button", { name: "Đăng nhập" }).click();
+  await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
 
   await expect(page).toHaveURL(/\/profile$/);
   await expect(page.getByRole("heading", { name: "Hồ sơ cá nhân" })).toBeVisible();
