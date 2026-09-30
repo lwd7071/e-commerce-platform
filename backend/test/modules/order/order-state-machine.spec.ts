@@ -156,3 +156,22 @@ test('[RB-MG12] Unknown statuses are rejected as validation errors', () => {
     assert.equal(order.status, 'PENDING_CONFIRMATION');
   }
 });
+
+test('[P0-08 / C-103] Buyer confirms receipt for SHIPPING order transitioning to COMPLETED', () => {
+  const shippingOrder = Object.freeze({ status: 'SHIPPING' as const, buyerId: 'buyer-a', shopId: 'shop-a' });
+  const buyer: OrderActor = { kind: 'BUYER', userId: 'buyer-a' };
+  const otherBuyer: OrderActor = { kind: 'BUYER', userId: 'buyer-b' };
+
+  // Happy path: Owner buyer confirms receipt
+  const result = transitionOrder(shippingOrder, { to: 'COMPLETED', actor: buyer });
+  assert.equal(result.to, 'COMPLETED');
+
+  // Non-owner buyer is rejected with RESOURCE_NOT_FOUND
+  assert.throws(() => transitionOrder(shippingOrder, { to: 'COMPLETED', actor: otherBuyer }), { code: 'RESOURCE_NOT_FOUND' });
+
+  // Buyer cannot confirm receipt for non-SHIPPING orders
+  for (const status of ['PENDING_CONFIRMATION', 'CONFIRMED', 'PREPARING', 'COMPLETED', 'CANCELLED'] as const) {
+    assert.throws(() => transitionOrder({ ...shippingOrder, status }, { to: 'COMPLETED', actor: buyer }), { code: 'ORDER_INVALID_TRANSITION' });
+  }
+});
+

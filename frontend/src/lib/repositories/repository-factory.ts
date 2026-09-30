@@ -52,6 +52,7 @@ const apiOrderRepository: IOrderRepository = {
   getOrderById: (id) => orderApi.getOrderById(id),
   cancelOrder: (id, reason) => orderApi.cancelOrder(id, reason),
   confirmOrder: (id, reason) => orderApi.confirmOrder(id, reason),
+  confirmReceived: (id) => orderApi.confirmReceived(id),
   transitionOrder: (id, to, reason) => orderApi.transitionOrder(id, { to, reason }),
 };
 
@@ -535,6 +536,17 @@ const mockOrderRepository: IOrderRepository = {
     found.status = "CONFIRMED";
     return { ...found };
   },
+  confirmReceived: async (id) => {
+    const found = inMemoryMockOrders.find((o) => o.id === id);
+    if (!found) throw new Error("Không tìm thấy đơn hàng");
+    if (found.status !== "SHIPPING") {
+      const error = new Error("Chỉ đơn hàng đang giao mới có thể xác nhận đã nhận.");
+      (error as unknown as { status: number }).status = 409;
+      throw error;
+    }
+    found.status = "COMPLETED";
+    return { ...found };
+  },
   transitionOrder: async (id, to, reason) => {
     const found = inMemoryMockOrders.find((o) => o.id === id);
     if (!found) throw new Error("Không tìm thấy đơn hàng");
@@ -647,6 +659,28 @@ const hybridOrderRepository: IOrderRepository = {
       }
     }
     return mockOrderRepository.confirmOrder(id, reason);
+  },
+
+  confirmReceived: async (id) => {
+    if (!features.domains.ordersMock()) {
+      try {
+        const liveUpdated = await apiOrderRepository.confirmReceived?.(id);
+        const found = inMemoryMockOrders.find((o) => o.id === id);
+        if (found) {
+          found.status = "COMPLETED";
+        }
+        return liveUpdated?.id
+          ? liveUpdated
+          : (found ?? { ...inMemoryMockOrders[0], id, status: "COMPLETED" });
+      } catch (err: unknown) {
+        const status = (err as { status?: number })?.status;
+        if (status === 409 || status === 400 || status === 403) {
+          throw err;
+        }
+        return mockOrderRepository.confirmReceived!(id);
+      }
+    }
+    return mockOrderRepository.confirmReceived!(id);
   },
 
   transitionOrder: async (id, to, reason) => {

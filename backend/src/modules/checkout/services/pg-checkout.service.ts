@@ -126,6 +126,20 @@ export class PgCheckoutService implements OrderHttpApplication {
     });
   }
 
+  async confirmReceived(context: RequestContext, orderId: string): Promise<unknown> {
+    return withTransaction(this.pool, async client => {
+      const current = await client.query(
+        "SELECT status, buyer_id FROM orders WHERE order_id=$1 AND (buyer_id=$2 OR $3='ADMIN') FOR UPDATE",
+        [orderId, context.user_id, context.role]
+      );
+      if (!current.rows[0]) throw new NotFoundError('Order was not found.');
+      if (current.rows[0].status !== 'SHIPPING') {
+        throw new ConflictError('ORDER_INVALID_TRANSITION', 'Only SHIPPING orders can be confirmed as received.');
+      }
+      return this.persistTransition(client, context, orderId, { from: 'SHIPPING', to: 'COMPLETED', reason: 'Buyer confirmed receipt' });
+    });
+  }
+
   async transitionOrder(context: RequestContext, orderId: string, input: Record<string, unknown>): Promise<unknown> {
     return withTransaction(this.pool, async client => {
       const current = await client.query('SELECT o.*, s.owner_id FROM orders o JOIN shops s ON s.shop_id=o.shop_id WHERE o.order_id=$1 FOR UPDATE OF o', [orderId]);

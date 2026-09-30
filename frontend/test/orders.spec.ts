@@ -94,4 +94,32 @@ describe("Orders Center and Cancellation Lifecycle (O-502, O-503)", () => {
     expect(cancelled.status).toBe("CANCELLED");
     expect(cancelled.cancel_reason).toBe("Đổi ý mua món khác");
   });
+
+  it("confirms receipt for SHIPPING order and transitions to COMPLETED (P0-08, C-103)", async () => {
+    const orderRepo = repositories.order();
+    const shippingOrders = await orderRepo.getOrders({ status: "SHIPPING" });
+    expect(shippingOrders.length).toBeGreaterThan(0);
+
+    const targetOrder = shippingOrders[0];
+    const result = await orderRepo.confirmReceived!(targetOrder.id);
+    expect(result.id).toBe(targetOrder.id);
+    expect(result.status).toBe("COMPLETED");
+
+    // Verify when re-fetched
+    const reFetched = await orderRepo.getOrderById(targetOrder.id);
+    expect(reFetched.status).toBe("COMPLETED");
+  });
+
+  it("rejects confirm-received with 409 error if order is not in SHIPPING status", async () => {
+    const orderRepo = repositories.order();
+    const confirmedOrders = await orderRepo.getOrders({ status: "CONFIRMED" });
+    expect(confirmedOrders.length).toBeGreaterThan(0);
+
+    const nonShippingOrder = confirmedOrders[0];
+    await expect(
+      orderRepo.confirmReceived!(nonShippingOrder.id)
+    ).rejects.toMatchObject({
+      status: 409,
+    });
+  });
 });

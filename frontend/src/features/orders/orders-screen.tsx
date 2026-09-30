@@ -91,6 +91,40 @@ export function OrdersScreen() {
     }, 4000);
   };
 
+  // Handle Buyer confirming receipt (P0-08 / C-103)
+  const handleConfirmReceived = async (order: WireOrder) => {
+    try {
+      const orderRepo = repositories.order();
+      let updated: WireOrder;
+      if (orderRepo.confirmReceived) {
+        updated = await orderRepo.confirmReceived(order.id);
+      } else {
+        updated = { ...order, status: "COMPLETED" };
+      }
+      setOrders((prev) =>
+        prev.map((ord) => (ord.id === order.id ? { ...ord, status: "COMPLETED" } : ord))
+      );
+      setToastMessage({
+        type: "success",
+        title: "Xác nhận nhận hàng thành công",
+        message: `Đơn hàng ${order.id.slice(0, 8)} đã hoàn tất! Bạn có thể viết đánh giá sản phẩm ngay bây giờ.`,
+      });
+      setTimeout(() => {
+        setToastMessage(null);
+      }, 4000);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Không thể xác nhận nhận hàng.";
+      setToastMessage({
+        type: "error",
+        title: "Xác nhận nhận hàng thất bại",
+        message,
+      });
+      setTimeout(() => {
+        setToastMessage(null);
+      }, 4000);
+    }
+  };
+
   return (
     <ProtectedPage allowedRoles={["BUYER"]}>
       <div className="orders-page max-w-4xl mx-auto space-y-6 pb-24">
@@ -191,6 +225,7 @@ export function OrdersScreen() {
                 order={order}
                 isHighlighted={createdOrderIds.includes(order.id)}
                 onCancel={(ord) => setCancellingOrder(ord)}
+                onConfirmReceived={handleConfirmReceived}
               />
             ))}
           </div>

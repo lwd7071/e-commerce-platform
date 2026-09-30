@@ -210,6 +210,29 @@ export function createOrderDomainRouter(
     throw new NotFoundError('Order confirm handler is not configured');
   }));
 
+  router.post('/orders/:order_id/confirm-received', ...guards(auth, 'BUYER', 'ADMIN'), asyncRoute(async (req, res) => {
+    const ctx = context(req);
+    const orderId = req.params.order_id;
+
+    if (orderLifecycleService) {
+      const actor: OrderActor = ctx.role === 'ADMIN'
+        ? { kind: 'ADMIN', userId: ctx.user_id }
+        : { kind: 'BUYER', userId: ctx.user_id };
+
+      const result = await orderLifecycleService.confirmReceived(orderId, actor);
+      res.json(buildSuccessEnvelope(result, requestId(req)));
+      return;
+    }
+
+    if (legacyApp?.confirmReceived) {
+      const result = await legacyApp.confirmReceived(ctx, orderId);
+      res.json(buildSuccessEnvelope(result, requestId(req)));
+      return;
+    }
+
+    throw new NotFoundError('Order confirm-received handler is not configured');
+  }));
+
   router.post('/orders/:order_id/transition', ...guards(auth, 'SELLER', 'ADMIN'), asyncRoute(async (req, res) => {
     const ctx = context(req);
     const orderId = req.params.order_id;

@@ -10,10 +10,16 @@ import type { WireOrder } from "./orders.types";
 interface OrderCardProps {
   order: WireOrder;
   onCancel: (order: WireOrder) => void;
+  onConfirmReceived?: (order: WireOrder) => void;
   isHighlighted?: boolean;
 }
 
-export function OrderCard({ order, onCancel, isHighlighted = false }: OrderCardProps) {
+export function OrderCard({
+  order,
+  onCancel,
+  onConfirmReceived,
+  isHighlighted = false,
+}: OrderCardProps) {
   const formattedDate = order.created_at
     ? new Date(order.created_at).toLocaleDateString("vi-VN", {
         hour: "2-digit",
@@ -25,6 +31,7 @@ export function OrderCard({ order, onCancel, isHighlighted = false }: OrderCardP
     : "Vừa xong";
 
   const isPending = order.status === "PENDING_CONFIRMATION";
+  const isShipping = order.status === "SHIPPING";
   const isCompleted = order.status === "COMPLETED";
   const isCancelled = order.status === "CANCELLED";
 
@@ -140,7 +147,18 @@ export function OrderCard({ order, onCancel, isHighlighted = false }: OrderCardP
             </Button>
           )}
 
-          {/* Action 2: Đánh giá sản phẩm nếu đơn đã hoàn thành */}
+          {/* Action 2: Buyer xác nhận đã nhận hàng khi đơn đang giao (P0-08 / C-103) */}
+          {isShipping && onConfirmReceived && (
+            <Button
+              variant="primary"
+              className="text-xs py-2 px-3.5 bg-[var(--success)] text-white hover:opacity-90"
+              onClick={() => onConfirmReceived(order)}
+            >
+              Đã nhận được hàng
+            </Button>
+          )}
+
+          {/* Action 3: Đánh giá sản phẩm nếu đơn đã hoàn thành */}
           {isCompleted && (
             <Link
               href={`/orders/${order.id}/review`}
