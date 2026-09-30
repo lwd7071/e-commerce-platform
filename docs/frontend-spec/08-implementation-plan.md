@@ -321,7 +321,8 @@ Capability MUST: `auth`, `catalog`, `cart`, `checkout`, `seller_catalog`, `media
 
 - [x] B-102/B-103 media APIs + MediaRepository.
 - [x] B-105 `next/image` product assets.
-- [x] B-201–B-206 Seller product live flow và E2E.
+- [x] B-201–B-205 Seller product implementation/UI live routes.
+- [ ] B-206 Seller product E2E (upload → create → list → stock → hide/show); chưa thấy test này trong `frontend/e2e`.
 - [x] C-205 Product Detail rating/reviews thật.
 - [x] C-403 Admin category CRUD/status backend.
 - [x] Cập nhật catalog capability và loại production mock fallback.
@@ -344,6 +345,8 @@ Capability MUST: `auth`, `catalog`, `cart`, `checkout`, `seller_catalog`, `media
 - [ ] Buyer/Seller critical Playwright path và release evidence.
 
 Mỗi checkbox chỉ được tick khi progress file có link PR/commit, test đã chạy và blocker còn lại.
+
+**Đối chiếu code/progress 2026-09-30:** Checkbox phản ánh acceptance, không chỉ source tồn tại. Người 2 đã có seed/storage safety code và UI behavior tests, nhưng reset/Storage chưa chạy trên allowlisted test project; Notification backend runtime đã được Người 4 inject, còn FE API repository/typed DTO chưa nối. Người 3 có seller/media/category routes và UI, nhưng B-206 E2E chưa được chứng minh. Người 5 có UI/routes và mock/live fallback được ghi trong progress; Buyer order→review và Admin RBAC Playwright acceptance chưa có trong `frontend/e2e`. Không đánh dấu các acceptance này xong chỉ từ unit tests hoặc component tồn tại.
 
 ## 14. Backlog sau MVP
 

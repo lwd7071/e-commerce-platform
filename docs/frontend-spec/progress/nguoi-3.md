@@ -4,19 +4,19 @@
 
 - Phase/ticket: Phase 3 (B-301 [x], B-302 [x], B-305 [x]), Phase 4 (B-401 [x]), Phase 5 (O-508 [x], O-509 [x], Product Create [x]), Phase 7 (A-700 [x], A-702 [x]), Core (B-102 [x], B-103 [x], B-105 [x], B-201–B-205 [x], C-205 [x], C-403 [x])
 - Cập nhật lần cuối: 2026-09-30
-- Đang làm: Hoàn tất trọn vẹn toàn bộ nhiệm vụ Người 3 theo chỉ thị của Lead và `docs/frontend-spec/08-implementation-plan.md`:
+- Đang làm: Các implementation B-102/B-103, B-105, B-201–B-205, C-205 và C-403 được ghi nhận trong source/progress; chưa đủ bằng chứng để kết luận toàn bộ acceptance Người 3 hoàn tất:
   - **Backend Seller Products**: Triển khai `GET /seller/products` (strictly scoped theo `context.shop_id`) và `PATCH /seller/products/:id/status` (bật/tắt ACTIVE ↔ INACTIVE kèm kiểm tra quyền sở hữu Shop).
   - **Backend Media Verification API**: `POST /media/uploads/presign`, `POST /media/uploads/:id/finalize` (kiểm tra magic bytes JPEG/PNG/WebP, từ chối file giả mạo với ValidationFailedError), và `DELETE /media/uploads/:id`.
   - **Backend Admin Category CRUD & Status API**: `GET /admin/categories`, `POST /admin/categories`, `PATCH /admin/categories/:id`, `PATCH /admin/categories/:id/status` với RB-KN04 cây danh mục tối đa 2 cấp và chống vòng lặp cha-con.
   - **OpenAPI 3.1.0**: Bổ sung đầy đủ 10 endpoint mới trong `openapi-spec.ts`, pass 100% test contract `[OAS-05]`.
   - **Frontend Repositories & UI**: Triển khai `IMediaRepository`, `mediaApi`, kết nối `apiCatalogRepository.getSellerProducts` và `updateProductStatus`. Nâng cấp `ProductDetailScreen` hiển thị đánh giá và aggregate rating thật từ `reviewRepository` (loại bỏ fallback 5 sao giả), hỗ trợ gallery ảnh và `next/image` alt text. Nâng cấp `SellerProductsScreen` bổ sung cột "Trạng thái" và nút toggle "Ẩn/Hiện" trực tiếp.
 - Nhánh/PR: `feat/fe-nguoi-3-catalog`
-- Bị block bởi: Không (Các blocker GAP-04, GAP-05, GAP-09 đã được tháo gỡ hoàn toàn).
-- Việc tiếp theo: Bàn giao toàn bộ phân hệ Catalog & Seller Products cho Lead kiểm tra và merge.
+- Bị block bởi: Không có blocker implementation code đã xác nhận. GAP-09/P-607a là media upload; routes và source đã có, nhưng live Storage/test-project smoke chưa được chứng minh. Không nhầm việc này với Review runtime của Người 4.
+- Việc tiếp theo: Bổ sung/chạy evidence B-206 Seller flow E2E (upload → create → list → stock → hide/show), và Storage smoke trên allowlisted test project trước khi đóng acceptance. `frontend/e2e` hiện chỉ có seeded Buyer login test.
 
 ## Nhật ký theo ngày
 
-### 2026-09-30 — Hoàn tất B-102, B-103, B-105, B-201–B-205, C-205, C-403 & Tháo gỡ toàn bộ Gaps
+### 2026-09-30 — Implementation B-102, B-103, B-105, B-201–B-205, C-205, C-403; nghiệm thu E2E còn mở
 
 - Đã làm:
   - **B-102 & B-103: Media Presign/Finalize/Delete API & IMediaRepository**:

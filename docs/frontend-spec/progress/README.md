@@ -4,13 +4,13 @@
 
 | Người | Phạm vi | File | Trạng thái hiện tại (2026-09-30) |
 |---|---|---|---|
-| 1 | Platform, API, auth, tích hợp | [nguoi-1.md](./nguoi-1.md) | Dino MVP 30/09: Hoàn thành Block 0 (OpenAPI freeze, capability registry, build guard `next.config.ts`, `GET /health/readiness`), Workstream A (onboarding, session refresh `reloadUser()`, seller navigation/stock gating khi Shop PENDING, safe returnTo), Workstream C (Admin API hardening, `403 ADMIN_TARGET_PROTECTED`). Quality Gates 100% (253 FE tests pass, 619 BE domain tests pass + DB integration tests pass, 0 lints, 0 errors, build pass). |
-| 2 | UI/UX, shared UI, account | [nguoi-2.md](./nguoi-2.md) | Shared UI/account và polish semantic token/touch-target/type-safety đã tích hợp vào `dev`; D-004 còn chờ Admin page sample, backend-gated features còn chờ runtime. QA evidence và gate còn lại ghi trong file cá nhân. |
-| 3 | Catalog, seller catalog, category | [nguoi-3.md](./nguoi-3.md) | Catalog, product detail, seller catalog, stock edit và category adapter đã triển khai; còn P-607a chờ GAP-09 và phối hợp nghiệm thu handoff. |
-| 4 | Cart, address, voucher, checkout | [nguoi-4.md](./nguoi-4.md) | Hoàn tất 100%: B-402–B-407, Review/Notification runtime (C-201–C-203, C-301/C-302), Checkout E2E DB thật (B-408) và Handshake Gate (Q-804). |
-| 5 | Orders, review, admin | [nguoi-5.md](./nguoi-5.md) | O-502–O-505 (Orders), O-507/P-607c (Review), A-704/705/708/709 (Admin), Q-805 và Buyer confirm-received (P0-08 / C-103) đã hoàn tất 100% BE route & FE UI/tests; kênh đọc đơn và Review/Admin ghi chú rõ cơ chế fallback mock (GAP-01/09). |
+| 1 | Platform, API, auth, tích hợp | [nguoi-1.md](./nguoi-1.md) | Progress cá nhân báo hoàn tất Block 0, Workstream A/C và quality gates (253 FE, 619 BE theo lượt chạy được ghi trong file Người 1). Số test không cùng lượt chạy với Người 2/4 (242 FE); xem từng file để biết phạm vi/lệnh của từng lần kiểm tra. |
+| 2 | Storage/E2E, UI/UX, shared UI, Profile/Notifications | [nguoi-2.md](./nguoi-2.md) | Có ErrorSummary/upload/Profile/Notification UI, guarded E2E seed và media lifecycle/cleanup source. Seed/Storage chưa nghiệm thu trên test project; Notification production vẫn gated; D-004 còn authenticated Admin/production smoke. Lượt kiểm tra 2026-09-30: frontend lint/typecheck/build pass, Vitest 242/242, Playwright QA 4/4; backend seed/media/storage tests 29/29. Chi tiết/evidence ở file cá nhân. |
+| 3 | Catalog, seller catalog, category | [nguoi-3.md](./nguoi-3.md) | Seller product/media/category routes và UI có trong source, nhưng chưa thấy Seller flow E2E (B-206) trong `frontend/e2e`; progress cá nhân liệt kê B-201–B-205, không phải B-206. Media API source đã có nên P-607a không còn chờ implementation GAP-09; Storage/test-project smoke vẫn cần evidence riêng. |
+| 4 | Cart, address, voucher, checkout | [nguoi-4.md](./nguoi-4.md) | Progress cá nhân báo đã nối Review/Notification services trong runtime và checkout DB integration suite. API contract trước đó ghi trạng thái 501 đã lỗi thời; production/test-project smoke chưa được khẳng định ở đây. |
+| 5 | Orders, review, admin | [nguoi-5.md](./nguoi-5.md) | Có Orders/Review/Admin UI và confirm-received route/API theo progress; một số repository có mock fallback. Chưa thấy Buyer order→review hoặc Admin RBAC E2E trong `frontend/e2e`; các acceptance tương ứng vẫn cần evidence, không nên gọi toàn cụm “100% live”. |
 
-Các trạng thái trên phản ánh nhật ký cá nhân và code đã tích hợp; ticket có điều kiện backend hoặc E2E chỉ được coi là hoàn tất khi có evidence nghiệm thu tương ứng.
+Các trạng thái trên tách implementation source khỏi nghiệm thu runtime/E2E. Số liệu test là snapshot theo từng owner/lượt chạy, không phải một kết quả đồng thời của toàn repo. Ticket có điều kiện backend, môi trường thật hoặc E2E chỉ được coi là hoàn tất khi có evidence nghiệm thu tương ứng.
 
 ## Mẫu cập nhật bắt buộc
 
