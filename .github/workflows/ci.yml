@@ -211,6 +211,7 @@ jobs:
       SUPABASE_TEST_JWKS_URL: ${{ secrets.SUPABASE_TEST_JWKS_URL }}
       SUPABASE_JWKS_URL: ${{ secrets.SUPABASE_TEST_JWKS_URL }}
       DATABASE_ENVIRONMENT: test
+      ALLOW_SUPABASE_AUTH_SMOKE: "true"
       RUN_REMOTE_DB_TESTS: "true"
     steps:
       - name: Checkout
