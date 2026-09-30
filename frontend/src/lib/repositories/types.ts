@@ -22,7 +22,8 @@ export interface ICatalogRepository {
   getProductById(id: string): Promise<WireCatalogProductDetail>;
   createProduct?(data: CreateProductInput): Promise<WireCatalogProductDetail>;
   updateStock?(variantId: string, quantity: number): Promise<unknown>;
-  getSellerProducts(params?: { limit?: number; cursor?: string }): Promise<WireCatalogProductItem[]>;
+  getSellerProducts(params?: { limit?: number; cursor?: string; search?: string; status?: string }): Promise<WireCatalogProductItem[]>;
+  updateProductStatus?(productId: string, status: "ACTIVE" | "INACTIVE"): Promise<unknown>;
 }
 
 export interface IBuyerRepository {
@@ -117,6 +118,18 @@ export interface IAdminRepository {
   approveShop(shopId: string, reason?: string): Promise<void>;
   lockShop(payload: LockShopPayload): Promise<void>;
   unlockShop(shopId: string, reason?: string): Promise<void>;
+}
+
+export interface UploadMediaResult {
+  media_id?: string;
+  url: string;
+}
+
+export interface IMediaRepository {
+  uploadImage(file: File, purpose?: string): Promise<UploadMediaResult>;
+  presign?(filename: string, contentType: string, purpose?: string): Promise<unknown>;
+  finalize?(mediaId: string, magicBytes?: string): Promise<unknown>;
+  deleteMedia?(mediaId: string): Promise<void>;
 }
 
 

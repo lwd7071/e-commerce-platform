@@ -50,6 +50,8 @@ export interface WireCatalogProductDetail {
   description: string | null;
   status: "ACTIVE";
   variants: WireProductVariant[];
+  images?: Array<{ image_id?: string; image_url: string; sort_order?: number }>;
+  image_url?: string | null;
 }
 
 /**
@@ -113,6 +115,19 @@ export const catalogApi = {
     return apiClient.patch<{ variant_id: string; stock_quantity: number }>(
       `/product-variants/${variantId}/stock`,
       { quantity }
+    );
+  },
+
+  getSellerProducts: (params?: { limit?: number; cursor?: string; search?: string; status?: string }) => {
+    return apiClient.get<WireCatalogProductItem[]>("/seller/products", {
+      params: params as Record<string, string | number | boolean | undefined>,
+    });
+  },
+
+  updateProductStatus: (productId: string, status: "ACTIVE" | "INACTIVE") => {
+    return apiClient.patch<{ product_id: string; status: "ACTIVE" | "INACTIVE" }>(
+      `/products/${productId}/status`,
+      { status }
     );
   },
 };

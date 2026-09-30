@@ -105,6 +105,11 @@ export class PgCatalogHttpService {
       throw new ResourceNotFoundError(`Product ${productId} not found`);
     }
 
+    const imagesRes = await this.pool.query(
+      'SELECT image_id, image_url, sort_order FROM product_images WHERE product_id = $1 ORDER BY sort_order ASC',
+      [productId],
+    );
+
     return {
       product_id: row.product_id,
       shop_id: row.shop_id,
@@ -121,6 +126,12 @@ export class PgCatalogHttpService {
         stock_quantity: v.stockQuantity,
         status: v.status,
       })),
+      images: imagesRes.rows.map((img) => ({
+        image_id: img.image_id,
+        image_url: img.image_url,
+        sort_order: Number(img.sort_order),
+      })),
+      image_url: imagesRes.rows[0]?.image_url ?? null,
     };
   }
 
@@ -296,6 +307,236 @@ export class PgCatalogHttpService {
     return {
       variant_id: result.rows[0].variant_id,
       stock_quantity: Number(result.rows[0].stock_quantity),
+    };
+  }
+
+  async listSellerProducts(
+    context: RequestContext,
+    input: Record<string, unknown> = {},
+  ): Promise<unknown> {
+    if (!context.shop_id) {
+      throw new ForbiddenError('Seller shop is required');
+    }
+    const conditions: string[] = ['p.shop_id = $1'];
+    const params: unknown[] = [context.shop_id];
+
+    if (input.status) {
+      params.push(String(input.status));
+      conditions.push(`p.status = $${params.length}`);
+    }
+
+    if (input.search) {
+      params.push(`%${String(input.search)}%`);
+      conditions.push(`p.product_name ILIKE $${params.length}`);
+    }
+
+    const query = `
+      SELECT 
+        p.product_id,
+        p.shop_id,
+        p.category_id,
+        p.product_name,
+        p.description,
+        p.status,
+        p.created_at,
+        p.updated_at,
+        COALESCE(MIN(v.price), 0)::text AS min_price,
+        COALESCE(MAX(v.price), 0)::text AS max_price,
+        COALESCE(SUM(v.stock_quantity), 0)::int AS total_stock,
+        (SELECT image_url FROM product_images WHERE product_id = p.product_id ORDER BY sort_order ASC LIMIT 1) AS image_url
+      FROM products p
+      LEFT JOIN product_variants v ON p.product_id = v.product_id
+      WHERE ${conditions.join(' AND ')}
+      GROUP BY p.product_id
+      ORDER BY p.created_at DESC
+    `;
+
+    const res = await this.pool.query(query, params);
+    return res.rows.map((row) => ({
+      product_id: row.product_id,
+      product_name: row.product_name,
+      shop_id: row.shop_id,
+      category_id: row.category_id,
+      min_price: String(row.min_price),
+      max_price: String(row.max_price),
+      total_stock: Number(row.total_stock),
+      image_url: row.image_url,
+      status: row.status,
+      created_at: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
+    }));
+  }
+
+  async updateProductStatus(
+    context: RequestContext,
+    productId: string,
+    status: string,
+  ): Promise<unknown> {
+    if (!context.shop_id) {
+      throw new ForbiddenError('Seller shop is required');
+    }
+    if (status !== 'ACTIVE' && status !== 'INACTIVE') {
+      throw new ValidationError('Status must be ACTIVE or INACTIVE');
+    }
+
+    const prodRes = await this.pool.query(
+      'SELECT product_id, shop_id FROM products WHERE product_id = $1',
+      [productId],
+    );
+    if (prodRes.rows.length === 0) {
+      throw new ResourceNotFoundError(`Product ${productId} not found`);
+    }
+    if (prodRes.rows[0].shop_id !== context.shop_id) {
+      throw new ForbiddenError('Product belongs to another shop');
+    }
+
+    const updated = await this.products.updateStatus(productId, status as 'ACTIVE' | 'INACTIVE');
+    return {
+      product_id: updated.productId,
+      shop_id: updated.shopId,
+      status: updated.status,
+      updated_at: updated.updatedAt,
+    };
+  }
+
+  async listAllCategories(): Promise<unknown[]> {
+    const res = await this.pool.query(
+      'SELECT * FROM categories ORDER BY (parent_category_id IS NOT NULL), category_name ASC',
+    );
+    return res.rows.map((r) => ({
+      category_id: r.category_id,
+      parent_category_id: r.parent_category_id,
+      category_name: r.category_name,
+      description: r.description,
+      status: r.status,
+      created_at: r.created_at,
+      updated_at: r.updated_at,
+    }));
+  }
+
+  async createCategory(input: Record<string, unknown>): Promise<unknown> {
+    const name = String(input.name ?? input.category_name ?? '').trim();
+    if (!name) {
+      throw new ValidationError('Category name is required');
+    }
+
+    const parentId = input.parent_id ?? input.parent_category_id ? String(input.parent_id ?? input.parent_category_id) : null;
+    if (parentId) {
+      const parentRes = await this.pool.query(
+        'SELECT category_id, parent_category_id FROM categories WHERE category_id = $1',
+        [parentId],
+      );
+      if (parentRes.rows.length === 0) {
+        throw new ResourceNotFoundError(`Parent category ${parentId} not found`);
+      }
+      if (parentRes.rows[0].parent_category_id !== null) {
+        throw new ValidationError('Category hierarchy cannot exceed 2 levels (RB-KN04)');
+      }
+    }
+
+    const categoryId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    const status = input.status === 'INACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    const description = input.description ? String(input.description) : null;
+
+    const res = await this.pool.query(
+      `INSERT INTO categories (category_id, parent_category_id, category_name, description, status, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [categoryId, parentId, name, description, status, now, now],
+    );
+
+    const row = res.rows[0];
+    return {
+      category_id: row.category_id,
+      parent_category_id: row.parent_category_id,
+      category_name: row.category_name,
+      description: row.description,
+      status: row.status,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    };
+  }
+
+  async updateCategory(categoryId: string, input: Record<string, unknown>): Promise<unknown> {
+    const existing = await this.pool.query('SELECT * FROM categories WHERE category_id = $1', [categoryId]);
+    if (existing.rows.length === 0) {
+      throw new ResourceNotFoundError(`Category ${categoryId} not found`);
+    }
+
+    const name = input.name !== undefined || input.category_name !== undefined
+      ? String(input.name ?? input.category_name).trim()
+      : existing.rows[0].category_name;
+    if (!name) {
+      throw new ValidationError('Category name cannot be empty');
+    }
+
+    let parentId = existing.rows[0].parent_category_id;
+    if (input.parent_id !== undefined || input.parent_category_id !== undefined) {
+      const rawParent = input.parent_id ?? input.parent_category_id;
+      parentId = rawParent ? String(rawParent) : null;
+    }
+
+    if (parentId) {
+      if (parentId === categoryId) {
+        throw new ValidationError('Category cannot be its own parent');
+      }
+      const parentRes = await this.pool.query(
+        'SELECT category_id, parent_category_id FROM categories WHERE category_id = $1',
+        [parentId],
+      );
+      if (parentRes.rows.length === 0) {
+        throw new ResourceNotFoundError(`Parent category ${parentId} not found`);
+      }
+      if (parentRes.rows[0].parent_category_id !== null) {
+        throw new ValidationError('Category hierarchy cannot exceed 2 levels (RB-KN04)');
+      }
+      const childrenRes = await this.pool.query(
+        'SELECT category_id FROM categories WHERE parent_category_id = $1 LIMIT 1',
+        [categoryId],
+      );
+      if (childrenRes.rows.length > 0) {
+        throw new ValidationError('Cannot make a category with existing subcategories into a child');
+      }
+    }
+
+    const description = input.description !== undefined
+      ? (input.description ? String(input.description) : null)
+      : existing.rows[0].description;
+
+    const res = await this.pool.query(
+      `UPDATE categories SET category_name = $1, parent_category_id = $2, description = $3, updated_at = now()
+       WHERE category_id = $4
+       RETURNING *`,
+      [name, parentId, description, categoryId],
+    );
+
+    const row = res.rows[0];
+    return {
+      category_id: row.category_id,
+      parent_category_id: row.parent_category_id,
+      category_name: row.category_name,
+      description: row.description,
+      status: row.status,
+      updated_at: row.updated_at,
+    };
+  }
+
+  async updateCategoryStatus(categoryId: string, status: string): Promise<unknown> {
+    if (status !== 'ACTIVE' && status !== 'INACTIVE') {
+      throw new ValidationError('Status must be ACTIVE or INACTIVE');
+    }
+    const res = await this.pool.query(
+      'UPDATE categories SET status = $1, updated_at = now() WHERE category_id = $2 RETURNING *',
+      [status, categoryId],
+    );
+    if (res.rows.length === 0) {
+      throw new ResourceNotFoundError(`Category ${categoryId} not found`);
+    }
+    const row = res.rows[0];
+    return {
+      category_id: row.category_id,
+      status: row.status,
+      updated_at: row.updated_at,
     };
   }
 }
