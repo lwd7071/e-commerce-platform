@@ -43,9 +43,9 @@ export function validateReviewPayload(payload: CreateReviewPayload): void {
       throw new Error("Nhận xét chi tiết không được vượt quá 500 ký tự.");
     }
 
-    // Media validation (max 5)
-    if (item.images && item.images.length > 5) {
-      throw new Error("Tối đa 5 hình ảnh cho một đánh giá sản phẩm.");
+    // Media validation (max 3)
+    if (item.images && item.images.length > 3) {
+      throw new Error("Tối đa 3 hình ảnh cho một đánh giá sản phẩm.");
     }
   }
 }
@@ -140,12 +140,40 @@ export class MockReviewRepository implements IReviewRepository {
 export class ApiReviewRepository implements IReviewRepository {
   async submitReview(payload: CreateReviewPayload): Promise<ReviewResult> {
     validateReviewPayload(payload);
-    return apiClient.post<ReviewResult>("/reviews", payload);
+    const records: ReviewRecord[] = [];
+    for (const item of payload.reviews) {
+      if (!item.product_id) throw new Error("Thiếu mã sản phẩm để gửi đánh giá.");
+      const review = await apiClient.post<{
+        reviewId: string;
+        rating: number;
+        content: string | null;
+        createdAt: string;
+      }>(`/order-items/${item.order_item_id}/review`, {
+        product_id: item.product_id,
+        rating: item.rating,
+        content: item.comment.trim(),
+      });
+      records.push({
+        id: review.reviewId,
+        order_id: payload.order_id,
+        order_item_id: item.order_item_id,
+        product_id: item.product_id,
+        product_name: item.product_name,
+        variant_name: item.variant_name,
+        rating: review.rating,
+        comment: review.content ?? "",
+        images: [],
+        is_anonymous: false,
+        created_at: review.createdAt,
+      });
+    }
+    return { success: true, message: "Đã gửi đánh giá.", data: records };
   }
 
-  async getOrderReviews(orderId: string): Promise<ReviewRecord[]> {
-    const res = await apiClient.get<ReviewRecord[]>(`/orders/${orderId}/reviews`);
-    return Array.isArray(res) ? res : [];
+  async getOrderReviews(_orderId: string): Promise<ReviewRecord[]> {
+    void _orderId;
+    // Backend hiện chưa có GET theo order; duplicate được chặn tại createReview.
+    return [];
   }
 
   async isOrderReviewed(orderId: string): Promise<boolean> {

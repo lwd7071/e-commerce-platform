@@ -55,6 +55,7 @@ export interface IVoucherRepository {
 export interface CreateReviewPayload {
   order_id: string;
   order_item_id: string;
+    product_id?: string;
   rating: number; // 1-5
   comment: string;
   media_urls?: string[];

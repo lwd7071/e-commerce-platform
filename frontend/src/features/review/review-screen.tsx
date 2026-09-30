@@ -13,6 +13,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Skeleton, ErrorState } from "@/components/ui/data-states";
 import { ReviewMediaUpload } from "./review-media-upload";
 import { reviewRepository } from "./review.repository";
+import { features } from "@/lib/config/features";
 import { RATING_LABELS, type ReviewRecord } from "./review.types";
 
 interface ReviewScreenProps {
@@ -527,16 +528,22 @@ export function ReviewScreen({ orderId }: ReviewScreenProps) {
                     </div>
 
                     {/* Media Upload & Preview Component (P-607c) */}
-                    <ReviewMediaUpload
-                      images={state.images}
-                      onChange={(newImgs) =>
-                        updateItemForm(item.id, { images: newImgs })
-                      }
-                      maxImages={5}
-                    />
+                    {features.useMock() ? (
+                      <ReviewMediaUpload
+                        images={state.images}
+                        onChange={(newImgs) =>
+                          updateItemForm(item.id, { images: newImgs })
+                        }
+                        maxImages={3}
+                      />
+                    ) : (
+                      <p className="text-xs text-[var(--subtext)]" role="status">
+                        Ảnh đánh giá chưa khả dụng; bạn vẫn có thể gửi sao và nhận xét.
+                      </p>
+                    )}
 
                     {/* Anonymous Checkbox */}
-                    <div className="pt-2 border-t border-[var(--border)] flex items-center justify-between">
+                    {features.useMock() && <div className="pt-2 border-t border-[var(--border)] flex items-center justify-between">
                       <div>
                         <span className="text-xs font-bold text-[var(--foreground)] block">
                           Đánh giá ẩn danh
@@ -556,7 +563,7 @@ export function ReviewScreen({ orderId }: ReviewScreenProps) {
                         className="w-4 h-4 accent-[var(--primary-active)] cursor-pointer"
                         id={`anonymous-${item.id}`}
                       />
-                    </div>
+                    </div>}
                   </section>
                 );
               })}

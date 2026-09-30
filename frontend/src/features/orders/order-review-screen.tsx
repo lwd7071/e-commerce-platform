@@ -13,6 +13,7 @@ import { Button } from "../../components/ui/button";
 import { Skeleton, ErrorState } from "../../components/ui/data-states";
 import { useToast } from "../../components/ui/toast";
 import { moneyAdapter } from "../../lib/adapters/money.adapter";
+import { features } from "../../lib/config/features";
 
 interface OrderReviewScreenProps {
   orderId: string;
@@ -79,6 +80,7 @@ export function OrderReviewScreen({ orderId }: OrderReviewScreenProps) {
       await repositories.review().createReview({
         order_id: orderId,
         order_item_id: orderItemId,
+        product_id: order?.items?.find((item) => item.id === orderItemId)?.product_id,
         rating,
         comment,
         media_urls: urls,
@@ -220,17 +222,20 @@ export function OrderReviewScreen({ orderId }: OrderReviewScreenProps) {
                       <label className="block text-xs font-bold text-[var(--foreground)] mb-1">
                         Hình ảnh thực tế (tùy chọn)
                       </label>
-                      <FileUploadZone
-                        values={mediaUrls[item.id] || []}
-                        purpose="review"
-                        onChange={(urls) =>
-                          setMediaUrls((prev) => ({
-                            ...prev,
-                            [item.id]: urls,
-                          }))
-                        }
-                        maxFiles={3}
-                      />
+                      {features.useMock() ? (
+                        <FileUploadZone
+                          values={mediaUrls[item.id] || []}
+                          purpose="review"
+                          onChange={(urls) =>
+                            setMediaUrls((prev) => ({ ...prev, [item.id]: urls }))
+                          }
+                          maxFiles={3}
+                        />
+                      ) : (
+                        <p className="text-xs text-[var(--subtext)]" role="status">
+                          Ảnh đánh giá chưa khả dụng; bạn vẫn có thể gửi sao và nhận xét.
+                        </p>
+                      )}
                     </div>
 
                     <div className="flex justify-end pt-2">

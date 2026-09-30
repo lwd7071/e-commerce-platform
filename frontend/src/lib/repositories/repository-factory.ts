@@ -775,7 +775,26 @@ const mockReviewRepository: IReviewRepository = {
 
 const apiReviewRepository: IReviewRepository = {
   createReview: async (payload: CreateReviewPayload) => {
-    return apiClient.post<WireReview>(`/order-items/${payload.order_item_id}/review`, payload);
+    if (!payload.product_id) throw new Error("Thiếu mã sản phẩm để gửi đánh giá.");
+    const review = await apiClient.post<{
+      reviewId: string;
+      orderItemId: string;
+      rating: number;
+      content: string | null;
+      createdAt: string;
+    }>(`/order-items/${payload.order_item_id}/review`, {
+      product_id: payload.product_id,
+      rating: payload.rating,
+      content: payload.comment.trim(),
+    });
+    return {
+      review_id: review.reviewId,
+      order_item_id: review.orderItemId,
+      rating: review.rating,
+      comment: review.content ?? "",
+      media_urls: [],
+      created_at: review.createdAt,
+    };
   },
   getReviewsByProduct: async (productId: string) => {
     return apiClient.get<WireReview[]>(`/products/${productId}/reviews`);
@@ -944,4 +963,5 @@ export {
   apiCatalogRepository,
   mockOrderRepository,
   apiOrderRepository,
+  apiReviewRepository,
 };

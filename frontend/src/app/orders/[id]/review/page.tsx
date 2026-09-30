@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { ProtectedPage } from "@/components/navigation/protected-page";
-import { ReviewScreen } from "@/features/review";
+import { OrderReviewScreen } from "@/features/orders/order-review-screen";
 
 export const metadata: Metadata = {
   title: "Đánh giá sản phẩm - Dino",
@@ -18,7 +18,7 @@ export default async function OrderReviewPage({ params }: Props) {
   return (
     <ProtectedPage allowedRoles={["BUYER"]}>
       <div className="py-6">
-        <ReviewScreen orderId={id} />
+        <OrderReviewScreen orderId={id} />
       </div>
     </ProtectedPage>
   );

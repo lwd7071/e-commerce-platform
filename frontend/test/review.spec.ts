@@ -62,7 +62,7 @@ describe("Review Management and Form Validation (O-507 & P-607c)", () => {
     );
   });
 
-  it("rejects review if media count exceeds 5 images (P-607c)", async () => {
+  it("rejects review if media count exceeds 3 images (P-607c)", async () => {
     const payload: CreateReviewPayload = {
       order_id: "00000000-0000-0000-0000-000000000304",
       reviews: [
@@ -85,7 +85,7 @@ describe("Review Management and Form Validation (O-507 & P-607c)", () => {
     };
 
     await expect(reviewRepository.submitReview(payload)).rejects.toThrow(
-      "Tối đa 5 hình ảnh cho một đánh giá sản phẩm."
+      "Tối đa 3 hình ảnh cho một đánh giá sản phẩm."
     );
   });
 
