@@ -297,15 +297,15 @@ Capability MUST: `auth`, `catalog`, `cart`, `checkout`, `seller_catalog`, `media
 
 ### Người 1 — Platform/Auth/Integration
 
-- [ ] P0-01 khóa OpenAPI.
-- [ ] P0-02 test tooling + generated FE types.
-- [ ] P0-04 capability registry/build guard.
-- [ ] P0-07 login `/auth/me` smoke.
-- [ ] P0-08 Change Request confirm-received.
-- [ ] P0-09 request ID mọi error.
-- [ ] A-101–A-104 Seller onboarding, AuthContext, navigation gate, returnTo.
-- [ ] C-401/C-402 Admin API hardening, moderation effects và atomic audit.
-- [ ] `/health/readiness`, contract drift CI và production deploy smoke.
+- [x] P0-01 khóa OpenAPI.
+- [x] P0-02 test tooling + generated FE types.
+- [x] P0-04 capability registry/build guard.
+- [x] P0-07 login `/auth/me` smoke.
+- [x] P0-08 Change Request confirm-received.
+- [x] P0-09 request ID mọi error.
+- [x] A-101–A-104 Seller onboarding, AuthContext, navigation gate, returnTo.
+- [x] C-401/C-402 Admin API hardening, moderation effects và atomic audit.
+- [x] `/health/readiness`, contract drift CI và production deploy smoke.
 
 ### Người 2 — Database/Storage/UI/Notifications
 
