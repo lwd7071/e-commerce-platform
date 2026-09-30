@@ -10,6 +10,7 @@ export type IconName =
   | "grid"
   | "home"
   | "info"
+  | "logout"
   | "menu"
   | "search"
   | "spinner"
@@ -30,6 +31,7 @@ const paths: Record<IconName, ReactNode> = {
   grid: <><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>,
   home: <><path d="m3 10 9-7 9 7" /><path d="M5 9v12h14V9M9 21v-7h6v7" /></>,
   info: <><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></>,
+  logout: <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></>,
   menu: <><path d="M4 6h16M4 12h16M4 18h16" /></>,
   search: <><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 5 5" /></>,
   spinner: <><path d="M20 12a8 8 0 0 1-8 8" /><path d="M12 4a8 8 0 0 1 8 8" /></>,

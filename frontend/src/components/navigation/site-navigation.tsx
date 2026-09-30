@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth/auth-context";
 import { Icon } from "../ui/icon";
 import { getNavigationItems, type AppRole } from "./navigation-items";
 
@@ -11,6 +12,14 @@ function isCurrent(pathname: string, href: string) {
 
 export function SiteHeader({ role = null }: { role?: AppRole }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { logout } = useAuth();
+
+  const handleLogout = async () => {
+    await logout();
+    router.push("/login");
+  };
+
   return (
     <header className="site-header">
       <div className="site-header__inner">
@@ -28,7 +37,23 @@ export function SiteHeader({ role = null }: { role?: AppRole }) {
             </Link>
           ))}
         </nav>
-        {!role && <div className="header-actions"><Link className="button button--secondary" href="/login">Đăng nhập</Link></div>}
+        <div className="header-actions">
+          {role ? (
+            <button
+              type="button"
+              className="button button--ghost text-sm min-h-[38px] px-3 py-1.5"
+              onClick={handleLogout}
+              aria-label="Đăng xuất khỏi hệ thống"
+            >
+              <Icon name="logout" />
+              <span>Đăng xuất</span>
+            </button>
+          ) : (
+            <Link className="button button--secondary" href="/login">
+              Đăng nhập
+            </Link>
+          )}
+        </div>
       </div>
     </header>
   );

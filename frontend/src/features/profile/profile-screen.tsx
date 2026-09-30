@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ProtectedPage } from "../../components/navigation/protected-page";
 import { Button } from "../../components/ui/button";
@@ -17,7 +18,7 @@ import { profileFailureState, type ProfileRequestState, type ProfileSnapshot } f
 export type AuthProfileSnapshot = ProfileSnapshot & { avatarUrl?: string | null };
 
 export function ProfilePageContent() {
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading, logout } = useAuth();
   const userId = user?.id;
   const userEmail = user?.email;
   const userRole = user?.role;
@@ -47,15 +48,23 @@ export function ProfilePageContent() {
     setRequestState({ status: "loading" });
     setAttempt((value) => value + 1);
   };
-  if (authLoading) return <ProfileScreen state={{ status: "loading" }} onRetry={retry} />;
-  if (!user) return <ProfileScreen state={{ status: "signed_out" }} onRetry={retry} />;
+  if (authLoading) return <ProfileScreen state={{ status: "loading" }} onRetry={retry} onLogout={logout} />;
+  if (!user) return <ProfileScreen state={{ status: "signed_out" }} onRetry={retry} onLogout={logout} />;
   const state = requestState.status === "ready" && requestState.profile.email !== user.email
     ? { status: "loading" as const }
     : requestState;
-  return <ProtectedPage><ProfileScreen state={state} onRetry={retry} /></ProtectedPage>;
+  return <ProtectedPage><ProfileScreen state={state} onRetry={retry} onLogout={logout} /></ProtectedPage>;
 }
 
-export function ProfileScreen({ state, onRetry }: { state: ProfileRequestState; onRetry: () => void }) {
+export function ProfileScreen({
+  state,
+  onRetry,
+  onLogout,
+}: {
+  state: ProfileRequestState;
+  onRetry: () => void;
+  onLogout?: () => Promise<void> | void;
+}) {
   if (state.status === "loading") {
     return <section className="surface-card loading-stack" aria-busy="true" aria-label="Đang tải hồ sơ"><Icon name="spinner" />Đang tải hồ sơ…</section>;
   }
@@ -71,21 +80,50 @@ export function ProfileScreen({ state, onRetry }: { state: ProfileRequestState; 
       {state.code && <p className="field-help text-center">Mã lỗi: {state.code}</p>}
     </>;
   }
-  return <ProfileReadyScreen key={`${state.profile.email}:${state.profile.fullName ?? ""}:${state.profile.phone ?? ""}`} profile={state.profile} />;
+  return (
+    <ProfileReadyScreen
+      key={`${state.profile.email}:${state.profile.fullName ?? ""}:${state.profile.phone ?? ""}`}
+      profile={state.profile}
+      onLogout={onLogout}
+    />
+  );
 }
 
-function ProfileReadyScreen({ profile }: { profile: AuthProfileSnapshot }) {
+function ProfileReadyScreen({
+  profile,
+  onLogout,
+}: {
+  profile: AuthProfileSnapshot;
+  onLogout?: () => Promise<void> | void;
+}) {
+  const router = useRouter();
   const showToast = useToast();
 
   const [fullName, setFullName] = useState(profile?.fullName || "");
   const [phone, setPhone] = useState(profile?.phone || "");
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(profile.avatarUrl ?? null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const avatarInput = useRef<HTMLInputElement>(null);
 
   const displayName = fullName.trim() || profile?.fullName?.trim() || "Tài khoản Dino";
   const initials = displayName === "Tài khoản Dino" ? "D" : displayName.slice(0, 1).toLocaleUpperCase("vi-VN");
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      if (onLogout) {
+        await onLogout();
+      }
+      showToast("Đã đăng xuất thành công", "success");
+      router.push("/login");
+    } catch {
+      showToast("Đăng xuất thất bại", "error");
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -169,6 +207,20 @@ function ProfileReadyScreen({ profile }: { profile: AuthProfileSnapshot }) {
             </Button>
             <input ref={avatarInput} data-testid="profile-avatar-upload" className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" aria-describedby="avatar-hint" onChange={handleAvatarSelected} />
             <span className="field-help" id="avatar-hint">JPG, PNG hoặc WebP; tối đa 5 MB.</span>
+          </div>
+
+          <div className="w-full pt-4 mt-4 border-t border-[var(--border)]">
+            <Button
+              variant="danger"
+              type="button"
+              disabled={isLoggingOut}
+              loading={isLoggingOut}
+              onClick={handleLogout}
+              leadingIcon={<Icon name="logout" />}
+              className="w-full min-h-[44px]"
+            >
+              Đăng xuất
+            </Button>
           </div>
         </section>
 

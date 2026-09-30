@@ -7,6 +7,10 @@ import { ProfileScreen } from "@/features/profile/profile-screen";
 import type { ProfileRequestState } from "@/features/profile/profile-request-state";
 
 vi.mock("@/features/profile/address-manager", () => ({ AddressManager: () => <div>Địa chỉ giao hàng</div> }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  usePathname: () => "/profile",
+}));
 vi.mock("@/lib/api/buyer.api", () => ({
   buyerApi: {
     updateProfile: vi.fn().mockRejectedValue(new Error("Máy chủ tạm thời không khả dụng")),
@@ -64,5 +68,20 @@ describe("ProfileScreen request state UI", () => {
     expect(renderedAvatar.getAttribute("src")).toBe("https://storage.test/profile/avatar.jpg");
     const { buyerApi } = await import("@/lib/api/buyer.api");
     expect(buyerApi.updateAvatar).toHaveBeenCalledWith("avatar-media-id");
+  });
+
+  it("renders logout button and calls onLogout when clicked", async () => {
+    const user = userEvent.setup();
+    const onLogout = vi.fn().mockResolvedValue(undefined);
+    render(
+      <ToastProvider>
+        <ProfileScreen state={ready} onRetry={vi.fn()} onLogout={onLogout} />
+      </ToastProvider>
+    );
+
+    const logoutBtn = screen.getByRole("button", { name: "Đăng xuất" });
+    expect(logoutBtn).toBeTruthy();
+    await user.click(logoutBtn);
+    expect(onLogout).toHaveBeenCalledTimes(1);
   });
 });
