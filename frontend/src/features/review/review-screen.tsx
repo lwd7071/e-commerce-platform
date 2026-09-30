@@ -45,8 +45,6 @@ export function ReviewScreen({ orderId }: ReviewScreenProps) {
 
   useEffect(() => {
     let isMounted = true;
-    setLoading(true);
-    setFetchError(null);
 
     Promise.all([
       repositories.order().getOrderById(orderId),

@@ -50,8 +50,36 @@ export function SellerDashboardScreen() {
   }, []);
 
   useEffect(() => {
-    fetchDashboardData();
-  }, [fetchDashboardData]);
+    let isMounted = true;
+    const defaultShopId = "00000000-0000-0000-0000-000000000001";
+
+    Promise.all([
+      adminRepository.getSellerKPI(defaultShopId),
+      repositories.order().getOrders({ shop_id: defaultShopId }),
+      repositories.catalog().getProducts({ limit: 50 }).catch(() => [] as WireCatalogProductItem[]),
+    ])
+      .then(([kpiData, ordersData, catalogData]) => {
+        if (!isMounted) return;
+        setKpi(kpiData);
+        setRecentOrders(ordersData);
+        const lowStock = catalogData
+          .filter((p) => (p.total_stock ?? 0) <= 20)
+          .slice(0, 6);
+        setLowStockProducts(lowStock);
+        setIsLoading(false);
+      })
+      .catch((err: unknown) => {
+        if (!isMounted) return;
+        setError(
+          err instanceof Error ? err.message : "Không thể tải dữ liệu bảng điều khiển người bán."
+        );
+        setIsLoading(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const pendingOrders = recentOrders.filter(
     (o) => o.status === "PENDING_CONFIRMATION" || o.status === "CONFIRMED" || o.status === "PREPARING"
