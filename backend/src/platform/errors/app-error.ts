@@ -79,6 +79,12 @@ export class DependencyUnavailableError extends AppError {
   }
 }
 
+export class NotImplementedError extends AppError {
+  constructor(message = 'This endpoint is not available in the current runtime') {
+    super(501, 'NOT_IMPLEMENTED', message);
+  }
+}
+
 export class InvalidStateTransitionError extends ConflictError {
   constructor(code = 'CONFLICT', message = 'Invalid state transition', details?: unknown) {
     super(code, message, details);

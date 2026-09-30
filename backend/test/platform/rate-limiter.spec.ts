@@ -88,6 +88,19 @@ describe('Layered Rate Limiter Middleware (Phase 2)', () => {
     await request(testApp).get('/api/v1/catalog').expect(200);
   });
 
+  it('[RATE-10]: applies onboarding and profile PATCH sensitive limits by method/path', async () => {
+    const testApp = express();
+    testApp.use(createLayeredRateLimiter());
+    testApp.post('/api/v1/auth/onboarding', (_req, res) => res.json({ ok: true }));
+    testApp.patch('/api/v1/profile', (_req, res) => res.json({ ok: true }));
+    testApp.use(errorHandlerMiddleware);
+
+    for (let i = 0; i < 10; i++) await request(testApp).post('/api/v1/auth/onboarding').expect(200);
+    await request(testApp).post('/api/v1/auth/onboarding').expect(429);
+    for (let i = 0; i < 20; i++) await request(testApp).patch('/api/v1/profile').expect(200);
+    await request(testApp).patch('/api/v1/profile').expect(429);
+  });
+
   it('[RATE-05]: resets counter after the sliding window expires', async () => {
     const testApp = express();
     testApp.use(createLayeredRateLimiter({

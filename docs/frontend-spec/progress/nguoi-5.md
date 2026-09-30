@@ -3,18 +3,25 @@
 ## Trạng thái hiện tại
 
 - Phase/ticket: Phase 5 & Phase 6 — Hoàn tất 100% Cụm 4 & Toàn bộ phân công Frontend của Người 5 (A-704, A-705, A-708, A-709, Q-805)
-- Cập nhật lần cuối: 2026-09-29
+- Cập nhật lần cuối: 2026-09-30
 - Đang làm: Đã hoàn thành toàn bộ 4 cụm công việc Frontend của Người 5:
   1. Cụm 1: O-502 & O-503 (Buyer Order Center `/orders`, Cancel Dialog với RB-LTT08).
   2. Cụm 2: O-504 & O-505 (Seller Orders `/seller/orders`, quy trình xử lý đơn tuần tự).
   3. Cụm 3: O-507 & P-607c (Review Form UI `/orders/[id]/review`, chống đánh giá trùng RB-LB09, điều kiện tiên quyết QD14, upload ảnh xem trước).
   4. Cụm 4: A-704 (Admin Dashboard `/admin`), A-705 (Khóa/Mở người dùng kèm audit log), A-708 (Seller Dashboard `/seller` tuân thủ nghiêm ngặt quy tắc QD19 doanh thu chỉ tính đơn COMPLETED), A-709 (Admin Categories `/admin/categories` cây danh mục tối đa 2 cấp RB-KN04), Q-805 (RBAC route guard cho `/admin`, `/admin/categories`, `/seller`).
   5. Quality Gates: 60/60 Vitest tests PASS (100%), typecheck 0 errors (`tsc --noEmit`), Next.js Production Build 100% SUCCESS (17/17 routes tĩnh/động prerender thành công), 0 hardcoded hex colors.
-- Nhánh/PR: thanh-vien-5
+- Nhánh/PR: thanh-vien-5 (Đã đồng bộ toàn bộ code mới từ `dev`)
 - Bị block bởi: Không
-- Việc tiếp theo: Sẵn sàng bàn giao hoặc phối hợp với Người 1, 3, 4 khi backend hoàn tất tích hợp live endpoints.
+- Việc tiếp theo: Sẵn sàng bàn giao và tạo Pull Request vào `dev`.
 
 ## Nhật ký theo ngày
+
+### 2026-09-30 (Đồng bộ toàn bộ cập nhật mới từ dev và giải quyết xung đột)
+
+- **Đã làm:**
+  - Kéo và hợp nhất toàn bộ 18 commit mới nhất từ `origin/dev` vào nhánh `thanh-vien-5`.
+  - Giải quyết xung đột 10 files (Admin Categories, Orders Token styling, Review Form, Checkpoint Repository, Features flags, Progress docs).
+  - Đảm bảo 100% test suites frontend & backend và typecheck đều PASS.
 
 ### 2026-09-29 (Hoàn thành 100% Cụm 4: A-704, A-705, A-708, A-709, Q-805)
 

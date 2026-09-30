@@ -1,11 +1,10 @@
 import { Router, type Request, type Response, type NextFunction, type RequestHandler } from 'express';
 import { buildSuccessEnvelope } from '../envelope.ts';
-import { ForbiddenError, NotFoundError, ReasonRequiredError, UnauthorizedError } from '../../errors/app-error.ts';
+import { DependencyUnavailableError, ForbiddenError, NotFoundError, ReasonRequiredError, UnauthorizedError, ValidationFailedError } from '../../errors/app-error.ts';
 import { parseCheckoutCommand } from '../../../modules/checkout/contracts/checkout-command.ts';
 import type { RequestContext } from '../../context/request-context.ts';
 import type { OrderLifecycleService } from '../../../modules/order/services/order-lifecycle.service.ts';
 import type { OrderQueryService } from '../../../modules/order/services/order-query.service.ts';
-import type { IOrderRepository } from '../../../modules/order/domain/repositories.ts';
 import type { OrderActor, OrderStatus } from '../../../modules/order/domain/types.ts';
 import type { PaymentService } from '../../../modules/payment/services/payment.service.ts';
 import type { OrderHttpApplication } from './t1-routes.ts';
@@ -16,10 +15,12 @@ type Role = 'BUYER' | 'SELLER' | 'ADMIN';
 export interface OrderServices {
   checkoutService?: {
     createOrder(context: RequestContext, command: ReturnType<typeof parseCheckoutCommand>): Promise<unknown>;
+    cancelOrder?(context: RequestContext, orderId: string, input: Record<string, unknown>): Promise<unknown>;
+    confirmOrder?(context: RequestContext, orderId: string): Promise<unknown>;
   };
+  cancelOrder?(context: RequestContext, orderId: string, input: Record<string, unknown>): Promise<unknown>;
   orderLifecycleService?: OrderLifecycleService;
   orderQueryService?: OrderQueryService;
-  orderRepo?: IOrderRepository;
   paymentService?: PaymentService;
   confirmOrder?(context: RequestContext, orderId: string): Promise<unknown>;
   transitionOrder?(context: RequestContext, orderId: string, input: Record<string, unknown>): Promise<unknown>;
@@ -41,6 +42,9 @@ function requireRole(...roles: Role[]): (req: Request, _res: Response, next: Nex
       const requestContext = context(req);
       if (!roles.includes(requestContext.role as Role)) {
         throw new ForbiddenError('ROLE_REQUIRED', `Required role: ${roles.join(' or ')}`);
+      }
+      if (requestContext.role === 'SELLER' && roles.includes('SELLER') && requestContext.shop_status !== 'ACTIVE') {
+        throw new ForbiddenError('SHOP_NOT_ACTIVE', 'Seller shop must be active before using seller operations');
       }
       next();
     } catch (error) {
@@ -69,14 +73,13 @@ export function createOrderDomainRouter(
 ): Router {
   const router = Router();
 
-  const isLegacyApp = servicesOrApp && 'confirmOrder' in servicesOrApp && typeof (servicesOrApp as { confirmOrder?: unknown }).confirmOrder === 'function' && !('orderRepo' in servicesOrApp || 'orderLifecycleService' in servicesOrApp);
+  const isLegacyApp = servicesOrApp && 'confirmOrder' in servicesOrApp && typeof (servicesOrApp as { confirmOrder?: unknown }).confirmOrder === 'function' && !('orderLifecycleService' in servicesOrApp || 'orderQueryService' in servicesOrApp);
   const legacyApp = isLegacyApp ? (servicesOrApp as OrderHttpApplication) : undefined;
   const services = (!isLegacyApp ? servicesOrApp : undefined) as OrderServices | undefined;
 
   const checkoutService = services?.checkoutService ?? (legacyApp ? { createOrder: legacyApp.createOrder.bind(legacyApp) } : undefined);
   const orderLifecycleService = services?.orderLifecycleService;
   const orderQueryService = services?.orderQueryService;
-  const orderRepo = services?.orderRepo;
   const paymentService = services?.paymentService;
 
   const confirmHandler = (services?.confirmOrder ?? legacyApp?.confirmOrder)?.bind(services ?? legacyApp);
@@ -104,14 +107,13 @@ export function createOrderDomainRouter(
   // ==========================================
   router.get('/orders', ...guards(auth, 'BUYER', 'SELLER', 'ADMIN'), asyncRoute(async (req, res) => {
     const ctx = context(req);
-    let orders: unknown[] = [];
-    if (orderRepo) {
-      if (ctx.role === 'BUYER') {
-        orders = await orderRepo.findByBuyerId(ctx.user_id);
-      } else if (ctx.role === 'SELLER' && ctx.shop_id) {
-        orders = await orderRepo.findByShopId(ctx.shop_id);
-      }
-    }
+    const unknown = Object.keys(req.query).find(key => key !== 'status');
+    if (unknown) throw new ValidationFailedError(`Unknown field: ${unknown}`, { field: unknown });
+    const status = req.query.status;
+    if (status !== undefined && typeof status !== 'string') throw new ValidationFailedError('Status must be a single value', { field: 'status' });
+
+    if (!orderQueryService) throw new DependencyUnavailableError('Order reads are not configured');
+    const orders = await orderQueryService.listOrders(ctx, status ? { status } : {});
     res.json(buildSuccessEnvelope(orders, requestId(req)));
   }));
 
@@ -122,35 +124,10 @@ export function createOrderDomainRouter(
     const ctx = context(req);
     const orderId = req.params.order_id;
 
-    if (orderRepo) {
-      const order = await orderRepo.findById(orderId);
-      if (!order) {
-        throw new NotFoundError('Order not found');
-      }
-      if (ctx.role === 'BUYER' && order.buyerId !== ctx.user_id) {
-        throw new NotFoundError('Order not found');
-      }
-      if (ctx.role === 'SELLER' && order.shopId !== ctx.shop_id) {
-        throw new ForbiddenError('RESOURCE_FORBIDDEN', 'Access denied to order of another shop');
-      }
-      const items = await orderRepo.findItemsByOrderId(orderId);
-      res.json(buildSuccessEnvelope({ ...order, items }, requestId(req)));
-      return;
-    }
-
-    if (orderQueryService) {
-      const summary = await orderQueryService.getOrderSummary(orderId);
-      if (!summary) {
-        throw new NotFoundError('Order not found');
-      }
-      if (ctx.role === 'BUYER' && summary.buyerId !== ctx.user_id) {
-        throw new NotFoundError('Order not found');
-      }
-      res.json(buildSuccessEnvelope(summary, requestId(req)));
-      return;
-    }
-
-    res.json(buildSuccessEnvelope({ order_id: orderId }, requestId(req)));
+    if (!orderQueryService) throw new DependencyUnavailableError('Order reads are not configured');
+    const order = await orderQueryService.getOrderDetail(ctx, orderId);
+    if (!order) throw new NotFoundError('Order not found');
+    res.json(buildSuccessEnvelope(order, requestId(req)));
   }));
 
   // ==========================================
@@ -178,6 +155,12 @@ export function createOrderDomainRouter(
 
       await orderLifecycleService.cancelOrder(orderId, actor, reason);
       res.json(buildSuccessEnvelope({ order_id: orderId, status: 'CANCELLED' }, requestId(req)));
+      return;
+    }
+
+    if (services?.cancelOrder) {
+      const result = await services.cancelOrder(ctx, orderId, req.body as Record<string, unknown>);
+      res.json(buildSuccessEnvelope(result, requestId(req)));
       return;
     }
 

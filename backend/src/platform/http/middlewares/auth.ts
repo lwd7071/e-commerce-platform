@@ -72,9 +72,11 @@ export function createAuthMiddleware(
       }
 
       let shopId: string | undefined = undefined;
+      let shopStatus: string | undefined = undefined;
       if (user.role === 'SELLER') {
         const foundShop = await authRepo.findShopByOwnerId(user.id);
         shopId = foundShop || undefined;
+        shopStatus = await authRepo.findShopStatusByOwnerId?.(user.id) ?? undefined;
       }
 
       const requestId = req.requestId || 'req_unknown';
@@ -83,7 +85,8 @@ export function createAuthMiddleware(
         request_id: requestId,
         user_id: user.id,
         role: user.role,
-        shop_id: shopId
+        shop_id: shopId,
+        shop_status: shopStatus,
       });
 
       next();

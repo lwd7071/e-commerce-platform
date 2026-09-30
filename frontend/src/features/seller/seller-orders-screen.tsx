@@ -99,7 +99,7 @@ export function SellerOrdersScreen() {
       const updated = await orderRepo.confirmOrder(order.id, "Người bán xác nhận đơn hàng");
       setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
       showToast(
-        `Đã xác nhận đơn hàng ${updated.order_code || updated.id.slice(0, 8)}`,
+        `Đã xác nhận đơn hàng ${updated.id.slice(0, 8)}`,
         "success",
         "Xác nhận thành công"
       );
@@ -128,7 +128,7 @@ export function SellerOrdersScreen() {
       setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
       const label = targetStatus === "PREPARING" ? "Bắt đầu chuẩn bị hàng" : "Bàn giao vận chuyển";
       showToast(
-        `Đơn hàng ${updated.order_code || updated.id.slice(0, 8)}: ${label}`,
+        `Đơn hàng ${updated.id.slice(0, 8)}: ${label}`,
         "success",
         "Cập nhật thành công"
       );
@@ -169,7 +169,7 @@ export function SellerOrdersScreen() {
       );
       setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
       showToast(
-        `Đã hủy đơn hàng ${updated.order_code || updated.id.slice(0, 8)}`,
+        `Đã hủy đơn hàng ${updated.id.slice(0, 8)}`,
         "info",
         "Hủy đơn hoàn tất"
       );
@@ -246,11 +246,11 @@ export function SellerOrdersScreen() {
               <p className="text-xs text-[var(--subtext)] font-semibold uppercase tracking-wider">
                 Chờ xác nhận
               </p>
-              <p className="text-2xl font-bold mt-1 tabular-nums text-[var(--warning)]">
+              <p className="text-2xl font-bold mt-1 tabular-nums text-[var(--warning-text)]">
                 {pendingCount}
               </p>
             </div>
-            <div className="w-10 h-10 rounded-full bg-[var(--warning-surface)] flex items-center justify-center text-[var(--warning)]">
+            <div className="w-10 h-10 rounded-full bg-[var(--warning-surface)] flex items-center justify-center text-[var(--warning-text)]">
               <Icon name="bag" className="w-5 h-5" />
             </div>
           </div>
@@ -274,11 +274,11 @@ export function SellerOrdersScreen() {
               <p className="text-xs text-[var(--subtext)] font-semibold uppercase tracking-wider">
                 Đang vận chuyển
               </p>
-              <p className="text-2xl font-bold mt-1 tabular-nums text-[var(--success)]">
+              <p className="text-2xl font-bold mt-1 tabular-nums text-[var(--success-text)]">
                 {shippingCount}
               </p>
             </div>
-            <div className="w-10 h-10 rounded-full bg-[var(--success-surface)] flex items-center justify-center text-[var(--success)]">
+            <div className="w-10 h-10 rounded-full bg-[var(--success-surface)] flex items-center justify-center text-[var(--success-text)]">
               <Icon name="check" className="w-5 h-5" />
             </div>
           </div>
@@ -364,7 +364,7 @@ export function SellerOrdersScreen() {
                         <tr key={order.id} className="hover:bg-[var(--card-muted)]/50 transition-colors">
                           <td className="py-4 px-4 align-top">
                             <span className="font-mono font-bold text-xs text-[var(--foreground)] block">
-                              {order.order_code || order.id.slice(0, 8)}
+                              {order.id.slice(0, 8)}
                             </span>
                             <span className="text-xs text-[var(--subtext)] mt-0.5 block">
                               {formattedDate}
@@ -394,7 +394,7 @@ export function SellerOrdersScreen() {
 
                           <td className="py-4 px-4 align-top text-right tabular-nums">
                             <strong className="text-sm font-bold text-[var(--foreground)]">
-                              {moneyAdapter.formatVND(order.final_amount || order.total_amount)}
+                              {moneyAdapter.formatVND(order.total_amount)}
                             </strong>
                             <span className="text-xs text-[var(--success)] block mt-0.5">
                               Free Ship (0₫)
@@ -509,7 +509,7 @@ export function SellerOrdersScreen() {
                     <div className="flex items-center justify-between pb-2 border-b border-[var(--border)]">
                       <div>
                         <span className="font-mono font-bold text-xs text-[var(--foreground)]">
-                          {order.order_code || order.id.slice(0, 8)}
+                          {order.id.slice(0, 8)}
                         </span>
                         <time className="text-xs text-[var(--subtext)] block">
                           {order.created_at ? new Date(order.created_at).toLocaleDateString("vi-VN") : ""}
@@ -534,7 +534,7 @@ export function SellerOrdersScreen() {
                     <div className="flex justify-between items-baseline pt-2 border-t border-[var(--border)] text-sm">
                       <span className="text-xs text-[var(--subtext)]">Tổng tiền:</span>
                       <strong className="text-base text-[var(--primary-active)] font-bold tabular-nums">
-                        {moneyAdapter.formatVND(order.final_amount || order.total_amount)}
+                        {moneyAdapter.formatVND(order.total_amount)}
                       </strong>
                     </div>
 
@@ -606,7 +606,7 @@ export function SellerOrdersScreen() {
             if (!open && !isSubmittingCancel) setCancellingOrder(null);
           }}
           title="Từ chối / Hủy đơn hàng"
-          description={`Mã đơn hàng: ${cancellingOrder?.order_code || cancellingOrder?.id}`}
+          description={`Mã đơn hàng: ${cancellingOrder?.id}`}
           footer={
             <div className="flex justify-end gap-3 w-full">
               <Button

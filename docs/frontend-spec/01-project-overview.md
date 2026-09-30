@@ -1,11 +1,14 @@
 # 01. Tổng quan dự án và kiến trúc kỹ thuật
 
-> **Phiên bản:** 1.1.0  
-> **Trạng thái:** FOUNDATION EXISTS — FEATURE INTEGRATION SUBJECT TO READINESS MATRIX
+> **Phiên bản:** 1.4.0
+>
+> **Trạng thái:** MVP CONTRACT FREEZE — EXECUTION 30/09/2026
 
 ## 1. Phạm vi
 
 E-Commerce Platform là marketplace đa người bán với bốn nhóm người dùng: Guest, Buyer, Seller và Admin. Frontend cần hỗ trợ khám phá sản phẩm, giỏ hàng, checkout tách đơn theo shop, quản lý đơn, đánh giá, thông báo, seller portal và admin moderation.
+
+MVP thêm hai invariant xuyên suốt: Seller phải hoàn tất onboarding để có Shop `PENDING` và chờ Admin duyệt; Order chỉ review được sau khi Buyer xác nhận đã nhận hàng làm Order `COMPLETED`. Media thật là dependency bắt buộc của Seller create product, không phải phase bổ sung sau cùng.
 
 Phạm vi bản triển khai đầu tiên:
 
@@ -18,7 +21,7 @@ Phạm vi bản triển khai đầu tiên:
 
 ### Backend
 
-- Node.js 22, TypeScript 5.8, Express 4.
+- Node.js 24.15.0, TypeScript 5.8, Express 4.
 - PostgreSQL/Supabase, Prisma 7 dùng cho migration và client dependency; schema nghiệp vụ hiện nằm chủ yếu trong SQL migrations.
 - Supabase JWT RS256/JWKS, RBAC `BUYER | SELLER | ADMIN`.
 - API base URL `/api/v1`.
@@ -30,7 +33,7 @@ Phạm vi bản triển khai đầu tiên:
 - `lucide-react` dependency có trong scaffold; shared shell ưu tiên icon component hiện hữu.
 - Supabase client SDK, API client/error parser, AuthProvider, repository/adapters, mock switch và Vitest runner đã tồn tại trong `frontend/`.
 - Chưa có TanStack Query; feature owners dùng repository/hooks hiện có, không tự thêm cache dependency nếu chưa thống nhất với Người 1.
-- Dùng Node `22.20.0` theo `.nvmrc` và npm 11 cho quality gates.
+- Dùng Node `24.15.0` theo `.nvmrc` và npm `11.12.1` cho quality gates backend/frontend.
 
 ## 3. Kiến trúc FE mục tiêu
 

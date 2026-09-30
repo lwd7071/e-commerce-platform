@@ -1,7 +1,15 @@
-import { describe, it, expect } from "vitest";
-import { repositories } from "../src/lib/repositories/repository-factory";
+import { beforeAll, describe, it, expect, vi } from "vitest";
 import { ORDER_TABS, PREDEFINED_CANCEL_REASONS } from "../src/features/orders/orders.types";
-import { checkoutRepository } from "../src/features/checkout/checkout.repository";
+let repositories: typeof import("../src/lib/repositories/repository-factory").repositories;
+let checkoutRepository: typeof import("../src/features/checkout/checkout.repository").checkoutRepository;
+
+beforeAll(async () => {
+  // These lifecycle tests exercise the in-memory fixture repository explicitly.
+  vi.stubEnv("NEXT_PUBLIC_USE_MOCK", "true");
+  vi.resetModules();
+  ({ repositories } = await import("../src/lib/repositories/repository-factory"));
+  ({ checkoutRepository } = await import("../src/features/checkout/checkout.repository"));
+});
 
 describe("Orders Center and Cancellation Lifecycle (O-502, O-503)", () => {
   it("provides all 7 valid order status tabs plus ALL tab", () => {

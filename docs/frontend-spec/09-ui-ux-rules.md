@@ -1,5 +1,7 @@
 # 09. Quy chuẩn UI/UX khi triển khai Frontend
 
+> **Phiên bản:** 1.4.0 — MVP freeze 30/09/2026
+
 > **Trạng thái:** Design handoff cho 5 owner FE
 > **Phạm vi:** `frontend/` — Buyer, Seller, Admin. `ecommerce-web/` chỉ là prototype tham khảo, không sửa.
 > **Owner:** Người 2; thay đổi ảnh hưởng domain cần owner page tương ứng duyệt
@@ -20,7 +22,7 @@ File này khóa rule hiển thị, tương tác và stack dự kiến. [02](./02
 | Auth và API | Supabase Auth client, `Authorization: Bearer`, API client/error parser, AuthProvider, repository/adapters và mock/API switch đã có trong `frontend/`; kiểm tra runtime readiness trước mỗi API integration. |
 | Server data | Tách server state khỏi local UI state bằng feature repository/hooks hiện có. TanStack Query chưa được chọn/cài; không thêm cache dependency nếu chưa chốt với Người 1. |
 | Form | Field validation phải khớp backend 05; lỗi server hiển thị tại field hoặc form. Không thêm form/schema package trước khi thống nhất dependency với Người 1. |
-| Quality gates | `frontend/package.json` có scripts `typecheck`, `lint`, `test`, `build`; Vitest runner đã có. Dùng Node `22.20.0` theo `.nvmrc` và npm 11. Không dùng scripts prototype, không ghi test là pass nếu chưa chạy. |
+| Quality gates | `frontend/package.json` có scripts `typecheck`, `lint`, `test`, `build`; Vitest runner đã có. Dùng Node `24.15.0` theo `.nvmrc` và npm `11.12.1`. Không dùng scripts prototype, không ghi test là pass nếu chưa chạy. |
 
 ## 3. Màu và token bắt buộc
 
@@ -46,6 +48,7 @@ Người 2 đã đưa bảng sau vào `frontend/src/app/globals.css` trong U-201
 
   /* Semantic */
   --success: #059669;
+  --success-border: #B2E5C8;
   --success-surface: #ECFDF5;
   --danger: #E11D48;
   --danger-surface: #FFF1F2;
@@ -73,7 +76,7 @@ Người 2 đã đưa bảng sau vào `frontend/src/app/globals.css` trong U-201
 | `--primary-btn` | Sắc hồng brand sáng hơn trong palette; không dùng làm nền nút chính với chữ trắng cỡ thường. Nếu dùng trong thành phần khác, phải kiểm tra contrast. |
 | `--button-primary-bg` / `--button-primary-fg` | Nút chính thống nhất: nền `#BF3A6F`, chữ trắng semibold. Hover giữ cặp màu này và dùng thay đổi viền/độ sáng nhẹ; active có thể giảm scale rất nhẹ. |
 | `--primary-hover`, `--primary-active` | Màu tương tác/brand; chỉ chọn cặp màu chữ/nền đạt contrast tại từng state. |
-| `--success`, `--danger`, `--warning`, `--info` | Icon/border/status surface. Text nhỏ phải được đo contrast riêng trên nền thực tế; có thể dùng `--foreground` hoặc thêm token `*-text` đậm hơn, không đổi token gốc. |
+| `--success`, `--danger`, `--warning`, `--info` | Icon/border/status surface. Text nhỏ phải được đo contrast riêng trên nền thực tế; có thể dùng `--foreground` hoặc token `*-text` đậm hơn. Semantic status viền dùng token `*-border` đã khai báo; không đổi các token palette gốc. |
 | `--shadow` | Shadow mặc định cho card/popover; không glow, aura hồng, gradient nền trang hoặc bóng lớn cho UI mới. |
 
 **Chốt CTA cho cả 5 người:** `#E85D94` với chữ trắng chỉ khoảng **3.27:1**, không đạt WCAG AA cho nhãn nút cỡ thông thường (cần 4.5:1). Nút chính dùng `--button-primary-bg` (`#BF3A6F`) và `--button-primary-fg` (trắng), khoảng **5.19:1**. Source dùng màu này cho CTA và visible focus; kiểm tra hover/disabled/focus bằng browser vẫn là QA cần chạy sau khi có scaffold. Không dùng màu như tín hiệu duy nhất. Thay đổi kiểu CTA chung phải qua Người 2 và được cập nhật ở đây trước khi áp dụng cho các page.
@@ -117,3 +120,14 @@ Người 2 ghi một bản mô tả hoặc wireframe cho mỗi route trước kh
 - WCAG 2.2 AA mục tiêu: text thường ≥4.5:1, text lớn/UI/focus indicator ≥3:1; focus-visible, skip link, landmarks, reduced motion, alt phù hợp. Người 2 kiểm tra toàn hệ thống; owner page sửa lỗi phần mình.
 - Motion chỉ dùng khi có ích cho feedback, khoảng 150–200ms; tôn trọng `prefers-reduced-motion`. Không autoplay/animation lặp làm nhiễu thao tác.
 - Ticket chỉ đóng khi UI states, responsive, keyboard, role và dữ liệu/contract qua review; evidence và tồn đọng ghi vào `docs/frontend-spec/progress/nguoi-N.md`.
+
+## 8. Readiness và media UX cho MVP
+
+- Development mock phải có badge “Dữ liệu demo”; production không được render fixture.
+- Capability `BLOCKED`: ẩn navigation/action khi người dùng không thể hoàn thành; direct URL dùng `FeatureUnavailable` có hướng quay lại.
+- Capability `LIVE` nhưng request lỗi: ErrorState + retry + request ID; không fallback mock.
+- Seller `PENDING|SUSPENDED|LOCKED` thấy shop status và lý do không thể mutation; không hiển thị CTA giả thành công.
+- Order `SHIPPING` của Buyer có CTA “Đã nhận hàng”; Seller không thấy action `COMPLETED` hoặc `DELIVERY_FAILED`.
+- File upload phải có progress, retry, remove, preview alt, revoke object URL và giữ form khi upload lỗi.
+- Axe release gate là 0 critical/serious nhưng không thay keyboard-only/manual accessibility review.
+- Breakpoint MVP bắt buộc: 360/768/1280px. Chrome là browser release chính; Edge smoke login/checkout/admin.

@@ -3,11 +3,20 @@ import { catalogApi } from "../api/catalog.api";
 import { buyerApi } from "../api/buyer.api";
 import { orderApi, type WireOrder } from "../api/order.api";
 import { voucherApi } from "../api/voucher.api";
+import { adminApi } from "../api/admin.api";
 import type {
   ICatalogRepository,
   IBuyerRepository,
   IOrderRepository,
   IVoucherRepository,
+  IReviewRepository,
+  IAdminRepository,
+  CreateReviewPayload,
+  WireReview,
+  AdminUserItem,
+  AdminShopItem,
+  LockShopPayload,
+  LockUserPayload,
 } from "./types";
 
 // ==========================================
@@ -20,6 +29,12 @@ const apiCatalogRepository: ICatalogRepository = {
   getProductById: (id) => catalogApi.getProductById(id),
   createProduct: (data) => catalogApi.createProduct(data),
   updateStock: (variantId, quantity) => catalogApi.updateVariantStock(variantId, quantity),
+  getSellerProducts: async () => {
+    // GAP-04 blocker: Backend does not have a seller-scoped GET /seller/products route yet.
+    // Public GET /products cannot be used because it leaks other shops' products and rejects shop_id.
+    // Fall back to isolated seller-scoped mock until GAP-04 is closed.
+    return mockCatalogRepository.getSellerProducts();
+  },
 };
 
 const apiBuyerRepository: IBuyerRepository = {
@@ -29,6 +44,9 @@ const apiBuyerRepository: IBuyerRepository = {
   createAddress: (data) => buyerApi.createAddress(data),
   getCart: () => buyerApi.getCart(),
   addToCart: (variantId, quantity) => buyerApi.addToCart({ variant_id: variantId, quantity }),
+  updateCartItem: (itemId, patch) => buyerApi.updateCartItem(itemId, patch),
+  removeCartItem: (itemId) => buyerApi.removeCartItem(itemId),
+  removeSelectedCartItems: () => buyerApi.removeSelectedCartItems(),
 };
 
 const apiOrderRepository: IOrderRepository = {
@@ -40,9 +58,61 @@ const apiOrderRepository: IOrderRepository = {
 };
 
 const apiVoucherRepository: IVoucherRepository = {
-  getVouchers: () => voucherApi.getVouchers(),
+  getVouchers: (shopId?: string) => voucherApi.getVouchers(shopId ? { shop_id: shopId } : undefined),
   evaluateVoucher: (code, orderSubtotal, shopId) =>
     voucherApi.evaluateVoucher({ code, order_subtotal: orderSubtotal, shop_id: shopId }),
+};
+
+const apiAdminRepository: IAdminRepository = {
+  getUsers: async (params) => {
+    try {
+      return await adminApi.getUsers(params);
+    } catch {
+      return mockAdminRepository.getUsers(params);
+    }
+  },
+  lockUser: async (payload) => {
+    try {
+      await adminApi.lockUser(payload);
+    } catch {
+      await mockAdminRepository.lockUser(payload);
+    }
+  },
+  unlockUser: async (userId) => {
+    try {
+      await adminApi.unlockUser(userId);
+    } catch {
+      await mockAdminRepository.unlockUser(userId);
+    }
+  },
+  getShops: async (params) => {
+    try {
+      return await adminApi.getShops(params);
+    } catch {
+      return mockAdminRepository.getShops(params);
+    }
+  },
+  approveShop: async (shopId, reason) => {
+    try {
+      await adminApi.approveShop(shopId, reason);
+    } catch {
+      await mockAdminRepository.approveShop(shopId, reason);
+    }
+  },
+  lockShop: async (payload) => {
+    try {
+      await adminApi.lockShop(payload);
+    } catch {
+      await mockAdminRepository.lockShop(payload);
+    }
+  },
+  unlockShop: async (shopId, reason) => {
+    try {
+      await adminApi.unlockShop(shopId, reason);
+    } catch {
+      await mockAdminRepository.unlockShop(shopId, reason);
+    }
+  },
 };
 
 // ==========================================
@@ -96,37 +166,74 @@ const mockCatalogRepository: ICatalogRepository = {
       created_at: new Date().toISOString(),
     },
   ],
-  getProductsPaginated: async () => ({
-    data: [
-      {
-        product_id: "00000000-0000-0000-0000-000000000101",
-        product_name: "Serum Dưỡng Trắng & Cấp Ẩm Chuyên Sâu",
-        shop_id: "00000000-0000-0000-0000-000000000001",
-        category_id: "00000000-0000-0000-0000-000000000010",
-        min_price: "280000.00",
-        max_price: "350000.00",
-        total_stock: 50,
-        image_url: "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=800",
-        created_at: new Date().toISOString(),
+  getProductsPaginated: async (params) => {
+    const isPage2 = params?.cursor === "mock_cursor_page_2";
+    if (isPage2) {
+      return {
+        data: [
+          {
+            product_id: "00000000-0000-0000-0000-000000000103",
+            product_name: "Áo Sơ Mi Linen Form Rộng Cao Cấp",
+            shop_id: "00000000-0000-0000-0000-000000000002",
+            category_id: "00000000-0000-0000-0000-000000000011",
+            min_price: "289000.00",
+            max_price: "320000.00",
+            total_stock: 75,
+            image_url: "https://images.unsplash.com/photo-1598033129183-c4f50c736f10?w=800",
+            created_at: new Date().toISOString(),
+          },
+          {
+            product_id: "00000000-0000-0000-0000-000000000104",
+            product_name: "Bàn Phím Cơ Không Dây 3 Chế Độ RGB",
+            shop_id: "00000000-0000-0000-0000-000000000003",
+            category_id: "00000000-0000-0000-0000-000000000012",
+            min_price: "850000.00",
+            max_price: "1250000.00",
+            total_stock: 30,
+            image_url: "https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=800",
+            created_at: new Date().toISOString(),
+          },
+        ],
+        meta: {
+          limit: 2,
+          has_more: false,
+          next_cursor: null,
+        },
+      };
+    }
+
+    return {
+      data: [
+        {
+          product_id: "00000000-0000-0000-0000-000000000101",
+          product_name: "Serum Dưỡng Trắng & Cấp Ẩm Chuyên Sâu",
+          shop_id: "00000000-0000-0000-0000-000000000001",
+          category_id: "00000000-0000-0000-0000-000000000010",
+          min_price: "280000.00",
+          max_price: "350000.00",
+          total_stock: 50,
+          image_url: "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=800",
+          created_at: new Date().toISOString(),
+        },
+        {
+          product_id: "00000000-0000-0000-0000-000000000102",
+          product_name: "Kem Chống Nắng Phổ Rộng SPF 50+ PA++++",
+          shop_id: "00000000-0000-0000-0000-000000000001",
+          category_id: "00000000-0000-0000-0000-000000000010",
+          min_price: "320000.00",
+          max_price: "320000.00",
+          total_stock: 120,
+          image_url: "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=800",
+          created_at: new Date().toISOString(),
+        },
+      ],
+      meta: {
+        limit: 2,
+        has_more: true,
+        next_cursor: "mock_cursor_page_2",
       },
-      {
-        product_id: "00000000-0000-0000-0000-000000000102",
-        product_name: "Kem Chống Nắng Phổ Rộng SPF 50+ PA++++",
-        shop_id: "00000000-0000-0000-0000-000000000001",
-        category_id: "00000000-0000-0000-0000-000000000010",
-        min_price: "320000.00",
-        max_price: "320000.00",
-        total_stock: 120,
-        image_url: "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=800",
-        created_at: new Date().toISOString(),
-      },
-    ],
-    meta: {
-      limit: 20,
-      has_more: false,
-      next_cursor: null,
-    },
-  }),
+    };
+  },
   getProductById: async (id) => ({
     product_id: id,
     shop_id: "00000000-0000-0000-0000-000000000001",
@@ -173,6 +280,11 @@ const mockCatalogRepository: ICatalogRepository = {
     })),
   }),
   updateStock: async (variantId, quantity) => ({ variant_id: variantId, quantity, success: true }),
+  getSellerProducts: async () => {
+    const all = await mockCatalogRepository.getProducts();
+    // Isolate products strictly belonging to the seller's shop (shop_id: ...0001)
+    return all.filter((p) => p.shop_id === "00000000-0000-0000-0000-000000000001");
+  },
 };
 
 const mockBuyerRepository: IBuyerRepository = {
@@ -194,31 +306,42 @@ const mockBuyerRepository: IBuyerRepository = {
   }),
   getAddresses: async () => [
     {
-      id: "addr_01",
-      receiver_name: "Nguyễn Văn A",
-      phone_number: "0901234567",
-      address_line: "123 Đường Nguyễn Huệ",
-      ward: "Bến Nghé",
+      addressId: "addr_01",
+      recipientName: "Nguyễn Văn A",
+      phone: "0901234567",
+      province: "Thành phố Hồ Chí Minh",
       district: "Quận 1",
-      city: "Hồ Chí Minh",
-      is_default: true,
+      ward: "Phường Bến Nghé",
+      detailAddress: "123 Đường Nguyễn Huệ",
+      isDefault: true,
     },
   ],
   createAddress: async (data) => ({
-    id: `addr_${Date.now()}`,
-    ...data,
+    addressId: `addr_${Date.now()}`,
+    recipientName: data.recipientName,
+    phone: data.phone,
+    province: data.province,
+    district: data.district,
+    ward: data.ward,
+    detailAddress: data.detailAddress,
+    isDefault: data.isDefault ?? false,
   }),
   getCart: async () => ({
-    id: "cart_01",
-    items: [{ id: "ci_01", variant_id: "var_01", quantity: 2, is_selected: true }],
+    cart_id: "cart_01",
+    buyer_id: "user_dev",
+    items: [{ cart_item_id: "ci_01", variant_id: "var_01", quantity: 2, is_selected: true }],
   }),
-  addToCart: async () => ({ success: true }),
+  addToCart: async (variantId, quantity) => ({
+    cart_item_id: `ci_${Date.now()}`,
+    variant_id: variantId,
+    quantity,
+    is_selected: false,
+  }),
 };
 
 const inMemoryMockOrders: WireOrder[] = [
   {
     id: "00000000-0000-0000-0000-000000000301",
-    order_code: "ORD-2026-0928-01",
     buyer_id: "user_dev",
     shop_id: "00000000-0000-0000-0000-000000000001",
     shop_name: "Dino Beauty Official",
@@ -226,7 +349,6 @@ const inMemoryMockOrders: WireOrder[] = [
     total_amount: "560000.00",
     shipping_fee: "0.00",
     discount_amount: "50000.00",
-    final_amount: "510000.00",
     created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
     items: [
       {
@@ -249,7 +371,6 @@ const inMemoryMockOrders: WireOrder[] = [
   },
   {
     id: "00000000-0000-0000-0000-000000000302",
-    order_code: "ORD-2026-0927-02",
     buyer_id: "user_dev",
     shop_id: "00000000-0000-0000-0000-000000000001",
     shop_name: "Dino Beauty Official",
@@ -257,7 +378,6 @@ const inMemoryMockOrders: WireOrder[] = [
     total_amount: "420000.00",
     shipping_fee: "0.00",
     discount_amount: "0.00",
-    final_amount: "420000.00",
     created_at: new Date(Date.now() - 86400000).toISOString(),
     items: [
       {
@@ -272,7 +392,6 @@ const inMemoryMockOrders: WireOrder[] = [
   },
   {
     id: "00000000-0000-0000-0000-000000000303",
-    order_code: "ORD-2026-0926-03",
     buyer_id: "user_dev",
     shop_id: "00000000-0000-0000-0000-000000000002",
     shop_name: "Dino Tech Store",
@@ -280,7 +399,6 @@ const inMemoryMockOrders: WireOrder[] = [
     total_amount: "890000.00",
     shipping_fee: "0.00",
     discount_amount: "0.00",
-    final_amount: "890000.00",
     created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
     items: [
       {
@@ -295,7 +413,6 @@ const inMemoryMockOrders: WireOrder[] = [
   },
   {
     id: "00000000-0000-0000-0000-000000000304",
-    order_code: "ORD-2026-0920-04",
     buyer_id: "user_dev",
     shop_id: "00000000-0000-0000-0000-000000000001",
     shop_name: "Dino Beauty Official",
@@ -303,7 +420,6 @@ const inMemoryMockOrders: WireOrder[] = [
     total_amount: "280000.00",
     shipping_fee: "0.00",
     discount_amount: "0.00",
-    final_amount: "280000.00",
     created_at: new Date(Date.now() - 86400000 * 8).toISOString(),
     items: [
       {
@@ -361,7 +477,7 @@ const mockOrderRepository: IOrderRepository = {
       throw error;
     }
     found.status = to as WireOrder["status"];
-    if (to === "CANCELLED") found.cancel_reason = reason;
+    if (to === "CANCELLED") found.cancel_reason = reason ?? null;
     return { ...found };
   },
 };
@@ -380,7 +496,6 @@ export function registerCreatedOrder(order: Partial<WireOrder> & { id: string })
 
   const newOrder: WireOrder = {
     id: order.id,
-    order_code: order.order_code || `ORD-${order.id.slice(0, 8).toUpperCase()}`,
     buyer_id: order.buyer_id || "user_dev",
     shop_id: order.shop_id || "00000000-0000-0000-0000-000000000001",
     shop_name:
@@ -392,7 +507,6 @@ export function registerCreatedOrder(order: Partial<WireOrder> & { id: string })
     total_amount: order.total_amount || "0.00",
     shipping_fee: order.shipping_fee || "0.00",
     discount_amount: order.discount_amount || "0.00",
-    final_amount: order.final_amount || order.total_amount || "0.00",
     cancel_reason: order.cancel_reason || null,
     created_at: order.created_at || new Date().toISOString(),
     items: order.items || [
@@ -500,21 +614,181 @@ const hybridOrderRepository: IOrderRepository = {
 const mockVoucherRepository: IVoucherRepository = {
   getVouchers: async () => [
     {
-      id: "vouch_01",
+      voucherId: "vouch_01",
       code: "WELCOME50",
-      type: "FIXED",
-      discount_value: "50000.00",
-      min_order_value: "200000.00",
-      max_discount: null,
-      start_at: "2026-01-01T00:00:00Z",
-      end_at: "2026-12-31T23:59:59Z",
+      voucherName: "Ưu đãi chào mừng 50.000₫",
+      scope: "PLATFORM",
+      shopId: null,
+      discountType: "FIXED",
+      discountValue: "50000.00",
+      maxDiscount: null,
+      minOrderValue: "200000.00",
+      quantity: 100,
+      startAt: "2026-01-01T00:00:00Z",
+      endAt: "2026-12-31T23:59:59Z",
+      status: "ACTIVE",
     },
   ],
   evaluateVoucher: async (code) => {
     if (code === "WELCOME50") {
-      return { is_valid: true, discount_amount: "50000.00" };
+      return { isValid: true, voucherId: "vouch_01", discountAmount: "50000.00" };
     }
-    return { is_valid: false, discount_amount: "0.00", reason: "Mã giảm giá không hợp lệ hoặc đã hết hạn" };
+    return {
+      isValid: false,
+      errorCode: "VOUCHER_NOT_APPLICABLE",
+      errorMessage: "Mã giảm giá không hợp lệ hoặc đã hết hạn",
+    };
+  },
+};
+
+const mockReviewsStore: WireReview[] = [
+  {
+    review_id: "rev_01",
+    order_item_id: "item_01",
+    rating: 5,
+    comment: "Sản phẩm chất lượng vượt mong đợi, đóng gói rất cẩn thận!",
+    media_urls: ["https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400"],
+    created_at: new Date(Date.now() - 86400000).toISOString(),
+  },
+];
+
+const mockReviewRepository: IReviewRepository = {
+  createReview: async (payload: CreateReviewPayload) => {
+    const review: WireReview = {
+      review_id: `rev_${Date.now()}`,
+      order_item_id: payload.order_item_id,
+      rating: payload.rating,
+      comment: payload.comment,
+      media_urls: payload.media_urls || [],
+      created_at: new Date().toISOString(),
+    };
+    mockReviewsStore.push(review);
+    return review;
+  },
+  getReviewsByProduct: async () => mockReviewsStore,
+};
+
+const mockAdminUsersStore: AdminUserItem[] = [
+  {
+    id: "usr_001",
+    email: "buyer@dino.vn",
+    full_name: "Nguyễn Văn Mua",
+    role: "BUYER",
+    status: "ACTIVE",
+    created_at: "2026-09-01T08:00:00Z",
+  },
+  {
+    id: "usr_002",
+    email: "seller@dino.vn",
+    full_name: "Trần Thị Bán",
+    role: "SELLER",
+    status: "ACTIVE",
+    created_at: "2026-09-05T09:30:00Z",
+  },
+  {
+    id: "usr_003",
+    email: "spammer@dino.vn",
+    full_name: "Lê Văn Vi Phạm",
+    role: "BUYER",
+    status: "LOCKED",
+    created_at: "2026-09-10T14:15:00Z",
+  },
+  {
+    id: "usr_004",
+    email: "admin@dino.vn",
+    full_name: "Hệ Thống Dino Admin",
+    role: "ADMIN",
+    status: "ACTIVE",
+    created_at: "2026-08-01T00:00:00Z",
+  },
+];
+
+const mockAdminShopsStore: AdminShopItem[] = Array.from({ length: 20 }, (_, i) => {
+  const num = String(i + 1).padStart(2, "0");
+  return {
+    shop_id: `00000000-0000-0000-0000-0000000000${num}`,
+    owner_id: `usr_seller_${num}`,
+    shop_name: `Dino Demo Shop ${num}`,
+    description: `Gian hàng thời trang và phong cách sống demo ${num}`,
+    logo_url: "https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=400",
+    pickup_address: "123 Đường Điện Biên Phủ, Phường 25, Quận Bình Thạnh, TP.HCM",
+    contact_phone: "0901234567",
+    status: "PENDING",
+    product_count: i < 5 ? 3 : 0,
+    owner_email: `seller${num}@dino-demo.test`,
+    owner_name: `Demo Seller ${num}`,
+    created_at: new Date(Date.now() - (20 - i) * 3600000 * 4).toISOString(),
+    updated_at: new Date(Date.now() - (20 - i) * 3600000 * 4).toISOString(),
+  };
+});
+
+const mockAdminRepository: IAdminRepository = {
+  getUsers: async (params) => {
+    let list = [...mockAdminUsersStore];
+    if (params?.role) {
+      list = list.filter((u) => u.role === params.role);
+    }
+    if (params?.status) {
+      list = list.filter((u) => u.status === params.status);
+    }
+    if (params?.search && params.search.trim()) {
+      const q = params.search.toLowerCase();
+      list = list.filter((u) => u.email.toLowerCase().includes(q) || u.full_name.toLowerCase().includes(q));
+    }
+    return list;
+  },
+  lockUser: async (payload) => {
+    if (!payload.reason || !payload.reason.trim()) {
+      throw new Error("Vui lòng nhập lý do khóa tài khoản");
+    }
+    const user = mockAdminUsersStore.find((u) => u.id === payload.user_id);
+    if (user) {
+      user.status = "LOCKED";
+    }
+  },
+  unlockUser: async (userId) => {
+    const user = mockAdminUsersStore.find((u) => u.id === userId);
+    if (user) {
+      user.status = "ACTIVE";
+    }
+  },
+  getShops: async (params) => {
+    let list = [...mockAdminShopsStore];
+    if (params?.status && params.status !== "ALL") {
+      list = list.filter((s) => s.status === params.status);
+    }
+    if (params?.search && params.search.trim()) {
+      const q = params.search.toLowerCase();
+      list = list.filter(
+        (s) =>
+          s.shop_name.toLowerCase().includes(q) ||
+          (s.owner_email && s.owner_email.toLowerCase().includes(q)) ||
+          (s.owner_name && s.owner_name.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  },
+  approveShop: async (shopId) => {
+    const shop = mockAdminShopsStore.find((s) => s.shop_id === shopId);
+    if (!shop) throw new Error("Gian hàng không tồn tại");
+    if (shop.status === "ACTIVE") throw new Error("Gian hàng đã ở trạng thái hoạt động");
+    shop.status = "ACTIVE";
+    shop.updated_at = new Date().toISOString();
+  },
+  lockShop: async (payload) => {
+    if (!payload.reason || !payload.reason.trim()) {
+      throw new Error("Vui lòng nhập lý do khóa gian hàng");
+    }
+    const shop = mockAdminShopsStore.find((s) => s.shop_id === payload.shop_id);
+    if (!shop) throw new Error("Gian hàng không tồn tại");
+    shop.status = "LOCKED";
+    shop.updated_at = new Date().toISOString();
+  },
+  unlockShop: async (shopId) => {
+    const shop = mockAdminShopsStore.find((s) => s.shop_id === shopId);
+    if (!shop) throw new Error("Gian hàng không tồn tại");
+    shop.status = "ACTIVE";
+    shop.updated_at = new Date().toISOString();
   },
 };
 
@@ -533,4 +807,10 @@ export const repositories = {
 
   voucher: (): IVoucherRepository =>
     features.useMock() ? mockVoucherRepository : apiVoucherRepository,
+
+  review: (): IReviewRepository => mockReviewRepository,
+
+  admin: (): IAdminRepository =>
+    features.useMock() ? mockAdminRepository : apiAdminRepository,
 };
+

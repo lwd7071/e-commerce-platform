@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ProtectedPage } from "@/components/navigation/protected-page";
 import { ReviewScreen } from "@/features/review";
 
 export const metadata: Metadata = {
@@ -15,8 +16,10 @@ type Props = {
 export default async function OrderReviewPage({ params }: Props) {
   const { id } = await params;
   return (
-    <div className="py-6">
-      <ReviewScreen orderId={id} />
-    </div>
+    <ProtectedPage allowedRoles={["BUYER"]}>
+      <div className="py-6">
+        <ReviewScreen orderId={id} />
+      </div>
+    </ProtectedPage>
   );
 }

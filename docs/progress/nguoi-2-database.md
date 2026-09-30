@@ -3,11 +3,21 @@
 ## Trạng thái hiện tại
 
 - Mốc: T3
-- Cập nhật lần cuối: 2026-09-24
-- Đang làm: ĐÃ HOÀN THÀNH 100% tất cả các hạng mục "Làm được ngay, không cần chờ ai" của Mốc T3 cho Người 2 (Database và Supabase)
-- Bị block bởi: Không (Sẵn sàng môi trường Concurrency và Baseline bàn giao cho Người 4 và Người 5)
+- Cập nhật lần cuối: 2026-09-29
+- Đang làm: Các hạng mục T3 của Người 2 đã hoàn tất; guarded dev/test category seed đã được áp dụng thành công lên Supabase dev/test được xác nhận, khớp ba UUID fixtures FE.
+- Bị block bởi: Không cho phần seed/category handoff. Production không được seed fixture này.
 
 ## Nhật ký theo ngày
+
+### 2026-09-29 — Bổ sung dev/test category seed cho FE
+
+- Đã làm:
+  - Thêm `seedDevelopmentCategories` với ba UUID/tên đang được FE khai báo trong `DEV_CATEGORY_FIXTURES`, tránh tự tạo bộ ID khác nhau giữa FE và DB.
+  - Thêm command `db:seed:dev-categories`; seed idempotent, không overwrite category đã tồn tại và rollback khi phát hiện ID bị dùng cho dữ liệu khác.
+  - Guard bắt buộc `DATABASE_ENVIRONMENT=development|test`, project ref phải do người vận hành cung cấp và khớp `SUPABASE_URL`, cờ `ALLOW_DEVELOPMENT_CATEGORY_SEED=true`; từ chối `NODE_ENV=production`.
+  - Cập nhật Backend Run Guide và FE API contract: category seed không tạo `GET /categories`; FE chỉ dùng các ID sau khi seed thành công vào đúng DB runtime.
+- Đã áp dụng thành công lên Supabase dev/test sau khi xác nhận môi trường với người vận hành. Lệnh chạy qua transaction và xác minh cả ba category tồn tại đúng tên/trạng thái; không lưu override xác nhận vào `.env`.
+- Kiểm tra: 600 Node tests pass; 9 targeted seed/safety tests pass; backend typecheck và lint pass. Bộ Vitest đầy đủ in kết quả pass cho các suite đã chạy nhưng tiến trình không kết thúc bình thường, nên chưa xác nhận tổng lượt hoàn tất.
 
 ### 2026-09-24 — T3 Database Foundation Hardening, History Retention & Concurrency Environment
 
@@ -136,7 +146,7 @@
 - **Phase 2 — pool/transaction:** thêm pool factory lazy, bounded config, isolation whitelist, rollback/`AggregateError` contract, release guard và concurrency tests. Unit/integration transaction pass; pool `max=1` chờ tuần tự và pool `max=2` cấp PID khác nhau. Probe chỉ dùng `pg_temp.p2_transaction_probe`.
 - **Phase 3 — seed:** thêm `seedExistingAuthUser` với validation UUID/email/fullName/role/status, upsert idempotent giữ role/status, raw SQLSTATE `23503`/`23505`/`23514` propagation và parent-transaction rollback test. Seed không tự điều khiển transaction.
 - **Phase 4 — acceptance:** guard target migration yêu cầu ref do người thật cung cấp, `DATABASE_ENVIRONMENT=test`, preview đã sanitize và `ALLOW_MIGRATION_DEPLOY=true` cho đúng lần chạy. Schema acceptance kiểm tra đúng 22 bảng public, RLS/privilege/policy/constraint/index/delete-action/migration invariants; pass trên target hiện tại. Không tự chạy `migrate deploy` trong handoff vì thiếu manual safety confirmation theo plan.
-- **Kết quả kiểm thử:** DB suite `9 files / 43 tests pass`; `prisma validate` pass; `prisma migrate status` báo database up to date. Runtime đã chạy: Node `24.15.0`, npm `11.12.1`; chưa thể ghi cross-runtime pass cho Node 22.
+- **Kết quả kiểm thử:** DB suite `9 files / 43 tests pass`; `prisma validate` pass; `prisma migrate status` báo database up to date. Runtime evidence lịch sử: Node `24.15.0`, npm `11.12.1`; chưa thể ghi cross-runtime pass cho runtime tiền nhiệm Node 22.
 - **Gate toàn backend:** typecheck/build còn lỗi import NodeNext và module thiếu ở Buyer/Catalog/Order/Payment/Platform; lint chưa có script; full test bị config `spawn EPERM` trong môi trường hiện tại. Đây là dependency ticket cho owner tương ứng, không sửa trong scope Người 2.
 - **Commit sequence:** `d27e201`, `3bb260a`, `74ca9e4`, `0478b75`, tiếp theo là commit handoff tài liệu này.
 
@@ -169,6 +179,7 @@
 | Database health check helper | Sẵn sàng sử dụng; probe query, pool metrics, timeout handling | v1 / 2026-09-23 | Người 1 / Platform Health Route |
 | Storage policy & path validator | Sẵn sàng sử dụng; path builder, MIME/ext validation, RLS policies SQL | v1 / 2026-09-23 | Người 3 (Catalog), Người 4 (Review) |
 | Database test fixtures platform | Sẵn sàng sử dụng; fixture generators cho 22 bảng có transaction rollback | v1 / 2026-09-23 | Toàn đội Backend |
+| Development category seed | Sẵn sàng chạy có guard trên DB development/test đã xác minh; không tự động chạy và không dùng production | v1 / 2026-09-29 | FE Catalog / Seller |
 | T2 performance indexes migration | Đã tạo migration và nghiệm thu query plan EXPLAIN trên DB | v1 / 2026-09-23 | Toàn đội Backend |
 | Backup/Restore Schema Fingerprint | Sẵn sàng sử dụng; trích xuất metadata schema, hash SHA-256 và diff engine | v1 / 2026-09-24 | Người 1 / CI / Production Safety |
 | PostgreSQL Concurrency Test Harness | Sẵn sàng bàn giao; barrier runner đa session, phân loại mã lỗi | v1 / 2026-09-24 | Người 4 (Voucher/Address race), Người 5 (Checkout race) |

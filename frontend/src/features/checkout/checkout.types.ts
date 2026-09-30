@@ -14,12 +14,15 @@ export interface CheckoutAddress {
 }
 
 export interface CreateAddressInput {
-  recipient_name: string;
+  recipientName?: string;
+  recipient_name?: string;
   phone: string;
   province: string;
   district: string;
   ward: string;
-  detail_address: string;
+  detailAddress?: string;
+  detail_address?: string;
+  isDefault?: boolean;
   is_default?: boolean;
 }
 

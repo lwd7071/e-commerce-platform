@@ -14,7 +14,7 @@ describe('Production Environment Config Validation & Fail-Fast (Phase 6)', () =>
       SUPABASE_JWT_AUDIENCE: 'authenticated',
       TRUST_PROXY: '1',
       PORT: '8080',
-      CORS_ORIGIN: 'https://my-store.com'
+      CORS_ALLOWED_ORIGINS: 'https://my-store.com, https://admin.my-store.com'
     };
 
     const config = validateEnvConfig(validProdEnv);
@@ -22,13 +22,14 @@ describe('Production Environment Config Validation & Fail-Fast (Phase 6)', () =>
     assert.strictEqual(config.port, 8080);
     assert.strictEqual(config.supabaseUrl, 'https://project.supabase.co');
     assert.strictEqual(config.supabaseJwksUrl, 'https://project.supabase.co/auth/v1/.well-known/jwks.json');
-    assert.strictEqual(config.corsOrigin, 'https://my-store.com');
+    assert.deepStrictEqual(config.corsAllowedOrigins, ['https://my-store.com', 'https://admin.my-store.com']);
   });
 
   it('[CFG-02]: throws AuthConfigurationError fail-fast in production when Supabase config is missing', () => {
     const invalidProdEnv: NodeJS.ProcessEnv = {
       NODE_ENV: 'production',
       DATABASE_URL: 'postgresql://postgres:secret@localhost:5432/ecommerce_prod',
+      CORS_ALLOWED_ORIGINS: 'https://my-store.com',
       // Missing SUPABASE_URL and SUPABASE_JWKS_URL
     };
 
@@ -48,6 +49,7 @@ describe('Production Environment Config Validation & Fail-Fast (Phase 6)', () =>
       NODE_ENV: 'production',
       SUPABASE_URL: 'https://project.supabase.co',
       SUPABASE_JWKS_URL: 'https://project.supabase.co/auth/v1/.well-known/jwks.json',
+      CORS_ALLOWED_ORIGINS: 'https://my-store.com',
       // Missing DATABASE_URL
     };
 
@@ -68,14 +70,31 @@ describe('Production Environment Config Validation & Fail-Fast (Phase 6)', () =>
 
     const config = validateEnvConfig(devEnv);
     assert.strictEqual(config.nodeEnv, 'development');
-    assert.strictEqual(config.port, 3000);
-    assert.ok(config.corsOrigin !== undefined);
+    assert.strictEqual(config.port, 3001);
+    assert.deepStrictEqual(config.corsAllowedOrigins, ['http://localhost:3000', 'http://127.0.0.1:3000']);
+  });
+
+  it('[CFG-07]: production requires an explicit CORS allowlist', () => {
+    const prodEnv: NodeJS.ProcessEnv = {
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgresql://postgres:secret@localhost:5432/ecommerce_prod',
+      SUPABASE_URL: 'https://project.supabase.co',
+      SUPABASE_JWKS_URL: 'https://project.supabase.co/auth/v1/.well-known/jwks.json',
+      TRUST_PROXY: '1',
+    };
+    assert.throws(() => validateEnvConfig(prodEnv), (error: unknown) => {
+      assert.ok(error instanceof AppError);
+      assert.strictEqual((error as AppError).code, 'CONFIGURATION_ERROR');
+      assert.match((error as Error).message, /CORS_ALLOWED_ORIGINS/);
+      return true;
+    });
   });
 
   it('[CFG-05]: createRuntimeApp uses fail-fast env validation before initializing services', () => {
     const brokenEnv: NodeJS.ProcessEnv = {
       NODE_ENV: 'production',
-      DATABASE_URL: 'postgresql://localhost:5432/db'
+      DATABASE_URL: 'postgresql://localhost:5432/db',
+      CORS_ALLOWED_ORIGINS: 'https://my-store.com',
       // Missing Supabase config
     };
 
@@ -94,6 +113,7 @@ describe('Production Environment Config Validation & Fail-Fast (Phase 6)', () =>
       DATABASE_URL: 'postgresql://postgres:secret@localhost:5432/ecommerce_prod',
       SUPABASE_URL: 'https://project.supabase.co',
       SUPABASE_JWKS_URL: 'https://project.supabase.co/auth/v1/.well-known/jwks.json',
+      CORS_ALLOWED_ORIGINS: 'https://my-store.com',
       // Missing TRUST_PROXY
     };
 

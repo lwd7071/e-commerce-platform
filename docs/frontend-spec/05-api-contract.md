@@ -1,7 +1,8 @@
 # 05. API contract FE–BE
 
-> **Phiên bản:** 1.1.0  
-> **Trạng thái:** CURRENT RUNTIME CONTRACT
+> **Phiên bản:** 1.4.0
+>
+> **Trạng thái:** CURRENT RUNTIME + MVP TARGET CONTRACT FREEZE 30/09/2026
 
 ## 1. Global conventions
 
@@ -33,30 +34,52 @@ Backend không trả field `success`.
 
 ## 2. Runtime readiness
 
+### Căn cứ runtime (2026-09-30)
+
+Runtime composition tại `backend/src/platform/http/app.ts` inject identity/onboarding, catalog, buyer profile/address, checkout, order query/commands và moderation services. Một service class hoặc đường dẫn trong OpenAPI tự nó không chứng minh endpoint đã được nối vào runtime này.
+
+Status meanings below:
+
+- `AVAILABLE`: router đã mount và gọi handler runtime cụ thể.
+- `PARTIAL`: có handler nhưng response còn thiếu dữ liệu cho toàn bộ FE flow.
+- `STUB`: route trả HTTP 200 với dữ liệu rỗng/placeholder; không dùng làm dữ liệu nghiệp vụ thật.
+- `NOT_IMPLEMENTED`: route đã mount nhưng runtime hiện trả HTTP 501 `NOT_IMPLEMENTED`.
+- `MISSING`: chưa mount route tương ứng; dự kiến HTTP 404. Khai báo OpenAPI không làm thay đổi trạng thái này.
+
 | Domain | Endpoint | Role | Status | Ghi chú |
 |---|---|---|---|---|
 | System | `GET /health` | Public | `AVAILABLE` | Health check |
 | System | `GET /openapi.json` | Public | `AVAILABLE` | Kiểm tra method+path hai chiều; schema cụ thể tiếp tục được hoàn thiện theo backend |
 | Catalog | `GET /products` | Public | `AVAILABLE` | Cursor pagination |
 | Catalog | `GET /products/:product_id` | Public | `PARTIAL` | Thiếu images/shop/reviews/metrics |
-| Catalog | `POST /products` | Seller | `AVAILABLE` | Chỉ nhận URL ảnh đã upload |
+| Catalog | `POST /products` | Seller | `PARTIAL` | Runtime tạo sản phẩm/variants; category list đã có; media upload production còn thiếu |
 | Catalog | `PATCH /product-variants/:variant_id/stock` | Seller | `AVAILABLE` | Body `{ quantity }` |
+| Catalog | `GET /categories` | Public | `AVAILABLE` | Chỉ category ACTIVE, danh sách phẳng, roots trước; dùng `PgCategoryRepository` |
+| Catalog | `GET /shops/:id` | Public | `MISSING` | Chưa có route runtime |
+| Catalog | `GET /seller/products` hoặc `GET /products?shop_id=...` | Seller | `MISSING` | Không có seller-scoped list; `shop_id` bị từ chối như query không hỗ trợ |
 | Address | `GET /addresses` | Buyer | `AVAILABLE` | Runtime legacy service |
 | Address | `POST /addresses` | Buyer | `AVAILABLE` | Runtime legacy service |
-| Address | detail/update/default/delete | Buyer | `RUNTIME_BLOCKED` | Trả 501 `NOT_IMPLEMENTED` theo ErrorEnvelope; chưa có service runtime |
-| Cart | `GET /cart` | Buyer | `PARTIAL` | Thiếu joined display data |
+| Address | `GET/PATCH/DELETE /addresses/:address_id`, `PATCH .../default` | Buyer | `AVAILABLE` | Tất cả truy vấn scope theo JWT; đặt mặc định trong transaction; order giữ snapshot địa chỉ |
+| Cart | `GET /cart` | Buyer | `AVAILABLE` | Join sản phẩm, variant, shop, ảnh chính và giá/tồn kho hiện tại; hàng inactive/hết kho vẫn trả với `is_available=false` |
 | Cart | add/update/delete item | Buyer | `AVAILABLE` | Update hỗ trợ `is_selected` |
 | Cart | `DELETE /cart/selected` | Buyer | `AVAILABLE` | Xóa item đang chọn trong cart của buyer; trả 204 |
 | Voucher | list/evaluate | Buyer | `AVAILABLE` | Dùng `code`, `order_subtotal`, `shop_id` |
 | Checkout | `POST /checkout` | Buyer | `AVAILABLE` | Bắt buộc Idempotency-Key |
-| Orders | `GET /orders` | Buyer/Seller/Admin | `RUNTIME_BLOCKED` | Runtime trả `[]` vì chưa có orderRepo |
-| Orders | `GET /orders/:id` | Buyer/Seller/Admin | `RUNTIME_BLOCKED` | Chưa trả detail thực |
-| Orders | cancel/confirm/transition | Theo route | `AVAILABLE` | Payload xem bên dưới |
-| Payment | `POST /orders/:id/payments` | Buyer | `PARTIAL` | Retry payment; không tạo QR/link |
-| Review | `POST /order-items/:id/review`, alias `POST /reviews` | Buyer | `RUNTIME_BLOCKED` | Trả 501 `NOT_IMPLEMENTED` đến khi wire service |
-| Notification | list/detail/read | Buyer | `RUNTIME_BLOCKED` | Trả 501 `NOT_IMPLEMENTED` đến khi wire service |
-| Admin | lock/unlock user | Admin | `AVAILABLE` | Reason bắt buộc theo nghiệp vụ |
-| Profile/Categories/Admin reads | — | — | `MISSING` | Xem gap analysis |
+| Orders | `GET /orders` | Buyer/Seller/Admin | `AVAILABLE` | `OrderQueryService` PostgreSQL read model, DTO có items; role và ownership được xác minh từ context |
+| Orders | `GET /orders/:id` | Buyer/Seller/Admin | `AVAILABLE` | Cùng DTO với list; ngoài ownership và không tồn tại trả 404 |
+| Orders | cancel/confirm/transition | Theo route | `AVAILABLE` | Được `PgCheckoutService` xử lý; chỉ dùng khi có order ID hợp lệ |
+| Payment | `POST /orders/:id/payments` | Buyer | `AVAILABLE` | Chỉ retry payment; không tạo provider session, QR hoặc link |
+| Review | `POST /order-items/:id/review`, `POST /reviews` | Buyer | `NOT_IMPLEMENTED` | Route trả 501 vì `ReviewService` không được inject trong runtime |
+| Notification | list/detail/read | Buyer | `NOT_IMPLEMENTED` | Route trả 501 vì `NotificationService` không được inject trong runtime |
+| Identity | `GET /auth/me`, `POST /auth/onboarding` | Authenticated | `AVAILABLE` | Role lấy từ `app_users`; onboarding Buyer/Seller chạy transaction; shop Seller ban đầu PENDING |
+| Profile | `GET/PATCH /profile` | Authenticated | `AVAILABLE` | Chỉ sửa `full_name`, `phone`; email/role/avatar là read-only hoặc chưa hỗ trợ |
+| Admin | `GET /admin/users`, lock/unlock | Admin | `AVAILABLE/PARTIAL` | List/filter và mutation đã mount; cần pagination, protected Admin target và side-effect tests |
+| Admin | `GET /admin/shops`, approve/lock/unlock | Admin | `AVAILABLE/PARTIAL` | Routes đã mount; cần pagination và atomic audit evidence |
+| Admin | category writes, logs, product/review moderation | Admin | `MISSING` | Category writes thuộc MVP target; viewer/moderation nâng cao nằm backlog |
+| Seller | seller stats | Seller | `MISSING` | Không có HTTP stats route |
+| Media | upload/presign/finalize | Authenticated | `MISSING` | `POST /products` chỉ nhận URL ảnh đã có |
+
+Order reads, profile, public categories, addresses, enriched cart và Admin users/shops hiện được nối vào runtime. Capability còn thiếu hoặc chưa inject gồm review, notifications, media, seller product discovery, Admin category writes, seller stats và online payment provider. Google OAuth, email OTP/recovery vẫn phụ thuộc cấu hình provider tại Supabase/Google Cloud.
 
 ## 3. Catalog
 
@@ -397,16 +420,36 @@ Không dùng `to_status` hoặc `note`.
 
 FE phải có fallback cho error code mới: hiển thị message an toàn và request ID, không crash vì enum chưa biết.
 
-## 10. Missing/target endpoints
+## 10. MVP target endpoints và contract freeze
 
-Các endpoint sau chưa phải contract hiện hành:
+Các endpoint hiện chưa live chỉ được FE tiêu thụ sau khi OpenAPI, runtime route và integration test cùng pass:
 
-- `GET/POST/PATCH /categories`.
-- `GET /products/:id/reviews`.
-- `GET/PATCH /profile`.
-- `GET /admin/users`, `GET /admin/logs`.
-- Admin shop/product moderation routes.
-- Seller stats và seller product list.
-- Media upload/presign/finalize.
-- Mark-all-notifications-read.
-- Payment provider session/webhook.
+| Endpoint | Owner | Quy tắc chính |
+|---|---|---|
+| `POST /auth/onboarding` | Người 1 | Seller first-time onboarding tạo Shop `PENDING`; Buyer đã hoàn tất profile chưa upgrade Seller trong MVP |
+| `GET /seller/products` | Người 3 | Scope từ JWT/shop context, không nhận arbitrary `shop_id` |
+| `PATCH /seller/products/:id/status` | Người 3 | Chỉ `ACTIVE ↔ INACTIVE`, owner + Shop ACTIVE |
+| `POST /media/uploads/presign` | Người 3 | Trả `media_id`, URL sống 10 phút; JPEG/PNG/WebP, tối đa 5 MB |
+| `POST /media/uploads/:media_id/finalize` | Người 3 | Kiểm magic bytes; owner/purpose; không tin Content-Type client |
+| `DELETE /media/uploads/:media_id` | Người 3 | Chỉ xóa media chưa attached; không truyền object path trong URL |
+| `POST /orders/:id/confirm-received` | Người 5 | Buyer owner; Order SHIPPING + Shipment tồn tại; atomically DELIVERED/COMPLETED |
+| `GET /products/:id/reviews` | Người 4 | Cursor pagination; public review list và aggregate rating |
+| `GET/PATCH /admin/categories` và status mutation | Người 3 | Tối đa hai cấp; chặn parent cycle; Admin only |
+| `GET /health/readiness` | Người 1 | Commit/version, DB/Auth/Storage và capability state |
+
+### 10.1. Inventory và cancellation
+
+- Tồn kho bị trừ tại checkout trong transaction, variant được lock theo thứ tự ổn định và update có điều kiện `stock_quantity >= quantity`.
+- Buyer chỉ hủy `PENDING_CONFIRMATION`; Seller/Admin hủy `PENDING_CONFIRMATION|CONFIRMED|PREPARING`; mọi hủy cần reason và hoàn tồn đúng một lần.
+- Không hủy từ `SHIPPING`; `DELIVERY_FAILED` không tự hoàn tồn trong MVP.
+
+### 10.2. Idempotency
+
+- Scope `user_id + endpoint + key`, TTL 24 giờ.
+- Cùng key/cùng fingerprint replay response đầu tiên; cùng key/khác payload trả `409 IDEMPOTENCY_KEY_REUSED`; request đang chạy trả `409 REQUEST_IN_PROGRESS`.
+
+### 10.3. Error envelope
+
+Mọi 4xx/5xx, kể cả 404 và 429, phải dùng ErrorEnvelope có `meta.request_id`. FE hiển thị request ID ở error detail và không crash với error code chưa biết.
+
+Payment provider, realtime notification, audit viewer và seller/admin analytics không thuộc MVP freeze này.

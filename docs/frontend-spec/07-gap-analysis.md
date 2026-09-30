@@ -1,7 +1,8 @@
 # 07. Gap analysis và integration readiness
 
-> **Phiên bản:** 1.1.0  
-> **Trạng thái:** ACTION REQUIRED
+> **Phiên bản:** 1.4.0
+>
+> **Trạng thái:** MVP CONTRACT FREEZE; EXECUTION/READINESS TRACKED IN FILE 08 (updated 2026-09-30)
 
 ## 1. Cách đánh giá
 
@@ -11,15 +12,17 @@ Không dùng phần trăm cảm tính. Mỗi capability nhận một trạng th�
 - `PARTIAL`: dùng được một phần nhưng thiếu data/behavior cho UI.
 - `BLOCKED`: không thể hoàn tất production flow.
 
+Phân biệt hoàn tất mốc backend với integration readiness FE: T3 hardening/quality gates hoàn tất theo [backend progress](../progress/README.md), nhưng chỉ các service được inject trong `createRuntimeApp()` mới được xem là live API. Router có thể trả 501 hoặc placeholder nếu dependency chưa được nối. Dùng `05-api-contract.md` làm bảng endpoint chi tiết.
+
 ## 2. Gaps ưu tiên
 
-### GAP-01 — Runtime service wiring
+### GAP-01 — Order reads, review và notification runtime wiring
 
 - **Severity:** BLOCKER.
-- **Hiện trạng:** order reads trả rỗng/stub; review, notification và address item routes chưa có service runtime (trả 501 `NOT_IMPLEMENTED`). `DELETE /addresses/:id` trước đây trả 204 no-op; runtime hiện trả 501 để không báo thành công giả. `DELETE /cart/selected` đã được wire cho PostgreSQL runtime.
-- **Ảnh hưởng:** `/orders`, review, notifications, seller fulfillment không thể chạy end-to-end.
-- **Giải pháp:** wire concrete repositories/services vào `createRuntimeApp()`, thêm integration test gọi đúng runtime composition, sau đó cập nhật OpenAPI.
-- **Đóng gap khi:** test list/detail order, review create, notification list/read, address CRUD pass trên database test.
+- **Hiện trạng:** `OrderQueryService` và PostgreSQL repository đã được inject; buyer/seller/admin ownership query có integration test thật. Review và notification còn 501. Address item routes đã được nối và test HTTP/PostgreSQL.
+- **Ảnh hưởng:** Order center và địa chỉ có thể đọc dữ liệu thật; review/notification chưa thể bật.
+- **Còn lại:** wire review/notification services và kiểm tra OpenAPI schema cho order reads.
+- **Đóng gap khi:** order query, address và các domain còn lại có runtime tests tương ứng; review/notification vẫn ghi riêng là ngoài phạm vi MVP Buyer.
 
 ### GAP-02 — Checkout/payment contract và provider
 
@@ -31,9 +34,9 @@ Không dùng phần trăm cảm tính. Mỗi capability nhận một trạng th�
 ### GAP-03 — Enriched cart response
 
 - **Severity:** BLOCKER cho cart UI production.
-- **Hiện trạng:** cart runtime chỉ trả IDs, quantity và is_selected; thiếu name, variant, image, current price/stock, shop.
-- **Giải pháp:** mở rộng `GET /cart` bằng join/read model, giữ server là nguồn giá/tồn kho.
-- **Đóng gap khi:** response đủ render cart và có test cho inactive/out-of-stock variant.
+- **Hiện trạng:** đã triển khai PostgreSQL join cho tên/variant/ảnh chính/giá hiện tại/shop/tồn kho và trạng thái khả dụng; item inactive/hết hàng vẫn có trong response.
+- **FE:** adapter chuyển DTO sang view model, lỗi không fallback sang fixtures và checkout chỉ chọn item khả dụng.
+- **Evidence:** integration test PostgreSQL cho ảnh null, decimal, inactive/out-of-stock và ownership; frontend test cho DTO mapping/error propagation.
 
 ### GAP-04 — Catalog detail/read models
 
@@ -44,26 +47,26 @@ Không dùng phần trăm cảm tính. Mỗi capability nhận một trạng th�
 ### GAP-05 — Categories
 
 - **Severity:** BLOCKER cho seller create/admin category; MEDIUM cho homepage.
-- **Hiện trạng:** có bảng DB nhưng không có route.
-- **Giải pháp:** public `GET /categories`; admin create/update/status với validation parent cycle và active status.
-- **Fallback:** static config chỉ dùng development và chỉ chứa category UUID sao chép/xác minh từ seed hoặc DB thật của đúng environment. Không tự bịa/generate UUID: product filter so khớp trực tiếp `category_id` trong DB nên UUID không tồn tại trả mảng rỗng. Nếu chưa xác minh được ID thì ẩn filter.
+- **Hiện trạng:** public `GET /categories` đã mount, chỉ trả ACTIVE categories theo danh sách phẳng roots-first; frontend adapter dùng API thật và cache kết quả.
+- **Còn lại:** admin create/update/status với validation parent cycle và active status.
+- **Fallback:** static config chỉ dùng development và chỉ chứa category UUID sau khi chạy [guarded dev/test seed](../architecture/backend-run-guide.md) trên đúng DB runtime. Không tự bịa/generate UUID: product filter so khớp trực tiếp `category_id` trong DB nên UUID không tồn tại trả mảng rỗng. Nếu chưa xác minh được seed trên đúng target thì ẩn filter.
 
 ### GAP-06 — Authentication onboarding
 
 - **Severity:** BLOCKER cho registration.
-- **Hiện trạng:** Supabase signup không tự đảm bảo `app_users`, profile, role và shop tồn tại.
-- **Giải pháp:** server-controlled onboarding/DB trigger; không tin role `ADMIN` từ metadata client; seller onboarding tạo shop `PENDING` hoặc workflow được phê duyệt.
+- **Hiện trạng:** migration trigger provision `BUYER/ACTIVE`, onboarding transaction tạo profile hoặc shop `PENDING`, chống retry/trùng; code FE có signup OTP/Google callback/recovery flows.
+- **Còn lại:** Supabase/Google provider, OTP/recovery templates, email SMTP và email/Google signup smoke thật chưa được cấu hình/xác minh. Chưa coi registration production-ready cho đến khi có evidence provider.
 
 ### GAP-07 — Profile API
 
 - **Severity:** HIGH.
-- **Hiện trạng:** có domain service/table nhưng không có HTTP route runtime.
-- **Giải pháp:** `GET /profile`, `PATCH /profile`; email read-only từ auth; avatar dùng media contract.
+- **Hiện trạng:** `GET/PATCH /profile` đã mount; chỉ sửa họ tên/số điện thoại; email/role/avatar không được nhận trong PATCH. Frontend tải/lưu profile; upload avatar bị disabled.
+- **Còn lại:** external smoke test và bổ sung API rate limit evidence.
 
 ### GAP-08 — Admin read APIs và moderation scope
 
 - **Severity:** BLOCKER cho admin UI.
-- **Hiện trạng:** chỉ có lock/unlock user; không có list users/logs/shops/products và route moderate shop/product.
+- **Hiện trạng (source audit 2026-09-29):** `POST /admin/users/:id/lock` and `/unlock` are mounted and wired to `ModerationService`; there are no user/log/shop/product list routes or shop/product moderation routes.
 - **Giải pháp:** cursor pagination + filters; expose moderation actions có audit; không dùng client-supplied target type tùy ý.
 
 ### GAP-09 — Media upload
@@ -96,33 +99,58 @@ Không dùng phần trăm cảm tính. Mỗi capability nhận một trạng th�
 | Capability | State | FE có thể làm ngay | Điều kiện production |
 |---|---|---|---|
 | FE foundation/design system | `READY` | Có | lint/typecheck/a11y |
-| Login | `PARTIAL` | Có | Supabase env + app user bootstrap behavior |
-| Registration | `BLOCKED` | UI/mock | GAP-06 |
+| Login | `PARTIAL` | Email/password and Google OAuth source flow exists | Supabase provider config and live auth smoke tests |
+| Registration | `PARTIAL` | Email OTP, onboarding and Google first-login completion are implemented in source | Trigger migration applied; provider/template/SMTP config and real signup smoke tests |
 | Product list | `READY` | Có | adapter + loading/error |
 | Product detail core | `PARTIAL` | Có | placeholder/ẩn unsupported UI |
-| Categories | `BLOCKED` | mock | GAP-05 |
+| Categories | `READY` | Live API adapter | Runtime PostgreSQL integration test |
 | Cart mutation/selection | `READY` | Có | integration test |
-| Cart display | `BLOCKED` | mock | GAP-03 |
+| Cart display | `READY` | Enriched live read model; unavailable rows remain visible | PostgreSQL and frontend adapter tests |
 | Address list/create | `READY` | Có | integration test |
-| Address edit/default/delete | `BLOCKED` | UI/mock | GAP-01 |
+| Address edit/default/delete | `READY` | Owner-scoped APIs; checkout snapshot preserved | PostgreSQL integration and runtime route tests |
 | Voucher | `READY` | Có | decimal handling |
 | Checkout core | `READY` | Có sau cart selection | idempotency E2E |
 | Online provider payment | `BLOCKED` | UI prototype | GAP-02 |
-| Order center | `BLOCKED` | mock | GAP-01 |
-| Review submit/list | `BLOCKED` | UI/mock | GAP-01, GAP-04, GAP-09 |
-| Notifications | `BLOCKED` | UI/mock | GAP-01, GAP-10 |
-| Profile | `BLOCKED` | read-only metadata | GAP-07, GAP-09 |
-| Seller create product | `PARTIAL` | form/URL images | GAP-05, GAP-09 |
-| Seller fulfillment | `BLOCKED` | mock | GAP-01 |
+| Order center | `READY` for API | Live query service and DTO adapter | PostgreSQL runtime ownership tests; production order E2E |
+| Cancel/confirm/transition/payment retry | `READY` for mutation only | có thể dùng contract thật với order ID hợp lệ | reads/order IDs cần GAP-01; payment provider vẫn GAP-02 |
+| Review submit/read | `UI_READY/BLOCKED_RUNTIME` | Text/rating UI + fake boundary | C-201–C-205; media phụ thuộc Workstream B |
+| Notifications | `UI_READY/BLOCKED_RUNTIME` | UI gated, không production fixture | C-301–C-305; runtime service + event catalog |
+| Profile | `PARTIAL` | Live GET/PATCH UI/API for name/phone | API rate limit evidence and live auth smoke |
+| Seller create product | `UI_READY/PARTIAL_MEDIA` | Form/variant UI | B-101–B-206; media finalized + Shop ACTIVE |
+| Seller fulfillment | `READY/PARTIAL_SHIPMENT` | Live order query/actions | C-101–C-107 timeline/shipment/confirm-received |
 | Seller KPI | `BLOCKED` | mock | GAP-12 |
-| Admin | `BLOCKED` | mock + isolated mutations | GAP-08 |
+| Admin users/shops | `AVAILABLE/PARTIAL_HARDENING` | Nối API thật | C-401/C-402 pagination, side effects, atomic audit |
+| Admin categories | `UI_READY/BLOCKED_RUNTIME` | Tree/form UI, production mutation off | C-403/C-405 Admin CRUD/status |
 
-## 4. Backend decisions cần chốt
+## 4. Quyết định sản phẩm/API đã khóa
 
-1. Registration provisioning dùng trigger hay onboarding endpoint?
-2. Online payment có nằm trong MVP không; provider nào và callback model gì?
-3. Media upload dùng Supabase Storage trực tiếp hay backend presign?
-4. Order query DTO chuẩn là snake_case read model nào?
-5. Cart response có join display data hay FE gọi catalog bổ sung?
+1. COD là payment production MVP; online provider không chặn release.
+2. Media dùng backend presign/finalize theo `media_id`, magic-byte validation và Supabase Storage policy.
+3. Admin MVP gồm users, shops, categories và atomic audit write; audit viewer/product-review moderation/KPI nằm backlog.
+4. Seller MVP gồm onboarding Shop PENDING, approve, create product có media, stock và ACTIVE↔INACTIVE.
+
+## 5. Hướng triển khai FE theo runtime hiện có
+
+- Dùng API thật cho categories, profile, addresses, enriched cart, orders, checkout, vouchers và các catalog endpoints hiện có.
+- Không dùng client cart prices để tính checkout; backend đọc lại giá/tồn kho trong transaction.
+- Review/notification giữ `BLOCKED` trong production cho tới khi runtime services/integration tests pass; development fake boundary phải có badge demo.
+- Seller product/media/Admin category là target contract trong file 05/08; Admin users/shops reads đã có và phải chuyển sang API thật.
+- Không dùng `/buyers/addresses`, `/buyers/profile` hoặc FE DTO hiện có nếu chưa sửa theo `06-fe-be-mapping.md`.
+- Google/OTP/recovery cần cấu hình dashboard tương ứng; Gmail SMTP mặc định phù hợp demo, cần chuyển email provider và rà rate limits trước production.
 
 Cho tới khi các quyết định trên được chốt, FE phải giữ repository boundary và feature flags để tránh khóa kiến trúc vào mock.
+
+## 6. Quyết định đóng gap ngày 30/09/2026
+
+Các câu hỏi ở mục 4 đã được chốt cho MVP:
+
+- Online payment không chặn MVP; COD là luồng production.
+- Media dùng backend presign/finalize theo `media_id`, Storage policy của Supabase và magic-byte validation.
+- Seller onboarding dùng `/auth/onboarding`, tạo Shop `PENDING`; Admin approve trước mutation.
+- Buyer `confirm-received` là đường MVP đưa Order `SHIPPING → COMPLETED`; thiếu Shipment trả conflict, không tự tạo.
+- Review runtime phải có cả create, public list và rating aggregate.
+- Notification runtime phải phát event cho order lifecycle, confirm-received và moderation.
+- Admin MVP gồm users, shops, categories và atomic audit writes. Audit viewer, product/review moderation và KPI được hoãn.
+- Production readiness dùng build manifest + `/health/readiness`; không silent mock fallback.
+
+Gap còn lại và owner/acceptance cụ thể nằm trong [08-implementation-plan.md](./08-implementation-plan.md); nội dung readiness cũ phía trên chỉ dùng làm lịch sử audit nếu mâu thuẫn với section này.

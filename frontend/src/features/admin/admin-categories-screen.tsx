@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { ProtectedPage } from "@/components/navigation/protected-page";
 import { Icon } from "@/components/ui/icon";
@@ -143,8 +143,8 @@ export function AdminCategoriesScreen() {
           <div
             className={`fixed bottom-6 right-6 z-50 p-4 rounded-xl shadow-lg border text-xs font-semibold flex items-center gap-2 ${
               toast.type === "success"
-                ? "bg-[var(--success-surface)] text-[var(--success)] border-[var(--success-border)]"
-                : "bg-[var(--danger-surface)] text-[var(--danger)] border-[var(--danger-border)]"
+                ? "bg-[var(--success-surface)] text-[var(--success-text)] border-[var(--success-border)]"
+                : "bg-[var(--danger-surface)] text-[var(--danger-text)] border-[var(--danger-border)]"
             }`}
           >
             <Icon name={toast.type === "success" ? "check" : "warning"} className="w-4 h-4 shrink-0" />
@@ -182,6 +182,31 @@ export function AdminCategoriesScreen() {
             <span>+ Thêm danh mục mới</span>
           </Button>
         </header>
+
+        {/* Navigation Tabs for Admin Portal */}
+        <nav aria-label="Điều hướng quản trị" className="border-b border-[var(--border)]">
+          <div className="flex gap-6 text-sm font-semibold">
+            <Link
+              href="/admin"
+              className="pb-3 border-b-2 border-transparent text-[var(--subtext)] hover:text-[var(--foreground)]"
+            >
+              Trung tâm quản trị
+            </Link>
+            <Link
+              href="/admin/shops"
+              className="pb-3 border-b-2 border-transparent text-[var(--subtext)] hover:text-[var(--foreground)]"
+            >
+              Duyệt gian hàng (Shop)
+            </Link>
+            <Link
+              href="/admin/categories"
+              className="pb-3 border-b-2 border-[var(--primary-active)] text-[var(--primary-active)]"
+              aria-current="page"
+            >
+              Quản lý danh mục
+            </Link>
+          </div>
+        </nav>
 
         {/* Notice on GAP-05 / A-700 Adapter Integration */}
         <div className="notice notice--info" role="status">
@@ -254,8 +279,8 @@ export function AdminCategoriesScreen() {
                           <span
                             className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                               isInactive
-                                ? "bg-[var(--danger-surface)] text-[var(--danger)] border border-[var(--danger-border)]"
-                                : "bg-[var(--success-surface)] text-[var(--success)] border border-[var(--success-border)]"
+                                ? "bg-[var(--danger-surface)] text-[var(--danger-text)] border border-[var(--danger-border)]"
+                                : "bg-[var(--success-surface)] text-[var(--success-text)] border border-[var(--success-border)]"
                             }`}
                           >
                             {rootNode.status}
@@ -278,7 +303,7 @@ export function AdminCategoriesScreen() {
                       </Button>
                       <Button
                         variant="danger"
-                        className="text-xs py-1 px-2.5 text-[var(--danger)]"
+                        className="text-xs py-1 px-2.5 text-[var(--danger-text)]"
                         onClick={() => {
                           setDeletingCat(rootNode);
                           setDeleteError(null);
@@ -311,8 +336,8 @@ export function AdminCategoriesScreen() {
                                   <span
                                     className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
                                       isChildInactive
-                                        ? "bg-[var(--danger-surface)] text-[var(--danger)]"
-                                        : "bg-[var(--success-surface)] text-[var(--success)]"
+                                        ? "bg-[var(--danger-surface)] text-[var(--danger-text)]"
+                                        : "bg-[var(--success-surface)] text-[var(--success-text)]"
                                     }`}
                                   >
                                     {child.status}
@@ -337,7 +362,7 @@ export function AdminCategoriesScreen() {
                                     setDeletingCat(child);
                                     setDeleteError(null);
                                   }}
-                                  className="text-[11px] font-semibold text-[var(--danger)] hover:underline px-2 py-1 rounded hover:bg-[var(--danger-surface)] transition-colors cursor-pointer"
+                                  className="text-[11px] font-semibold text-[var(--danger-text)] hover:underline px-2 py-1 rounded hover:bg-[var(--danger-surface)] transition-colors cursor-pointer"
                                 >
                                   Xóa
                                 </button>

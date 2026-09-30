@@ -295,7 +295,7 @@ export function SellerDashboardScreen() {
                     <div className="divide-y divide-[var(--border)]">
                       {pendingOrders.slice(0, 5).map((order) => {
                         const itemsCount = order.items?.reduce((sum, it) => sum + it.quantity, 0) || 0;
-                        const displayTotal = moneyAdapter.formatVND(order.final_amount || order.total_amount);
+                        const displayTotal = moneyAdapter.formatVND(order.total_amount);
 
                         return (
                           <div
@@ -310,7 +310,7 @@ export function SellerDashboardScreen() {
                                 <StatusBadge status={order.status} />
                               </div>
                               <div className="text-xs text-[var(--subtext)] line-clamp-1">
-                                Mã đơn: {order.order_code} &bull; {new Date(order.created_at).toLocaleDateString("vi-VN")}
+                                Đơn hàng &bull; {new Date(order.created_at).toLocaleDateString("vi-VN")}
                               </div>
                               <div className="text-xs text-[var(--foreground)] font-medium">
                                 {itemsCount} sản phẩm &bull; <span className="font-bold text-[var(--primary)]">{displayTotal}</span>

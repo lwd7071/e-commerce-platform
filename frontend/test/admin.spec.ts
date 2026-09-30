@@ -127,35 +127,35 @@ describe("Cụm 4 - Admin & Seller Management (A-704, A-705, A-708, A-709, Q-805
     it("allows creating a subcategory under a verified root category", async () => {
       const subCat = await adminRepo.createCategory({
         name: "Kem dưỡng ẩm",
-        parentId: "44444444-4444-4444-8444-444444444444",
+        parentId: "00000000-0000-0000-0000-000000000010",
         description: "Các loại kem dưỡng ẩm sâu",
       });
 
       expect(subCat.name).toBe("Kem dưỡng ẩm");
-      expect(subCat.parentId).toBe("44444444-4444-4444-8444-444444444444");
+      expect(subCat.parentId).toBe("00000000-0000-0000-0000-000000000010");
     });
 
     it("strictly rejects creating a 3rd-level subcategory per RB-KN04", async () => {
-      // 55555555-5555-4555-8555-555555555556 is already a child of 55555555-5555-4555-8555-555555555555
+      // 00000000-0000-0000-0000-000000000110 is already a child of 00000000-0000-0000-0000-000000000010
       await expect(
         adminRepo.createCategory({
           name: "Cáp sạc Type-C nhanh",
-          parentId: "55555555-5555-4555-8555-555555555556",
+          parentId: "00000000-0000-0000-0000-000000000110",
         })
       ).rejects.toThrow("Quy tắc RB-KN04: Danh mục chỉ được hỗ trợ tối đa 2 cấp phân cấp");
     });
 
     it("prevents deleting a parent category that still has subcategories", async () => {
       await expect(
-        adminRepo.deleteCategory("55555555-5555-4555-8555-555555555555")
+        adminRepo.deleteCategory("00000000-0000-0000-0000-000000000010")
       ).rejects.toThrow("Không thể xóa danh mục cha đang chứa các danh mục con");
     });
 
     it("toggles category status between ACTIVE and INACTIVE", async () => {
-      const updated = await adminRepo.toggleCategoryStatus("55555555-5555-4555-8555-555555555556");
+      const updated = await adminRepo.toggleCategoryStatus("00000000-0000-0000-0000-000000000110");
       expect(updated.status).toBe("INACTIVE");
 
-      const reverted = await adminRepo.toggleCategoryStatus("55555555-5555-4555-8555-555555555556");
+      const reverted = await adminRepo.toggleCategoryStatus("00000000-0000-0000-0000-000000000110");
       expect(reverted.status).toBe("ACTIVE");
     });
 

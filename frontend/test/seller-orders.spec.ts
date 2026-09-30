@@ -1,4 +1,17 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+
+vi.mock("../src/lib/config/features", () => ({
+  features: {
+    useMock: () => true,
+    domains: {
+      ordersMock: () => true,
+      checkoutMock: () => true,
+      cartMock: () => true,
+      adminMock: () => true,
+    },
+  },
+}));
+
 import { repositories } from "../src/lib/repositories/repository-factory";
 import { checkoutRepository } from "../src/features/checkout/checkout.repository";
 

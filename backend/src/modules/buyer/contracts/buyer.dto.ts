@@ -292,6 +292,10 @@ export function validateUpdateCartItemDTO(rawDto: unknown): UpdateCartItemDTO {
     isSelected = rawIsSelected;
   }
 
+  if (quantity === undefined && isSelected === undefined) {
+    throw new ValidationError('At least one cart item field must be provided.', { field: 'body' });
+  }
+
   return { quantity, isSelected };
 }
 

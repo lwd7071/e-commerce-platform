@@ -3,6 +3,13 @@ import type { PaginatedEnvelope } from "./types";
 
 export type DecimalString = string;
 
+export interface WireCategoryDTO {
+  category_id: string;
+  parent_category_id: string | null;
+  category_name: string;
+  description: string | null;
+}
+
 /**
  * Wire DTO cho từng sản phẩm trong danh sách GET /products (B-301)
  * Tuân thủ đúng 100% mục 2 của docs/frontend-spec/04-data-model.md
@@ -82,13 +89,13 @@ export interface CreateProductInput {
 export type WireProduct = WireCatalogProductItem;
 
 export const catalogApi = {
+  getCategories: () => apiClient.get<WireCategoryDTO[]>('/categories', { skipAuth: true }),
   getProducts: (params?: GetProductsParams) => {
     return apiClient.get<WireCatalogProductItem[]>("/products", { params: params as Record<string, string | number | boolean | undefined>, skipAuth: true });
   },
 
-  getProductsPaginated: (params?: GetProductsParams) => {
-    return apiClient.request<PaginatedEnvelope<WireCatalogProductItem>>("/products", {
-      method: "GET",
+  getProductsPaginated: (params?: GetProductsParams): Promise<PaginatedEnvelope<WireCatalogProductItem>> => {
+    return apiClient.getPaginated<WireCatalogProductItem>("/products", {
       params: params as Record<string, string | number | boolean | undefined>,
       skipAuth: true,
     });

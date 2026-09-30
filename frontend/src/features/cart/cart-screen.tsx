@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useTransition } from "react";
+import { useEffect, useState, useMemo, useTransition, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ProtectedPage } from "@/components/navigation/protected-page";
@@ -36,32 +36,46 @@ export function CartScreen() {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const loadCart = async () => {
+    if (!mountedRef.current) return;
     setLoading(true);
     setError(null);
     try {
       const data = await cartRepository.getCart();
-      setItems(data);
+      if (mountedRef.current) {
+        setItems(data);
+      }
     } catch {
-      setError("Không thể tải thông tin giỏ hàng. Vui lòng kiểm tra lại kết nối.");
+      if (mountedRef.current) {
+        setError("Không thể tải thông tin giỏ hàng. Vui lòng kiểm tra lại kết nối.");
+      }
     } finally {
-      setLoading(false);
+      if (mountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
     let ignore = false;
-    cartRepository
-      .getCart()
+    void Promise.resolve()
+      .then(() => cartRepository.getCart())
       .then((data) => {
-        if (!ignore) {
+        if (!ignore && mountedRef.current) {
           setItems(data);
           setLoading(false);
         }
       })
       .catch(() => {
-        if (!ignore) {
+        if (!ignore && mountedRef.current) {
           setError("Không thể tải thông tin giỏ hàng. Vui lòng kiểm tra lại kết nối.");
           setLoading(false);
         }
@@ -88,8 +102,9 @@ export function CartScreen() {
   }, [items]);
 
   // Calculations using moneyAdapter for safe arithmetic
-  const selectedItems = useMemo(() => items.filter((i) => i.isSelected), [items]);
-  const isAllSelected = items.length > 0 && selectedItems.length === items.length;
+  const availableItems = useMemo(() => items.filter((item) => item.isAvailable), [items]);
+  const selectedItems = useMemo(() => availableItems.filter((i) => i.isSelected), [availableItems]);
+  const isAllSelected = availableItems.length > 0 && selectedItems.length === availableItems.length;
 
   const subtotal = useMemo(() => {
     return selectedItems.reduce((acc, item) => {
@@ -105,6 +120,7 @@ export function CartScreen() {
     if (!target) return;
 
     const newSelection = !target.isSelected;
+    if (newSelection && !target.isAvailable) return;
     // Optimistic UI update
     setItems((prev) =>
       prev.map((i) => (i.id === itemId ? { ...i, isSelected: newSelection } : i))
@@ -125,11 +141,11 @@ export function CartScreen() {
     const newSelection = !currentSelected;
 
     setItems((prev) =>
-      prev.map((i) => (i.shopId === shopId ? { ...i, isSelected: newSelection } : i))
+      prev.map((i) => (i.shopId === shopId && (i.isAvailable || !newSelection) ? { ...i, isSelected: newSelection } : i))
     );
 
     try {
-      const shopItems = items.filter((i) => i.shopId === shopId);
+      const shopItems = items.filter((i) => i.shopId === shopId && (i.isAvailable || !newSelection));
       await Promise.all(
         shopItems.map((item) =>
           cartRepository.updateItem(item.id, { is_selected: newSelection })
@@ -146,11 +162,11 @@ export function CartScreen() {
     const prevItems = [...items];
     const newSelection = !isAllSelected;
 
-    setItems((prev) => prev.map((i) => ({ ...i, isSelected: newSelection })));
+    setItems((prev) => prev.map((i) => (i.isAvailable ? { ...i, isSelected: newSelection } : i)));
 
     try {
       await Promise.all(
-        items.map((item) =>
+        items.filter(item => item.isAvailable).map((item) =>
           cartRepository.updateItem(item.id, { is_selected: newSelection })
         )
       );
@@ -355,6 +371,7 @@ export function CartScreen() {
                         type="checkbox"
                         className="w-5 h-5 accent-[var(--primary-active)] cursor-pointer mt-2"
                         checked={item.isSelected}
+                        disabled={!item.isAvailable && !item.isSelected}
                         onChange={() => handleToggleItem(item.id)}
                         aria-label={`Chọn sản phẩm ${item.productName}`}
                       />
@@ -362,6 +379,7 @@ export function CartScreen() {
                       {/* Product Thumbnail */}
                       <div className="w-16 h-16 rounded-md overflow-hidden bg-[var(--border)] shrink-0 flex items-center justify-center">
                         {item.imageUrl ? (
+                          /* eslint-disable-next-line @next/next/no-img-element */
                           <img
                             src={item.imageUrl}
                             alt={item.productName}
@@ -380,6 +398,7 @@ export function CartScreen() {
                         >
                           {item.productName}
                         </Link>
+                        {!item.isAvailable && <p className="text-xs text-[var(--danger-text)] mt-0.5">Sản phẩm hiện không khả dụng</p>}
                         <p className="text-xs text-[var(--subtext)] mt-0.5">
                           Phân loại: {item.variantName}
                         </p>
@@ -402,7 +421,7 @@ export function CartScreen() {
                       <div className="flex items-center border border-[var(--border)] rounded-md bg-[var(--card)]">
                         <button
                           type="button"
-                          className="w-8 h-8 flex items-center justify-center text-sm font-semibold hover:bg-[var(--card-muted)] disabled:opacity-40"
+                          className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center text-base font-semibold hover:bg-[var(--card-muted)] disabled:opacity-40"
                           disabled={item.quantity <= 1}
                           onClick={() => handleQuantityChange(item.id, -1)}
                           aria-label="Giảm số lượng"
@@ -414,8 +433,8 @@ export function CartScreen() {
                         </span>
                         <button
                           type="button"
-                          className="w-8 h-8 flex items-center justify-center text-sm font-semibold hover:bg-[var(--card-muted)] disabled:opacity-40"
-                          disabled={item.quantity >= item.stock}
+                          className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center text-base font-semibold hover:bg-[var(--card-muted)] disabled:opacity-40"
+                        disabled={!item.isAvailable || item.quantity >= item.stock}
                           onClick={() => handleQuantityChange(item.id, 1)}
                           aria-label="Tăng số lượng"
                         >
@@ -435,7 +454,7 @@ export function CartScreen() {
                       {/* Remove Button */}
                       <button
                         type="button"
-                        className="text-xs text-[var(--subtext)] hover:text-[var(--danger)] p-1.5 transition-colors"
+                        className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center text-xs text-[var(--subtext)] hover:text-[var(--danger)] rounded-md transition-colors"
                         onClick={() => setDeleteTarget(item.id)}
                         aria-label={`Xóa ${item.productName}`}
                       >

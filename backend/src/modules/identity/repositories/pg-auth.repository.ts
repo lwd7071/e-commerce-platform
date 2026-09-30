@@ -23,4 +23,9 @@ export class PgAuthRepository implements IAuthRepository {
     );
     return result.rows[0]?.shop_id ?? null;
   }
+
+  async findShopStatusByOwnerId(ownerId: string): Promise<string | null> {
+    const result = await this.db.query('SELECT status FROM shops WHERE owner_id = $1 LIMIT 1', [ownerId]);
+    return result.rows[0]?.status ?? null;
+  }
 }

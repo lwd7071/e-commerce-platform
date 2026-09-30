@@ -1,7 +1,11 @@
 import type { Pool, PoolClient } from 'pg';
 import type {
+  AdminShopItem,
+  AdminUserItem,
   ITargetLookupRepository,
   ModerationRecord,
+  ShopStatus,
+  ShopStatusUpdateResult,
   UserStatus,
   UserStatusUpdateResult
 } from '../domain/moderation.types.ts';
@@ -50,6 +54,137 @@ export class PgModerationTargetRepository implements ITargetLookupRepository {
   async shopExists(shopId: string): Promise<boolean> {
     const res = await this.pool.query('SELECT 1 FROM shops WHERE shop_id = $1', [shopId]);
     return (res.rowCount ?? 0) > 0;
+  }
+
+  async getShopStatus(shopId: string): Promise<ShopStatus | null> {
+    const res = await this.pool.query('SELECT status FROM shops WHERE shop_id = $1', [shopId]);
+    if (!res.rows || res.rows.length === 0) return null;
+    return res.rows[0].status as ShopStatus;
+  }
+
+  async updateShopStatus(trx: unknown, shopId: string, status: ShopStatus): Promise<ShopStatusUpdateResult> {
+    const executor = this.getExecutor(trx);
+    const res = await executor.query(
+      'UPDATE shops SET status = $1, updated_at = NOW() WHERE shop_id = $2 RETURNING shop_id, status, updated_at',
+      [status, shopId]
+    );
+    if (!res.rows || res.rows.length === 0) {
+      throw new NotFoundError(`Shop with id '${shopId}' not found for status update`);
+    }
+    const row = res.rows[0];
+    return {
+      shop_id: row.shop_id,
+      status: row.status as ShopStatus,
+      updated_at: new Date(row.updated_at).toISOString(),
+    };
+  }
+
+  async listShops(params?: { status?: string; search?: string }): Promise<AdminShopItem[]> {
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+
+    if (params?.status && params.status !== 'ALL') {
+      values.push(params.status);
+      conditions.push(`s.status = $${values.length}`);
+    }
+
+    if (params?.search && params.search.trim()) {
+      values.push(`%${params.search.trim()}%`);
+      const idx = values.length;
+      conditions.push(`(s.shop_name ILIKE $${idx} OR u.email ILIKE $${idx} OR p.full_name ILIKE $${idx})`);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const query = `
+      SELECT 
+        s.shop_id,
+        s.owner_id,
+        s.shop_name,
+        s.description,
+        s.logo_url,
+        s.pickup_address,
+        s.contact_phone,
+        s.status,
+        s.created_at,
+        s.updated_at,
+        u.email AS owner_email,
+        p.full_name AS owner_name,
+        COALESCE((SELECT count(*)::int FROM products pr WHERE pr.shop_id = s.shop_id), 0) AS product_count
+      FROM shops s
+      LEFT JOIN app_users u ON s.owner_id = u.user_id
+      LEFT JOIN user_profiles p ON s.owner_id = p.user_id
+      ${whereClause}
+      ORDER BY 
+        CASE WHEN s.status = 'PENDING' THEN 0 ELSE 1 END,
+        s.created_at DESC
+    `;
+
+    const res = await this.pool.query(query, values);
+    return res.rows.map(row => ({
+      shop_id: row.shop_id,
+      owner_id: row.owner_id,
+      shop_name: row.shop_name,
+      description: row.description ?? null,
+      logo_url: row.logo_url ?? null,
+      pickup_address: row.pickup_address ?? null,
+      contact_phone: row.contact_phone ?? null,
+      status: row.status as ShopStatus,
+      product_count: Number(row.product_count || 0),
+      owner_email: row.owner_email ?? undefined,
+      owner_name: row.owner_name ?? undefined,
+      created_at: new Date(row.created_at).toISOString(),
+      updated_at: new Date(row.updated_at).toISOString(),
+    }));
+  }
+
+  async listUsers(params?: { role?: string; status?: string; search?: string }): Promise<AdminUserItem[]> {
+    const conditions: string[] = [];
+    const values: unknown[] = [];
+
+    if (params?.role && params.role !== 'ALL') {
+      values.push(params.role);
+      conditions.push(`u.role = $${values.length}`);
+    }
+
+    if (params?.status && params.status !== 'ALL') {
+      values.push(params.status);
+      conditions.push(`u.status = $${values.length}`);
+    }
+
+    if (params?.search && params.search.trim()) {
+      values.push(`%${params.search.trim()}%`);
+      const idx = values.length;
+      conditions.push(`(u.email ILIKE $${idx} OR p.full_name ILIKE $${idx} OR u.user_id::text ILIKE $${idx})`);
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const query = `
+      SELECT 
+        u.user_id,
+        u.email,
+        COALESCE(p.full_name, u.email) AS full_name,
+        u.role,
+        u.status,
+        u.created_at,
+        u.updated_at
+      FROM app_users u
+      LEFT JOIN user_profiles p ON u.user_id = p.user_id
+      ${whereClause}
+      ORDER BY u.created_at DESC
+    `;
+
+    const res = await this.pool.query(query, values);
+    return res.rows.map(row => ({
+      id: row.user_id,
+      email: row.email,
+      full_name: row.full_name,
+      role: row.role as 'BUYER' | 'SELLER' | 'ADMIN',
+      status: row.status as UserStatus,
+      created_at: new Date(row.created_at).toISOString(),
+      updated_at: new Date(row.updated_at).toISOString(),
+    }));
   }
 
   async productExists(productId: string): Promise<boolean> {

@@ -215,7 +215,7 @@ export function ReviewScreen({ orderId }: ReviewScreenProps) {
             <div className="text-right shrink-0">
               <span className="text-xs text-[var(--subtext)] block">Mã đơn hàng</span>
               <strong className="font-mono text-sm text-[var(--foreground)]">
-                {order.order_code || order.id.slice(0, 8)}
+                #{order.id.slice(0, 8).toUpperCase()}
               </strong>
             </div>
           )}

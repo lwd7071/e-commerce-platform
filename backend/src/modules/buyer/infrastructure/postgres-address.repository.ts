@@ -1,6 +1,7 @@
 import type { IAddressRepository } from '../domain/repositories';
 import type { UUID, Address } from '../domain/types';
 import type { IDbClient } from './db-client';
+import type { Pool, PoolClient } from 'pg';
 import { mapAddress } from './row-mappers';
 
 /**
@@ -102,22 +103,26 @@ export class PostgresAddressRepository implements IAddressRepository {
   }
 
   async setDefault(userId: UUID, targetAddressId: UUID): Promise<void> {
-    // Bước 1: Gỡ cờ mặc định của tất cả địa chỉ hiện tại thuộc về user này
-    const unsetSql = `
-      UPDATE addresses
-      SET is_default = FALSE,
-          updated_at = now()
-      WHERE user_id = $1 AND is_default = TRUE
-    `;
-    await this.db.query(unsetSql, [userId]);
+    const pool = this.db as IDbClient & Pick<Pool, 'connect'>;
+    if (typeof pool.connect !== 'function') {
+      await this.db.query('UPDATE addresses SET is_default = FALSE, updated_at = now() WHERE user_id = $1 AND is_default = TRUE', [userId]);
+      await this.db.query('UPDATE addresses SET is_default = TRUE, updated_at = now() WHERE address_id = $2 AND user_id = $1', [userId, targetAddressId]);
+      return;
+    }
 
-    // Bước 2: Bật cờ mặc định cho địa chỉ được chỉ định
-    const setSql = `
-      UPDATE addresses
-      SET is_default = TRUE,
-          updated_at = now()
-      WHERE address_id = $2 AND user_id = $1
-    `;
-    await this.db.query(setSql, [userId, targetAddressId]);
+    const client: PoolClient = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('SELECT user_id FROM addresses WHERE user_id = $1 FOR UPDATE', [userId]);
+      await client.query('UPDATE addresses SET is_default = FALSE, updated_at = now() WHERE user_id = $1 AND is_default = TRUE', [userId]);
+      const updated = await client.query('UPDATE addresses SET is_default = TRUE, updated_at = now() WHERE address_id = $2 AND user_id = $1', [userId, targetAddressId]);
+      if (!updated.rowCount) throw new Error(`Address not found: ${targetAddressId}`);
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 }

@@ -6,7 +6,9 @@ import {
   clearIdempotencySnapshot,
 } from "../src/features/checkout/idempotency";
 import type { CheckoutPayload } from "../src/features/checkout/checkout.types";
-import { checkoutRepository } from "../src/features/checkout/checkout.repository";
+import {
+  MockCheckoutRepository,
+} from "../src/features/checkout/checkout.repository";
 
 describe("Cart and Money Calculations", () => {
   it("correctly calculates subtotal without floating point issues", () => {
@@ -100,8 +102,10 @@ describe("Checkout Idempotency Lifecycle (B-407)", () => {
 });
 
 describe("Voucher Evaluation and Invariants (B-406)", () => {
+  const repo = new MockCheckoutRepository();
+
   it("applies fixed discount correctly", async () => {
-    const res = await checkoutRepository.evaluateVoucher("DINO50K", "300000.00");
+    const res = await repo.evaluateVoucher("DINO50K", "300000.00");
     expect(res.isValid).toBe(true);
     if (res.isValid) {
       expect(res.discountAmount).toBe("50000.00");
@@ -109,7 +113,7 @@ describe("Voucher Evaluation and Invariants (B-406)", () => {
   });
 
   it("rejects voucher if min order value is not met", async () => {
-    const res = await checkoutRepository.evaluateVoucher("DINO50K", "100000.00");
+    const res = await repo.evaluateVoucher("DINO50K", "100000.00");
     expect(res.isValid).toBe(false);
     if (!res.isValid) {
       expect(res.errorCode).toBe("MIN_ORDER_VALUE_NOT_MET");
@@ -117,7 +121,7 @@ describe("Voucher Evaluation and Invariants (B-406)", () => {
   });
 
   it("rejects non-existent voucher code", async () => {
-    const res = await checkoutRepository.evaluateVoucher("INVALID_CODE_XYZ", "500000.00");
+    const res = await repo.evaluateVoucher("INVALID_CODE_XYZ", "500000.00");
     expect(res.isValid).toBe(false);
     if (!res.isValid) {
       expect(res.errorCode).toBe("VOUCHER_NOT_FOUND");
@@ -126,15 +130,17 @@ describe("Voucher Evaluation and Invariants (B-406)", () => {
 });
 
 describe("Address Book Management (B-404, B-405)", () => {
+  const repo = new MockCheckoutRepository();
+
   it("fetches list of addresses with default address", async () => {
-    const addresses = await checkoutRepository.getAddresses();
+    const addresses = await repo.getAddresses();
     expect(addresses.length).toBeGreaterThan(0);
     const hasDefault = addresses.some((a) => a.isDefault);
     expect(hasDefault).toBe(true);
   });
 
   it("creates a new address and prepends to list", async () => {
-    const newAddr = await checkoutRepository.createAddress({
+    const newAddr = await repo.createAddress({
       recipient_name: "Trần Thị B",
       phone: "0987654321",
       province: "Đà Nẵng",
@@ -148,7 +154,26 @@ describe("Address Book Management (B-404, B-405)", () => {
     expect(newAddr.recipientName).toBe("Trần Thị B");
     expect(newAddr.isDefault).toBe(true);
 
-    const list = await checkoutRepository.getAddresses();
+    const list = await repo.getAddresses();
     expect(list[0].addressId).toBe(newAddr.addressId);
   });
 });
+
+describe("Cart UI Stepper Touch Target Specification (09-ui-ux-rules.md)", () => {
+  it("enforces minimum 44x44px touch target on quantity stepper and action buttons", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const cartScreenPath = path.resolve(__dirname, "../src/features/cart/cart-screen.tsx");
+    const content = fs.readFileSync(cartScreenPath, "utf-8");
+
+    // Must not contain 32x32px (w-8 h-8) stepper buttons
+    expect(content).not.toMatch(/w-8 h-8[^"]*aria-label="Giảm số lượng"/);
+    expect(content).not.toMatch(/w-8 h-8[^"]*aria-label="Tăng số lượng"/);
+
+    // Must contain minimum 44x44px touch target classes
+    expect(content).toContain('w-11 h-11 min-w-[44px] min-h-[44px]');
+    expect(content).toContain('aria-label="Giảm số lượng"');
+    expect(content).toContain('aria-label="Tăng số lượng"');
+  });
+});
+

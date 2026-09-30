@@ -1,3 +1,6 @@
+import { features } from "../config/features";
+import { catalogApi } from "../api/catalog.api";
+
 /**
  * CategoryAdapter - Safe category retrieval and tree representation.
  * Complies with RB-KN04 (max 2 levels hierarchy), GAP-05, and A-700/B-305.
@@ -34,43 +37,91 @@ export interface ICategoryAdapter {
 }
 
 /**
- * Verified category fixture from dev environment seed / domain tests.
- * GAP-05 requirement: Do NOT invent fake random UUIDs. Only use verified IDs or leave empty.
+ * Development category fixtures for mock and UI testing.
+ * Stable IDs can be inserted into an explicitly selected development/test database
+ * with the backend's guarded db:seed:dev-categories command. GAP-05 still applies:
+ * the backend has no public categories API, so live mode safely returns [] until
+ * a category endpoint is mounted and wired.
  */
-export const VERIFIED_CATEGORY_FIXTURES: CategoryItem[] = [
+export const DEV_CATEGORY_FIXTURES: CategoryItem[] = [
+  // Cấp 1: Danh mục gốc (Roots - level 1)
   {
-    id: "44444444-4444-4444-8444-444444444444",
+    id: "00000000-0000-0000-0000-000000000010",
     parentId: null,
     name: "Mỹ phẩm & Chăm sóc sắc đẹp",
     description: "Sản phẩm chăm sóc da và làm đẹp chính hãng",
     status: "ACTIVE",
   },
   {
-    id: "55555555-5555-4555-8555-555555555555",
+    id: "00000000-0000-0000-0000-000000000011",
     parentId: null,
-    name: "Thiết bị điện tử & Phụ kiện",
-    description: "Điện thoại, tai nghe và phụ kiện công nghệ",
+    name: "Thời trang & Phụ kiện",
+    description: "Quần áo, giày dép thời trang",
     status: "ACTIVE",
   },
   {
-    id: "55555555-5555-4555-8555-555555555556",
-    parentId: "55555555-5555-4555-8555-555555555555",
-    name: "Phụ kiện điện thoại",
-    description: "Cáp sạc, ốp lưng, tai nghe",
+    id: "00000000-0000-0000-0000-000000000012",
+    parentId: null,
+    name: "Thiết bị điện tử",
+    description: "Điện thoại, bàn phím và phụ kiện công nghệ",
+    status: "ACTIVE",
+  },
+  // Cấp 2: Danh mục con (Children - level 2 theo RB-KN04)
+  {
+    id: "00000000-0000-0000-0000-000000000110",
+    parentId: "00000000-0000-0000-0000-000000000010",
+    name: "Chăm sóc da mặt & Serum",
+    description: "Serum, kem dưỡng, mặt nạ chuyên sâu",
+    status: "ACTIVE",
+  },
+  {
+    id: "00000000-0000-0000-0000-000000000111",
+    parentId: "00000000-0000-0000-0000-000000000011",
+    name: "Áo sơ mi & Áo thun nam",
+    description: "Trang phục nam cao cấp",
+    status: "ACTIVE",
+  },
+  {
+    id: "00000000-0000-0000-0000-000000000112",
+    parentId: "00000000-0000-0000-0000-000000000012",
+    name: "Phụ kiện máy tính & Bàn phím",
+    description: "Bàn phím cơ, chuột và tai nghe",
     status: "ACTIVE",
   },
 ];
 
-class CategoryAdapterImpl implements ICategoryAdapter {
-  private categories: CategoryItem[];
+export class CategoryAdapterImpl implements ICategoryAdapter {
+  private mockFixtures: CategoryItem[];
+  private forceMock: boolean | null;
+  private liveCategories: CategoryItem[] | null = null;
 
-  constructor(initialData: CategoryItem[] = VERIFIED_CATEGORY_FIXTURES) {
-    this.categories = initialData;
+  constructor(initialData: CategoryItem[] = DEV_CATEGORY_FIXTURES, forceMock: boolean | null = null) {
+    this.mockFixtures = initialData;
+    this.forceMock = forceMock;
+  }
+
+  private isMockMode(): boolean {
+    if (this.forceMock !== null) {
+      return this.forceMock;
+    }
+    return features.useMock();
   }
 
   async getCategories(): Promise<CategoryItem[]> {
-    // Only return ACTIVE categories for public catalog display
-    return this.categories.filter((cat) => cat.status === "ACTIVE");
+    if (!this.isMockMode()) {
+      const wireCategories = await catalogApi.getCategories();
+      this.liveCategories = wireCategories.map(category => ({
+        id: category.category_id,
+        parentId: category.parent_category_id,
+        name: category.category_name,
+        description: category.description,
+        status: "ACTIVE",
+      }));
+      return this.liveCategories.map(category => ({ ...category }));
+    }
+
+    // In mock mode, return active mock categories
+    return this.mockFixtures.filter((cat) => cat.status === "ACTIVE");
   }
 
   async getCategoryTree(): Promise<CategoryTreeNode[]> {
@@ -87,7 +138,11 @@ class CategoryAdapterImpl implements ICategoryAdapter {
   }
 
   async getCategoryById(id: string): Promise<CategoryItem | null> {
-    const found = this.categories.find((c) => c.id === id);
+    if (!this.isMockMode()) {
+      const categories = this.liveCategories ?? await this.getCategories();
+      return categories.find(category => category.id === id) ?? null;
+    }
+    const found = this.mockFixtures.find((c) => c.id === id);
     return found ? { ...found } : null;
   }
 

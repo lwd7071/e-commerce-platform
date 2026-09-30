@@ -10,7 +10,7 @@ export interface ReviewItemInput {
   product_name: string;
   variant_name?: string;
   price?: string;
-  image_url?: string;
+  image_url?: string | null;
   rating: number; // 1..5
   comment: string; // 10..500 chars
   images: string[]; // max 5 base64 or URLs

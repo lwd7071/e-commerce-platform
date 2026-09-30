@@ -6,6 +6,7 @@ export interface RequestContext {
   readonly user_id: string;
   readonly role: UserRole;
   readonly shop_id?: string;
+  readonly shop_status?: string;
 }
 
 export interface CreateRequestContextInput {
@@ -13,6 +14,7 @@ export interface CreateRequestContextInput {
   user_id: string;
   role: UserRole;
   shop_id?: string;
+  shop_status?: string;
 }
 
 export function createRequestContext(input: CreateRequestContextInput): RequestContext {
@@ -24,12 +26,14 @@ export function createRequestContext(input: CreateRequestContextInput): RequestC
 
   // Strict rule: Only SELLER may have shop_id; BUYER and ADMIN must have undefined shop_id
   const assignedShopId = input.role === 'SELLER' ? input.shop_id : undefined;
+  const assignedShopStatus = input.role === 'SELLER' ? input.shop_status ?? (input.shop_id ? 'ACTIVE' : undefined) : undefined;
 
   const context: RequestContext = {
     request_id: input.request_id,
     user_id: input.user_id,
     role: input.role,
-    shop_id: assignedShopId
+    shop_id: assignedShopId,
+    shop_status: assignedShopStatus,
   };
 
   return Object.freeze(context);

@@ -1,6 +1,6 @@
 import { Router, type Request, type Response, type NextFunction, type RequestHandler } from 'express';
 import { buildPaginatedEnvelope, buildSuccessEnvelope } from '../envelope.ts';
-import { ForbiddenError, NotFoundError, UnauthorizedError, ValidationFailedError } from '../../errors/app-error.ts';
+import { DependencyUnavailableError, ForbiddenError, NotFoundError, UnauthorizedError, ValidationFailedError } from '../../errors/app-error.ts';
 import { parseCheckoutCommand } from '../../../modules/checkout/contracts/checkout-command.ts';
 import type { RequestContext } from '../../context/request-context.ts';
 
@@ -8,6 +8,7 @@ type AsyncRoute = (req: Request, res: Response, next: NextFunction) => Promise<v
 type Role = 'BUYER' | 'SELLER' | 'ADMIN';
 
 export interface CatalogHttpApplication {
+  listCategories?(): Promise<unknown[]>;
   listProducts(input: Record<string, unknown>): Promise<{ items: unknown[]; next_cursor: string | null; has_more: boolean; limit: number }>;
   getProduct(productId: string): Promise<unknown>;
   createProduct(context: RequestContext, input: Record<string, unknown>): Promise<unknown>;
@@ -21,6 +22,7 @@ export interface BuyerHttpApplication {
   addCartItem(context: RequestContext, input: Record<string, unknown>): Promise<unknown>;
   updateCartItem(context: RequestContext, itemId: string, input: Record<string, unknown>): Promise<unknown>;
   deleteCartItem(context: RequestContext, itemId: string): Promise<void>;
+  clearSelectedCartItems(context: RequestContext): Promise<void>;
   applicableVouchers(context: RequestContext, input: Record<string, unknown>): Promise<unknown[]>;
   evaluateVoucher(context: RequestContext, input: Record<string, unknown>): Promise<unknown>;
 }
@@ -59,6 +61,9 @@ function requireRole(...roles: Role[]): (req: Request, _res: Response, next: Nex
       if (!roles.includes(requestContext.role as Role)) {
         throw new ForbiddenError('ROLE_REQUIRED', `Required role: ${roles.join(' or ')}`);
       }
+      if (requestContext.role === 'SELLER' && roles.includes('SELLER') && requestContext.shop_status !== 'ACTIVE') {
+        throw new ForbiddenError('SHOP_NOT_ACTIVE', 'Seller shop must be active before using seller operations');
+      }
       next();
     } catch (error) {
       next(error);
@@ -84,6 +89,10 @@ function requestId(req: Request): string {
 
 export function createCatalogRouter(application?: CatalogHttpApplication, auth?: RequestHandler): Router {
   const router = Router();
+  router.get('/categories', asyncRoute(async (req, res) => {
+    if (!application?.listCategories) throw new DependencyUnavailableError('Category reads are not configured');
+    res.json(buildSuccessEnvelope(await application.listCategories(), requestId(req)));
+  }));
   router.get('/products', asyncRoute(async (req, res) => {
     const allowed = ['category_id', 'search', 'min_price', 'max_price', 'sort', 'limit', 'cursor'];
     const input = req.query as Record<string, unknown>;
@@ -139,6 +148,10 @@ export function createBuyerRouter(application?: BuyerHttpApplication, auth?: Req
   }));
   router.delete('/cart/items/:cart_item_id', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
     await implementation(application?.deleteCartItem, application)(context(req), req.params.cart_item_id);
+    res.status(204).send();
+  }));
+  router.delete('/cart/selected', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
+    await implementation(application?.clearSelectedCartItems, application)(context(req));
     res.status(204).send();
   }));
   router.get('/vouchers/applicable', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {

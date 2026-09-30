@@ -1,12 +1,13 @@
 import { Router, type Request, type Response, type NextFunction, type RequestHandler } from 'express';
 import { buildSuccessEnvelope } from '../envelope.ts';
-import { ForbiddenError, UnauthorizedError } from '../../errors/app-error.ts';
+import { DependencyUnavailableError, ForbiddenError, NotImplementedError, UnauthorizedError, ValidationFailedError } from '../../errors/app-error.ts';
 import type { RequestContext } from '../../context/request-context.ts';
 import type { AddressService } from '../../../modules/buyer/services/address.service.ts';
 import type { CartService } from '../../../modules/buyer/services/cart.service.ts';
 import type { VoucherService } from '../../../modules/buyer/services/voucher.service.ts';
 import type { ReviewService } from '../../../modules/buyer/services/review.service.ts';
 import type { NotificationService } from '../../../modules/buyer/services/notification.service.ts';
+import type { ProfileService } from '../../../modules/buyer/services/profile.service.ts';
 import type { BuyerHttpApplication } from './t1-routes.ts';
 import type { VoucherScope } from '../../../modules/buyer/domain/types.ts';
 
@@ -14,11 +15,13 @@ type AsyncRoute = (req: Request, res: Response, next: NextFunction) => Promise<v
 type Role = 'BUYER' | 'SELLER' | 'ADMIN';
 
 export interface BuyerServices {
+  legacyHttpApplication?: BuyerHttpApplication;
   addressService?: AddressService;
   cartService?: CartService;
   voucherService?: VoucherService;
   reviewService?: ReviewService;
   notificationService?: NotificationService;
+  profileService?: ProfileService;
 }
 
 function guards(auth: RequestHandler | undefined, ...roles: Role[]): RequestHandler[] {
@@ -36,6 +39,9 @@ function requireRole(...roles: Role[]): (req: Request, _res: Response, next: Nex
       const requestContext = context(req);
       if (!roles.includes(requestContext.role as Role)) {
         throw new ForbiddenError('ROLE_REQUIRED', `Required role: ${roles.join(' or ')}`);
+      }
+      if (requestContext.role === 'SELLER' && roles.includes('SELLER') && requestContext.shop_status !== 'ACTIVE') {
+        throw new ForbiddenError('SHOP_NOT_ACTIVE', 'Seller shop must be active before using seller operations');
       }
       next();
     } catch (error) {
@@ -66,14 +72,50 @@ export function createBuyerDomainRouter(
 
   // If a legacy BuyerHttpApplication is passed, delegate standard routes to it
   const isLegacyApp = servicesOrApp && 'listAddresses' in servicesOrApp && typeof servicesOrApp.listAddresses === 'function';
-  const legacyApp = isLegacyApp ? (servicesOrApp as BuyerHttpApplication) : undefined;
-  const services = (!isLegacyApp ? servicesOrApp : undefined) as BuyerServices | undefined;
+  const services = servicesOrApp as BuyerServices | undefined;
+  const legacyApp = isLegacyApp
+    ? servicesOrApp as BuyerHttpApplication
+    : services?.legacyHttpApplication;
 
   const addressService = services?.addressService;
   const cartService = services?.cartService;
   const voucherService = services?.voucherService;
   const reviewService = services?.reviewService;
   const notificationService = services?.notificationService;
+  const profileService = services?.profileService;
+
+  router.get('/profile', ...guards(auth, 'BUYER', 'SELLER', 'ADMIN'), asyncRoute(async (req, res) => {
+    if (!profileService) throw new NotImplementedError('Profile is not available in the current runtime');
+    const profile = await profileService.getProfile(context(req).user_id);
+    res.json(buildSuccessEnvelope({
+      user_id: profile.userId,
+      full_name: profile.fullName,
+      phone: profile.phone,
+      avatar_url: profile.avatarUrl,
+      updated_at: profile.updatedAt,
+    }, requestId(req)));
+  }));
+
+  router.patch('/profile', ...guards(auth, 'BUYER', 'SELLER', 'ADMIN'), asyncRoute(async (req, res) => {
+    if (!profileService) throw new NotImplementedError('Profile is not available in the current runtime');
+    const input = req.body as Record<string, unknown>;
+    const unknown = Object.keys(input ?? {}).find(key => !['full_name', 'phone'].includes(key));
+    if (unknown) throw new ValidationFailedError(`Unknown field: ${unknown}`, { field: unknown });
+    if (input.full_name !== undefined && (typeof input.full_name !== 'string' || input.full_name.trim().length < 2 || input.full_name.trim().length > 150)) {
+      throw new ValidationFailedError('Full name must contain 2 to 150 characters', { field: 'full_name' });
+    }
+    if (input.phone !== undefined && input.phone !== null && (typeof input.phone !== 'string' || !/^(?:0\d{9,10}|\+84\d{9,10})$/.test(input.phone.trim()))) {
+      throw new ValidationFailedError('Phone number is invalid', { field: 'phone' });
+    }
+    const profile = await profileService.updateProfile(context(req).user_id, input);
+    res.json(buildSuccessEnvelope({
+      user_id: profile.userId,
+      full_name: profile.fullName,
+      phone: profile.phone,
+      avatar_url: profile.avatarUrl,
+      updated_at: profile.updatedAt,
+    }, requestId(req)));
+  }));
 
   // ==========================================
   // 1. ADDRESS ROUTES
@@ -86,7 +128,7 @@ export function createBuyerDomainRouter(
     } else if (legacyApp) {
       data = await legacyApp.listAddresses(ctx);
     } else {
-      data = [];
+      throw new DependencyUnavailableError('Address service is not configured');
     }
     res.json(buildSuccessEnvelope(data, requestId(req)));
   }));
@@ -99,7 +141,7 @@ export function createBuyerDomainRouter(
     } else if (legacyApp) {
       data = await legacyApp.createAddress(ctx, req.body);
     } else {
-      data = req.body;
+      throw new DependencyUnavailableError('Address service is not configured');
     }
     res.status(201).json(buildSuccessEnvelope(data, requestId(req)));
   }));
@@ -107,8 +149,7 @@ export function createBuyerDomainRouter(
   router.get('/addresses/:address_id', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
     const ctx = context(req);
     if (!addressService) {
-      res.status(501).json({ error: 'AddressService not configured' });
-      return;
+      throw new NotImplementedError('Address detail is not available in the current runtime');
     }
     const data = await addressService.getAddressById(ctx.user_id, req.params.address_id);
     res.json(buildSuccessEnvelope(data, requestId(req)));
@@ -117,8 +158,7 @@ export function createBuyerDomainRouter(
   router.patch('/addresses/:address_id', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
     const ctx = context(req);
     if (!addressService) {
-      res.status(501).json({ error: 'AddressService not configured' });
-      return;
+      throw new NotImplementedError('Address update is not available in the current runtime');
     }
     const data = await addressService.updateAddress(ctx.user_id, req.params.address_id, req.body);
     res.json(buildSuccessEnvelope(data, requestId(req)));
@@ -127,8 +167,7 @@ export function createBuyerDomainRouter(
   router.delete('/addresses/:address_id', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
     const ctx = context(req);
     if (!addressService) {
-      res.status(204).send();
-      return;
+      throw new NotImplementedError('Address deletion is not available in the current runtime');
     }
     await addressService.deleteAddress(ctx.user_id, req.params.address_id);
     res.status(204).send();
@@ -137,8 +176,7 @@ export function createBuyerDomainRouter(
   router.patch('/addresses/:address_id/default', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
     const ctx = context(req);
     if (!addressService) {
-      res.status(501).json({ error: 'AddressService not configured' });
-      return;
+      throw new NotImplementedError('Setting a default address is not available in the current runtime');
     }
     await addressService.setDefault(ctx.user_id, req.params.address_id);
     res.json(buildSuccessEnvelope({ message: 'Default address updated successfully' }, requestId(req)));
@@ -155,7 +193,7 @@ export function createBuyerDomainRouter(
     } else if (legacyApp) {
       data = await legacyApp.getCart(ctx);
     } else {
-      data = { cart_id: null, buyer_id: ctx.user_id, items: [] };
+      throw new DependencyUnavailableError('Cart service is not configured');
     }
     res.json(buildSuccessEnvelope(data, requestId(req)));
   }));
@@ -204,6 +242,10 @@ export function createBuyerDomainRouter(
       if (selectedItemIds.length > 0) {
         await cartService.clearCheckedOutItems(ctx.user_id, selectedItemIds);
       }
+    } else if (legacyApp?.clearSelectedCartItems) {
+      await legacyApp.clearSelectedCartItems(ctx);
+    } else {
+      throw new NotImplementedError('Selected cart item deletion is not available in the current runtime');
     }
     res.status(204).send();
   }));
@@ -265,8 +307,7 @@ export function createBuyerDomainRouter(
   const handleCreateReview = asyncRoute(async (req, res) => {
     const ctx = context(req);
     if (!reviewService) {
-      res.status(501).json({ error: 'ReviewService not configured' });
-      return;
+      throw new NotImplementedError('Review submission is not available in the current runtime');
     }
     const orderItemId = req.params.order_item_id || req.body?.order_item_id || req.body?.orderItemId;
     const productId = req.body?.product_id || req.body?.productId;
@@ -291,8 +332,7 @@ export function createBuyerDomainRouter(
   router.get('/notifications', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
     const ctx = context(req);
     if (!notificationService) {
-      res.status(501).json({ error: 'NotificationService not configured' });
-      return;
+      throw new NotImplementedError('Notifications are not available in the current runtime');
     }
     let isRead: boolean | undefined = undefined;
     if (req.query.is_read !== undefined) {
@@ -305,8 +345,7 @@ export function createBuyerDomainRouter(
   router.get('/notifications/:notification_id', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
     const ctx = context(req);
     if (!notificationService) {
-      res.status(501).json({ error: 'NotificationService not configured' });
-      return;
+      throw new NotImplementedError('Notification details are not available in the current runtime');
     }
     const data = await notificationService.getNotificationById(ctx.user_id, req.params.notification_id);
     res.json(buildSuccessEnvelope(data, requestId(req)));
@@ -315,8 +354,7 @@ export function createBuyerDomainRouter(
   const handleMarkNotificationRead = asyncRoute(async (req, res) => {
     const ctx = context(req);
     if (!notificationService) {
-      res.status(501).json({ error: 'NotificationService not configured' });
-      return;
+      throw new NotImplementedError('Notification updates are not available in the current runtime');
     }
     const data = await notificationService.markAsRead(ctx.user_id, req.params.notification_id);
     res.json(buildSuccessEnvelope(data, requestId(req)));

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { AdminCategoriesScreen } from "@/features/admin";
+import { ProtectedPage } from "@/components/navigation/protected-page";
+import { AdminCategoriesScreen } from "@/features/admin/admin-categories-screen";
 
 export const metadata: Metadata = {
   title: "Quản lý danh mục - Dino",
@@ -8,8 +9,10 @@ export const metadata: Metadata = {
 
 export default function AdminCategoriesPage() {
   return (
-    <div className="py-6">
-      <AdminCategoriesScreen />
-    </div>
+    <ProtectedPage allowedRoles={["ADMIN"]}>
+      <div className="py-6">
+        <AdminCategoriesScreen />
+      </div>
+    </ProtectedPage>
   );
 }

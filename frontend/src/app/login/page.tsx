@@ -12,11 +12,17 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const returnTo = sanitizeReturnTo(searchParams.get("returnTo"));
 
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleGoogleLogin = async () => {
+    setErrorMsg(null);
+    try { await loginWithGoogle(returnTo); }
+    catch (err) { setErrorMsg(err instanceof Error ? err.message : "Không thể đăng nhập bằng Google."); }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,21 +48,19 @@ function LoginForm() {
   return (
     <div className="w-full max-w-md bg-[var(--card)] border border-[var(--border)] rounded-2xl shadow-sm p-6 sm:p-8">
       <div className="text-center mb-6">
-        <Link href="/" className="inline-flex items-center gap-2 mb-3">
-          <div className="w-10 h-10 rounded-xl bg-[var(--primary)] flex items-center justify-center text-white font-bold shadow-sm">
-            EC
-          </div>
+        <Link href="/" className="brand-lockup text-3xl font-extrabold tracking-tight mb-3 inline-flex items-center text-[var(--foreground)]" aria-label="Dino - trang chủ">
+          <span>Dino</span>
         </Link>
         <h1 className="text-2xl font-bold tracking-tight text-[var(--foreground)]">
           Đăng nhập tài khoản
         </h1>
         <p className="text-sm text-[var(--subtext)] mt-1">
-          Chào mừng bạn quay trở lại với E-Commerce Platform
+          Chào mừng bạn quay trở lại với Dino
         </p>
       </div>
 
       {errorMsg && (
-        <div className="mb-5 p-3 rounded-xl bg-[var(--danger-surface)] border border-[var(--danger-border)] flex items-start gap-2 text-sm text-[var(--danger)]">
+        <div className="mb-5 p-3 rounded-xl bg-[var(--danger-surface)] border border-[var(--danger-border)] flex items-start gap-2 text-sm text-[var(--danger-text)] font-medium">
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
           <span>{errorMsg}</span>
         </div>
@@ -128,6 +132,8 @@ function LoginForm() {
           )}
         </button>
       </form>
+
+      <button type="button" onClick={handleGoogleLogin} className="w-full mt-3 py-3 rounded-xl border border-[var(--border)] font-semibold text-sm hover:bg-[var(--card-muted)]">Đăng nhập với Google</button>
 
       <div className="mt-6 text-center text-sm text-[var(--subtext)]">
         Chưa có tài khoản?{" "}

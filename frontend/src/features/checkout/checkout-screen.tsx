@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useState, useMemo, useTransition } from "react";
+import { useEffect, useState, useMemo, useTransition, useRef, useContext } from "react";
 import { useRouter } from "next/navigation";
 import { ProtectedPage } from "@/components/navigation/protected-page";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import { Skeleton, EmptyState } from "@/components/ui/data-states";
+import { Skeleton, EmptyState, ErrorState } from "@/components/ui/data-states";
 import { Dialog } from "@/components/ui/dialog";
 import { FormField, TextInput } from "@/components/ui/form-controls";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
+import { AuthContext } from "@/lib/auth/auth-context";
+import { AppError } from "@/lib/api/app-error";
 import { cartRepository } from "../cart/cart.repository";
 import type { CartItem, CartGroup } from "../cart/cart.types";
 import { checkoutRepository } from "./checkout.repository";
@@ -23,6 +25,7 @@ import {
   getOrCreateIdempotencyKey,
   clearIdempotencySnapshot,
 } from "./idempotency";
+import { classifyCheckoutError } from "./checkout-error-classifier";
 
 export function CheckoutPageContent() {
   return (
@@ -71,15 +74,66 @@ export function CheckoutScreen() {
   // State: Submitting Order
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [postSubmitNavigationError, setPostSubmitNavigationError] = useState<string | null>(null);
   const [successResult, setSuccessResult] = useState<CheckoutResult | null>(null);
 
+  const submittingRef = useRef(false);
+  const progressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const mountedRef = useRef(true);
 
+  const auth = useContext(AuthContext);
+  const signOut = auth?.logout || (async () => {});
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (progressTimerRef.current) {
+        clearTimeout(progressTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleRetryCheckoutData = async () => {
+    if (!mountedRef.current) return;
+    setLoadingItems(true);
+    setSubmitError(null);
+    try {
+      const [allCart, addrs] = await Promise.all([
+        cartRepository.getCart(),
+        checkoutRepository.getAddresses(),
+      ]);
+      if (mountedRef.current) {
+        const selected = allCart.filter((i) => i.isSelected);
+        setItems(selected);
+        setAddresses(addrs);
+        const defaultAddr = addrs.find((a) => a.isDefault) || addrs[0];
+        if (defaultAddr) {
+          setSelectedAddressId(defaultAddr.addressId);
+        }
+      }
+    } catch {
+      if (mountedRef.current) {
+        setSubmitError("Không thể tải thông tin thanh toán. Vui lòng thử lại.");
+      }
+    } finally {
+      if (mountedRef.current) {
+        setLoadingItems(false);
+      }
+    }
+  };
 
   useEffect(() => {
     let ignore = false;
-    Promise.all([cartRepository.getCart(), checkoutRepository.getAddresses()])
+    void Promise.resolve()
+      .then(() => Promise.all([cartRepository.getCart(), checkoutRepository.getAddresses()]))
       .then(([allCart, addrs]) => {
-        if (!ignore) {
+        if (!ignore && mountedRef.current) {
           const selected = allCart.filter((i) => i.isSelected);
           setItems(selected);
           setAddresses(addrs);
@@ -91,7 +145,7 @@ export function CheckoutScreen() {
         }
       })
       .catch(() => {
-        if (!ignore) {
+        if (!ignore && mountedRef.current) {
           setSubmitError("Không thể tải thông tin thanh toán. Vui lòng thử lại.");
           setLoadingItems(false);
         }
@@ -251,19 +305,14 @@ export function CheckoutScreen() {
     }
   };
 
-  // Submit Checkout with Idempotency Key
+  // Submit Checkout with Idempotency Key & Complete Error Handling Policy
   const handlePlaceOrder = async () => {
-    if (!selectedAddressId) {
-      setSubmitError("Vui lòng chọn địa chỉ nhận hàng.");
-      return;
-    }
-    if (items.length === 0) {
-      setSubmitError("Không có sản phẩm nào được chọn để thanh toán.");
-      return;
-    }
-
+    // 1. Double-click guard đồng bộ bằng useRef và kiểm tra điều kiện tiên quyết
+    if (submittingRef.current || !selectedAddressId || items.length === 0) return;
+    submittingRef.current = true;
     setIsSubmitting(true);
     setSubmitError(null);
+    setPostSubmitNavigationError(null);
 
     // Format vouchers payload according to contract
     const vouchersPayload = Object.entries(appliedVouchers).map(([shopId, v]) => ({
@@ -277,27 +326,117 @@ export function CheckoutScreen() {
       vouchers: vouchersPayload,
     };
 
-    // Get or create idempotency key bound to payload snapshot
-    const { key: idempotencyKey, isRetry } = getOrCreateIdempotencyKey(payload);
-
+    // 2. Submit đơn hàng trong khối try/catch RIÊNG BIỆT
+    let checkoutResult: CheckoutResult;
     try {
-      const result = await checkoutRepository.submitCheckout(payload, idempotencyKey);
-
-      // Order created successfully: clear snapshot and cart
-      clearIdempotencySnapshot();
-      await cartRepository.removeSelected();
-      setSuccessResult(result);
+      const { key: idempotencyKey } = getOrCreateIdempotencyKey(payload);
+      checkoutResult = await checkoutRepository.submitCheckout(payload, idempotencyKey);
     } catch (err: unknown) {
-      const errorMsg =
-        err instanceof Error ? err.message : "Thanh toán thất bại. Vui lòng kiểm tra lại.";
-      setSubmitError(
-        isRetry
-          ? `Gửi lại yêu cầu không thành công: ${errorMsg}`
-          : `Đặt hàng không thành công: ${errorMsg}. Bạn có thể bấm Đặt hàng lại an toàn.`
-      );
-    } finally {
-      setIsSubmitting(false);
+      const errorType = classifyCheckoutError(err);
+      switch (errorType) {
+        case "GROUP_A":
+          clearIdempotencySnapshot();
+          submittingRef.current = false;
+          setIsSubmitting(false);
+          if (err instanceof AppError && err.code === "INVENTORY_INSUFFICIENT") {
+            // Tự động làm mới giỏ hàng
+            void cartRepository.getCart().then((c) => {
+              if (mountedRef.current) {
+                setItems(c.filter((i) => i.isSelected));
+              }
+            });
+          }
+          break;
+
+        case "USER_LOCKED":
+          clearIdempotencySnapshot();
+          try {
+            await signOut();
+          } catch (signOutErr) {
+            console.warn("signOut error:", signOutErr);
+          } finally {
+            submittingRef.current = false;
+            setIsSubmitting(false);
+            router.push("/login?reason=locked");
+          }
+          return;
+
+        case "AUTH":
+          // Giữ nguyên snapshot (Nhóm B). Đăng nhập lại rồi submit tiếp vẫn an toàn.
+          submittingRef.current = false;
+          setIsSubmitting(false);
+          setSubmitError("Phiên đăng nhập đã hết hạn. Đang chuyển hướng...");
+          router.push("/login?returnTo=/checkout");
+          return;
+
+        case "IN_PROGRESS":
+          // Giữ nguyên snapshot & key cũ. Disable submit 3s.
+          if (progressTimerRef.current) {
+            clearTimeout(progressTimerRef.current);
+          }
+          progressTimerRef.current = setTimeout(() => {
+            submittingRef.current = false;
+            setIsSubmitting(false);
+            progressTimerRef.current = null;
+          }, 3000);
+          break;
+
+        case "GROUP_B":
+        default:
+          // Lỗi mạng, 500, 504 Timeout: GIỮ NGUYÊN key snapshot cho lần retry
+          submittingRef.current = false;
+          setIsSubmitting(false);
+          break;
+      }
+
+      // Display formatted user error message
+      if (err instanceof AppError) {
+        if (err.code === "REQUEST_IN_PROGRESS") {
+          setSubmitError("Yêu cầu đặt hàng đang được xử lý. Vui lòng chờ trong giây lát.");
+        } else if (err.code === "IDEMPOTENCY_KEY_REUSED") {
+          setSubmitError("Mã giao dịch bị trùng lặp với phiên trước. Vui lòng bấm Đặt hàng lại để tiếp tục.");
+        } else if (err.code === "INVENTORY_INSUFFICIENT") {
+          setSubmitError("Một số sản phẩm trong giỏ đã hết hàng hoặc không đủ tồn kho.");
+        } else if (err.code === "VOUCHER_NOT_APPLICABLE" || err.code === "VOUCHER_NOT_FOUND") {
+          setSubmitError("Mã ưu đãi không đủ điều kiện hoặc đã hết hạn.");
+        } else if (err.code === "VALIDATION_FAILED") {
+          setSubmitError("Dữ liệu đặt hàng không hợp lệ. Vui lòng kiểm tra lại thông tin.");
+        } else if (err.status === 504 || err.code === "TIMEOUT") {
+          setSubmitError("Kết nối quá hạn. Vui lòng thử lại sau.");
+        } else if (err.status >= 500) {
+          const reqMsg = err.requestId ? ` (Mã yêu cầu: ${err.requestId})` : "";
+          setSubmitError(`Hệ thống gặp sự cố. Vui lòng thử lại sau${reqMsg}.`);
+        } else {
+          setSubmitError(err.message || "Đặt hàng không thành công. Vui lòng thử lại.");
+        }
+      } else if (err instanceof TypeError || (err instanceof Error && err.message.includes("fetch"))) {
+        setSubmitError("Mất kết nối mạng. Vui lòng kiểm tra đường truyền và thử lại.");
+      } else {
+        setSubmitError("Đã có lỗi xảy ra khi xử lý đơn hàng. Vui lòng thử lại.");
+      }
+      return;
     }
+
+    // 3. ĐẶT HÀNG THÀNH CÔNG: Toàn bộ phần sau này nằm NGOÀI try/catch của submitCheckout!
+    // Tuyệt đối KHÔNG reset submittingRef và isSubmitting về false (chống submit lần 2).
+    clearIdempotencySnapshot();
+
+    // 4. Fire-and-forget: Dọn giỏ hàng không block luồng điều hướng
+    void cartRepository.removeSelected().catch((cleanupErr) => {
+      console.warn("Dọn giỏ hàng sau checkout thất bại, không chặn luồng đơn hàng:", cleanupErr);
+    });
+
+    // 5. Kiểm tra tường minh orders & Điều hướng an toàn sang /orders (Người 5)
+    if (!checkoutResult.orders || checkoutResult.orders.length === 0) {
+      setPostSubmitNavigationError(
+        "Đơn hàng đã được tạo thành công nhưng không tìm thấy thông tin đơn. Vui lòng vào trang Đơn mua để kiểm tra."
+      );
+      return;
+    }
+
+    setSuccessResult(checkoutResult);
+    const orderIds = checkoutResult.orders.map((o) => o.order_id).join(",");
+    router.push(`/orders?created=${orderIds}`);
   };
 
   if (loadingItems) {
@@ -314,6 +453,24 @@ export function CheckoutScreen() {
           <Skeleton height={120} />
           <Skeleton height={200} />
         </div>
+      </div>
+    );
+  }
+
+  if (submitError && items.length === 0 && !successResult) {
+    return (
+      <div className="checkout-page max-w-4xl mx-auto space-y-6">
+        <header className="page-heading">
+          <div>
+            <p className="eyebrow">Dino Checkout</p>
+            <h1 className="page-title">Thanh toán đơn hàng</h1>
+          </div>
+        </header>
+        <ErrorState
+          title="Không thể tải thông tin thanh toán"
+          description={submitError}
+          onRetry={handleRetryCheckoutData}
+        />
       </div>
     );
   }
@@ -382,6 +539,13 @@ export function CheckoutScreen() {
           </li>
         </ol>
       </nav>
+
+      {postSubmitNavigationError && (
+        <div className="notice notice--info" role="alert">
+          <Icon name="check" />
+          <span>{postSubmitNavigationError}</span>
+        </div>
+      )}
 
       {submitError && (
         <div className="notice notice--warning" role="alert">
@@ -488,6 +652,7 @@ export function CheckoutScreen() {
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <div className="w-14 h-14 rounded-md overflow-hidden bg-[var(--border)] shrink-0 flex items-center justify-center">
                         {item.imageUrl ? (
+                          /* eslint-disable-next-line @next/next/no-img-element */
                           <img
                             src={item.imageUrl}
                             alt={item.productName}
@@ -685,6 +850,7 @@ export function CheckoutScreen() {
           <Button
             variant="primary"
             loading={isSubmitting}
+            disabled={isSubmitting || !selectedAddressId || items.length === 0}
             onClick={handlePlaceOrder}
             className="w-full sm:w-auto px-8 py-3 text-base"
           >

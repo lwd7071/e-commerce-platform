@@ -16,6 +16,10 @@ export interface CartItem {
   shopName: string;
   imageUrl: string | null;
   isSelected: boolean;
+  isAvailable: boolean;
+  productStatus: "ACTIVE" | "INACTIVE";
+  variantStatus: "ACTIVE" | "INACTIVE";
+  shopStatus: string;
 }
 
 export interface CartGroup {

@@ -190,7 +190,7 @@ export class MockAdminRepository implements IAdminRepository {
     // Rule QD19: Only COMPLETED orders contribute to platform GMV
     const completedOrders = orders.filter((o) => o.status === "COMPLETED");
     const totalGMV = completedOrders.reduce((sum, o) => {
-      return sum + moneyAdapter.toInteger(o.final_amount || o.total_amount);
+      return sum + moneyAdapter.toInteger(o.total_amount);
     }, 0);
 
     return {
@@ -345,7 +345,7 @@ export class MockAdminRepository implements IAdminRepository {
     // Rule QD19: Only COMPLETED orders count into revenue
     const completedOrders = allOrders.filter((o) => o.status === "COMPLETED");
     const totalRevInt = completedOrders.reduce((acc, o) => {
-      return acc + moneyAdapter.toInteger(o.final_amount || o.total_amount);
+      return acc + moneyAdapter.toInteger(o.total_amount);
     }, 0);
 
     const pendingOrders = allOrders.filter((o) => o.status === "PENDING_CONFIRMATION");
