@@ -2,6 +2,8 @@
 skills-lock.json
 node_modules/
 dist/
+frontend/test-results/
+frontend/playwright-report/
 .idea/
 
 # Local credentials and environment files

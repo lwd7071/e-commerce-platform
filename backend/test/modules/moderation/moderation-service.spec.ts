@@ -9,17 +9,18 @@ import {
   ReasonRequiredError,
   NotFoundError,
   InvalidStateTransitionError,
-  AuditWriteFailedError
+  AuditWriteFailedError,
+  AdminTargetProtectedError
 } from '../../../src/platform/errors/app-error.ts';
 
 class InMemoryTargetRepository implements ITargetLookupRepository {
-  public users: Map<string, { id: string; status: UserStatus; updated_at: string }> = new Map();
+  public users: Map<string, { id: string; status: UserStatus; updated_at: string; role?: 'BUYER' | 'SELLER' | 'ADMIN' }> = new Map();
   public shops: Set<string> = new Set();
   public products: Set<string> = new Set();
   public reviews: Set<string> = new Set();
   public moderationRecords: ModerationRecord[] = [];
 
-  private snapshot: Map<string, { id: string; status: UserStatus; updated_at: string }> | null = null;
+  private snapshot: Map<string, { id: string; status: UserStatus; updated_at: string; role?: 'BUYER' | 'SELLER' | 'ADMIN' }> | null = null;
   private modSnapshot: ModerationRecord[] | null = null;
 
   savepoint() {
@@ -50,6 +51,11 @@ class InMemoryTargetRepository implements ITargetLookupRepository {
   async getUserStatus(userId: string): Promise<UserStatus | null> {
     const u = this.users.get(userId);
     return u ? u.status : null;
+  }
+
+  async getUserRole(userId: string): Promise<'BUYER' | 'SELLER' | 'ADMIN' | null> {
+    const u = this.users.get(userId);
+    return u?.role || null;
   }
 
   async updateUserStatus(_trx: unknown, userId: string, status: UserStatus): Promise<{ user_id: string; status: UserStatus; updated_at: string }> {
@@ -316,5 +322,27 @@ describe('Phase 3 — TDD Cycle 3.2: ModerationService with Atomic Transaction (
     assert.strictEqual(targetRepo.moderationRecords[0].action, 'UNLOCK');
     assert.strictEqual(auditPort.auditRecords.length, 1);
     assert.strictEqual(auditPort.auditRecords[0].action, 'UNLOCK_USER');
+  });
+
+  it('Case 10 (C-402 ADMIN_TARGET_PROTECTED): rejects locking an admin account with 403', async () => {
+    const adminUserId = '11111111-2222-3333-4444-555555555555';
+    targetRepo.users.set(adminUserId, {
+      id: adminUserId,
+      status: 'ACTIVE',
+      updated_at: new Date().toISOString(),
+      role: 'ADMIN',
+    });
+
+    await assert.rejects(
+      async () => {
+        await service.lockUser(validAdminId, adminUserId, 'Attempt to lock admin');
+      },
+      (err: unknown) => {
+        assert.ok(err instanceof AdminTargetProtectedError);
+        assert.strictEqual((err as AdminTargetProtectedError).httpStatus, 403);
+        assert.strictEqual((err as AdminTargetProtectedError).code, 'ADMIN_TARGET_PROTECTED');
+        return true;
+      }
+    );
   });
 });

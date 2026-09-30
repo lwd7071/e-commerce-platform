@@ -8,6 +8,8 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { repositories } from "@/lib/repositories/repository-factory";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
 import type { WireCatalogProductDetail, WireProductVariant } from "@/lib/api/catalog.api";
+import type { WireReview } from "@/lib/repositories/types";
+import { StarRating } from "@/components/ui/star-rating";
 import { useToast } from "@/components/ui/toast";
 import { Skeleton, EmptyState, ErrorState } from "@/components/ui/data-states";
 import { Button } from "@/components/ui/button";
@@ -25,10 +27,15 @@ export function ProductDetailScreen({ productId }: Props) {
 
   const [product, setProduct] = useState<WireCatalogProductDetail | null>(null);
   const [selectedVariant, setSelectedVariant] = useState<WireProductVariant | null>(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // C-205: Real reviews & ratings without fake fallback
+  const [reviews, setReviews] = useState<WireReview[]>([]);
+  const [isLoadingReviews, setIsLoadingReviews] = useState(true);
 
   useEffect(() => {
     let ignore = false;
@@ -47,6 +54,18 @@ export function ProductDetailScreen({ productId }: Props) {
         const msg = err instanceof Error ? err.message : "Không thể tải chi tiết sản phẩm.";
         setError(msg);
         setIsLoading(false);
+      });
+
+    repositories.review().getReviewsByProduct(productId)
+      .then((data) => {
+        if (ignore) return;
+        setReviews(Array.isArray(data) ? data : []);
+        setIsLoadingReviews(false);
+      })
+      .catch(() => {
+        if (ignore) return;
+        setReviews([]);
+        setIsLoadingReviews(false);
       });
 
     return () => {
@@ -174,6 +193,21 @@ export function ProductDetailScreen({ productId }: Props) {
 
   const fallbackImage = "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800";
 
+  const reviewCount = reviews.length;
+  const averageRating =
+    reviewCount > 0
+      ? Math.round((reviews.reduce((acc, r) => acc + r.rating, 0) / reviewCount) * 10) / 10
+      : 0;
+
+  const productImages =
+    product.images && product.images.length > 0
+      ? product.images.map((img) => img.image_url)
+      : product.image_url
+      ? [product.image_url]
+      : [fallbackImage];
+
+  const currentDisplayImage = selectedImage || productImages[0] || fallbackImage;
+
   return (
     <div className="space-y-6">
       {/* Navigation Breadcrumb */}
@@ -194,21 +228,47 @@ export function ProductDetailScreen({ productId }: Props) {
       {/* Main Product Layout */}
       <div className="surface-card p-6 md:p-8">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12">
-          {/* Image Showcase (GAP-04: Graceful placeholder) */}
-          <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-[var(--card-muted)] border border-[var(--border)]">
-            <Image
-              src={fallbackImage}
-              alt={product.product_name}
-              fill
-              sizes="(max-width: 768px) 100vw, 50vw"
-              className="object-cover"
-              priority
-            />
-            {isOutOfStock && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
-                <span className="rounded-full bg-[var(--danger)] px-4 py-1.5 text-sm font-bold text-white shadow-md">
-                  Tạm hết hàng
-                </span>
+          {/* Image Showcase (B-105: stable dimensions, next/image, alt text) */}
+          <div className="space-y-3">
+            <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-[var(--card-muted)] border border-[var(--border)]">
+              <Image
+                src={currentDisplayImage}
+                alt={product.product_name}
+                fill
+                sizes="(max-width: 768px) 100vw, 50vw"
+                className="object-cover"
+                priority
+              />
+              {isOutOfStock && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
+                  <span className="rounded-full bg-[var(--danger)] px-4 py-1.5 text-sm font-bold text-white shadow-md">
+                    Tạm hết hàng
+                  </span>
+                </div>
+              )}
+            </div>
+            {productImages.length > 1 && (
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {productImages.map((imgUrl, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setSelectedImage(imgUrl)}
+                    className={`relative w-16 h-16 rounded-lg overflow-hidden border transition-all shrink-0 ${
+                      currentDisplayImage === imgUrl
+                        ? "border-[var(--primary-active)] ring-2 ring-[var(--primary-surface)]"
+                        : "border-[var(--border)] hover:border-[var(--subtext)]"
+                    }`}
+                  >
+                    <Image
+                      src={imgUrl}
+                      alt={`${product.product_name} - ảnh ${idx + 1}`}
+                      fill
+                      sizes="64px"
+                      className="object-cover"
+                    />
+                  </button>
+                ))}
               </div>
             )}
           </div>
@@ -223,6 +283,24 @@ export function ProductDetailScreen({ productId }: Props) {
                 <h1 className="mt-2 text-2xl md:text-3xl font-bold tracking-tight text-[var(--foreground)]">
                   {product.product_name}
                 </h1>
+                {/* Real rating display (C-205) */}
+                <div className="mt-2 flex items-center gap-2">
+                  {reviewCount > 0 ? (
+                    <>
+                      <StarRating value={averageRating} readOnly size="sm" />
+                      <span className="text-xs font-bold text-[var(--foreground)]">
+                        {averageRating.toFixed(1)}
+                      </span>
+                      <span className="text-xs text-[var(--subtext)]">
+                        ({reviewCount} đánh giá)
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-xs text-[var(--subtext)]">
+                      Chưa có đánh giá nào cho sản phẩm này
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Price display */}
@@ -348,6 +426,76 @@ export function ProductDetailScreen({ productId }: Props) {
           <div className="text-sm leading-relaxed text-[var(--subtext)] whitespace-pre-line max-w-4xl">
             {product.description || "Chưa có mô tả chi tiết cho sản phẩm này."}
           </div>
+        </div>
+
+        {/* Customer Reviews Section (C-205) */}
+        <div className="mt-12 pt-8 border-t border-[var(--border)] space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-bold text-[var(--foreground)]">Đánh Giá Sản Phẩm</h2>
+              <p className="text-xs text-[var(--subtext)] mt-0.5">
+                Nhận xét thực tế từ những người mua đã hoàn thành đơn hàng
+              </p>
+            </div>
+            {reviewCount > 0 && (
+              <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-2">
+                <div className="text-2xl font-black text-[var(--primary-active)]">
+                  {averageRating.toFixed(1)}
+                </div>
+                <div className="space-y-0.5">
+                  <StarRating value={averageRating} readOnly size="sm" />
+                  <p className="text-xs text-[var(--subtext)]">{reviewCount} lượt đánh giá</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {isLoadingReviews ? (
+            <div className="space-y-3">
+              <Skeleton height={20} className="w-1/4" />
+              <Skeleton height={60} className="w-full" />
+            </div>
+          ) : reviewCount === 0 ? (
+            <div className="rounded-xl border border-dashed border-[var(--border)] p-8 text-center bg-[var(--card-muted)]">
+              <p className="text-sm font-semibold text-[var(--foreground)]">
+                Chưa có đánh giá nào cho sản phẩm này
+              </p>
+              <p className="mt-1 text-xs text-[var(--subtext)]">
+                Đánh giá sẽ xuất hiện khi người mua hoàn thành đơn hàng và để lại nhận xét.
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-[var(--border)]">
+              {reviews.map((rev) => (
+                <div key={rev.review_id} className="py-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-full bg-[var(--primary-surface)] text-[var(--primary-active)] flex items-center justify-center text-xs font-bold">
+                        ✓
+                      </div>
+                      <span className="text-xs font-semibold text-[var(--foreground)]">
+                        Người mua đã xác minh
+                      </span>
+                    </div>
+                    <span className="text-xs text-[var(--subtext)]">
+                      {new Date(rev.created_at).toLocaleDateString("vi-VN")}
+                    </span>
+                  </div>
+                  <StarRating value={rev.rating} readOnly size="sm" />
+                  <p className="text-sm text-[var(--foreground)] leading-relaxed">{rev.comment}</p>
+                  {rev.media_urls && rev.media_urls.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {rev.media_urls.map((url, i) => (
+                        <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border border-[var(--border)]">
+                          <Image src={url} alt={`Ảnh đánh giá ${i + 1}`} fill className="object-cover" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

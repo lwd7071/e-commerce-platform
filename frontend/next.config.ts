@@ -8,6 +8,15 @@ import { loadEnvConfig } from "@next/env";
 // directory it sees; the shared .env lives one level above frontend.
 const { combinedEnv } = loadEnvConfig(path.resolve(process.cwd(), ".."), undefined, undefined, true);
 
+// Release Readiness Gate (P0-04 & Dino MVP 30/09/2026 §10)
+const isProductionRelease =
+  process.env.NODE_ENV === "production" && process.env.NEXT_PUBLIC_RELEASE_PHASE === "production";
+const useMock = combinedEnv.NEXT_PUBLIC_USE_MOCK === "true" || process.env.NEXT_PUBLIC_USE_MOCK === "true";
+
+if (isProductionRelease && useMock) {
+  throw new Error("FATAL [P0-04]: Production release build cannot proceed with NEXT_PUBLIC_USE_MOCK=true.");
+}
+
 const nextConfig: NextConfig = {
   // In-line các biến NEXT_PUBLIC_* cho client bundle chạy trên browser
   env: {

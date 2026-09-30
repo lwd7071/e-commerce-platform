@@ -31,7 +31,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="toast-region" aria-label="Thông báo" aria-live="polite" aria-atomic="false">
+      <div className="toast-region" role="region" aria-label="Thông báo" aria-live="polite" aria-atomic="false">
         {items.map((item) => (
           <div className={`toast toast--${item.kind}`} key={item.id} role={item.kind === "error" ? "alert" : "status"} aria-live={item.kind === "error" ? "assertive" : "polite"}>
             <Icon name={item.kind === "success" ? "check" : item.kind === "error" ? "warning" : "info"} />

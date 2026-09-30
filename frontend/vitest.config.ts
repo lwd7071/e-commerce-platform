@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 import path from "path";
 import { loadEnvConfig } from "@next/env";
 
@@ -9,6 +9,7 @@ export default defineConfig({
   test: {
     environment: "node",
     globals: true,
+    exclude: [...configDefaults.exclude, "e2e/**", "qa/**"],
   },
   resolve: {
     alias: {

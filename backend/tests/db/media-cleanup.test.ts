@@ -43,12 +43,27 @@ describe('cleanExpiredMedia', () => {
     expect(store.claimExpired).not.toHaveBeenCalled();
   });
 
+  it('drains subsequent full pages without repeating failed items in the same run', async () => {
+    const nextCandidate = { ...candidate, mediaId: '10000000-0000-4000-8000-000000000002' };
+    const store: MediaCleanupStore = {
+      claimExpired: vi.fn().mockResolvedValueOnce([candidate]).mockResolvedValueOnce([nextCandidate]).mockResolvedValueOnce([]),
+      markDeleted: vi.fn(), makeRetryable: vi.fn(),
+    };
+    const storage = { remove: vi.fn().mockImplementationOnce(() => { throw new Error('transient'); }).mockResolvedValue(undefined) };
+
+    await expect(cleanExpiredMedia(store, storage, 1)).resolves.toEqual({ claimed: 2, deleted: 1, failed: 1 });
+    expect(store.claimExpired).toHaveBeenCalledTimes(3);
+    expect(store.makeRetryable).toHaveBeenCalledWith(candidate.mediaId, 'transient');
+    expect(store.markDeleted).toHaveBeenCalledWith(nextCandidate.mediaId);
+  });
+
   it('claims only finalized, unattached media and locks rows to prevent concurrent attach/delete', async () => {
     const query = vi.fn().mockResolvedValue({ rows: [] });
     const store = createPostgresMediaCleanupStore({ query } as never);
     await store.claimExpired(25);
     const sql = query.mock.calls[0]?.[0] as string;
     expect(sql).toContain("status='FINALIZED'");
+    expect(sql).toContain("cleanup_error IS NULL OR updated_at < now() - interval '30 minutes'");
     expect(sql).toContain("status='DELETE_PENDING'");
     expect(sql).toContain('finalized_at < now() - interval \'24 hours\'');
     expect(sql).toContain('attached_at IS NULL');

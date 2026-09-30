@@ -18,9 +18,9 @@
      - Backend: Bổ sung route `POST /orders/:order_id/confirm-received` trong `order-routes.ts`, `t1-routes.ts`, `PgCheckoutService.confirmReceived` và `OrderLifecycleService.confirmReceived`, cập nhật `order-state-machine.ts` cho phép Buyer chuyển đơn từ `SHIPPING` $\rightarrow$ `COMPLETED`.
      - Frontend: Bổ sung `confirmReceived` vào `orderApi`, `IOrderRepository`, `hybridOrderRepository`, `mockOrderRepository`; gắn nút **"Đã nhận được hàng"** vào thẻ đơn `SHIPPING` trên trang `/orders`; hiển thị thông báo thành công và mở khóa nút viết đánh giá Review (QD14).
   5. **Quality Gates:** 218/218 Vitest tests PASS (100% trên 37 test suites, bao gồm `test/e2e-order-review-lifecycle.spec.ts`), typecheck 0 errors (`tsc --noEmit`), lint 0 errors & 0 warnings (`eslint`), Next.js Production Build 100% SUCCESS (22/22 routes), 0 hardcoded hex colors.
-- Nhánh/PR: dev
+- Nhánh/PR: thanh-vien-5 (sẵn sàng merge vào `dev`)
 - Bị block bởi: Không (Đã hoàn thành toàn bộ code, Zero-Silent-Fallback và bài kiểm thử tích hợp E2E chuỗi Checkout → Seller Ship → Buyer Confirm-Received → Review).
-- Việc tiếp theo: Phối hợp Người 1 đóng Release Candidate và bàn giao cho nhóm QA.
+- Việc tiếp theo: Merge vào `dev` và phối hợp Người 1 đóng Release Candidate.
 
 ## Nhật ký theo ngày
 
@@ -41,7 +41,7 @@
       - Cập nhật `orders-screen.tsx`: Thêm handler `handleConfirmReceived`, cập nhật trạng thái đơn sang `COMPLETED`, kích hoạt toast thông báo thành công và lập tức hiển thị nút **"Đánh giá sản phẩm"** (khớp trọn vẹn luồng Buyer Lifecycle QD14).
       - Bổ sung unit tests trong `frontend/test/orders.spec.ts`: Kiểm tra xác nhận nhận hàng chuyển trạng thái sang COMPLETED và chặn xác nhận trên đơn non-SHIPPING (7/7 tests PASS).
   - **2. Đối soát hiện trạng Code vs Docs:**
-    - Làm rõ cơ chế Hybrid/Mock Fallback của Orders (GAP-01), Review (GAP-09) và Admin trong tài liệu, bảo đảm tính trung thực tuyệt đối.
+    - Làm rõ cơ chế Hybrid/Mock của Orders (FE read path chưa dùng API dù backend route đã có), Review và Admin trong tài liệu; không mô tả GAP-01 là backend thiếu route.
     - Vitest frontend: **217/217 tests PASS (100%)**.
     - Typecheck (`tsc --noEmit`): **0 errors**.
 
@@ -147,7 +147,7 @@
     - Hoàn thiện FE checkout theo `POST /checkout` với header `Idempotency-Key` thông qua `getOrCreateIdempotencyKey(payload)` và `ApiCheckoutRepository`.
     - Triển khai `registerCreatedOrder`: Khi đặt hàng thành công từ checkout, các order được tự động đăng ký vào store bộ nhớ chung, cho phép người mua và người bán nhìn thấy và thao tác ngay lập tức.
     - Triển khai mô hình `hybridOrderRepository` trong `repository-factory.ts`:
-      - Đọc dữ liệu (`getOrders`, `getOrderById`): Sử dụng mock store để đảm bảo UI hoạt động trọn vẹn và ổn định trong khi chờ Backend giải quyết triệt để GAP-01.
+      - Đọc dữ liệu (`getOrders`, `getOrderById`): Frontend hybrid repository hiện vẫn dùng mock store dù backend đã có PostgreSQL order query routes; cần nối consumer và nghiệm thu thay vì chờ backend route.
       - Thao tác đơn hàng (`cancelOrder`, `confirmOrder`, `transitionOrder`): Khi có order ID hợp lệ, hệ thống gọi API thực tế tới Backend (`/orders/:id/cancel`, `/orders/:id/confirm`, `/orders/:id/transition`).
       - Xử lý xung đột Concurrency 409: Bắt và lan truyền chính xác mã lỗi 409 để giao diện hiển thị thông báo lỗi xung đột trạng thái và tự động làm mới dữ liệu.
       - Cơ chế Fallback an toàn: Tự động fallback sang mock state update khi offline hoặc chạy trong môi trường kiểm thử unit test.
@@ -158,7 +158,7 @@
     - Typecheck: **0 errors** (`tsc --noEmit`).
     - Next.js Production Build: **100% SUCCESS** (13/13 routes).
 - **Quyết định kỹ thuật:**
-  - Áp dụng Hybrid Repository Pattern: Tách biệt kênh đọc (mock do GAP-01) và kênh ghi (live mutation gọi backend + sync store + 409 propagation) giúp hệ thống vừa an toàn trước hạn chế dữ liệu đọc của backend vừa sẵn sàng kết nối live mutation.
+    - Áp dụng Hybrid Repository Pattern: Kênh đọc hiện dùng mock trong FE trong khi backend query API có sẵn; kênh ghi gọi live mutation + sync store + 409 propagation. Cần xử lý read integration gap trước khi coi Buyer Orders live.
 - **Contract/port thay đổi:**
   - `ICheckoutRepository.submitCheckout(payload, idempotencyKey)`: Bắt buộc truyền `idempotencyKey`.
   - Xuất helper `registerCreatedOrder` từ `repository-factory.ts`.
@@ -253,7 +253,7 @@
 
 ## Việc được giao
 
-- [x] O-502 — Buyer order center (`/orders`), tabs 7 trạng thái, order card, loading/empty/error states (Kênh đọc dùng in-memory mock store do GAP-01).
+- [x] O-502 — Buyer order center UI (`/orders`), tabs 7 trạng thái, order card, loading/empty/error states. Acceptance live read chưa xong: frontend hybrid `getOrders` vẫn dùng mock dù backend PostgreSQL query routes đã có.
 - [x] O-503 — Cancel order dialog, bắt buộc nhập lý do (RB-LTT08), gọi live API + fallback mock khi offline/mạng lỗi, xử lý 409 conflict tự động làm mới.
 - [x] O-504 & O-505 — Seller orders table (`/seller/orders`) & quy trình xử lý đơn tuần tự (gọi live API mutation + fallback mock khi offline).
 - [x] O-507 — Review form UI (`/orders/[id]/review`), điều kiện hoàn thành QD14, chống đánh giá trùng RB-LB09 (gọi live API + fallback mock khi offline/chưa có auth).

@@ -23,6 +23,11 @@ describe('media lifecycle writes', () => {
       objectPath: 'shops/e2000000-0000-4000-8000-000000000022/products/e2000000-0000-4000-8000-000000000004/e2000000-0000-4000-8000-000000000020.png',
       expiresAt: new Date(Date.now() + 5 * 60_000),
     });
+    expect(client.query.mock.calls[0]?.[0]).toContain('JOIN products p ON p.shop_id=s.shop_id');
+    expect(client.query.mock.calls[0]?.[0]).toContain("s.status='ACTIVE'");
+    expect(client.query.mock.calls[0]?.[1]).toEqual([
+      'e2000000-0000-4000-8000-000000000022', 'e2000000-0000-4000-8000-000000000004',
+    ]);
     expect(client.query.mock.calls[1]?.[0]).toContain("'PRESIGNED'");
     await expect(registerPresignedMedia(client, {
       mediaId: 'e2000000-0000-4000-8000-000000000020', ownerId: 'e2000000-0000-4000-8000-000000000021',
@@ -34,6 +39,12 @@ describe('media lifecycle writes', () => {
       objectPath: 'shops/e2000000-0000-4000-8000-000000000022/products/e2000000-0000-4000-8000-000000000004/e2000000-0000-4000-8000-000000000020.png',
       expiresAt: new Date(Date.now() + 11 * 60_000),
     })).rejects.toThrow('10 minutes');
+    await expect(registerPresignedMedia(client, {
+      mediaId: 'e2000000-0000-4000-8000-000000000099', ownerId: 'e2000000-0000-4000-8000-000000000021',
+      purpose: 'PRODUCT', bucketId: 'product-media',
+      objectPath: 'shops/e2000000-0000-4000-8000-000000000022/products/e2000000-0000-4000-8000-000000000004/e2000000-0000-4000-8000-000000000020.png',
+      expiresAt: new Date(Date.now() + 5 * 60_000),
+    })).rejects.toThrow('invalid product media path');
   });
 
   it('rejects product media when the caller does not own the active shop', async () => {

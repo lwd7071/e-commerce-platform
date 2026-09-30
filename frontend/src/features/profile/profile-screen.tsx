@@ -5,30 +5,75 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth/auth-context";
 import { ProtectedPage } from "../../components/navigation/protected-page";
 import { Button } from "../../components/ui/button";
+import { ErrorState } from "../../components/ui/data-states";
 import { Icon } from "../../components/ui/icon";
 import { TextInput } from "../../components/ui/form-controls";
 import { useToast } from "../../components/ui/toast";
 import { buyerApi } from "../../lib/api/buyer.api";
 import { AddressManager } from "./address-manager";
+import { profileFailureState, type ProfileRequestState, type ProfileSnapshot } from "./profile-request-state";
 
-export type AuthProfileSnapshot = { email?: string | null; fullName?: string | null; phone?: string | null; avatarUrl?: string | null };
+export type AuthProfileSnapshot = ProfileSnapshot & { avatarUrl?: string | null };
 
 export function ProfilePageContent() {
-  const { user } = useAuth();
-  const [profile, setProfile] = useState<AuthProfileSnapshot | null>(user ? { email: user.email, fullName: user.fullName, phone: null, avatarUrl: null } : null);
+  const { user, isLoading: authLoading } = useAuth();
+  const userId = user?.id;
+  const userEmail = user?.email;
+  const userRole = user?.role;
+  const [requestState, setRequestState] = useState<ProfileRequestState>({ status: "loading" });
+  const [attempt, setAttempt] = useState(0);
+
   useEffect(() => {
-    if (!user) return;
-    buyerApi.getProfile().then(value => setProfile({ email: user.email, fullName: value.full_name, phone: value.phone, avatarUrl: value.avatar_url }))
-      .catch(() => setProfile(null));
-  }, [user]);
-  return (
-    <ProtectedPage>
-      <ProfileScreen key={`${user?.id ?? "guest"}:${profile?.fullName ?? ""}:${profile?.phone ?? ""}`} profile={profile} />
-    </ProtectedPage>
-  );
+    let active = true;
+    if (authLoading || !userId || !userEmail || !userRole) return () => { active = false; };
+    buyerApi.getProfile()
+      .then((value) => {
+        if (!value || (value.full_name !== null && typeof value.full_name !== "string") || (value.phone !== null && typeof value.phone !== "string")) {
+          throw new Error("Phản hồi hồ sơ không hợp lệ. Vui lòng thử lại.");
+        }
+        if (active) setRequestState({
+          status: "ready",
+          profile: { email: userEmail, role: userRole, fullName: value.full_name, phone: value.phone },
+        });
+      })
+      .catch((error: unknown) => {
+        if (active) setRequestState(profileFailureState(error));
+      });
+    return () => { active = false; };
+  }, [authLoading, attempt, userEmail, userId, userRole]);
+
+  const retry = () => {
+    setRequestState({ status: "loading" });
+    setAttempt((value) => value + 1);
+  };
+  if (authLoading) return <ProfileScreen state={{ status: "loading" }} onRetry={retry} />;
+  if (!user) return <ProfileScreen state={{ status: "signed_out" }} onRetry={retry} />;
+  const state = requestState.status === "ready" && requestState.profile.email !== user.email
+    ? { status: "loading" as const }
+    : requestState;
+  return <ProtectedPage><ProfileScreen state={state} onRetry={retry} /></ProtectedPage>;
 }
 
-export function ProfileScreen({ profile }: { profile: AuthProfileSnapshot | null }) {
+export function ProfileScreen({ state, onRetry }: { state: ProfileRequestState; onRetry: () => void }) {
+  if (state.status === "loading") {
+    return <section className="surface-card loading-stack" aria-busy="true" aria-label="Đang tải hồ sơ"><Icon name="spinner" />Đang tải hồ sơ…</section>;
+  }
+  if (state.status === "signed_out") {
+    return <section className="notice" role="status"><Icon name="info" /><span>Phiên đăng nhập đã kết thúc. Hãy đăng nhập lại để xem hồ sơ.</span><Link href="/login?returnTo=%2Fprofile">Đăng nhập</Link></section>;
+  }
+  if (state.status === "missing") {
+    return <section className="empty-state surface-card" aria-labelledby="missing-profile-title"><span className="empty-state__icon"><Icon name="user" /></span><h2 id="missing-profile-title">Chưa có hồ sơ cá nhân</h2><p>Hoàn tất thông tin cơ bản để tiếp tục sử dụng tài khoản.</p><Link className="button button--secondary" href="/complete-profile">Hoàn tất hồ sơ</Link></section>;
+  }
+  if (state.status === "error") {
+    return <>
+      <ErrorState title="Không tải được hồ sơ" description={state.message} requestId={state.requestId} onRetry={onRetry} />
+      {state.code && <p className="field-help text-center">Mã lỗi: {state.code}</p>}
+    </>;
+  }
+  return <ProfileReadyScreen key={`${state.profile.email}:${state.profile.fullName ?? ""}:${state.profile.phone ?? ""}`} profile={state.profile} />;
+}
+
+function ProfileReadyScreen({ profile }: { profile: AuthProfileSnapshot }) {
   const showToast = useToast();
 
   const [fullName, setFullName] = useState(profile?.fullName || "");
@@ -69,14 +114,6 @@ export function ProfileScreen({ profile }: { profile: AuthProfileSnapshot | null
           </p>
         </div>
       </header>
-
-      {!profile && (
-        <div className="notice notice--warning" role="status">
-          <Icon name="info" />
-          <span>Chưa có phiên đăng nhập để đọc thông tin tài khoản. Đăng nhập để xem metadata hiện có.</span>
-          <Link href="/login">Đăng nhập</Link>
-        </div>
-      )}
 
       <div className="profile-grid">
         <section className="profile-summary surface-card" aria-label="Ảnh và tên tài khoản">
@@ -139,6 +176,13 @@ export function ProfileScreen({ profile }: { profile: AuthProfileSnapshot | null
                   readOnly
                 />
               </label>
+              <label className="field-stack">
+                <span className="field-label">Vai trò (Chỉ đọc)</span>
+                <TextInput id="profile-role" value={profile.role} readOnly />
+              </label>
+            </div>
+
+            <div className="profile-form__grid">
               <label className="field-stack">
                 <span className="field-label">Số điện thoại</span>
                 <TextInput

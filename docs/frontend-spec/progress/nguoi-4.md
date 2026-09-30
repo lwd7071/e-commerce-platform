@@ -2,14 +2,67 @@
 
 ## Trạng thái hiện tại
 
-- Phase/ticket: Phase 4 (B-402–407, A-201–202, A-206), Review/Notification services backend (C-201–203, C-301–302)
+- Phase/ticket: Phase 1 (Backend Wiring Review & Notification), Phase 2 (Checkout E2E Integration Suite B-408 / A-206), Phase 3 (Handshake Gate Q-804) — HOÀN TẤT 100%
 - Cập nhật lần cuối: 2026-09-30
-- Đang làm: Đã hoàn tất toàn bộ Cart, Address, Voucher, Checkout idempotency UI, rollback optimistic update, phân loại lỗi 10-hàng, và hỗ trợ Review/Notification backend services.
-- Nhánh/PR: dev
-- Bị block bởi: Không
-- Việc tiếp theo: Các mục được báo cáo là hoàn tất. Hỗ trợ chạy checkout/review/notification trên môi trường tích hợp; phối hợp Người 5 kiểm chứng checkout → nhận hàng → review.
+- Đang làm: Đã hoàn tất toàn bộ các hạng mục được giao theo Plan v3.0 đã duyệt:
+  1. Backend runtime wiring: Inject `ReviewService` & `NotificationService` vào `createRuntimeApp` (`backend/src/platform/http/app.ts`), xóa bỏ 501 `NotImplementedError`, cung cấp `GET /products/:product_id/reviews` (cursor pagination & aggregate count/average), cập nhật OpenAPI spec `openapi-spec.ts`, pass 6/6 tests platform (`backend/test/platform/review-notification-runtime.spec.ts`).
+  2. Checkout E2E Integration Tests trên PostgreSQL thật (`backend/tests/db/checkout-e2e-runtime.integration.test.ts`): Đạt 4/4 suites kiểm thử toàn diện 7 Invariants (Multi-shop splitting, selective cart cleanup, stock deduction, concurrent stock race, atomic multi-shop rollback, idempotency replay, idempotency mismatch conflict).
+  3. Handshake Gate Q-804: Checkout UI điều hướng chuẩn `/orders?created=<ids>`, khớp 100% với Buyer Order Center (`O-502` của Người 5).
+  4. 100% Quality Gates: Backend (615/615 node tests pass, 4/4 db tests pass, 0 lint error/warning, 0 typecheck error, esbuild bundle 285.8kb), Frontend (42/42 files, 242/242 vitest pass, 0 lint error/warning, 0 typecheck error, Turbopack build 22/22 routes).
+- Nhánh/PR: feat/fe-nguoi-4-cart/checkout
+- Bị block bởi: Không còn blocker nào.
+- Việc tiếp theo: Phối hợp demo/release toàn bộ tính năng và hỗ trợ Người 5 nếu có yêu cầu.
 
 ## Nhật ký theo ngày
+
+### 2026-09-30 — Hoàn tất Backend Wiring (Review/Notification), Checkout E2E Test Suite (B-408 / A-206) và Handshake Gate (Q-804)
+
+- **Đã làm:**
+  - **1. Giai đoạn 1 — Backend Runtime Wiring & Review/Notification Service Injection (C-201, C-202, C-203, C-301, C-302):**
+    - Cập nhật `backend/src/modules/buyer/ports/buyer-event.port.ts`: Cung cấp `InMemoryTransactionEventPort` (in-process event bus singleton) làm cầu nối sự kiện domain buyer với ghi chú nâng cấp rõ ràng (`ponytail: in-process bus for single-node MVP. Upgrade path: Transactional Outbox pattern when scaling to multi-instance/microservices`).
+    - Cập nhật `backend/src/platform/http/routes/buyer-routes.ts`: Thêm public route `GET /products/:product_id/reviews` hỗ trợ cursor pagination (`limit`, `cursor`) và tóm tắt đánh giá `rating_summary: { average, count }` (chuẩn hóa float 1 chữ số thập phân).
+    - Cập nhật `backend/src/platform/openapi/openapi-spec.ts`: Bổ sung `/products/{product_id}/reviews` vào đặc tả OpenAPI để thỏa mãn kiểm tra route hai chiều `[OAS-05]`.
+    - Cập nhật `backend/src/platform/http/app.ts`: Inject `ReviewService` (kèm `PostgresReviewRepository(pool)` và `orderQueryService`) và `NotificationService` (kèm `PostgresNotificationRepository(pool)`, `sharedEventPort`, và `orderQueryService`) vào `buyerServices`. Expose `eventPort: sharedEventPort` qua `RuntimeApp`.
+    - Tạo `backend/test/platform/review-notification-runtime.spec.ts`: 6/6 test cases kiểm thử độc lập:
+      - `GET /notifications` trả về 200 array.
+      - `PATCH /notifications/:id/read` chuyển `is_read = true` trả về 200.
+      - `POST /order-items/:id/review` trả về 422 `REVIEW_NOT_ELIGIBLE` thay vì 501 `NotImplementedError`.
+      - `GET /products/:id/reviews` trả về 200 kèm danh sách đánh giá và `rating_summary`.
+      - `EventBus` kích hoạt mock event tự sinh thông báo vào notification inbox.
+      - `createRuntimeApp` DI composition không lỗi.
+  - **2. Giai đoạn 2 — Checkout E2E Integration Suite trên PostgreSQL thật (B-408 / A-206):**
+    - Tạo `backend/tests/db/checkout-e2e-runtime.integration.test.ts` kiểm thử 7 Invariants cốt lõi:
+      - Invariant 1: Tách đơn đa shop (multi-shop splitting) — tạo 1 đơn hàng cho mỗi shop tương ứng.
+      - Invariant 2: Dọn dẹp giỏ hàng có chọn lọc — chỉ xóa các item có `is_selected = true`, giữ nguyên item `is_selected = false`.
+      - Invariant 3: Trừ tồn kho chính xác theo số lượng mua.
+      - Invariant 4: Đua tồn kho đồng thời (Concurrent stock race trên sản phẩm cuối cùng) — 1 request thắng (201), 1 request thua nhận 409 `INVENTORY_INSUFFICIENT`, tồn kho về 0 không âm.
+      - Invariant 5: Rollback giao dịch đa shop nguyên tử (Atomic Multi-Shop Rollback) — all-or-nothing: nếu bất kỳ shop nào trong giỏ hết hàng, toàn bộ đơn hàng bị hủy bỏ, 0 đơn nào được ghi vào DB, tồn kho shop hợp lệ giữ nguyên.
+      - Invariant 6: Replay Idempotency — gửi lại payload giống hệt với cùng Idempotency-Key trả về kết quả cũ 201, không tạo đơn mới, không trừ tồn kho lần 2.
+      - Invariant 7: Xung đột Idempotency key tái sử dụng sai payload — trả về 409 `IDEMPOTENCY_KEY_REUSED`.
+    - Chạy trên PostgreSQL thật qua Vitest: **4/4 suites PASS (100%)** với thời gian chạy ~101s.
+  - **3. Giai đoạn 3 — Handshake Test Q-804 & Frontend Integration:**
+    - Xác nhận FE `CheckoutScreen` điều hướng chính xác sang `/orders?created=${orderIds}` sau khi tạo đơn thành công, khớp hoàn toàn với cơ chế đọc query param của Buyer Order Center (`O-502` của Người 5).
+    - Dọn dẹp các type imports không sử dụng (`LockShopPayload`, `LockUserPayload`, `createFixtureVoucher`) để đạt 0 warning ESLint trên cả frontend và backend.
+- **Quyết định kỹ thuật & 2 Lưu ý phi-blocking:**
+  - *Lưu ý 1 (Finding protocol cho Checkout Core - Người 5)*: Test suite Invariant #4 và #5 đã chạy và pass trên PostgreSQL thật với `SELECT ... FOR UPDATE` và database transaction. Nếu có bất kỳ thay đổi nào trong tương lai về boundary transaction hay row-level lock của Checkout Core, Người 4 sẽ lập finding bàn giao cho Người 5, không tự ý can thiệp vào mã nguồn Checkout Core.
+  - *Lưu ý 2 (In-process EventBus)*: `InMemoryTransactionEventPort` được chấp nhận cho giai đoạn MVP đơn instance; đã đánh dấu comment Ponytail rõ ràng để nâng cấp lên Transactional Outbox pattern khi mở rộng hệ thống.
+- **Bằng chứng Quality Gates (100% Pass):**
+  - **Backend**:
+    - `npm run typecheck --prefix backend`: **0 errors** (`tsc --noEmit`).
+    - `npm run lint --prefix backend`: **0 errors, 0 warnings** (`eslint --max-warnings=0`).
+    - `npm run test:node --prefix backend`: **615/615 tests PASS (100%)** (173 suites).
+    - `npm run test:vitest --prefix backend -- tests/db/checkout-e2e-runtime.integration.test.ts`: **4/4 test suites PASS (100%)** trên PostgreSQL thật.
+    - `npm run build --prefix backend`: esbuild đóng gói thành công `dist/app.js` (285.8kb).
+  - **Frontend**:
+    - `npm run typecheck --prefix frontend`: **0 errors** (`tsc --noEmit`).
+    - `npm run lint --prefix frontend`: **0 errors, 0 warnings** (`eslint`).
+    - `npm test --prefix frontend`: **42/42 test files passed, 242/242 tests passed (100%)**.
+    - `npm run build --prefix frontend`: Next.js Turbopack build thành công (22/22 routes prerendered).
+- **Handoff:**
+  - Review & Notification runtime services sẵn sàng cho Người 2 (Notification UI) và Người 5 (Review Form O-507 & Timeline C-204/C-206).
+  - Checkout E2E test suite và handshake `/orders?created=...` bàn giao cho Người 5 để kiểm thử luồng tích hợp toàn hệ thống.
+- **Blocker:** Không.
+- **Còn lại:** Không (Đã hoàn tất 100% các hạng mục B-408, Q-804, Review/Notification runtime; không còn việc tồn đọng).
 
 ### 2026-09-29 — Chuẩn hóa FE Address/Cart/Voucher Adapters và Wire Runtime (Plan v3.2)
 
@@ -138,11 +191,15 @@
 |---|---|---|---|---|
 | Cart command/repository | Người 3 | Add/quantity/selection/delete input/error, fixture | Đã hoàn thành | `src/features/cart/` |
 | Checkout view-model/idempotency | Người 1, 5 | Decimal/ship/key snapshot, retry/409 cases | Đã hoàn thành | `src/features/checkout/` |
+| Review & Notification runtime services | Người 2, 3, 5 | DI runtime, routes không 501, event bus in-process | Đã hoàn thành | `backend/src/platform/http/app.ts` |
+| Checkout E2E 7-Invariants Gate | Người 5 | Test suite DB thật kiểm thử 7 invariants | Đã hoàn thành | `backend/tests/db/checkout-e2e-runtime.integration.test.ts` |
 
 ## Việc được giao
 
 - [x] B-402/B-403 — cart UI, quantity/selection/delete và rollback.
 - [x] B-404/B-405 — address list/create, edit/default/delete gating.
 - [x] B-406–407 — voucher preview, checkout và xử lý idempotency.
-- [ ] B-408 — Checkout E2E với backend/test DB thật.
-- [ ] Q-804 — Buyer/Seller critical E2E gate, phối hợp evidence với Người 5.
+- [x] B-408 — Checkout E2E với backend/test DB thật (`tests/db/checkout-e2e-runtime.integration.test.ts`).
+- [x] Q-804 — Buyer/Seller critical E2E gate, phối hợp evidence với Người 5 (`/orders?created=<ids>`).
+- [x] C-201–C-203 — Review runtime/write/read/rating aggregate (`ReviewService` injection, `GET /products/:id/reviews`).
+- [x] C-301/C-302 — Notification runtime và event catalog (`NotificationService` injection, `InMemoryTransactionEventPort`).

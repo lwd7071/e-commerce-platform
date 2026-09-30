@@ -5,6 +5,7 @@ import { buyerApi } from "../api/buyer.api";
 import { orderApi, type WireOrder } from "../api/order.api";
 import { voucherApi } from "../api/voucher.api";
 import { adminApi } from "../api/admin.api";
+import { mediaApi, uploadMedia } from "../api/media.api";
 import type {
   ICatalogRepository,
   IBuyerRepository,
@@ -12,6 +13,7 @@ import type {
   IVoucherRepository,
   IReviewRepository,
   IAdminRepository,
+  IMediaRepository,
   CreateReviewPayload,
   WireReview,
   AdminUserItem,
@@ -28,12 +30,8 @@ const apiCatalogRepository: ICatalogRepository = {
   getProductById: (id) => catalogApi.getProductById(id),
   createProduct: (data) => catalogApi.createProduct(data),
   updateStock: (variantId, quantity) => catalogApi.updateVariantStock(variantId, quantity),
-  getSellerProducts: async () => {
-    // GAP-04 blocker: Backend does not have a seller-scoped GET /seller/products route yet.
-    // Public GET /products cannot be used because it leaks other shops' products and rejects shop_id.
-    // Fall back to isolated seller-scoped mock until GAP-04 is closed.
-    return mockCatalogRepository.getSellerProducts();
-  },
+  getSellerProducts: (params) => catalogApi.getSellerProducts(params),
+  updateProductStatus: (productId, status) => catalogApi.updateProductStatus(productId, status),
 };
 
 const apiBuyerRepository: IBuyerRepository = {
@@ -113,6 +111,16 @@ const apiAdminRepository: IAdminRepository = {
       await mockAdminRepository.unlockShop(shopId, reason);
     }
   },
+};
+
+const apiMediaRepository: IMediaRepository = {
+  uploadImage: async (file: File, purpose = "product_image") => {
+    const url = await uploadMedia(file, { purpose });
+    return { url };
+  },
+  presign: (filename, contentType, purpose) => mediaApi.presign(filename, contentType, purpose),
+  finalize: (mediaId, magicBytes) => mediaApi.finalize(mediaId, magicBytes),
+  deleteMedia: (mediaId) => mediaApi.deleteMedia(mediaId),
 };
 
 // ==========================================
@@ -350,9 +358,21 @@ const mockCatalogRepository: ICatalogRepository = {
     }
     return { variant_id: variantId, quantity, success: true };
   },
-  getSellerProducts: async () => {
+  getSellerProducts: async (params?: { limit?: number; cursor?: string; search?: string; status?: string }) => {
     // Isolate products strictly belonging to the seller's shop (shop_id: ...0001)
-    return dynamicMockProducts.filter((p) => p.shop_id === "00000000-0000-0000-0000-000000000001");
+    let list = dynamicMockProducts.filter((p) => p.shop_id === "00000000-0000-0000-0000-000000000001");
+    if (params?.search) {
+      const q = params.search.toLowerCase();
+      list = list.filter((p) => p.product_name.toLowerCase().includes(q) || p.product_id.toLowerCase().includes(q));
+    }
+    return list;
+  },
+  updateProductStatus: async (productId: string, status: "ACTIVE" | "INACTIVE") => {
+    const p = dynamicMockProducts.find((item) => item.product_id === productId);
+    if (p) {
+      (p as { status?: string }).status = status;
+    }
+    return { product_id: productId, status };
   },
 };
 
@@ -886,6 +906,13 @@ const mockAdminRepository: IAdminRepository = {
   },
 };
 
+const mockMediaRepository: IMediaRepository = {
+  uploadImage: async (file: File) => {
+    const url = await uploadMedia(file);
+    return { media_id: `mock_med_${Date.now()}`, url };
+  },
+};
+
 // ==========================================
 // 3. Central Dependency Switcher Factory
 // ==========================================
@@ -907,6 +934,8 @@ export const repositories = {
 
   admin: (): IAdminRepository =>
     features.domains.adminMock() ? mockAdminRepository : apiAdminRepository,
-};
 
+  media: (): IMediaRepository =>
+    features.useMock() ? mockMediaRepository : apiMediaRepository,
+};
 export { mockCatalogRepository, apiCatalogRepository };

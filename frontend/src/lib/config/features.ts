@@ -5,6 +5,13 @@ import { envConfig } from "./env";
  */
 export const features = {
   /**
+   * Check if running in production mode.
+   */
+  isProduction: (): boolean => {
+    return process.env.NODE_ENV === "production";
+  },
+
+  /**
    * Global toggle for mock repositories.
    * If true, domain repositories return fixture data instead of calling live backend.
    */

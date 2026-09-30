@@ -10,7 +10,6 @@ test('[QD11/QD13] An unknown runtime actor cannot authorize an Order transition'
     processingEligible: true,
   }), { code: 'RESOURCE_FORBIDDEN' });
 });
-
 test('[QD11] Seller confirms an eligible Order without mutating its snapshot', () => {
   const order = Object.freeze({
     status: 'PENDING_CONFIRMATION' as const,

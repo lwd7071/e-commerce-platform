@@ -34,7 +34,7 @@ Backend không trả field `success`.
 
 ## 2. Runtime readiness
 
-### Căn cứ runtime (2026-09-30)
+### Căn cứ runtime (2026-09-30; đối chiếu source hiện tại)
 
 Runtime composition tại `backend/src/platform/http/app.ts` inject identity/onboarding, catalog, buyer profile/address, checkout, order query/commands và moderation services. Một service class hoặc đường dẫn trong OpenAPI tự nó không chứng minh endpoint đã được nối vào runtime này.
 
@@ -54,12 +54,14 @@ Status meanings below:
 | Catalog | `GET /products/:product_id` | Public | `PARTIAL` | Thiếu images/shop/reviews/metrics |
 | Catalog | `POST /products` | Seller | `PARTIAL` | Runtime tạo sản phẩm/variants; category list đã có; media upload production còn thiếu |
 | Catalog | `PATCH /product-variants/:variant_id/stock` | Seller | `AVAILABLE` | Body `{ quantity }` |
+| Catalog | `GET /seller/products`, `PATCH /seller/products/:id/status` | Seller | `AVAILABLE` | Routes mounted; scope/ownership và trạng thái shop do catalog runtime kiểm tra. Seller full flow E2E chưa được chứng minh trong `frontend/e2e` |
 | Catalog | `GET /categories` | Public | `AVAILABLE` | Chỉ category ACTIVE, danh sách phẳng, roots trước; dùng `PgCategoryRepository` |
+| Admin | category list/create/update/status | Admin | `AVAILABLE` | Category CRUD/status routes đã được mount; kiểm tra acceptance RB-KN04 ở backend tests |
 | Catalog | `GET /shops/:id` | Public | `MISSING` | Chưa có route runtime |
-| Catalog | `GET /seller/products` hoặc `GET /products?shop_id=...` | Seller | `MISSING` | Không có seller-scoped list; `shop_id` bị từ chối như query không hỗ trợ |
+| Catalog | `GET /products?shop_id=...` | Seller | `MISSING` | Không phải API được hỗ trợ; dùng route seller-scoped `GET /seller/products` ở dòng trên |
 | Address | `GET /addresses` | Buyer | `AVAILABLE` | Runtime legacy service |
 | Address | `POST /addresses` | Buyer | `AVAILABLE` | Runtime legacy service |
-| Address | `GET/PATCH/DELETE /addresses/:address_id`, `PATCH .../default` | Buyer | `AVAILABLE` | Tất cả truy vấn scope theo JWT; đặt mặc định trong transaction; order giữ snapshot địa chỉ |
+| Address | `GET/PATCH/DELETE /addresses/:address_id`, `PATCH .../default` | Buyer | `AVAILABLE` | Handler/service đã được nối; thao tác scope theo JWT; đặt mặc định trong transaction; order giữ snapshot địa chỉ |
 | Cart | `GET /cart` | Buyer | `AVAILABLE` | Join sản phẩm, variant, shop, ảnh chính và giá/tồn kho hiện tại; hàng inactive/hết kho vẫn trả với `is_available=false` |
 | Cart | add/update/delete item | Buyer | `AVAILABLE` | Update hỗ trợ `is_selected` |
 | Cart | `DELETE /cart/selected` | Buyer | `AVAILABLE` | Xóa item đang chọn trong cart của buyer; trả 204 |
@@ -69,17 +71,17 @@ Status meanings below:
 | Orders | `GET /orders/:id` | Buyer/Seller/Admin | `AVAILABLE` | Cùng DTO với list; ngoài ownership và không tồn tại trả 404 |
 | Orders | cancel/confirm/transition | Theo route | `AVAILABLE` | Được `PgCheckoutService` xử lý; chỉ dùng khi có order ID hợp lệ |
 | Payment | `POST /orders/:id/payments` | Buyer | `AVAILABLE` | Chỉ retry payment; không tạo provider session, QR hoặc link |
-| Review | `POST /order-items/:id/review`, `POST /reviews` | Buyer | `NOT_IMPLEMENTED` | Route trả 501 vì `ReviewService` không được inject trong runtime |
-| Notification | list/detail/read | Buyer | `NOT_IMPLEMENTED` | Route trả 501 vì `NotificationService` không được inject trong runtime |
+| Review | `POST /order-items/:id/review`, `POST /reviews`, `GET /products/:product_id/reviews` | Buyer/Public | `AVAILABLE` | `ReviewService` được inject trong `app.ts`; route vẫn có defensive 501 nếu service không được cung cấp. Cần DB/test-project smoke để xác nhận môi trường triển khai |
+| Notification | list/detail/read | Buyer | `AVAILABLE` | `NotificationService` được inject trong `app.ts`; FE chưa có API NotificationRepository/generated DTO wiring nên UI production còn gated |
 | Identity | `GET /auth/me`, `POST /auth/onboarding` | Authenticated | `AVAILABLE` | Role lấy từ `app_users`; onboarding Buyer/Seller chạy transaction; shop Seller ban đầu PENDING |
 | Profile | `GET/PATCH /profile` | Authenticated | `AVAILABLE` | Chỉ sửa `full_name`, `phone`; email/role/avatar là read-only hoặc chưa hỗ trợ |
 | Admin | `GET /admin/users`, lock/unlock | Admin | `AVAILABLE/PARTIAL` | List/filter và mutation đã mount; cần pagination, protected Admin target và side-effect tests |
 | Admin | `GET /admin/shops`, approve/lock/unlock | Admin | `AVAILABLE/PARTIAL` | Routes đã mount; cần pagination và atomic audit evidence |
-| Admin | category writes, logs, product/review moderation | Admin | `MISSING` | Category writes thuộc MVP target; viewer/moderation nâng cao nằm backlog |
+| Admin | category writes | Admin | `AVAILABLE` | CRUD/status routes được mount; logs và product/review moderation nâng cao vẫn chưa có |
 | Seller | seller stats | Seller | `MISSING` | Không có HTTP stats route |
-| Media | upload/presign/finalize | Authenticated | `MISSING` | `POST /products` chỉ nhận URL ảnh đã có |
+| Media | presign/finalize/attach/delete | Authenticated | `PARTIAL` | Router được mount tại `/api/v1`; cần Supabase Storage credentials/project phù hợp để xác minh luồng upload thật. `POST /products` cũng nhận URL ảnh đã có |
 
-Order reads, profile, public categories, addresses, enriched cart và Admin users/shops hiện được nối vào runtime. Capability còn thiếu hoặc chưa inject gồm review, notifications, media, seller product discovery, Admin category writes, seller stats và online payment provider. Google OAuth, email OTP/recovery vẫn phụ thuộc cấu hình provider tại Supabase/Google Cloud.
+Order reads, profile, public categories, addresses, enriched cart, seller product routes, review/notification services và Admin category routes hiện có trong runtime composition. Điều đó không thay thế live smoke: media phụ thuộc cấu hình Storage; frontend Notifications API repository chưa được nối; Seller full-flow E2E chưa có trong `frontend/e2e`. Seller stats, Admin log/moderation nâng cao và online payment provider chưa có. Google OAuth, email OTP/recovery vẫn phụ thuộc cấu hình provider tại Supabase/Google Cloud.
 
 ## 3. Catalog
 
@@ -216,7 +218,7 @@ Role `BUYER`; response `201` envelope với object cùng camelCase shape như tr
 }
 ```
 
-Không gửi `address_id`, `user_id`, timestamp hoặc field UI khác trong request. Backend tự gán ID/user/timestamp. `GET /addresses/:id`, `PATCH`, `DELETE` và set-default chưa sẵn sàng production; hiện trả 501 `NOT_IMPLEMENTED` theo ErrorEnvelope. Xem readiness matrix.
+Không gửi `address_id`, `user_id`, timestamp hoặc field UI khác trong request. Backend tự gán ID/user/timestamp. Các route detail/update/delete/set-default có handler runtime và được ghi `AVAILABLE` trong readiness matrix; cần test DB/host theo môi trường triển khai trước khi tuyên bố production smoke hoàn tất.
 
 ## 5. Cart
 

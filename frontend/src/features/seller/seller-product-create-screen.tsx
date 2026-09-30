@@ -9,6 +9,7 @@ import { categoryAdapter, DEV_CATEGORY_FIXTURES, type CategoryItem } from "@/lib
 import { validateStockQuantityInput } from "@/features/catalog/catalog-query-engine";
 import { AppError } from "@/lib/api/app-error";
 import { useToast } from "@/components/ui/toast";
+import { useAuth } from "@/lib/auth/auth-context";
 import { Button } from "@/components/ui/button";
 import { FormField, TextInput, TextArea, SelectInput, ErrorSummary } from "@/components/ui/form-controls";
 import { Icon } from "@/components/ui/icon";
@@ -38,6 +39,8 @@ const VERIFIED_PRESET_IMAGES = [
 export function SellerProductCreateScreen() {
   const router = useRouter();
   const showToast = useToast();
+  const { user } = useAuth();
+  const isShopPending = user?.role === "SELLER" && user?.shopStatus === "PENDING";
 
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [productName, setProductName] = useState("");
@@ -126,6 +129,10 @@ export function SellerProductCreateScreen() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isShopPending) {
+      showToast("Gian hàng đang chờ duyệt. Bạn chưa thể tạo sản phẩm mới.", "error");
+      return;
+    }
     const newErrors: Array<{ fieldId: string; message: string }> = [];
 
     if (!productName.trim()) {
@@ -236,6 +243,16 @@ export function SellerProductCreateScreen() {
           Khởi tạo thông tin sản phẩm, danh mục, hình ảnh và cấu hình biến thể hàng hóa theo chuẩn POST /products.
         </p>
       </div>
+
+      {/* Shop Pending Warning Banner (A-103) */}
+      {isShopPending && (
+        <div className="notice notice--warning" role="alert" data-testid="shop-pending-banner">
+          <Icon name="info" />
+          <div>
+            <strong>Gian hàng đang chờ duyệt:</strong> Gian hàng của bạn đang ở trạng thái chờ Admin duyệt. Bạn chưa thể tạo sản phẩm mới cho đến khi gian hàng được kích hoạt.
+          </div>
+        </div>
+      )}
 
       <ErrorSummary errors={errors} />
 
@@ -532,10 +549,11 @@ export function SellerProductCreateScreen() {
           <Button
             type="submit"
             variant="primary"
-            disabled={isSubmitting}
+            disabled={isSubmitting || isShopPending}
+            title={isShopPending ? "Gian hàng đang chờ duyệt" : undefined}
             className="min-h-[44px] px-8 text-xs font-bold shadow-sm"
           >
-            {isSubmitting ? "Đang tạo sản phẩm..." : "Tạo sản phẩm mới"}
+            {isSubmitting ? "Đang tạo sản phẩm..." : isShopPending ? "Gian hàng chờ duyệt" : "Tạo sản phẩm mới"}
           </Button>
         </div>
       </form>

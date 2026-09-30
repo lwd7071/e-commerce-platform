@@ -76,6 +76,7 @@ export function SellerProductsScreen() {
 
   // Scope products strictly to seller context (O-508)
   const sellerShopId = user?.shopId || "00000000-0000-0000-0000-000000000001";
+  const isShopPending = user?.role === "SELLER" && user?.shopStatus === "PENDING";
   const scopedProducts = useMemo(() => {
     return products.filter((p) => {
       if (sellerShopId && p.shop_id && p.shop_id !== sellerShopId) {
@@ -109,6 +110,7 @@ export function SellerProductsScreen() {
   }, [filteredProducts, currentPage, itemsPerPage]);
 
   const handleOpenStockDialog = async (prod: WireCatalogProductItem) => {
+    if (isShopPending) return;
     setActiveProduct(prod);
     setIsLoadingDetail(true);
     try {
@@ -131,6 +133,10 @@ export function SellerProductsScreen() {
   };
 
   const handleSaveStock = async () => {
+    if (isShopPending) {
+      showToast("Gian hàng đang chờ duyệt. Không thể thay đổi tồn kho.", "error");
+      return;
+    }
     const catalogRepo = repositories.catalog();
     if (!editingVariant || !catalogRepo.updateStock) return;
 
@@ -185,6 +191,34 @@ export function SellerProductsScreen() {
     }
   };
 
+  const [isTogglingStatus, setIsTogglingStatus] = useState<string | null>(null);
+
+  const handleToggleProductStatus = async (item: WireCatalogProductItem) => {
+    const currentStatus = (item as { status?: string }).status || "ACTIVE";
+    const nextStatus = currentStatus === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+    setIsTogglingStatus(item.product_id);
+    try {
+      if (repositories.catalog().updateProductStatus) {
+        await repositories.catalog().updateProductStatus!(item.product_id, nextStatus);
+      }
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.product_id === item.product_id ? { ...p, status: nextStatus } : p
+        )
+      );
+      showToast(
+        nextStatus === "ACTIVE"
+          ? `Đã hiển thị sản phẩm "${item.product_name}"`
+          : `Đã ẩn sản phẩm "${item.product_name}" khỏi gian hàng`,
+        "success"
+      );
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Đổi trạng thái thất bại", "error");
+    } finally {
+      setIsTogglingStatus(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -197,20 +231,43 @@ export function SellerProductsScreen() {
         </div>
 
         <div className="flex items-center gap-3">
-          <Link
-            href="/seller/products/new"
-            className="button button--primary h-10 px-4 text-xs font-bold shadow-xs"
-          >
-            + Thêm sản phẩm mới
-          </Link>
+          {isShopPending ? (
+            <Button
+              variant="secondary"
+              disabled
+              title="Gian hàng đang chờ Admin duyệt"
+              className="h-10 px-4 text-xs font-bold opacity-60 cursor-not-allowed"
+              data-testid="add-product-btn-disabled"
+            >
+              + Thêm sản phẩm mới (Chờ duyệt)
+            </Button>
+          ) : (
+            <Link
+              href="/seller/products/new"
+              className="button button--primary h-10 px-4 text-xs font-bold shadow-xs"
+              data-testid="add-product-btn"
+            >
+              + Thêm sản phẩm mới
+            </Link>
+          )}
         </div>
       </div>
 
-      {/* GAP-04 Notice Banner */}
-      <div className="notice notice--warning" role="status">
+      {/* Shop Pending Warning Banner (A-103) */}
+      {isShopPending && (
+        <div className="notice notice--warning" role="alert" data-testid="shop-pending-banner">
+          <Icon name="info" />
+          <div>
+            <strong>Gian hàng đang chờ duyệt:</strong> Gian hàng của bạn đang ở trạng thái chờ Admin duyệt. Bạn chưa thể tạo sản phẩm hoặc thay đổi tồn kho cho đến khi được kích hoạt.
+          </div>
+        </div>
+      )}
+
+      {/* Seller Channel Integration Notice */}
+      <div className="notice notice--info" role="status">
         <Icon name="info" />
         <div>
-          <strong>Chế độ cách ly gian hàng (GAP-04):</strong> Màn hình đang lọc sản phẩm theo gian hàng của bạn (Shop ID: <code>{sellerShopId}</code>). Chưa kết nối trực tiếp với endpoint public <code>GET /products</code> để tránh rò rỉ sản phẩm shop khác trong khi chờ backend triển khai endpoint seller-scoped <code>GET /seller/products</code>.
+          <strong>Kênh quản lý sản phẩm gian hàng:</strong> Dữ liệu sản phẩm được giới hạn theo gian hàng của bạn (Shop ID: <code>{sellerShopId}</code>), hỗ trợ cập nhật tồn kho tức thời và bật/tắt hiển thị (B-201, B-204, B-205).
         </div>
       </div>
       {/* Sub-navigation tabs between Orders and Products */}
@@ -248,14 +305,22 @@ export function SellerProductsScreen() {
       ) : scopedProducts.length === 0 ? (
         <EmptyState
           icon="bag"
-          title="Gian hàng chưa có sản phẩm nào"
-          description="Hãy tạo sản phẩm đầu tiên để bắt đầu bán hàng trên Dino."
-          action={{
-            label: "Thêm sản phẩm",
-            onClick: () => {
-              router.push("/seller/products/new");
-            },
-          }}
+          title={isShopPending ? "Gian hàng đang chờ duyệt" : "Gian hàng chưa có sản phẩm nào"}
+          description={
+            isShopPending
+              ? "Gian hàng đang chờ Admin xét duyệt. Bạn sẽ có thể tạo sản phẩm mới ngay khi được kích hoạt."
+              : "Hãy tạo sản phẩm đầu tiên để bắt đầu bán hàng trên Dino."
+          }
+          action={
+            isShopPending
+              ? undefined
+              : {
+                  label: "Thêm sản phẩm",
+                  onClick: () => {
+                    router.push("/seller/products/new");
+                  },
+                }
+          }
         />
       ) : (
         <div className="space-y-4">
@@ -312,6 +377,7 @@ export function SellerProductsScreen() {
                       <th className="py-3.5 px-4">Sản phẩm</th>
                       <th className="py-3.5 px-4">Giá bán</th>
                       <th className="py-3.5 px-4 text-center">Tổng tồn kho</th>
+                      <th className="py-3.5 px-4 text-center">Trạng thái</th>
                       <th className="py-3.5 px-4 text-center">Thao tác</th>
                     </tr>
                   </thead>
@@ -321,6 +387,7 @@ export function SellerProductsScreen() {
                         item.min_price === item.max_price
                           ? moneyAdapter.formatVND(item.min_price)
                           : `${moneyAdapter.formatVND(item.min_price)} - ${moneyAdapter.formatVND(item.max_price)}`;
+                      const isItemActive = ((item as { status?: string }).status || "ACTIVE") === "ACTIVE";
 
                       return (
                         <tr key={item.product_id} className="hover:bg-[var(--card-muted)]/50 transition-colors">
@@ -339,13 +406,24 @@ export function SellerProductsScreen() {
                             <span
                               className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold border ${
                                 item.total_stock > 10
-                                  ? "bg-[var(--success-surface)] text-[var(--success)] border-[var(--success-border)]"
+                                  ? "bg-[var(--success-surface)] text-[var(--success-text)] border-[var(--success-border)]"
                                   : item.total_stock > 0
-                                  ? "bg-[var(--warning-surface)] text-[var(--warning)] border-[var(--warning-border)]"
-                                  : "bg-[var(--danger-surface)] text-[var(--danger)] border-[var(--danger-border)]"
+                                  ? "bg-[var(--warning-surface)] text-[var(--warning-text)] border-[var(--warning-border)]"
+                                  : "bg-[var(--danger-surface)] text-[var(--danger-text)] border-[var(--danger-border)]"
                               }`}
                             >
                               {item.total_stock > 0 ? item.total_stock : "Hết hàng"}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 text-center">
+                            <span
+                              className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                                isItemActive
+                                  ? "bg-[var(--success-surface)] text-[var(--success-text)] border-[var(--success-border)]"
+                                  : "bg-[var(--card-muted)] text-[var(--subtext)] border-[var(--border)]"
+                              }`}
+                            >
+                              {isItemActive ? "Đang bán" : "Đã ẩn"}
                             </span>
                           </td>
                           <td className="py-3.5 px-4 text-center">
@@ -353,9 +431,20 @@ export function SellerProductsScreen() {
                               <Button
                                 variant="secondary"
                                 onClick={() => handleOpenStockDialog(item)}
+                                disabled={isShopPending}
+                                title={isShopPending ? "Gian hàng đang chờ duyệt" : undefined}
                                 className="h-8 px-3 text-xs"
                               >
                                 Chỉnh tồn kho
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                onClick={() => handleToggleProductStatus(item)}
+                                loading={isTogglingStatus === item.product_id}
+                                className="h-8 px-2.5 text-xs text-[var(--subtext)] hover:text-[var(--foreground)]"
+                                title={isItemActive ? "Ẩn khỏi gian hàng" : "Hiện sản phẩm"}
+                              >
+                                {isItemActive ? "Ẩn" : "Hiện"}
                               </Button>
                               <Link
                                 href={`/products/${item.product_id}`}

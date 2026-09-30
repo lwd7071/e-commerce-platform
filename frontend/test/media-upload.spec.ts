@@ -21,7 +21,7 @@ describe("Media Upload Helper (Người 1 - TDD)", () => {
     };
     const res = validateMediaFile(oversizedFile);
     expect(res.valid).toBe(false);
-    expect(res.error).toContain("5MB");
+    expect(res.error).toContain("5 MB");
   });
 
   it("chặn file sai định dạng không phải hình ảnh", () => {
@@ -33,6 +33,12 @@ describe("Media Upload Helper (Người 1 - TDD)", () => {
     const res = validateMediaFile(invalidFormat);
     expect(res.valid).toBe(false);
     expect(res.error?.toLowerCase()).toContain("định dạng");
+  });
+
+  it("chặn GIF theo hợp đồng upload", () => {
+    const res = validateMediaFile({ name: "animation.gif", size: 1024, type: "image/gif" });
+    expect(res.valid).toBe(false);
+    expect(res.error).toContain("JPG, PNG hoặc WebP");
   });
 
   it("uploadMedia ném lỗi nếu file không hợp lệ", async () => {

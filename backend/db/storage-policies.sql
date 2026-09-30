@@ -40,6 +40,7 @@ AS $$
     SELECT 1 FROM public.shops s
     WHERE s.shop_id = target_shop_id
       AND s.owner_id = auth.uid()
+      AND s.status = 'ACTIVE'
       AND EXISTS (
         SELECT 1 FROM public.products p
         WHERE p.shop_id = s.shop_id AND p.product_id = target_product_id

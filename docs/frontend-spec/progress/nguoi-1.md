@@ -2,14 +2,63 @@
 
 ## Trạng thái hiện tại
 
-- Phase/ticket: Phase 0, Phase 1 & Phase 8 (C-001, C-003–005, F-101–107, B-303, B-304, Q-801, Q-806, Q-807, Q-808, P0-01–02, P0-04, P0-07–09, A-101–104, C-401–402)
+- Phase/ticket: Dino MVP 30/09 — Block 0, Workstream A & Workstream C Admin APIs (P0-01, P0-02, P0-04, P0-07, P0-08, P0-09, A-101, A-102, A-103, A-104, C-401, C-402, GET /health/readiness)
 - Cập nhật lần cuối: 2026-09-30
-- Đang làm: Không thấy feature lớn còn thiếu. Hoàn tất platform, auth, route guards, resilience, OpenAPI drift contract tests, và đồng bộ tích hợp toàn đội.
+- Đang làm: Đã hoàn tất toàn bộ checklist được giao cho Người 1 trong 08-implementation-plan.md:
+  1. Block 0: Khóa OpenAPI & Contract Drift (P0-01, P0-02), GET /health/readiness (P0-03/§10), Capability Readiness Registry & Build Guard trong next.config.ts (P0-04), Error Envelope completeness (P0-09).
+  2. Workstream A: Seller Onboarding flow & AuthContext session refresh (A-101, A-102), Gating Seller screens theo trạng thái PENDING của Shop (A-103), Safe returnTo open-redirect protection (A-104).
+  3. Workstream C: Admin API hardening & bảo vệ tài khoản ADMIN với 403 ADMIN_TARGET_PROTECTED (C-401, C-402).
+  Quality Gates đạt 100%: 253/253 tests FE pass (44 suites), 619/619 tests BE pass (173 suites) + DB integration tests pass, typecheck 0 lỗi, lint 0 lỗi, build Turbopack 22/22 routes thành công.
 - Nhánh/PR: dev
 - Bị block bởi: Không
-- Việc tiếp theo: Chốt vai trò tích hợp: xác nhận OpenAPI/capability readiness khớp, theo dõi các blocker và hỗ trợ release smoke cùng nhóm.
+- Việc tiếp theo: Phối hợp cùng Người 2, 3, 4, 5 hoàn tất integration và release smoke.
 
 ## Nhật ký theo ngày
+
+### 2026-09-30 — Dino MVP 30/09 (Block 0, Workstream A, Workstream C Admin API & Gating)
+
+- **Đã làm:**
+  - **P0-01, P0-02 & P0-03 (OpenAPI, Contract Drift & /health/readiness):**
+    - Hiện thực endpoint `GET /api/v1/health/readiness` (và `/health/readiness`) trong `backend/src/platform/routes/health.ts`: trả về `version: 1.4.0`, `commit`, kiểm tra kết nối DB/Auth/Storage và 12 capabilities trạng thái `LIVE` khớp với manifest FE. Tự động trả 503 nếu DB degraded.
+    - Cập nhật tài liệu OpenAPI 3.1 `backend/src/platform/openapi/openapi-spec.ts` cho `/health/readiness`.
+    - Viết unit tests tích hợp trong `backend/test/platform/health-route.spec.ts` (PASS 100%).
+    - Mở rộng ma trận `CANONICAL_BACKEND_PATHS` trong `frontend/test/contract-drift-q807.spec.ts` với đầy đủ các endpoint mới (`/health/readiness`, `/auth/me`, `/auth/onboarding`, `/categories`, `/profile`, `/admin/users`, `/admin/shops`, `/reviews`, `/order-items/{id}/review`, `/product-variants/{id}/stock`).
+  - **P0-04 (Capability Readiness Registry & Build Guard):**
+    - Tạo `frontend/src/lib/config/capabilities.ts` quản lý 12 MUST capabilities (`LIVE | MOCK_DEV_ONLY | BLOCKED`) và hàm `validateReleaseReadiness()`.
+    - Viết 5 unit tests trong `frontend/test/capabilities.spec.ts` (PASS 100%).
+    - Gắn `validateReleaseReadiness()` vào `frontend/next.config.ts`, tự động chặn build production nếu mock còn bật hoặc capability MUST chưa LIVE.
+  - **P0-09 (Error Envelope Completeness):**
+    - Rà soát `backend/src/platform/http/envelope.ts` và `error-handler.ts`, đảm bảo mọi response lỗi có `request_id`, bảo toàn kiểm tra `deepStrictEqual` trong `API-ENV-05`.
+  - **A-101 & A-102 (Seller Onboarding & Session Refresh):**
+    - Cập nhật `AuthUser` và `AuthContext` lưu trữ `shopStatus` (`PENDING | ACTIVE | SUSPENDED | LOCKED`).
+    - Cung cấp phương thức `reloadUser()` trong `AuthContext` để refetch profile từ `GET /auth/me` khi shop được Admin duyệt mà không cần đăng nhập lại.
+  - **A-103 (Gate Seller Navigation & Screens by Shop Status):**
+    - Trong `seller-products-screen.tsx`: hiển thị notice banner cảnh báo `PENDING`, vô hiệu hóa nút `+ Thêm sản phẩm mới`, vô hiệu hóa action trong EmptyState, và vô hiệu hóa nút "Chỉnh tồn kho" trong bảng sản phẩm.
+    - Trong `seller-product-create-screen.tsx`: hiển thị banner cảnh báo, vô hiệu hóa nút Submit và chặn `handleSubmit` khi shop `PENDING`.
+    - Trong `seller-dashboard-screen.tsx`: hiển thị notice banner cảnh báo `PENDING`.
+  - **A-104 (Safe returnTo & Open Redirect Protection):**
+    - Củng cố `sanitizeReturnTo` trong `frontend/src/lib/auth/route-guards.ts`, chặn đứng URL ngoài, protocol-relative (`//`), và vector backslash bypass (`/\`).
+    - Viết bộ test `frontend/test/seller-onboarding-gating.spec.ts` (6/6 tests PASS).
+  - **C-401 & C-402 (Admin API Hardening & ADMIN_TARGET_PROTECTED):**
+    - Tạo exception `AdminTargetProtectedError` (HTTP 403 `ADMIN_TARGET_PROTECTED`).
+    - Thêm `getUserRole` vào `ITargetLookupRepository` và `PgModerationTargetRepository`.
+    - Cập nhật `ModerationService.moderateTarget`: từ chối mọi thao tác lock/unlock tài khoản ADMIN với HTTP 403 `ADMIN_TARGET_PROTECTED`.
+    - Viết unit & integration tests trong `moderation-service.spec.ts` (Case 10) và `admin-routes.spec.ts` (Case 8) (PASS 100%).
+- **Quyết định UI/contract:**
+  - Quy tắc phân quyền shop pending: Người bán có shop PENDING được phép xem các màn hình quản trị nhưng toàn bộ tính năng thay đổi dữ liệu (tạo sản phẩm, sửa tồn kho) bị khóa chặt ở cả client lẫn server.
+  - Quy tắc bảo vệ Admin: Tuyệt đối không cho phép khóa tài khoản Admin qua giao diện moderation (403 ADMIN_TARGET_PROTECTED).
+- **Test/kiểm tra:**
+  - Frontend: **253/253 tests PASS (44 test suites)**.
+  - Backend: **619/619 domain/unit tests PASS (173 suites)**, DB runtime integration tests pass.
+  - Typecheck: **0 lỗi** trên cả frontend và backend.
+  - ESLint: **0 lỗi, 0 warnings** trên cả frontend và backend.
+  - Build: **Next.js Turbopack build pass 22/22 routes**.
+- **Handoff:**
+  - Bàn giao `AuthContext.reloadUser` và `shopStatus` cho Người 3 (Seller catalog) và Người 5 (Admin approve/shop moderation).
+  - Bàn giao `capabilities.ts` và `validateReleaseReadiness()` cho toàn đội FE.
+  - Bàn giao `GET /api/v1/health/readiness` cho DevOps / Lead review.
+- **Blocker:** Không.
+- **Còn lại:** Sẵn sàng cho Block 2 (Integration & Production deploy).
 
 ### 2026-09-29 — Đồng bộ role metadata với route RBAC (BUYER-only cho /orders & /notifications)
 
@@ -68,6 +117,10 @@
 | Mock/API repository switch | Người 2, 3, 4, 5 | Interface, flag, contract test, fixtures | Đã bàn giao | `src/lib/repositories/` |
 | Central Seams Export | Toàn đội FE | Export toàn diện ApiClient, Auth, Repositories, Adapters | Đã bàn giao | `src/lib/index.ts` |
 | Resilience & Drift Suites | Toàn đội | 8 bài test resilience và 3 bài test drift contract | Đã bàn giao | `test/resilience-q806.spec.ts`, `test/contract-drift-q807.spec.ts` |
+| Capability Registry & Build Guard | Toàn đội FE, DevOps | `capabilities.ts`, `validateReleaseReadiness()`, build guard `next.config.ts`, 5 tests pass | Đã bàn giao | `src/lib/config/capabilities.ts`, `test/capabilities.spec.ts` |
+| Seller Gating & Session Reload | Người 3, Người 5 | `AuthContext.reloadUser()`, `shopStatus` gating seller-products/create, 6 tests pass | Đã bàn giao | `src/lib/auth/auth-context.tsx`, `test/seller-onboarding-gating.spec.ts` |
+| Health Readiness API | DevOps, Reviewers | `GET /api/v1/health/readiness`, commit/version/DB/Auth/Storage/capabilities manifest | Đã bàn giao | `backend/src/platform/routes/health.ts`, `backend/test/platform/health-route.spec.ts` |
+| Admin Target Protection (403) | Người 5 | `ADMIN_TARGET_PROTECTED` exception, guard moderation service & routes | Đã bàn giao | `backend/src/platform/errors/app-error.ts`, `backend/src/modules/moderation/` |
 
 ## Việc được giao
 
@@ -75,3 +128,16 @@
 - [x] F-101–107 — env, API client, adapters, auth, route guards, mock/API switch.
 - [x] B-303/B-304 — login thật, registration UI có gating.
 - [x] Q-801/Q-806–808 — build/lint, resilience khi offline/error, contract drift, remove release mocks.
+- [x] P0-01 — Khóa ma trận canonical backend paths & contract drift suite (`contract-drift-q807.spec.ts`).
+- [x] P0-02 — Tooling & test suites (Playwright, Axe, testing-library, vitest, openapi drift guard).
+- [x] P0-03 / §10 — `GET /health/readiness` (và `/api/v1/health/readiness`) trả commit/version, DB/Auth/Storage và 12 capabilities.
+- [x] P0-04 — Capability Readiness Registry (`capabilities.ts`) & build guard fail-fast trong `next.config.ts`.
+- [x] P0-07 — Login email/password + `/auth/me` smoke MUST, nạp role và shopStatus (`PENDING | ACTIVE`).
+- [x] P0-08 — Change Request `confirm-received` OpenAPI & state machine alignment.
+- [x] P0-09 — Error envelope completeness (đảm bảo request_id và format chuẩn `API-ENV-05`).
+- [x] A-101 — Seller onboarding FE nối `POST /auth/onboarding`, gán shop PENDING.
+- [x] A-102 — Phương thức `reloadUser()` trong `AuthContext` cập nhật profile sau khi shop được duyệt mà không cần re-login.
+- [x] A-103 — Gating seller screens & navigation theo `shopStatus === "PENDING"` (banner cảnh báo, khóa nút tạo sản phẩm và sửa tồn kho).
+- [x] A-104 — Bảo vệ `sanitizeReturnTo` chống open-redirect và vector backslash bypass (`/\`, `\\`).
+- [x] C-401 — Admin users/shops API hardening.
+- [x] C-402 — Moderation effects + audit, chặn thao tác lock/unlock tài khoản ADMIN với 403 `ADMIN_TARGET_PROTECTED`.

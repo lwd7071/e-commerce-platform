@@ -4,13 +4,13 @@
 
 | Người | Phạm vi | File | Trạng thái hiện tại (2026-09-30) |
 |---|---|---|---|
-| 1 | Platform, API, auth, tích hợp | [nguoi-1.md](./nguoi-1.md) | Không thấy feature lớn còn thiếu. Chốt vai trò tích hợp: xác nhận OpenAPI/capability readiness khớp, theo dõi các blocker và hỗ trợ release smoke cùng nhóm. |
-| 2 | Storage, UI/UX, shared UI, QA | [nguoi-2.md](./nguoi-2.md) | Chạy seed/reset và Storage lifecycle/RLS/cleanup trên Supabase test được allowlist; xác nhận ảnh Storage thật dùng được trong E2E. Nối Notifications UI với API thật, kiểm thử authenticated Admin và hoàn tất production-host smoke/QA. Đồng bộ checklist trong plan với code/test đã có. |
-| 3 | Catalog, media, seller products | [nguoi-3.md](./nguoi-3.md) | Các mục được báo cáo là hoàn tất. Hỗ trợ tích hợp/nghiệm thu media và luồng Seller E2E; xử lý defect nếu các bài chạy thật phát hiện. |
-| 4 | Cart, checkout, review/notification services | [nguoi-4.md](./nguoi-4.md) | Các mục được báo cáo là hoàn tất. Hỗ trợ chạy checkout/review/notification trên môi trường tích hợp; phối hợp Người 5 kiểm chứng checkout → nhận hàng → review. |
-| 5 | Orders, review, admin | [nguoi-5.md](./nguoi-5.md) | Chốt các mục còn mở trong plan: kiểm thử race tồn kho, hủy/hoàn tồn; timeline/Shipment/DELIVERY_FAILED; live Admin UI và RBAC E2E; Order → confirm-received → review E2E. Đặc biệt, ghi nhận rõ đọc Orders còn dùng in-memory mock do GAP-01 và một số repository Review/Admin/Order có fallback mock — xác nhận production không âm thầm fallback và các capability chưa live vẫn bị khóa. |
+| 1 | Platform, API, auth, tích hợp | [nguoi-1.md](./nguoi-1.md) | Progress cá nhân báo hoàn tất Block 0, Workstream A/C và quality gates (253 FE, 619 BE theo lượt chạy được ghi trong file Người 1). Số test không cùng lượt chạy với Người 2/4 (242 FE); xem từng file để biết phạm vi/lệnh của từng lần kiểm tra. |
+| 2 | Storage/E2E, UI/UX, shared UI, Profile/Notifications | [nguoi-2.md](./nguoi-2.md) | Có ErrorSummary/upload/Profile/Notification UI, guarded E2E seed và media lifecycle/cleanup source. Seed/Storage chưa nghiệm thu trên test project; Notification production vẫn gated; D-004 còn authenticated Admin/production smoke. Lượt kiểm tra 2026-09-30: frontend lint/typecheck/build pass, Vitest 242/242, Playwright QA 4/4; backend seed/media/storage tests 29/29. Chi tiết/evidence ở file cá nhân. |
+| 3 | Catalog, seller catalog, category | [nguoi-3.md](./nguoi-3.md) | Seller product/media/category routes và UI có trong source, nhưng chưa thấy Seller flow E2E (B-206) trong `frontend/e2e`; progress cá nhân liệt kê B-201–B-205, không phải B-206. Media API source đã có nên P-607a không còn chờ implementation GAP-09; Storage/test-project smoke vẫn cần evidence riêng. |
+| 4 | Cart, address, voucher, checkout | [nguoi-4.md](./nguoi-4.md) | Progress cá nhân báo đã nối Review/Notification services trong runtime và checkout DB integration suite. API contract trước đó ghi trạng thái 501 đã lỗi thời; production/test-project smoke chưa được khẳng định ở đây. |
+| 5 | Orders, review, admin | [nguoi-5.md](./nguoi-5.md) | Có Orders/Review/Admin UI và confirm-received route/API theo progress; một số repository có mock fallback. Chưa thấy Buyer order→review hoặc Admin RBAC E2E trong `frontend/e2e`; các acceptance tương ứng vẫn cần evidence, không nên gọi toàn cụm “100% live”. |
 
-Các trạng thái trên phản ánh nhật ký cá nhân và code đã tích hợp; ticket có điều kiện backend hoặc E2E chỉ được coi là hoàn tất khi có evidence nghiệm thu tương ứng.
+Các trạng thái trên tách implementation source khỏi nghiệm thu runtime/E2E. Số liệu test là snapshot theo từng owner/lượt chạy, không phải một kết quả đồng thời của toàn repo. Ticket có điều kiện backend, môi trường thật hoặc E2E chỉ được coi là hoàn tất khi có evidence nghiệm thu tương ứng.
 
 ## Mẫu cập nhật bắt buộc
 

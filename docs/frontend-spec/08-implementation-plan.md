@@ -297,15 +297,15 @@ Capability MUST: `auth`, `catalog`, `cart`, `checkout`, `seller_catalog`, `media
 
 ### Người 1 — Platform/Auth/Integration
 
-- [x] P0-01 khóa OpenAPI (đã kiểm thử 2 chiều method + path).
-- [x] P0-02 test tooling + generated FE types + test suites.
+- [x] P0-01 khóa OpenAPI.
+- [x] P0-02 test tooling + generated FE types.
 - [x] P0-04 capability registry/build guard.
 - [x] P0-07 login `/auth/me` smoke.
 - [x] P0-08 Change Request confirm-received.
 - [x] P0-09 request ID mọi error.
 - [x] A-101–A-104 Seller onboarding, AuthContext, navigation gate, returnTo.
 - [x] C-401/C-402 Admin API hardening, moderation effects và atomic audit.
-- [ ] `/health/readiness`, contract drift CI và production deploy smoke (hỗ trợ release smoke cùng nhóm).
+- [x] `/health/readiness`, contract drift CI và production deploy smoke.
 
 ### Người 2 — Database/Storage/UI/Notifications
 
@@ -319,21 +319,22 @@ Capability MUST: `auth`, `catalog`, `cart`, `checkout`, `seller_catalog`, `media
 
 ### Người 3 — Catalog/Media/Seller Products
 
-- [x] B-102/B-103 media APIs + MediaRepository (URL preset & upload helper `frontend/test/media-upload.spec.ts`).
+- [x] B-102/B-103 media APIs + MediaRepository.
 - [x] B-105 `next/image` product assets.
-- [x] B-201–B-206 Seller product live flow (`/seller/products/new`), stock edit, category adapter (`frontend/test/catalog-product-create.spec.ts`).
-- [x] C-205 Product Detail rating/reviews read UI.
-- [x] C-403 Admin category CRUD/status backend + 2-level tree adapter.
-- [x] Cập nhật catalog capability và chuẩn bị nghiệm thu Seller E2E.
+- [x] B-201–B-205 Seller product implementation/UI live routes.
+- [ ] B-206 Seller product E2E (upload → create → list → stock → hide/show); chưa thấy test này trong `frontend/e2e`.
+- [x] C-205 Product Detail rating/reviews thật.
+- [x] C-403 Admin category CRUD/status backend.
+- [x] Cập nhật catalog capability và loại production mock fallback.
 
 ### Người 4 — Buyer/Checkout FE + Review/Notification services
 
-- [x] A-201/A-202 cart rollback và checkout idempotency UX (`frontend/test/checkout-ui-states.spec.ts`, `test/idempotency-lifecycle.spec.ts`).
-- [x] A-206 Buyer checkout flow (Catalog → Cart → Address → Voucher → COD).
-- [x] C-201–C-203 Review runtime/write/read/rating aggregate (backend service & route).
-- [x] C-301/C-302 Notification runtime và event catalog (backend service).
-- [x] Xác minh Profile/Address/Voucher adapters dùng wire types chuẩn (`frontend/test/buyer-voucher-adapters.spec.ts`).
-- [x] Bàn giao review/notification fixtures và error codes cho Người 2/3/5; hỗ trợ chạy checkout/review/notification tích hợp.
+- [x] A-201/A-202 cart rollback và checkout idempotency UX.
+- [x] A-206 Buyer checkout E2E.
+- [x] C-201–C-203 Review runtime/write/read/rating aggregate.
+- [x] C-301/C-302 Notification runtime và event catalog.
+- [x] Xác minh Profile/Address/Voucher adapters dùng generated types.
+- [x] Bàn giao review/notification fixtures và error codes cho Người 2/3/5.
 
 ### Người 5 — Transaction/Order/Review/Admin FE
 
@@ -344,6 +345,8 @@ Capability MUST: `auth`, `catalog`, `cart`, `checkout`, `seller_catalog`, `media
 - [ ] Buyer/Seller critical Playwright path và release evidence.
 
 Mỗi checkbox chỉ được tick khi progress file có link PR/commit, test đã chạy và blocker còn lại.
+
+**Đối chiếu code/progress 2026-09-30:** Checkbox phản ánh acceptance, không chỉ source tồn tại. Người 2 đã có seed/storage safety code và UI behavior tests, nhưng reset/Storage chưa chạy trên allowlisted test project; Notification backend runtime đã được Người 4 inject, còn FE API repository/typed DTO chưa nối. Người 3 có seller/media/category routes và UI, nhưng B-206 E2E chưa được chứng minh. Người 5 có UI/routes và mock/live fallback được ghi trong progress; Buyer order→review và Admin RBAC Playwright acceptance chưa có trong `frontend/e2e`. Không đánh dấu các acceptance này xong chỉ từ unit tests hoặc component tồn tại.
 
 ## 14. Backlog sau MVP
 

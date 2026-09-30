@@ -22,6 +22,9 @@ export interface ErrorEnvelope {
     details?: unknown;
   };
   request_id: string;
+  meta?: {
+    request_id?: string;
+  };
 }
 
 export function buildSuccessEnvelope<T>(data: T, requestId: string): SuccessEnvelope<T> {

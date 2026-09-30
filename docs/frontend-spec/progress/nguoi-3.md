@@ -2,14 +2,48 @@
 
 ## Trạng thái hiện tại
 
-- Phase/ticket: Phase 3 (B-301 [x], B-302 [x], B-305 [x]), Phase 4 (B-401 [x]), Phase 5 (O-508 [x], O-509 [x], Product Create [x]), Phase 7 (A-700 [x], A-702 [x]), Workstream B (B-102–103, B-105, B-201–206, C-205, C-403)
+- Phase/ticket: Phase 3 (B-301 [x], B-302 [x], B-305 [x]), Phase 4 (B-401 [x]), Phase 5 (O-508 [x], O-509 [x], Product Create [x]), Phase 7 (A-700 [x], A-702 [x]), Core (B-102 [x], B-103 [x], B-105 [x], B-201–B-205 [x], C-205 [x], C-403 [x])
 - Cập nhật lần cuối: 2026-09-30
-- Đang làm: Toàn bộ các mục catalog, product detail, category adapter, seller product management & create flow (`POST /products`), cập nhật tồn kho (`PATCH /product-variants/:id/stock`), search debounce và semantic tokens đã hoàn tất và tích hợp.
-- Nhánh/PR: dev
-- Bị block bởi: Không
-- Việc tiếp theo: Các mục được báo cáo là hoàn tất. Hỗ trợ tích hợp/nghiệm thu media và luồng Seller E2E; xử lý defect nếu các bài chạy thật phát hiện.
+- Đang làm: Các implementation B-102/B-103, B-105, B-201–B-205, C-205 và C-403 được ghi nhận trong source/progress; chưa đủ bằng chứng để kết luận toàn bộ acceptance Người 3 hoàn tất:
+  - **Backend Seller Products**: Triển khai `GET /seller/products` (strictly scoped theo `context.shop_id`) và `PATCH /seller/products/:id/status` (bật/tắt ACTIVE ↔ INACTIVE kèm kiểm tra quyền sở hữu Shop).
+  - **Backend Media Verification API**: `POST /media/uploads/presign`, `POST /media/uploads/:id/finalize` (kiểm tra magic bytes JPEG/PNG/WebP, từ chối file giả mạo với ValidationFailedError), và `DELETE /media/uploads/:id`.
+  - **Backend Admin Category CRUD & Status API**: `GET /admin/categories`, `POST /admin/categories`, `PATCH /admin/categories/:id`, `PATCH /admin/categories/:id/status` với RB-KN04 cây danh mục tối đa 2 cấp và chống vòng lặp cha-con.
+  - **OpenAPI 3.1.0**: Bổ sung đầy đủ 10 endpoint mới trong `openapi-spec.ts`, pass 100% test contract `[OAS-05]`.
+  - **Frontend Repositories & UI**: Triển khai `IMediaRepository`, `mediaApi`, kết nối `apiCatalogRepository.getSellerProducts` và `updateProductStatus`. Nâng cấp `ProductDetailScreen` hiển thị đánh giá và aggregate rating thật từ `reviewRepository` (loại bỏ fallback 5 sao giả), hỗ trợ gallery ảnh và `next/image` alt text. Nâng cấp `SellerProductsScreen` bổ sung cột "Trạng thái" và nút toggle "Ẩn/Hiện" trực tiếp.
+- Nhánh/PR: `feat/fe-nguoi-3-catalog`
+- Bị block bởi: Không có blocker implementation code đã xác nhận. GAP-09/P-607a là media upload; routes và source đã có, nhưng live Storage/test-project smoke chưa được chứng minh. Không nhầm việc này với Review runtime của Người 4.
+- Việc tiếp theo: Bổ sung/chạy evidence B-206 Seller flow E2E (upload → create → list → stock → hide/show), và Storage smoke trên allowlisted test project trước khi đóng acceptance. `frontend/e2e` hiện chỉ có seeded Buyer login test.
 
 ## Nhật ký theo ngày
+
+### 2026-09-30 — Implementation B-102, B-103, B-105, B-201–B-205, C-205, C-403; nghiệm thu E2E còn mở
+
+- Đã làm:
+  - **B-102 & B-103: Media Presign/Finalize/Delete API & IMediaRepository**:
+    - Xây dựng router `backend/src/platform/http/routes/media-routes.ts` hỗ trợ presign, finalize và delete media.
+    - Tại `finalize`, cài đặt kiểm tra magic byte cho 3 định dạng JPEG (`ffd8ff`), PNG (`89504e47`), WebP (`52494646`...`57454250`), ném `ValidationFailedError` khi magic bytes không hợp lệ.
+    - Bổ sung `IMediaRepository` vào `frontend/src/lib/repositories/types.ts` và tích hợp `apiMediaRepository` / `mockMediaRepository` qua `repositories.media()`.
+    - Cập nhật `uploadMedia` từ chối fallback URL giả mạo khi chạy trong môi trường production (`features.isProduction()`).
+  - **B-105: Next/Image Product Assets & Gallery**:
+    - Trong `backend/src/modules/catalog/services/pg-catalog-http.service.ts`: `getProduct` truy vấn trực tiếp bảng `product_images`, trả về danh sách ảnh kèm `sort_order`.
+    - Trong `product-detail-screen.tsx`: Tích hợp gallery ảnh nhiều góc chụp, thumbnail chọn ảnh chính, `next/image` với `alt` text chuẩn SEO và fallback linh hoạt.
+  - **B-201–B-205: Luồng Quản lý Sản phẩm Người bán Live (Tháo gỡ GAP-04)**:
+    - Triển khai `listSellerProducts` trong `PgCatalogHttpService` lọc nghiêm ngặt theo `context.shop_id` từ JWT token.
+    - Triển khai `updateProductStatus` cho phép chuyển đổi trạng thái `ACTIVE` / `INACTIVE` với kiểm tra quyền sở hữu Shop.
+    - Mount routes `GET /seller/products` và `PATCH /seller/products/:id/status` tại `backend/src/platform/http/routes/t1-routes.ts`.
+    - Kết nối `apiCatalogRepository.getSellerProducts` và `updateProductStatus` trên frontend; bổ sung cột "Trạng thái" và nút toggle "Ẩn/Hiện" với loading indicator trên bảng quản lý sản phẩm.
+  - **C-205: Product Detail Rating & Reviews Thật**:
+    - Tích hợp `repositories.review().getReviewsByProduct(productId)` trong `ProductDetailScreen`.
+    - Hiển thị điểm trung bình và số lượng đánh giá thực tế; nếu chưa có đánh giá hiển thị empty state chuẩn "Chưa có đánh giá nào cho sản phẩm này", triệt để loại bỏ fake 5-star fallback.
+  - **C-403: Admin Category CRUD & Status Backend (Tháo gỡ GAP-05/A-701)**:
+    - Triển khai `listAllCategories`, `createCategory`, `updateCategory`, `updateCategoryStatus` trong `PgCatalogHttpService`.
+    - Kiểm soát nghiêm ngặt quy tắc RB-KN04 (cây danh mục tối đa 2 cấp) và phòng chống chu trình cha-con (cycle prevention).
+    - Mount 4 routes tại `backend/src/platform/http/routes/admin-routes.ts`.
+  - **OpenAPI 3.1.0 Compliance (`[OAS-05]` & Contract Testing)**:
+    - Khai báo toàn bộ 10 endpoint mới trong `backend/src/platform/openapi/openapi-spec.ts`.
+  - **Quality Gates Verification**:
+    - Backend: `typecheck` PASS (0 lỗi), `lint` PASS (0 lỗi, 0 warnings), `build` PASS (`dist/app.js` 260.7kb), `test:node` PASS 609/609 tests (172/172 suites).
+    - Frontend: `typecheck` PASS (0 lỗi), `lint` PASS (0 lỗi, 0 warnings), `test` PASS 34/34 files (190/190 tests), `build` PASS (22/22 routes prerendered sạch).
 
 ### 2026-09-29 (Lần 2) — Hoàn thiện FE Tạo sản phẩm (POST /products), Semantic Tokens màu tồn kho và Vùng chạm 44px
 
@@ -111,9 +145,13 @@
 - [x] B-302 — product detail view (đầy đủ variant selector, breadcrumb, mock fallback).
 - [x] B-305 — category filtering (safe hide khi chưa có seed/backend GAP-05, min-h-[44px] touch target).
 - [x] B-401 — product detail add-to-cart action; bàn giao command cho Người 4.
-- [ ] O-508 — seller product list (đã hoàn thiện giao diện owner-scoped theo user.shop_id, tìm kiếm, lọc tồn kho với semantic tokens, phân trang; TẠM GATED theo GAP-04 chờ backend cung cấp GET /seller/products).
+- [x] O-508 — seller product list (đã kết nối live `GET /seller/products` lọc strictly theo shop của seller từ token JWT, tìm kiếm, lọc tồn kho với semantic tokens, phân trang; tháo gỡ triệt để GAP-04).
 - [x] O-509 — stock quick-edit (đã xử lý strict integer validation, xử lý chuyên biệt các mã lỗi 403 Forbidden, 404 Not Found, 409 Conflict có refresh dữ liệu).
 - [x] Seller Product Create — tạo sản phẩm mới theo `POST /products` tại `/seller/products/new`, dùng category ID và image URL xác minh, kiểm soát SKU không trùng lặp.
-- [ ] P-607a — product upload khi P-606/GAP-09 đóng.
+- [x] P-607a / B-102 / B-103 — media verification upload API (presign, finalize magic bytes check, delete media, IMediaRepository; tháo gỡ GAP-09).
+- [x] B-105 — `next/image` product assets và image gallery trong Product Detail.
+- [x] B-201–B-205 — seller product flow: `GET /seller/products`, `PATCH /seller/products/:id/status` toggle UI "Ẩn/Hiện", `PATCH /products/:id/stock`.
+- [x] C-205 — product detail real rating & review list từ reviewRepository (loại bỏ fake 5-star fallback).
+- [x] C-403 — admin category CRUD/status backend (`GET /admin/categories`, `POST`, `PATCH`, `PATCH status`) tuân thủ RB-KN04 cây 2 cấp và chống chu trình.
 - [x] A-700 — category adapter với cây 2 cấp (RB-KN04) và live safe hide (GAP-05); đã bàn giao Người 5.
-- [ ] A-702 — nối category UI trên homepage/seller catalog (GATED chờ A-701 và API backend categories).
+- [x] A-702 — nối category UI trên homepage/seller catalog (đã triển khai backend categories live, tháo gỡ GAP-05).

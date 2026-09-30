@@ -2,14 +2,42 @@
 
 ## Trạng thái hiện tại
 
-- Phase/ticket: Phase 0 (D-001–003, P0-03, P0-05–06), Phase 2 (U-201–206), Phase 6 (P-602, P-604–605, P-607b, B-101, B-104, C-303–305), Q-802/Q-803 scoped QA
+- Phase/ticket: Phase 0 D-001–003/P0-03; Phase 2 U-201–206/B-104; Phase 6 Profile request states/P-602/P-604–605/P-607b (UI mock/gated); C-303–C-305 UI behavior implemented, API repository/handoff incomplete; Q-802/Q-803 scoped QA
 - Cập nhật lần cuối: 2026-09-30
-- Đang làm: Shared UI, token design system, touch targets (≥44px), component hardening, ErrorSummary và role navigation helpers đã hoàn tất trên `dev`. Chờ chạy seed/reset và Storage lifecycle/RLS/cleanup trên Supabase test được allowlist; xác nhận ảnh Storage thật dùng được trong E2E.
-- Nhánh/PR: dev
-- Bị block bởi: Cần môi trường Supabase test DB allowlist để chạy seed/reset và kiểm tra Storage policy runtime; Notifications UI chờ kết nối API thật.
-- Việc tiếp theo: Chạy seed/reset và Storage lifecycle/RLS/cleanup trên Supabase test được allowlist; xác nhận ảnh Storage thật dùng được trong E2E. Nối Notifications UI với API thật, kiểm thử authenticated Admin và hoàn tất production-host smoke/QA. Đồng bộ checklist trong plan với code/test đã có.
+- Trạng thái: P0-05/06 có seed/reset fixture ảnh Storage thật, safety guard và Playwright reset hook; chưa chạy được trên DB/Storage test vì môi trường hiện tại dừng ở safety guard. B-101 có lifecycle migration, RLS, cleanup runner và scheduled workflow nhưng chưa apply/test trên Supabase. B-104, Profile states/UI tests, ErrorSummary interaction test và Notifications UI behavior đã implement. Responsive/Axe QA cho guest/Profile/Notifications pass; Admin authenticated và production-host smoke chưa có. **Notification backend runtime đã được Người 4 inject trong `app.ts`; blocker hiện tại phía Người 2 là chưa có FE API repository/typed DTO integration và live authenticated verification**, không còn chờ service injection. Lượt kiểm tra gần nhất ghi trong nhật ký 2026-09-30: frontend lint/typecheck/build pass, Vitest 242/242, Playwright QA 4/4; backend focused seed/media/storage tests 29/29. Đây là lượt kiểm tra đã ghi nhận, không phải xác nhận lại sau mọi thay đổi workspace.
+- Nhánh/PR: Các commit từ `codex/node-24-runtime`, `codex/frontend-ci-workspace` và `codex/member2-pr-a/b/c` đã merge vào `dev`; FE polish mới nhất được đẩy trực tiếp lên `origin/dev` (xem commit trên nhánh). Không có PR riêng.
+- Chưa xác minh live: Không có cấu hình test project/allowlist trong môi trường hiện tại nên reset dừng ở safety guard trước mọi thao tác DB; chưa apply migration hoặc chạy Storage smoke/cleanup trên Supabase. Scheduled workflow cần secrets/vars đúng target production trước khi được bật. Backend Notification runtime có trong composition; FE hiện chỉ có UI nhận repository injectable/demo provider, chưa có API NotificationRepository/generated DTO được nối. Chưa có credentials/URL production để chạy Vercel + backend-host smoke; `/admin` responsive smoke tại local chỉ kiểm tra guest route, không giả nhận là dashboard authenticated.
+- Việc tiếp theo: Cấu hình Supabase test + allowlist để chạy reset, migration và Storage smoke; cấu hình secrets/vars cleanup workflow; chạy Playwright smoke với frontend/backend test host; triển khai/nối NotificationRepository dùng API runtime hiện có; chạy dashboard authenticated và production-host smoke khi có môi trường.
 
 ## Nhật ký theo ngày
+
+### 2026-09-30 — E2E fixtures, media lifecycle, ErrorSummary, upload, Profile và Notifications
+
+- **P0-05/06:** `backend/scripts/reset-e2e-fixtures.ts` cùng `db:e2e:reset` tạo lại 4 tài khoản Dino, shop pending/active, category/product + stock 1, address, cart, voucher, notification unread, order/status history cho 7 trạng thái, Shipment khi cần và review baseline. Ảnh fixture là PNG thật upload qua Supabase Storage API theo path đúng policy, có `product_images` public URL và registry `ATTACHED`. Guard bắt buộc non-production, `DATABASE_ENVIRONMENT=test`, `ALLOW_E2E_SEED=true`, project ref + DB host khớp allowlist.
+- **P0-06 hook:** `frontend/e2e/fixtures.ts` tự chạy reset script trước từng test; `playwright.config.ts` giới hạn worker là 1 để fixture chung không bị race. Có seeded Buyer login smoke làm tracer test. `test:e2e -- --list` nhận diện đúng test; chạy test thật xác nhận hook được gọi và safety guard dừng trước DB vì local `DATABASE_ENVIRONMENT` chưa phải `test`.
+- **B-101:** Lifecycle registry migration; presign registration kiểm tra purpose/bucket/path, active-shop ownership và TTL tối đa 10 phút; finalize chỉ chấp nhận media ≤5 MB có magic bytes JPEG/PNG/WebP; attach chỉ từ `FINALIZED`, đúng owner/purpose/product-or-review path, với status predicate để serialize cùng cleanup. Cleanup claim dùng `FOR UPDATE SKIP LOCKED`, chỉ xử lý finalized quá 24h/chưa attach, gọi Storage API và retry trạng thái lỗi. GitHub Actions daily/manual có allowlist/secret guard. Cần apply migration, cấu hình production secrets/vars và chạy Storage smoke trên test project.
+- **P0-03:** Bổ sung jsdom, React Testing Library và user-event. Interaction test xác nhận submit nhiều lỗi chuyển focus vào ErrorSummary, link trỏ đúng field, inline errors và `aria-describedby`/`aria-invalid` vẫn có; submit hợp lệ không render summary và giữ focus ở nút submit. Test focus đã được kiểm chứng đỏ khi tạm bỏ focus effect, rồi xanh sau khi khôi phục. DOM interaction pass 2/2; SSR contract pass 10/10.
+- **B-104:** Purpose cap Product 5/Review 3/Avatar 1, JPEG/PNG/WebP ≤5 MB, preview URL lifecycle/revoke, demo badge và production gate trước legacy uploader. Review/product consumers khai báo purpose.
+- **Profile:** state loading/signed_out/missing/error/ready, missing chỉ cho `404 RESOURCE_NOT_FOUND`, giữ code/request ID, retry, signed-out CTA `returnTo`, và avatar gate; thêm classifier tests.
+- **Task 3–6 follow-up:** FileUploadZone upload target dùng native button và có keyboard-activation test; Profile UI tests xác nhận loading/signed-out/missing/error states và giữ nguyên input khi save lỗi. Toast live region thêm role `region` theo lỗi Axe.
+- **Notifications C-303–305:** Screen nhận repository injectable; demo provider chỉ chạy non-production. Production gate không gọi repository hay render dữ liệu demo. Có loading/error/retry, filter/empty state, mark-one optimistic rollback, bulk tối đa 20 unread đang hiển thị, concurrency tối đa 4, giữ item thành công và rollback riêng item lỗi/chưa được gửi khi gặp 429. Test focused notification 14/14 pass. `app.ts` hiện injects NotificationService, nhưng frontend chưa có API NotificationRepository/generated DTO integration; production vẫn gated cho tới khi FE nối API và được xác minh authenticated.
+- **Kiểm chứng:** frontend typecheck pass; full Vitest **42 files / 242 tests pass**; lint sạch, 0 warning; production build pass. `npm run test:qa` pass 3 browser tests: 8 route × 360/768/1280px không overflow; Axe 0 critical/serious ở `/`, `/login`, `/products`; guest `returnTo` route checks pass. QA bắt được toast `aria-label` thiếu role, đã thêm test đỏ/xanh và sửa thành named region. Playwright seeded Buyer smoke vào reset hook nhưng safety guard dừng trước kết nối/ghi DB vì local `DATABASE_ENVIRONMENT` chưa phải `test`. Backend typecheck/lint pass; focused backend test count khác nhau theo snapshot/lượt chạy trong các mục nhật ký; lượt kiểm tra gần nhất được ghi ở đầu file là 29/29. Chưa chạy PostgreSQL/Storage integration do thiếu target test được allowlist.
+- **D-004:** Đã thêm `frontend/qa/ui-release.spec.ts` + `npm run test:qa`. Local build smoke đo 8 route ở 360/768/1280px và kiểm tra guest `returnTo`; Axe scan ba public screens. `/admin` hiện có nhưng browser QA ở lượt này là guest redirect, chưa phải dashboard authenticated. Production Vercel/backend/CORS/Supabase smoke vẫn pending cấu hình môi trường thật.
+
+### 2026-09-30 — QA Profile/Notifications và unit tests safety
+
+- Đối chiếu scope Người 2 trong `08-implementation-plan.md` với code: đã có UI test ErrorSummary focus/link tới field; upload zone có giới hạn theo purpose, validation và revoke object URL; Profile có loading/signed-out/missing/error/ready, retry và giữ input khi save lỗi; Notification screen có loading/error/retry, filter, optimistic rollback và bulk có giới hạn/concurrency. Notification production vẫn bị gate, không dùng demo data.
+- Backend side: có E2E fixture reset với allowlist/safety checks; media lifecycle migration/RLS và cleanup runner/workflow. Đây là implementation trong source, chưa phải nghiệm thu live: local reset bị safety guard chặn trước DB; migration/Storage cleanup chưa được xác minh trên project test.
+- Lượt kiểm tra mới nhất tại checkout hiện tại: `frontend npm run lint`, `npm run typecheck`, `npm test -- --reporter=dot` đều PASS; Vitest 42 files/242 tests. `npm run build` PASS (23 routes). `npm run test:qa` PASS 4/4: responsive overflow, Axe cho public screens và Profile/Notifications guest states, safe sign-in path. Bốn suite backend `e2e-seed-safety`, `media-cleanup`, `media-lifecycle`, `storage-policy-safety` PASS 29/29.
+- QA này xác nhận Profile signed-out screen và Notifications guest redirect, không giả định authenticated API flow. P0-05/06 và B-101 vẫn cần DB/Storage test target được allowlist; D-004 còn authenticated Admin và production host; Notifications production API/runtime handoff còn thiếu.
+
+### 2026-09-30 — Task 4 B-104 và Task 5 Profile states
+
+- **B-104:** `FileUploadZone` áp dụng giới hạn Product 5, Review 3, Avatar 1; `maxFiles` từ caller chỉ có thể giảm giới hạn theo purpose. Chặn cả batch vượt số ảnh còn lại và file sai MIME/kích thước; chỉ nhận JPEG/PNG/WebP tối đa 5 MB, loại GIF. Seller Product và Review khai báo purpose tường minh.
+- Preview dùng object URL tách khỏi danh sách URL đã upload. URL được revoke khi thay ảnh, bỏ preview hoặc unmount. Khi media lifecycle chưa tích hợp, production báo chưa khả dụng và không gọi API upload cũ; development hiển thị nhãn demo và chỉ giữ preview local, không lưu ảnh mẫu/Unsplash vào form.
+- **Profile:** request state phân biệt loading, signed_out, missing, error và ready. Chỉ `404 RESOURCE_NOT_FOUND` thành missing; lỗi API khác giữ mã lỗi/request ID khi có và có nút retry. Chưa có session thì không gọi profile API và CTA đăng nhập quay lại `/profile`. Email/vai trò read-only; chỉ full name và phone được gửi khi lưu. Lỗi lưu giữ nguyên nội dung người dùng nhập; avatar tiếp tục bị khóa.
+- Thêm/cập nhật policy và state tests trong `frontend/test/`; P0-03 interaction và SSR contracts hiện pass theo nhật ký ngày 2026-09-30 phía trên.
+- Còn chờ: Người 3 bàn giao media repository/lifecycle để nối upload thật và ảnh seed; các công việc này không thay đổi backend task 1–2.
 
 ### 2026-09-29 — FE polish: semantic tokens, touch targets, typed handlers
 
@@ -140,10 +168,10 @@ Defect/handoff ngoài ownership Người 2 (không sửa chéo):
 ## Việc được giao
 
 - [x] D-001–003 — screen inventory, UI rules và route/owner UX handoff; D-004 còn chờ page samples.
-- [ ] D-004 — visual review trang chủ, checkout, seller order, admin dashboard tại 360/1280px.
+- [ ] D-004 — local responsive/guest/Axe checks đã pass; còn authenticated admin dashboard, full cross-browser visual review và production-host smoke.
 - [x] U-201–206 — source implementation, quality gates và browser QA trong phạm vi shared UI đã có evidence; xem nhật ký ngày 2026-09-28.
 - [x] P-602 — read-only auth metadata (email/full name), phone/avatar không giả dữ liệu; profile mutations vẫn chờ GAP-07.
-- [ ] P-604/P-605 — demo UI có nhãn và gated; API integration/bulk behavior chờ runtime/GAP-10.
-- [ ] P-607b — upload UI được giải thích và khóa; chờ media contract P-606.
+- [x] P-604/P-605 — notifications loading/error/retry/filter/optimistic rollback/bulk/concurrency/429 UI đã test; production service/wire DTO vẫn gated theo runtime/GAP-10.
+- [x] P-607b — upload purpose limits/preview lifecycle/keyboard behavior đã test; production upload vẫn báo chưa khả dụng, không fallback API/mock URL.
 - [x] Q-802 — đạt trong phạm vi shared shell/profile/notifications, gồm dialog keyboard/focus; contrast defect của page owner khác đã handoff; không đóng gate toàn dự án.
 - [x] Q-803 — đạt trong phạm vi shared shell/profile/notifications; browser smoke 320/360/768/1280 và homepage sau merge; không đóng gate toàn dự án.

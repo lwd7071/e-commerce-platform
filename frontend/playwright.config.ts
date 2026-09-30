@@ -1,0 +1,21 @@
+import { defineConfig } from "@playwright/test";
+import path from "node:path";
+import { loadEnvConfig } from "@next/env";
+
+loadEnvConfig(path.resolve(__dirname, ".."));
+
+export default defineConfig({
+  testDir: "./e2e",
+  testMatch: "**/*.spec.ts",
+  fullyParallel: false,
+  workers: 1,
+  forbidOnly: Boolean(process.env.CI),
+  retries: process.env.CI ? 1 : 0,
+  reporter: "list",
+  timeout: 120_000,
+  expect: { timeout: 10_000 },
+  use: {
+    baseURL: process.env.E2E_BASE_URL ?? "http://127.0.0.1:3000",
+    trace: "retain-on-failure",
+  },
+});
