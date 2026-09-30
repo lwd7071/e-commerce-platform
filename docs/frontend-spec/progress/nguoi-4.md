@@ -8,7 +8,7 @@
   1. Backend runtime wiring: Inject `ReviewService` & `NotificationService` vào `createRuntimeApp` (`backend/src/platform/http/app.ts`), xóa bỏ 501 `NotImplementedError`, cung cấp `GET /products/:product_id/reviews` (cursor pagination & aggregate count/average), cập nhật OpenAPI spec `openapi-spec.ts`, pass 6/6 tests platform (`backend/test/platform/review-notification-runtime.spec.ts`).
   2. Checkout E2E Integration Tests trên PostgreSQL thật (`backend/tests/db/checkout-e2e-runtime.integration.test.ts`): Đạt 4/4 suites kiểm thử toàn diện 7 Invariants (Multi-shop splitting, selective cart cleanup, stock deduction, concurrent stock race, atomic multi-shop rollback, idempotency replay, idempotency mismatch conflict).
   3. Handshake Gate Q-804: Checkout UI điều hướng chuẩn `/orders?created=<ids>`, khớp 100% với Buyer Order Center (`O-502` của Người 5).
-  4. 100% Quality Gates: Backend (615/615 node tests pass, 4/4 db tests pass, 0 lint error/warning, 0 typecheck error, esbuild bundle 263.2kb), Frontend (33/33 files, 185/185 vitest pass, 0 lint error/warning, 0 typecheck error, Turbopack build 22/22 routes).
+  4. 100% Quality Gates: Backend (615/615 node tests pass, 4/4 db tests pass, 0 lint error/warning, 0 typecheck error, esbuild bundle 285.8kb), Frontend (42/42 files, 242/242 vitest pass, 0 lint error/warning, 0 typecheck error, Turbopack build 22/22 routes).
 - Nhánh/PR: feat/fe-nguoi-4-cart/checkout
 - Bị block bởi: Không còn blocker nào.
 - Việc tiếp theo: Phối hợp demo/release toàn bộ tính năng và hỗ trợ Người 5 nếu có yêu cầu.
@@ -52,16 +52,17 @@
     - `npm run lint --prefix backend`: **0 errors, 0 warnings** (`eslint --max-warnings=0`).
     - `npm run test:node --prefix backend`: **615/615 tests PASS (100%)** (173 suites).
     - `npm run test:vitest --prefix backend -- tests/db/checkout-e2e-runtime.integration.test.ts`: **4/4 test suites PASS (100%)** trên PostgreSQL thật.
-    - `npm run build --prefix backend`: esbuild đóng gói thành công `dist/app.js` (263.2kb).
+    - `npm run build --prefix backend`: esbuild đóng gói thành công `dist/app.js` (285.8kb).
   - **Frontend**:
     - `npm run typecheck --prefix frontend`: **0 errors** (`tsc --noEmit`).
     - `npm run lint --prefix frontend`: **0 errors, 0 warnings** (`eslint`).
-    - `npm test --prefix frontend`: **33/33 test files passed, 185/185 tests passed (100%)**.
+    - `npm test --prefix frontend`: **42/42 test files passed, 242/242 tests passed (100%)**.
     - `npm run build --prefix frontend`: Next.js Turbopack build thành công (22/22 routes prerendered).
 - **Handoff:**
   - Review & Notification runtime services sẵn sàng cho Người 2 (Notification UI) và Người 5 (Review Form O-507 & Timeline C-204/C-206).
   - Checkout E2E test suite và handshake `/orders?created=...` bàn giao cho Người 5 để kiểm thử luồng tích hợp toàn hệ thống.
 - **Blocker:** Không.
+- **Còn lại:** Không (Đã hoàn tất 100% các hạng mục B-408, Q-804, Review/Notification runtime; không còn việc tồn đọng).
 
 ### 2026-09-29 — Chuẩn hóa FE Address/Cart/Voucher Adapters và Wire Runtime (Plan v3.2)
 

@@ -7,7 +7,7 @@
 | 1 | Platform, API, auth, tích hợp | [nguoi-1.md](./nguoi-1.md) | Dino MVP 30/09: Hoàn thành Block 0 (OpenAPI freeze, capability registry, build guard `next.config.ts`, `GET /health/readiness`), Workstream A (onboarding, session refresh `reloadUser()`, seller navigation/stock gating khi Shop PENDING, safe returnTo), Workstream C (Admin API hardening, `403 ADMIN_TARGET_PROTECTED`). Quality Gates 100% (253 FE tests pass, 619 BE domain tests pass + DB integration tests pass, 0 lints, 0 errors, build pass). |
 | 2 | UI/UX, shared UI, account | [nguoi-2.md](./nguoi-2.md) | Shared UI/account và polish semantic token/touch-target/type-safety đã tích hợp vào `dev`; D-004 còn chờ Admin page sample, backend-gated features còn chờ runtime. QA evidence và gate còn lại ghi trong file cá nhân. |
 | 3 | Catalog, seller catalog, category | [nguoi-3.md](./nguoi-3.md) | Catalog, product detail, seller catalog, stock edit và category adapter đã triển khai; còn P-607a chờ GAP-09 và phối hợp nghiệm thu handoff. |
-| 4 | Cart, address, voucher, checkout | [nguoi-4.md](./nguoi-4.md) | Cart và checkout B-402–B-407 hoàn tất; còn B-408 E2E với DB thật và Q-804. |
+| 4 | Cart, address, voucher, checkout | [nguoi-4.md](./nguoi-4.md) | Hoàn tất 100%: B-402–B-407, Review/Notification runtime (C-201–C-203, C-301/C-302), Checkout E2E DB thật (B-408) và Handshake Gate (Q-804). |
 | 5 | Orders, review, admin | [nguoi-5.md](./nguoi-5.md) | Buyer order center/cancel và seller orders/fulfillment O-502–O-505 hoàn tất; còn review, admin, media và Q-805. |
 
 Các trạng thái trên phản ánh nhật ký cá nhân và code đã tích hợp; ticket có điều kiện backend hoặc E2E chỉ được coi là hoàn tất khi có evidence nghiệm thu tương ứng.
