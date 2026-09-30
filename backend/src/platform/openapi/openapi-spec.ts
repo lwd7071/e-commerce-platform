@@ -624,6 +624,63 @@ export function generateOpenApiSpec(): OpenApiSpec {
           },
         },
       },
+      '/orders/{order_id}/confirm-received': {
+        post: {
+          summary: 'Confirm Order Receipt',
+          description: 'Buyer confirms receipt of their SHIPPING order, moving it to COMPLETED. Admin may also perform this moderation action.',
+          security: [{ BearerAuth: [] }],
+          parameters: [
+            {
+              name: 'order_id',
+              in: 'path',
+              required: true,
+              schema: { type: 'string', format: 'uuid' },
+            },
+          ],
+          responses: {
+            '200': {
+              description: 'Order receipt confirmed and order completed',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/SuccessEnvelope' },
+                },
+              },
+            },
+            '401': {
+              description: 'Authentication required',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+                },
+              },
+            },
+            '403': {
+              description: 'Access forbidden for non-buyer/admin',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+                },
+              },
+            },
+            '404': {
+              description: 'Order not found or owned by another buyer',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+                },
+              },
+            },
+            '409': {
+              description: 'Order is not in SHIPPING state',
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+                },
+              },
+            },
+          },
+        },
+      },
       '/orders/{order_id}/transition': {
         post: {
           summary: 'Transition Order Status',
