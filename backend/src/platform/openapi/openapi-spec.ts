@@ -952,6 +952,17 @@ export function generateOpenApiSpec(): OpenApiSpec {
           responses: { '200': successResponse('Notification updated'), '404': errorResponse('Notification not found'), '501': errorResponse('Notification service is not wired in the current runtime') },
         },
       },
+      '/admin/users': {
+        get: {
+          summary: 'List users for moderation', security: [{ BearerAuth: [] }],
+          parameters: [
+            { name: 'role', in: 'query', required: false, schema: { type: 'string', enum: ['BUYER', 'SELLER', 'ADMIN'] } },
+            { name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['ACTIVE', 'LOCKED'] } },
+            { name: 'search', in: 'query', required: false, schema: { type: 'string' } },
+          ],
+          responses: { '200': successResponse('Users list retrieved'), '403': errorResponse('Admin role required') },
+        },
+      },
       '/admin/users/{id}/lock': {
         post: {
           summary: 'Lock user account', security: [{ BearerAuth: [] }],
@@ -966,6 +977,40 @@ export function generateOpenApiSpec(): OpenApiSpec {
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
           requestBody: jsonRequest({ type: 'object', required: ['reason'], additionalProperties: false, properties: { reason: { type: 'string', minLength: 1 } } }),
           responses: { '200': successResponse('User unlocked'), '403': errorResponse('Admin role required'), '422': errorResponse('Reason required'), '501': errorResponse('Moderation service is not wired') },
+        },
+      },
+      '/admin/shops': {
+        get: {
+          summary: 'List shops for moderation', security: [{ BearerAuth: [] }],
+          parameters: [
+            { name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['PENDING', 'ACTIVE', 'LOCKED', 'SUSPENDED'] } },
+            { name: 'search', in: 'query', required: false, schema: { type: 'string' } },
+          ],
+          responses: { '200': successResponse('Shops list retrieved'), '403': errorResponse('Admin role required') },
+        },
+      },
+      '/admin/shops/{id}/approve': {
+        post: {
+          summary: 'Approve pending shop', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: jsonRequest({ type: 'object', properties: { reason: { type: 'string' } } }),
+          responses: { '200': successResponse('Shop approved'), '403': errorResponse('Admin role required'), '404': errorResponse('Shop not found'), '409': errorResponse('Shop already active') },
+        },
+      },
+      '/admin/shops/{id}/lock': {
+        post: {
+          summary: 'Lock shop', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: jsonRequest({ type: 'object', required: ['reason'], additionalProperties: false, properties: { reason: { type: 'string', minLength: 1 } } }),
+          responses: { '200': successResponse('Shop locked'), '403': errorResponse('Admin role required'), '404': errorResponse('Shop not found'), '422': errorResponse('Reason required') },
+        },
+      },
+      '/admin/shops/{id}/unlock': {
+        post: {
+          summary: 'Unlock shop', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: jsonRequest({ type: 'object', properties: { reason: { type: 'string' } } }),
+          responses: { '200': successResponse('Shop unlocked'), '403': errorResponse('Admin role required'), '404': errorResponse('Shop not found'), '409': errorResponse('Shop already active') },
         },
       },
     },

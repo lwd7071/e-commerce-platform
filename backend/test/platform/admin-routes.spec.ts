@@ -11,6 +11,7 @@ import { createAuthMiddleware, StubTokenVerifier } from '../../src/platform/http
 class InMemoryAuthAndTargetRepository implements ITargetLookupRepository, IAuthRepository {
   public users = new Map<string, { id: string; email: string; role: 'BUYER' | 'SELLER' | 'ADMIN'; status: UserStatus; updated_at: string }>();
   public shops = new Set<string>();
+  public shopsMap = new Map<string, { shop_id: string; shop_name: string; status: 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'LOCKED'; owner_id: string; product_count: number }>();
   public products = new Set<string>();
   public reviews = new Set<string>();
   public moderationRecords: ModerationRecord[] = [];
@@ -33,7 +34,57 @@ class InMemoryAuthAndTargetRepository implements ITargetLookupRepository, IAuthR
   }
 
   async shopExists(shopId: string): Promise<boolean> {
-    return this.shops.has(shopId);
+    return this.shopsMap.has(shopId) || this.shops.has(shopId);
+  }
+
+  async getShopStatus(shopId: string): Promise<'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'LOCKED' | null> {
+    const s = this.shopsMap.get(shopId);
+    return s ? s.status : null;
+  }
+
+  async updateShopStatus(_trx: unknown, shopId: string, status: 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'LOCKED'): Promise<{ shop_id: string; status: 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'LOCKED'; updated_at: string }> {
+    const s = this.shopsMap.get(shopId);
+    if (!s) throw new Error('Shop not found');
+    s.status = status;
+    return { shop_id: s.shop_id, status: s.status, updated_at: new Date().toISOString() };
+  }
+
+  async listShops(params?: { status?: string; search?: string }) {
+    let list = Array.from(this.shopsMap.values()).map(s => ({
+      ...s,
+      description: null,
+      logo_url: null,
+      pickup_address: null,
+      contact_phone: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }));
+    if (params?.status && params.status !== 'ALL') {
+      list = list.filter(s => s.status === params.status);
+    }
+    if (params?.search) {
+      list = list.filter(s => s.shop_name.includes(params.search!));
+    }
+    return list;
+  }
+
+  async listUsers(params?: { role?: string; status?: string; search?: string }) {
+    let list = Array.from(this.users.values()).map(u => ({
+      id: u.id,
+      email: u.email,
+      full_name: u.email.split('@')[0],
+      role: u.role,
+      status: u.status,
+      created_at: u.updated_at,
+      updated_at: u.updated_at,
+    }));
+    if (params?.role && params.role !== 'ALL') {
+      list = list.filter(u => u.role === params.role);
+    }
+    if (params?.status && params.status !== 'ALL') {
+      list = list.filter(u => u.status === params.status);
+    }
+    return list;
   }
 
   async productExists(productId: string): Promise<boolean> {
@@ -88,6 +139,9 @@ describe('Phase 4 — Admin Lock & Unlock Endpoints (TDD Cycle 4.1 & 4.2)', () =
   const buyerId = '22222222-2222-4222-8222-222222222222';
   const targetUserId = '33333333-3333-4333-8333-333333333333';
   const lockedUserId = '44444444-4444-4444-8444-444444444444';
+  const pendingShopId = '55555555-5555-5555-8555-555555555555';
+  const activeShopId = '66666666-6666-6666-8666-666666666666';
+  const lockedShopId = '77777777-7777-7777-8777-777777777777';
 
   beforeEach(() => {
     repo = new InMemoryAuthAndTargetRepository();
@@ -95,6 +149,10 @@ describe('Phase 4 — Admin Lock & Unlock Endpoints (TDD Cycle 4.1 & 4.2)', () =
     repo.users.set(buyerId, { id: buyerId, email: 'buyer@platform.com', role: 'BUYER', status: 'ACTIVE', updated_at: '2026-01-01T00:00:00.000Z' });
     repo.users.set(targetUserId, { id: targetUserId, email: 'target@platform.com', role: 'BUYER', status: 'ACTIVE', updated_at: '2026-01-01T00:00:00.000Z' });
     repo.users.set(lockedUserId, { id: lockedUserId, email: 'locked@platform.com', role: 'BUYER', status: 'LOCKED', updated_at: '2026-01-01T00:00:00.000Z' });
+
+    repo.shopsMap.set(pendingShopId, { shop_id: pendingShopId, shop_name: 'Dino Demo Shop 01', status: 'PENDING', owner_id: buyerId, product_count: 5 });
+    repo.shopsMap.set(activeShopId, { shop_id: activeShopId, shop_name: 'Active Shop', status: 'ACTIVE', owner_id: targetUserId, product_count: 10 });
+    repo.shopsMap.set(lockedShopId, { shop_id: lockedShopId, shop_name: 'Locked Shop', status: 'LOCKED', owner_id: lockedUserId, product_count: 0 });
 
     auditPort = new FakeAuditPort();
     txManager = new NoopTransactionManager();
@@ -272,6 +330,115 @@ describe('Phase 4 — Admin Lock & Unlock Endpoints (TDD Cycle 4.1 & 4.2)', () =
       assert.strictEqual(repo.users.get(lockedUserId)?.status, 'ACTIVE');
       // Verify audit logged
       assert.strictEqual(auditPort.logs.length, 1);
+    });
+  });
+
+  describe('Cycle 4.3: GET /api/v1/admin/shops & POST /api/v1/admin/shops/:id/approve', () => {
+    it('Case 1: rejects non-admin accessing /admin/shops with 403 RESOURCE_FORBIDDEN', async () => {
+      const app = createApp({ auth: authMiddleware, moderation: moderationService });
+      const res = await request(app)
+        .get('/api/v1/admin/shops')
+        .set('Authorization', `Bearer stub-token-${buyerId}`)
+        .expect(403);
+
+      assert.strictEqual(res.body.error.code, 'RESOURCE_FORBIDDEN');
+    });
+
+    it('Case 2: returns full shops list and filters by status=PENDING', async () => {
+      const app = createApp({ auth: authMiddleware, moderation: moderationService });
+      const resAll = await request(app)
+        .get('/api/v1/admin/shops')
+        .set('Authorization', `Bearer stub-token-${adminId}`)
+        .expect(200);
+
+      assert.strictEqual(resAll.body.data.length, 3);
+
+      const resPending = await request(app)
+        .get('/api/v1/admin/shops?status=PENDING')
+        .set('Authorization', `Bearer stub-token-${adminId}`)
+        .expect(200);
+
+      assert.strictEqual(resPending.body.data.length, 1);
+      assert.strictEqual(resPending.body.data[0].shop_id, pendingShopId);
+      assert.strictEqual(resPending.body.data[0].status, 'PENDING');
+    });
+
+    it('Case 3: approves PENDING shop to ACTIVE successfully', async () => {
+      const app = createApp({ auth: authMiddleware, moderation: moderationService });
+      const res = await request(app)
+        .post(`/api/v1/admin/shops/${pendingShopId}/approve`)
+        .set('Authorization', `Bearer stub-token-${adminId}`)
+        .send({ reason: 'Documents verified and approved' })
+        .expect(200);
+
+      assert.strictEqual(res.body.data.shop_id, pendingShopId);
+      assert.strictEqual(res.body.data.status, 'ACTIVE');
+      assert.strictEqual(repo.shopsMap.get(pendingShopId)?.status, 'ACTIVE');
+    });
+
+    it('Case 4: rejects approving already ACTIVE shop with 409 SHOP_ALREADY_ACTIVE', async () => {
+      const app = createApp({ auth: authMiddleware, moderation: moderationService });
+      const res = await request(app)
+        .post(`/api/v1/admin/shops/${activeShopId}/approve`)
+        .set('Authorization', `Bearer stub-token-${adminId}`)
+        .send({ reason: 'Re-approval attempt' })
+        .expect(409);
+
+      assert.strictEqual(res.body.error.code, 'SHOP_ALREADY_ACTIVE');
+    });
+  });
+
+  describe('Cycle 4.4: POST /api/v1/admin/shops/:id/lock & unlock', () => {
+    it('Case 1: rejects locking shop when reason is missing with 422 REASON_REQUIRED', async () => {
+      const app = createApp({ auth: authMiddleware, moderation: moderationService });
+      const res = await request(app)
+        .post(`/api/v1/admin/shops/${activeShopId}/lock`)
+        .set('Authorization', `Bearer stub-token-${adminId}`)
+        .send({ reason: '' })
+        .expect(422);
+
+      assert.strictEqual(res.body.error.code, 'REASON_REQUIRED');
+    });
+
+    it('Case 2: successfully locks ACTIVE shop to LOCKED', async () => {
+      const app = createApp({ auth: authMiddleware, moderation: moderationService });
+      const res = await request(app)
+        .post(`/api/v1/admin/shops/${activeShopId}/lock`)
+        .set('Authorization', `Bearer stub-token-${adminId}`)
+        .send({ reason: 'Selling prohibited items' })
+        .expect(200);
+
+      assert.strictEqual(res.body.data.shop_id, activeShopId);
+      assert.strictEqual(res.body.data.status, 'LOCKED');
+      assert.strictEqual(repo.shopsMap.get(activeShopId)?.status, 'LOCKED');
+    });
+
+    it('Case 3: successfully unlocks LOCKED shop to ACTIVE', async () => {
+      const app = createApp({ auth: authMiddleware, moderation: moderationService });
+      const res = await request(app)
+        .post(`/api/v1/admin/shops/${lockedShopId}/unlock`)
+        .set('Authorization', `Bearer stub-token-${adminId}`)
+        .send({ reason: 'Store verified compliance' })
+        .expect(200);
+
+      assert.strictEqual(res.body.data.shop_id, lockedShopId);
+      assert.strictEqual(res.body.data.status, 'ACTIVE');
+      assert.strictEqual(repo.shopsMap.get(lockedShopId)?.status, 'ACTIVE');
+    });
+  });
+
+  describe('Cycle 4.5: GET /api/v1/admin/users', () => {
+    it('Case 1: returns list of users for admin', async () => {
+      const app = createApp({ auth: authMiddleware, moderation: moderationService });
+      const res = await request(app)
+        .get('/api/v1/admin/users')
+        .set('Authorization', `Bearer stub-token-${adminId}`)
+        .expect(200);
+
+      assert.ok(Array.isArray(res.body.data));
+      assert.strictEqual(res.body.data.length, 4);
+      assert.ok(res.body.data.some((u: { role: string }) => u.role === 'ADMIN'));
+      assert.ok(res.body.data.some((u: { role: string }) => u.role === 'BUYER'));
     });
   });
 });

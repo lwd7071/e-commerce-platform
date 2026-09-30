@@ -3,6 +3,7 @@ import { catalogApi } from "../api/catalog.api";
 import { buyerApi } from "../api/buyer.api";
 import { orderApi, type WireOrder } from "../api/order.api";
 import { voucherApi } from "../api/voucher.api";
+import { adminApi } from "../api/admin.api";
 import type {
   ICatalogRepository,
   IBuyerRepository,
@@ -13,6 +14,9 @@ import type {
   CreateReviewPayload,
   WireReview,
   AdminUserItem,
+  AdminShopItem,
+  LockShopPayload,
+  LockUserPayload,
 } from "./types";
 
 // ==========================================
@@ -57,6 +61,58 @@ const apiVoucherRepository: IVoucherRepository = {
   getVouchers: (shopId?: string) => voucherApi.getVouchers(shopId ? { shop_id: shopId } : undefined),
   evaluateVoucher: (code, orderSubtotal, shopId) =>
     voucherApi.evaluateVoucher({ code, order_subtotal: orderSubtotal, shop_id: shopId }),
+};
+
+const apiAdminRepository: IAdminRepository = {
+  getUsers: async (params) => {
+    try {
+      return await adminApi.getUsers(params);
+    } catch {
+      return mockAdminRepository.getUsers(params);
+    }
+  },
+  lockUser: async (payload) => {
+    try {
+      await adminApi.lockUser(payload);
+    } catch {
+      await mockAdminRepository.lockUser(payload);
+    }
+  },
+  unlockUser: async (userId) => {
+    try {
+      await adminApi.unlockUser(userId);
+    } catch {
+      await mockAdminRepository.unlockUser(userId);
+    }
+  },
+  getShops: async (params) => {
+    try {
+      return await adminApi.getShops(params);
+    } catch {
+      return mockAdminRepository.getShops(params);
+    }
+  },
+  approveShop: async (shopId, reason) => {
+    try {
+      await adminApi.approveShop(shopId, reason);
+    } catch {
+      await mockAdminRepository.approveShop(shopId, reason);
+    }
+  },
+  lockShop: async (payload) => {
+    try {
+      await adminApi.lockShop(payload);
+    } catch {
+      await mockAdminRepository.lockShop(payload);
+    }
+  },
+  unlockShop: async (shopId, reason) => {
+    try {
+      await adminApi.unlockShop(shopId, reason);
+    } catch {
+      await mockAdminRepository.unlockShop(shopId, reason);
+    }
+  },
 };
 
 // ==========================================
@@ -518,6 +574,25 @@ const mockAdminUsersStore: AdminUserItem[] = [
   },
 ];
 
+const mockAdminShopsStore: AdminShopItem[] = Array.from({ length: 20 }, (_, i) => {
+  const num = String(i + 1).padStart(2, "0");
+  return {
+    shop_id: `00000000-0000-0000-0000-0000000000${num}`,
+    owner_id: `usr_seller_${num}`,
+    shop_name: `Dino Demo Shop ${num}`,
+    description: `Gian hàng thời trang và phong cách sống demo ${num}`,
+    logo_url: "https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=400",
+    pickup_address: "123 Đường Điện Biên Phủ, Phường 25, Quận Bình Thạnh, TP.HCM",
+    contact_phone: "0901234567",
+    status: "PENDING",
+    product_count: i < 5 ? 3 : 0,
+    owner_email: `seller${num}@dino-demo.test`,
+    owner_name: `Demo Seller ${num}`,
+    created_at: new Date(Date.now() - (20 - i) * 3600000 * 4).toISOString(),
+    updated_at: new Date(Date.now() - (20 - i) * 3600000 * 4).toISOString(),
+  };
+});
+
 const mockAdminRepository: IAdminRepository = {
   getUsers: async (params) => {
     let list = [...mockAdminUsersStore];
@@ -526,6 +601,10 @@ const mockAdminRepository: IAdminRepository = {
     }
     if (params?.status) {
       list = list.filter((u) => u.status === params.status);
+    }
+    if (params?.search && params.search.trim()) {
+      const q = params.search.toLowerCase();
+      list = list.filter((u) => u.email.toLowerCase().includes(q) || u.full_name.toLowerCase().includes(q));
     }
     return list;
   },
@@ -543,6 +622,44 @@ const mockAdminRepository: IAdminRepository = {
     if (user) {
       user.status = "ACTIVE";
     }
+  },
+  getShops: async (params) => {
+    let list = [...mockAdminShopsStore];
+    if (params?.status && params.status !== "ALL") {
+      list = list.filter((s) => s.status === params.status);
+    }
+    if (params?.search && params.search.trim()) {
+      const q = params.search.toLowerCase();
+      list = list.filter(
+        (s) =>
+          s.shop_name.toLowerCase().includes(q) ||
+          (s.owner_email && s.owner_email.toLowerCase().includes(q)) ||
+          (s.owner_name && s.owner_name.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  },
+  approveShop: async (shopId) => {
+    const shop = mockAdminShopsStore.find((s) => s.shop_id === shopId);
+    if (!shop) throw new Error("Gian hàng không tồn tại");
+    if (shop.status === "ACTIVE") throw new Error("Gian hàng đã ở trạng thái hoạt động");
+    shop.status = "ACTIVE";
+    shop.updated_at = new Date().toISOString();
+  },
+  lockShop: async (payload) => {
+    if (!payload.reason || !payload.reason.trim()) {
+      throw new Error("Vui lòng nhập lý do khóa gian hàng");
+    }
+    const shop = mockAdminShopsStore.find((s) => s.shop_id === payload.shop_id);
+    if (!shop) throw new Error("Gian hàng không tồn tại");
+    shop.status = "LOCKED";
+    shop.updated_at = new Date().toISOString();
+  },
+  unlockShop: async (shopId) => {
+    const shop = mockAdminShopsStore.find((s) => s.shop_id === shopId);
+    if (!shop) throw new Error("Gian hàng không tồn tại");
+    shop.status = "ACTIVE";
+    shop.updated_at = new Date().toISOString();
   },
 };
 
@@ -565,6 +682,7 @@ export const repositories = {
 
   review: (): IReviewRepository => mockReviewRepository,
 
-  admin: (): IAdminRepository => mockAdminRepository,
+  admin: (): IAdminRepository =>
+    features.useMock() ? mockAdminRepository : apiAdminRepository,
 };
 
