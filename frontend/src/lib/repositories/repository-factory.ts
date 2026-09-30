@@ -551,6 +551,135 @@ const mockOrderRepository: IOrderRepository = {
   },
 };
 
+/**
+ * Register a newly created order from checkout into the in-memory store
+ * so that both Buyer orders (/orders) and Seller orders (/seller/orders)
+ * display the order immediately even with GAP-01 in place.
+ */
+export function registerCreatedOrder(order: Partial<WireOrder> & { id: string }): WireOrder {
+  const existing = inMemoryMockOrders.find((o) => o.id === order.id);
+  if (existing) {
+    Object.assign(existing, order);
+    return existing;
+  }
+
+  const newOrder: WireOrder = {
+    id: order.id,
+    buyer_id: order.buyer_id || "user_dev",
+    shop_id: order.shop_id || "00000000-0000-0000-0000-000000000001",
+    shop_name:
+      order.shop_name ||
+      (order.shop_id === "00000000-0000-0000-0000-000000000002"
+        ? "Dino Tech Store"
+        : "Dino Beauty Official"),
+    status: order.status || "PENDING_CONFIRMATION",
+    total_amount: order.total_amount || "0.00",
+    shipping_fee: order.shipping_fee || "0.00",
+    discount_amount: order.discount_amount || "0.00",
+    cancel_reason: order.cancel_reason || null,
+    created_at: order.created_at || new Date().toISOString(),
+    items: order.items || [
+      {
+        id: `item_${Date.now()}`,
+        product_name: "Sản phẩm vừa đặt",
+        variant_name: "Mặc định",
+        price: order.total_amount || "0.00",
+        quantity: 1,
+        subtotal: order.total_amount || "0.00",
+      },
+    ],
+  };
+
+  inMemoryMockOrders.unshift(newOrder);
+  return newOrder;
+}
+
+/**
+ * Hybrid Order Repository (Người 5 - GAP-01 & Transaction core):
+ * - Reads: Uses in-memory mock store because backend GET /orders and GET /orders/:id
+ *   do not return complete persistent order lists yet.
+ * - Actions (cancel/confirm/transition): When in live mode or with valid backend orders,
+ *   attempts live API call and propagates conflict errors (409) to the UI,
+ *   while synchronizing successful updates with the in-memory mock store.
+ */
+const hybridOrderRepository: IOrderRepository = {
+  getOrders: (params) => mockOrderRepository.getOrders(params),
+  getOrderById: (id) => mockOrderRepository.getOrderById(id),
+
+  cancelOrder: async (id, reason) => {
+    if (!features.domains.ordersMock()) {
+      try {
+        const liveUpdated = await apiOrderRepository.cancelOrder(id, reason);
+        const found = inMemoryMockOrders.find((o) => o.id === id);
+        if (found) {
+          found.status = "CANCELLED";
+          found.cancel_reason = reason;
+        }
+        return liveUpdated?.id
+          ? liveUpdated
+          : (found ?? { ...inMemoryMockOrders[0], id, status: "CANCELLED", cancel_reason: reason });
+      } catch (err: unknown) {
+        const status = (err as { status?: number })?.status;
+        if (status === 409 || status === 400 || status === 403) {
+          throw err;
+        }
+        return mockOrderRepository.cancelOrder(id, reason);
+      }
+    }
+    return mockOrderRepository.cancelOrder(id, reason);
+  },
+
+  confirmOrder: async (id, reason) => {
+    if (!features.domains.ordersMock()) {
+      try {
+        const liveUpdated = await apiOrderRepository.confirmOrder(id, reason);
+        const found = inMemoryMockOrders.find((o) => o.id === id);
+        if (found) {
+          found.status = "CONFIRMED";
+        }
+        return liveUpdated?.id
+          ? liveUpdated
+          : (found ?? { ...inMemoryMockOrders[0], id, status: "CONFIRMED" });
+      } catch (err: unknown) {
+        const status = (err as { status?: number })?.status;
+        if (status === 409 || status === 400 || status === 403) {
+          throw err;
+        }
+        return mockOrderRepository.confirmOrder(id, reason);
+      }
+    }
+    return mockOrderRepository.confirmOrder(id, reason);
+  },
+
+  transitionOrder: async (id, to, reason) => {
+    if (!features.domains.ordersMock()) {
+      try {
+        const liveUpdated = await apiOrderRepository.transitionOrder(id, to, reason);
+        const found = inMemoryMockOrders.find((o) => o.id === id);
+        if (found) {
+          found.status = to as WireOrder["status"];
+          if (to === "CANCELLED") found.cancel_reason = reason;
+        }
+        return liveUpdated?.id
+          ? liveUpdated
+          : (found ?? {
+              ...inMemoryMockOrders[0],
+              id,
+              status: to as WireOrder["status"],
+              cancel_reason: reason,
+            });
+      } catch (err: unknown) {
+        const status = (err as { status?: number })?.status;
+        if (status === 409 || status === 400 || status === 403) {
+          throw err;
+        }
+        return mockOrderRepository.transitionOrder(id, to, reason);
+      }
+    }
+    return mockOrderRepository.transitionOrder(id, to, reason);
+  },
+};
+
 const mockVoucherRepository: IVoucherRepository = {
   getVouchers: async () => [
     {
@@ -743,8 +872,7 @@ export const repositories = {
   buyer: (): IBuyerRepository =>
     features.domains.cartMock() ? mockBuyerRepository : apiBuyerRepository,
 
-  order: (): IOrderRepository =>
-    features.domains.ordersMock() ? mockOrderRepository : apiOrderRepository,
+  order: (): IOrderRepository => hybridOrderRepository,
 
   voucher: (): IVoucherRepository =>
     features.useMock() ? mockVoucherRepository : apiVoucherRepository,

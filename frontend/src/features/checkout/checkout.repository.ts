@@ -1,5 +1,6 @@
 import { apiClient } from "@/lib/api/client";
 import { features } from "@/lib/config/features";
+import { registerCreatedOrder } from "@/lib/repositories/repository-factory";
 import type {
   CheckoutAddress,
   CreateAddressInput,
@@ -182,18 +183,29 @@ export class MockCheckoutRepository implements ICheckoutRepository {
     };
   }
 
-  async submitCheckout(payload: CheckoutPayload): Promise<CheckoutResult> {
-    return {
+  async submitCheckout(payload: CheckoutPayload, _idempotencyKey?: string): Promise<CheckoutResult> {
+    const result: CheckoutResult = {
       orders: [
         {
           order_id: `ord_${Date.now()}`,
-          shop_id: payload.vouchers[0]?.shop_id || "shop_01",
+          shop_id: payload.vouchers[0]?.shop_id || "00000000-0000-0000-0000-000000000001",
           status: "PENDING_CONFIRMATION",
           total_amount: "579000.00",
           payment_id: `pay_${Date.now()}`,
         },
       ],
     };
+
+    for (const o of result.orders) {
+      registerCreatedOrder({
+        id: o.order_id,
+        shop_id: o.shop_id,
+        status: "PENDING_CONFIRMATION",
+        total_amount: o.total_amount,
+      });
+    }
+
+    return result;
   }
 }
 
@@ -300,6 +312,18 @@ export class ApiCheckoutRepository implements ICheckoutRepository {
         "Idempotency-Key": idempotencyKey,
       },
     });
+
+    if (res?.orders && Array.isArray(res.orders)) {
+      for (const o of res.orders) {
+        registerCreatedOrder({
+          id: o.order_id,
+          shop_id: o.shop_id,
+          status: "PENDING_CONFIRMATION",
+          total_amount: o.total_amount,
+        });
+      }
+    }
+
     return res;
   }
 }

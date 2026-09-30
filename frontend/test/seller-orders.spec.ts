@@ -1,10 +1,19 @@
 import { describe, it, expect, vi } from "vitest";
 
 vi.mock("../src/lib/config/features", () => ({
-  features: { domains: { ordersMock: () => true } },
+  features: {
+    useMock: () => true,
+    domains: {
+      ordersMock: () => true,
+      checkoutMock: () => true,
+      cartMock: () => true,
+      adminMock: () => true,
+    },
+  },
 }));
 
 import { repositories } from "../src/lib/repositories/repository-factory";
+import { checkoutRepository } from "../src/features/checkout/checkout.repository";
 
 describe("Seller Orders Management and Sequential Fulfillment (O-504, O-505)", () => {
   it("fetches seller orders with optional shop_id and status filters (O-504)", async () => {
@@ -86,5 +95,30 @@ describe("Seller Orders Management and Sequential Fulfillment (O-504, O-505)", (
     ).rejects.toMatchObject({
       status: 409,
     });
+  });
+
+  it("allows seller to confirm and transition a freshly checked-out order", async () => {
+    const orderRepo = repositories.order();
+    const createdResult = await checkoutRepository.submitCheckout(
+      {
+        address_id: "addr_01",
+        payment_method: "COD",
+        vouchers: [],
+      },
+      "seller-test-idempotency-key"
+    );
+
+    const newOrderId = createdResult.orders[0].order_id;
+    const confirmed = await orderRepo.confirmOrder(newOrderId);
+    expect(confirmed.status).toBe("CONFIRMED");
+
+    const preparing = await orderRepo.transitionOrder(newOrderId, "PREPARING");
+    expect(preparing.status).toBe("PREPARING");
+
+    const shipping = await orderRepo.transitionOrder(newOrderId, "SHIPPING");
+    expect(shipping.status).toBe("SHIPPING");
+
+    const reFetched = await orderRepo.getOrderById(newOrderId);
+    expect(reFetched.status).toBe("SHIPPING");
   });
 });
