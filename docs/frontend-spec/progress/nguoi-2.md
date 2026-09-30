@@ -2,14 +2,34 @@
 
 ## Trạng thái hiện tại
 
-- Phase/ticket: Phase 0 D-001–003; Phase 2 U-201–206; Phase 6 P-602/P-604–605/P-607b (UI mock/gated); Q-802/Q-803 scoped QA
-- Cập nhật lần cuối: 2026-09-29
-- Đang làm: U-201–206 và QA scoped cho shared shell/profile/notifications đã hoàn tất; D-004 đã rà homepage/checkout/Seller orders tại 360/1280px, còn chờ Admin page sample. Đang chốt semantic token, touch target và type safety trên các màn hiện có. P-604/P-605/P-607b vẫn gated theo readiness backend.
+- Phase/ticket: Phase 0 D-001–003/P0-03; Phase 2 U-201–206/B-104; Phase 6 Profile request states/P-602/P-604–605/P-607b (UI mock/gated); Q-802/Q-803 scoped QA
+- Cập nhật lần cuối: 2026-09-30
+- Trạng thái: P0-05/06 đã seed/reset fixture có ảnh PNG thật trong Supabase Storage và registry `ATTACHED`; B-101 có lifecycle migration, presign/finalize/attach primitives, cleanup runner và scheduled workflow. Reset chưa được gắn vào Playwright `beforeEach` vì repo hiện chưa có Playwright suite/config để nối. B-104, Profile states, ErrorSummary interaction test và Notifications fake boundary đã implement. Notification API còn chờ generated OpenAPI/runtime. D-004 viewport QA còn mở.
 - Nhánh/PR: Các commit từ `codex/node-24-runtime`, `codex/frontend-ci-workspace` và `codex/member2-pr-a/b/c` đã merge vào `dev`; FE polish mới nhất được đẩy trực tiếp lên `origin/dev` (xem commit trên nhánh). Không có PR riêng.
-- Bị block bởi: Local PostgreSQL smoke chưa chạy được do worktree thiếu `DIRECT_URL`/DB test; cần PostgreSQL service CI xanh làm evidence. P-601/P-603/P-606 chờ backend contract/runtime (GAP-07/GAP-01/GAP-09). Handoff contrast ở login/register và seller status cần owner Người 1/3 xác nhận. Route metadata `/orders`, `/orders/[id]/review` và `/notifications` đã được đồng bộ Buyer-only theo RBAC spec.
-- Việc tiếp theo: Hoàn tất D-004 khi Admin dashboard có route/page mẫu; theo dõi owner xử lý các handoff contrast; các ticket chờ backend giữ gated.
+- Bị block bởi: Không có test DB credentials/service trong workspace nên chưa chạy reset thực tế, migration apply, Storage policy smoke hoặc cleanup against Supabase; workflow chưa bật secrets/deploy. Reset hook cần owner E2E nối vào runner (hiện repo chưa có Playwright suite/config). Notification wire DTO/runtime chờ OpenAPI generated types và Người 4. D-004 viewport QA còn mở.
+- Việc tiếp theo: Apply migration và chạy reset/Storage smoke trên test project; cấu hình workflow secrets/allowlists; nối `db:e2e:reset` vào E2E runner khi owner E2E thêm suite; nối NotificationRepository sau OpenAPI/runtime handoff; hoàn tất D-004 viewport/browser QA.
 
 ## Nhật ký theo ngày
+
+### 2026-09-30 — E2E fixtures, media lifecycle, ErrorSummary, upload, Profile và Notifications
+
+- **P0-05/06:** `backend/scripts/reset-e2e-fixtures.ts` cùng `db:e2e:reset` tạo lại 4 tài khoản Dino, shop pending/active, category/product + stock 1, address, cart, voucher, notification unread, order/status history cho 7 trạng thái, Shipment khi cần và review baseline. Ảnh fixture là PNG thật upload qua Supabase Storage API theo path đúng policy, có `product_images` public URL và registry `ATTACHED`. Guard bắt buộc non-production, `DATABASE_ENVIRONMENT=test`, `ALLOW_E2E_SEED=true`, project ref + DB host khớp allowlist.
+- **Còn thiếu P0-06 hook:** Reset chưa tự chạy trước mỗi Playwright scenario vì repo hiện chưa có Playwright suite/config. Owner E2E cần gọi `npm run db:e2e:reset --prefix ../backend` trong setup hook và cấu hình suite tuần tự.
+- **B-101:** Lifecycle registry migration; presign registration kiểm tra purpose/bucket/path, active-shop ownership và TTL tối đa 10 phút; finalize chỉ chấp nhận media ≤5 MB có magic bytes JPEG/PNG/WebP; attach chỉ từ `FINALIZED`, đúng owner/purpose/product-or-review path, với status predicate để serialize cùng cleanup. Cleanup claim dùng `FOR UPDATE SKIP LOCKED`, chỉ xử lý finalized quá 24h/chưa attach, gọi Storage API và retry trạng thái lỗi. GitHub Actions daily/manual có allowlist/secret guard. Cần apply migration, cấu hình production secrets/vars và chạy Storage smoke trên test project.
+- **P0-03:** Bổ sung jsdom, React Testing Library và user-event. Interaction test xác nhận submit nhiều lỗi chuyển focus vào ErrorSummary, link trỏ đúng field, inline errors và `aria-describedby`/`aria-invalid` vẫn có; submit hợp lệ không render summary và giữ focus ở nút submit. Test focus đã được kiểm chứng đỏ khi tạm bỏ focus effect, rồi xanh sau khi khôi phục. DOM interaction pass 2/2; SSR contract pass 10/10.
+- **B-104:** Purpose cap Product 5/Review 3/Avatar 1, JPEG/PNG/WebP ≤5 MB, preview URL lifecycle/revoke, demo badge và production gate trước legacy uploader. Review/product consumers khai báo purpose.
+- **Profile:** state loading/signed_out/missing/error/ready, missing chỉ cho `404 RESOURCE_NOT_FOUND`, giữ code/request ID, retry, signed-out CTA `returnTo`, và avatar gate; thêm classifier tests.
+- **Notifications C-303–305:** Screen nhận repository injectable; demo provider chỉ chạy non-production. Production gate không gọi repository hay render dữ liệu demo. Có loading/error/retry, filter/empty state, mark-one optimistic rollback, bulk tối đa 20 unread đang hiển thị, concurrency tối đa 4, giữ item thành công và rollback riêng item lỗi/chưa được gửi khi gặp 429. Test focused notification 14/14 pass. API repository dùng generated Notification DTO và runtime service vẫn là handoff riêng; chưa có generated types hoặc NotificationService wiring trong app runtime nên production tiếp tục gated.
+- **Kiểm chứng:** frontend typecheck pass; targeted ESLint pass; full Vitest **41 files / 239 tests pass**. P0-03 DOM interaction + SSR contracts pass 12/12; notification focused tests pass 14/14 (cũng nằm trong full suite). Backend typecheck pass; focused tests 4 files / 28 pass, 3 skipped; targeted ESLint pass. PNG seed bytes xác thực được metadata 1×1 PNG. Test/build cần chạy ngoài sandbox do `spawn EPERM`; đã chạy thành công. Chưa chạy PostgreSQL/Storage integration hoặc browser E2E.
+- **D-004:** Route `/admin` hiện có; review viewport thực tế chưa làm trong lượt này do CUA khởi tạo lỗi và repo không có Playwright runner. Không ghi nhận viewport/accessibility pass khi chưa có evidence; tiếp tục là phần QA còn lại.
+
+### 2026-09-30 — Task 4 B-104 và Task 5 Profile states
+
+- **B-104:** `FileUploadZone` áp dụng giới hạn Product 5, Review 3, Avatar 1; `maxFiles` từ caller chỉ có thể giảm giới hạn theo purpose. Chặn cả batch vượt số ảnh còn lại và file sai MIME/kích thước; chỉ nhận JPEG/PNG/WebP tối đa 5 MB, loại GIF. Seller Product và Review khai báo purpose tường minh.
+- Preview dùng object URL tách khỏi danh sách URL đã upload. URL được revoke khi thay ảnh, bỏ preview hoặc unmount. Khi media lifecycle chưa tích hợp, production báo chưa khả dụng và không gọi API upload cũ; development hiển thị nhãn demo và chỉ giữ preview local, không lưu ảnh mẫu/Unsplash vào form.
+- **Profile:** request state phân biệt loading, signed_out, missing, error và ready. Chỉ `404 RESOURCE_NOT_FOUND` thành missing; lỗi API khác giữ mã lỗi/request ID khi có và có nút retry. Chưa có session thì không gọi profile API và CTA đăng nhập quay lại `/profile`. Email/vai trò read-only; chỉ full name và phone được gửi khi lưu. Lỗi lưu giữ nguyên nội dung người dùng nhập; avatar tiếp tục bị khóa.
+- Thêm/cập nhật policy và state tests trong `frontend/test/`; P0-03 interaction và SSR contracts hiện pass theo nhật ký ngày 2026-09-30 phía trên.
+- Còn chờ: Người 3 bàn giao media repository/lifecycle để nối upload thật và ảnh seed; các công việc này không thay đổi backend task 1–2.
 
 ### 2026-09-29 — FE polish: semantic tokens, touch targets, typed handlers
 
