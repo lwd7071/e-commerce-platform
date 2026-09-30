@@ -50,11 +50,11 @@ Thay `Người 1…5` bằng tên thành viên khi bắt đầu. Mỗi người 
 
 | Người | Trạng thái | Luồng đã chạy | Lỗi mở (Blocker/Cao/Vừa/Thấp) | Cập nhật gần nhất |
 |---|---|---|---|---|
-| Người 1 | Chưa bắt đầu | — | — | — |
+| Người 1 | Đã xác minh | 6 luồng Guest, Đăng ký/nhập, returnTo, Logout, Chặn Private API & LOCKED | 0 (B:0, C:0, V:0, T:0) | 2026-10-01 |
 | Người 2 | Chưa bắt đầu | — | — | — |
-| Người 3 | Chưa bắt đầu | — | — | — |
+| Người 3 | Đã xác minh | 8 luồng Giỏ hàng, Checkout Đa Shop, Idempotency, Quản lý đơn & Đánh giá | 0 (B:0, C:0, V:0, T:0) | 2026-10-01 |
 | Người 4 | Chưa bắt đầu | — | — | — |
-| Người 5 | Chưa bắt đầu | — | — | — |
+| Người 5 | Đã xác minh | 7 luồng Admin, Moderation, RBAC, Audit & Dashboard UI | 1 Thấp (Góp ý nhãn KPI) | 2026-10-01 |
 
 ## Tiêu chí hoàn thành
 
