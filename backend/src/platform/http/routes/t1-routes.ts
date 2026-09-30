@@ -13,6 +13,12 @@ export interface CatalogHttpApplication {
   getProduct(productId: string): Promise<unknown>;
   createProduct(context: RequestContext, input: Record<string, unknown>): Promise<unknown>;
   updateVariantStock(context: RequestContext, variantId: string, input: Record<string, unknown>): Promise<unknown>;
+  listSellerProducts?(context: RequestContext, input: Record<string, unknown>): Promise<unknown>;
+  updateProductStatus?(context: RequestContext, productId: string, status: string): Promise<unknown>;
+  listAllCategories?(): Promise<unknown[]>;
+  createCategory?(input: Record<string, unknown>): Promise<unknown>;
+  updateCategory?(categoryId: string, input: Record<string, unknown>): Promise<unknown>;
+  updateCategoryStatus?(categoryId: string, status: string): Promise<unknown>;
 }
 
 export interface BuyerHttpApplication {
@@ -118,6 +124,33 @@ export function createCatalogRouter(application?: CatalogHttpApplication, auth?:
     const input = req.body as Record<string, unknown>;
     rejectUnknown(input, ['quantity']);
     const result = await implementation(application?.updateVariantStock, application)(context(req), req.params.variant_id, input);
+    res.json(buildSuccessEnvelope(result, requestId(req)));
+  }));
+  router.get('/seller/products', ...guards(auth, 'SELLER'), asyncRoute(async (req, res) => {
+    const allowed = ['search', 'status', 'limit', 'cursor'];
+    const input = req.query as Record<string, unknown>;
+    rejectUnknown(input, allowed);
+    const result = await implementation(application?.listSellerProducts, application)(context(req), input);
+    res.json(buildSuccessEnvelope(result, requestId(req)));
+  }));
+  router.patch('/seller/products/:id/status', ...guards(auth, 'SELLER'), asyncRoute(async (req, res) => {
+    const input = req.body as Record<string, unknown>;
+    rejectUnknown(input, ['status']);
+    const status = String(input.status);
+    if (status !== 'ACTIVE' && status !== 'INACTIVE') {
+      throw new ValidationFailedError('Status must be ACTIVE or INACTIVE', { field: 'status' });
+    }
+    const result = await implementation(application?.updateProductStatus, application)(context(req), req.params.id, status);
+    res.json(buildSuccessEnvelope(result, requestId(req)));
+  }));
+  router.patch('/products/:product_id/status', ...guards(auth, 'SELLER'), asyncRoute(async (req, res) => {
+    const input = req.body as Record<string, unknown>;
+    rejectUnknown(input, ['status']);
+    const status = String(input.status);
+    if (status !== 'ACTIVE' && status !== 'INACTIVE') {
+      throw new ValidationFailedError('Status must be ACTIVE or INACTIVE', { field: 'status' });
+    }
+    const result = await implementation(application?.updateProductStatus, application)(context(req), req.params.product_id, status);
     res.json(buildSuccessEnvelope(result, requestId(req)));
   }));
   return router;

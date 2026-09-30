@@ -4,6 +4,7 @@ import { requireRole } from '../middlewares/rbac.ts';
 import { NotFoundError, UnauthorizedError } from '../../errors/app-error.ts';
 import type { IModerationService } from '../../../modules/moderation/domain/moderation.types.ts';
 import type { RequestContext } from '../../context/request-context.ts';
+import type { CatalogHttpApplication } from './t1-routes.ts';
 
 type AsyncRoute = (req: Request, res: Response, next: NextFunction) => Promise<void>;
 
@@ -35,7 +36,7 @@ function implementation<T extends (...args: never[]) => Promise<unknown>>(method
   }) as unknown as T;
 }
 
-export function createAdminRouter(moderation?: IModerationService, auth?: RequestHandler): Router {
+export function createAdminRouter(moderation?: IModerationService, auth?: RequestHandler, catalog?: CatalogHttpApplication): Router {
   const router = Router();
 
   // GET /admin/users
@@ -193,6 +194,56 @@ export function createAdminRouter(moderation?: IModerationService, auth?: Reques
         });
         res.json(buildSuccessEnvelope(result, requestId(req)));
       }
+    })
+  );
+
+  // GET /admin/categories (C-403)
+  router.get(
+    '/admin/categories',
+    ...guards(auth, 'ADMIN'),
+    asyncRoute(async (req, res) => {
+      const service = implementation(catalog?.listAllCategories, catalog);
+      const categories = await service();
+      res.json(buildSuccessEnvelope(categories, requestId(req)));
+    })
+  );
+
+  // POST /admin/categories (C-403: 2-level hierarchy, RB-KN04)
+  router.post(
+    '/admin/categories',
+    ...guards(auth, 'ADMIN'),
+    asyncRoute(async (req, res) => {
+      const input = (req.body ?? {}) as Record<string, unknown>;
+      const service = implementation(catalog?.createCategory, catalog);
+      const category = await service(input);
+      res.status(201).json(buildSuccessEnvelope(category, requestId(req)));
+    })
+  );
+
+  // PATCH /admin/categories/:id (C-403: cycle check)
+  router.patch(
+    '/admin/categories/:id',
+    ...guards(auth, 'ADMIN'),
+    asyncRoute(async (req, res) => {
+      const targetId = req.params.id;
+      const input = (req.body ?? {}) as Record<string, unknown>;
+      const service = implementation(catalog?.updateCategory, catalog);
+      const category = await service(targetId, input);
+      res.json(buildSuccessEnvelope(category, requestId(req)));
+    })
+  );
+
+  // PATCH /admin/categories/:id/status (C-403)
+  router.patch(
+    '/admin/categories/:id/status',
+    ...guards(auth, 'ADMIN'),
+    asyncRoute(async (req, res) => {
+      const targetId = req.params.id;
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const status = typeof body.status === 'string' ? body.status : '';
+      const service = implementation(catalog?.updateCategoryStatus, catalog);
+      const result = await service(targetId, status);
+      res.json(buildSuccessEnvelope(result, requestId(req)));
     })
   );
 

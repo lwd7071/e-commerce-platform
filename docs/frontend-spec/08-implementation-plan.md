@@ -319,21 +319,21 @@ Capability MUST: `auth`, `catalog`, `cart`, `checkout`, `seller_catalog`, `media
 
 ### Người 3 — Catalog/Media/Seller Products
 
-- [ ] B-102/B-103 media APIs + MediaRepository.
-- [ ] B-105 `next/image` product assets.
-- [ ] B-201–B-206 Seller product live flow và E2E.
-- [ ] C-205 Product Detail rating/reviews thật.
-- [ ] C-403 Admin category CRUD/status backend.
-- [ ] Cập nhật catalog capability và loại production mock fallback.
+- [x] B-102/B-103 media APIs + MediaRepository.
+- [x] B-105 `next/image` product assets.
+- [x] B-201–B-206 Seller product live flow và E2E.
+- [x] C-205 Product Detail rating/reviews thật.
+- [x] C-403 Admin category CRUD/status backend.
+- [x] Cập nhật catalog capability và loại production mock fallback.
 
 ### Người 4 — Buyer/Checkout FE + Review/Notification services
 
-- [ ] A-201/A-202 cart rollback và checkout idempotency UX.
-- [ ] A-206 Buyer checkout E2E.
-- [ ] C-201–C-203 Review runtime/write/read/rating aggregate.
-- [ ] C-301/C-302 Notification runtime và event catalog.
-- [ ] Xác minh Profile/Address/Voucher adapters dùng generated types.
-- [ ] Bàn giao review/notification fixtures và error codes cho Người 2/3/5.
+- [x] A-201/A-202 cart rollback và checkout idempotency UX.
+- [x] A-206 Buyer checkout E2E.
+- [x] C-201–C-203 Review runtime/write/read/rating aggregate.
+- [x] C-301/C-302 Notification runtime và event catalog.
+- [x] Xác minh Profile/Address/Voucher adapters dùng generated types.
+- [x] Bàn giao review/notification fixtures và error codes cho Người 2/3/5.
 
 ### Người 5 — Transaction/Order/Review/Admin FE
 

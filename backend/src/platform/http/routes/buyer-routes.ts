@@ -326,6 +326,36 @@ export function createBuyerDomainRouter(
   router.post('/order-items/:order_item_id/review', ...guards(auth, 'BUYER'), handleCreateReview);
   router.post('/reviews', ...guards(auth, 'BUYER'), handleCreateReview);
 
+  router.get('/products/:product_id/reviews', asyncRoute(async (req, res) => {
+    if (!reviewService) {
+      throw new NotImplementedError('Product reviews are not available in the current runtime');
+    }
+    const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
+    const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
+    const { reviews, nextCursor } = await reviewService.getReviewsByProduct(req.params.product_id, limit, cursor);
+
+    const count = reviews.length;
+    let average: string | null = null;
+    if (count > 0) {
+      const sum = reviews.reduce((acc, r) => acc + r.rating, 0);
+      average = (sum / count).toFixed(1);
+    }
+
+    res.json({
+      data: reviews,
+      meta: {
+        limit,
+        has_more: !!nextCursor,
+        next_cursor: nextCursor ?? null,
+      },
+      rating_summary: {
+        average,
+        count,
+      },
+      request_id: requestId(req),
+    });
+  }));
+
   // ==========================================
   // 5. NOTIFICATION ROUTES
   // ==========================================

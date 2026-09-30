@@ -10,6 +10,7 @@ const expectedTables = [
   'voucher_usages', 'reviews', 'review_images', 'notifications',
   'moderation_records', 'admin_logs',
 ];
+const operationalTables = ['api_idempotency_records', 'media_uploads'];
 
 const runRemoteDbTests = parseRunRemoteDbTests(process.env);
 let client: pg.Client | undefined;
@@ -42,11 +43,23 @@ remoteDescribe('Schema Freeze v1 Supabase smoke checks', () => {
     if (client) await client.end();
   }, 20_000);
 
-  it('connects and exposes exactly the 22 business tables', async () => {
+  it('connects and exposes exactly the 22 Schema Freeze business tables', async () => {
     const result = await requireConnectedClient().query<{ table_name: string }>(
-      "select table_name from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE' and table_name <> '_prisma_migrations' and table_name <> 'api_idempotency_records' order by table_name",
+      "select table_name from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE' and table_name <> '_prisma_migrations' and table_name <> all($1::text[]) order by table_name",
+      [operationalTables],
     );
     expect(result.rows.map((row) => row.table_name).sort()).toEqual([...expectedTables].sort());
+  }, 15_000);
+
+  it('keeps operational tables separate and protected by RLS', async () => {
+    const result = await requireConnectedClient().query<{ table_name: string; row_level_security: boolean }>(
+      "select c.relname as table_name, c.relrowsecurity as row_level_security from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relname = any($1::text[]) order by c.relname",
+      [operationalTables],
+    );
+    expect(result.rows).toEqual(operationalTables.slice().sort().map((table_name) => ({
+      table_name,
+      row_level_security: true,
+    })));
   }, 15_000);
 
   it('enables RLS on every business table', async () => {

@@ -228,6 +228,20 @@ export function generateOpenApiSpec(): OpenApiSpec {
           responses: { '200': successResponse('Product detail'), '404': errorResponse('Product not found') },
         },
       },
+      '/products/{product_id}/reviews': {
+        get: {
+          summary: 'List public product reviews with aggregate rating',
+          parameters: [
+            { name: 'product_id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'limit', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 } },
+            { name: 'cursor', in: 'query', required: false, schema: { type: 'string' } },
+          ],
+          responses: {
+            '200': successResponse('Public product reviews'),
+            '501': errorResponse('Review service not available'),
+          },
+        },
+      },
       '/product-variants/{variant_id}/stock': {
         patch: {
           summary: 'Update owned product variant stock',
@@ -1035,6 +1049,83 @@ export function generateOpenApiSpec(): OpenApiSpec {
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
           requestBody: jsonRequest({ type: 'object', properties: { reason: { type: 'string' } } }),
           responses: { '200': successResponse('Shop unlocked'), '403': errorResponse('Admin role required'), '404': errorResponse('Shop not found'), '409': errorResponse('Shop already active') },
+        },
+      },
+      '/seller/products': {
+        get: {
+          summary: 'List products belonging to seller shop', security: [{ BearerAuth: [] }],
+          parameters: [
+            { name: 'search', in: 'query', required: false, schema: { type: 'string' } },
+            { name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] } },
+            { name: 'limit', in: 'query', required: false, schema: { type: 'integer' } },
+            { name: 'cursor', in: 'query', required: false, schema: { type: 'string' } },
+          ],
+          responses: { '200': successResponse('Seller products'), '403': errorResponse('Seller role and active shop required') },
+        },
+      },
+      '/seller/products/{id}/status': {
+        patch: {
+          summary: 'Update product status', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: jsonRequest({ type: 'object', required: ['status'], properties: { status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] } } }),
+          responses: { '200': successResponse('Product status updated'), '403': errorResponse('Seller role required'), '404': errorResponse('Product not found') },
+        },
+      },
+      '/products/{product_id}/status': {
+        patch: {
+          summary: 'Update product status (alias)', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'product_id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: jsonRequest({ type: 'object', required: ['status'], properties: { status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] } } }),
+          responses: { '200': successResponse('Product status updated'), '403': errorResponse('Seller role required'), '404': errorResponse('Product not found') },
+        },
+      },
+      '/admin/categories': {
+        get: {
+          summary: 'List all categories for admin', security: [{ BearerAuth: [] }],
+          responses: { '200': successResponse('Categories list'), '403': errorResponse('Admin role required') },
+        },
+        post: {
+          summary: 'Create category', security: [{ BearerAuth: [] }],
+          requestBody: jsonRequest({ type: 'object', required: ['name'], properties: { name: { type: 'string' }, parent_id: { type: ['string', 'null'] }, description: { type: ['string', 'null'] }, status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] } } }),
+          responses: { '201': successResponse('Category created'), '403': errorResponse('Admin role required'), '422': errorResponse('Validation failed') },
+        },
+      },
+      '/admin/categories/{id}': {
+        patch: {
+          summary: 'Update category', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: jsonRequest({ type: 'object', properties: { name: { type: 'string' }, parent_id: { type: ['string', 'null'] }, description: { type: ['string', 'null'] } } }),
+          responses: { '200': successResponse('Category updated'), '403': errorResponse('Admin role required'), '404': errorResponse('Category not found'), '422': errorResponse('Validation failed') },
+        },
+      },
+      '/admin/categories/{id}/status': {
+        patch: {
+          summary: 'Update category status', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: jsonRequest({ type: 'object', required: ['status'], properties: { status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] } } }),
+          responses: { '200': successResponse('Category status updated'), '403': errorResponse('Admin role required'), '404': errorResponse('Category not found'), '422': errorResponse('Validation failed') },
+        },
+      },
+      '/media/uploads/presign': {
+        post: {
+          summary: 'Presign media upload', security: [{ BearerAuth: [] }],
+          requestBody: jsonRequest({ type: 'object', required: ['filename', 'content_type'], properties: { filename: { type: 'string' }, content_type: { type: 'string' }, purpose: { type: 'string' } } }),
+          responses: { '201': successResponse('Presigned upload URL'), '401': errorResponse('Authentication required'), '422': errorResponse('Invalid parameters') },
+        },
+      },
+      '/media/uploads/{media_id}/finalize': {
+        post: {
+          summary: 'Finalize media upload', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'media_id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: jsonRequest({ type: 'object', properties: { magic_bytes: { type: 'string' }, data_base64: { type: 'string' } } }),
+          responses: { '200': successResponse('Media finalized'), '401': errorResponse('Authentication required'), '404': errorResponse('Upload not found'), '422': errorResponse('Magic bytes invalid') },
+        },
+      },
+      '/media/uploads/{media_id}': {
+        delete: {
+          summary: 'Delete unattached media upload', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'media_id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: { '204': { description: 'Media deleted' }, '401': errorResponse('Authentication required') },
         },
       },
     },

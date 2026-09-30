@@ -3,11 +3,46 @@
 ## Trạng thái hiện tại
 
 - Mốc: T3 (Hardening & Nghiệm thu — Release Gate)
-- Cập nhật lần cuối: 2026-09-28
-- Đang làm: Đã rà soát toàn diện tính khớp nối 100% giữa Code và Docs (Architecture Rules, Contracts, OpenAPI Spec và Sổ tay kiến trúc 08_SoTay_LapTrinh_NodeJS_Backend_ThanhVien3_Catalog.docx). Toàn bộ Quality Gates đạt mức hoàn hảo tuyệt đối: Typecheck 0 lỗi, Lint 0 lỗi / 0 cảnh báo (--max-warnings=0), Node native test runner 583/583 tests PASS (100%), Vitest suites 181/181 tests PASS (100% — gồm trọn vẹn 8 test files với 68/68 tests thuộc phân hệ Catalog). Sẵn sàng bàn giao cho Lead tiến hành Review Gate T3 và Release.
+- Cập nhật lần cuối: 2026-09-30
+- Đang làm: Hoàn tất trọn vẹn toàn bộ nhiệm vụ mở rộng theo yêu cầu của Lead và kế hoạch triển khai:
+  1. Backend Seller Products Live Flow: `GET /seller/products` (scoped chặt theo `context.shop_id`) và `PATCH /seller/products/:id/status` (bật/tắt ACTIVE ↔ INACTIVE có xác minh quyền sở hữu shop).
+  2. Media Verification Upload API: `POST /media/uploads/presign`, `POST /media/uploads/:id/finalize` (xác thực magic bytes cho JPEG, PNG, WebP; từ chối file giả mạo), `DELETE /media/uploads/:id`.
+  3. Admin Categories CRUD & Status Backend: `GET /admin/categories`, `POST /admin/categories`, `PATCH /admin/categories/:id`, `PATCH /admin/categories/:id/status` với RB-KN04 cây danh mục tối đa 2 cấp và chống chu trình.
+  4. Khai báo 100% routes mới trong OpenAPI 3.1.0 spec (`[OAS-05]` compliance).
+  5. Frontend: Tích hợp `IMediaRepository`, `mediaApi`, gallery sản phẩm và `next/image` alt text, review & rating aggregate thật cho Product Detail (bỏ 5 sao fake), bổ sung cột Trạng thái và nút toggle Ẩn/Hiện cho Seller Products Screen.
+  6. Quality Gates: Backend 0 lỗi typecheck/lint, 609/609 node tests PASS (100%); Frontend 0 lỗi typecheck/lint, 34/34 vitest files (190/190 tests PASS), Turbopack build 22/22 routes sạch.
 - Bị block bởi: Không (Sẵn sàng 100% để Lead merge vào dev/main).
 
 ## Nhật ký theo ngày
+
+### 2026-09-30 (Hoàn tất Seller Scoped API, Media Magic Bytes, Admin Categories & Real Review UI)
+
+- Đã làm:
+  - **Triển khai Seller Products API Scoped & Status Toggle (`B-201`–`B-205` / GAP-04)**:
+    - `PgCatalogHttpService.listSellerProducts`: Truy vấn sản phẩm và biến thể gắn chặt với `context.shop_id` từ token JWT, hỗ trợ lọc theo trạng thái và tìm kiếm.
+    - `PgCatalogHttpService.updateProductStatus`: Chuyển đổi trạng thái `ACTIVE` / `INACTIVE` với kiểm tra chặt chẽ `shop_id` của sản phẩm so với JWT shop_id (ném 403 `RESOURCE_FORBIDDEN` nếu không thuộc sở hữu).
+    - Mount `GET /seller/products` và `PATCH /seller/products/:id/status` tại `backend/src/platform/http/routes/t1-routes.ts`.
+  - **Triển khai Media Upload Verification API (`B-102`, `B-103` / GAP-09)**:
+    - Xây dựng `media-routes.ts` với đầy đủ presign, finalize và delete media.
+    - Kiểm tra magic bytes trong `finalize`: JPEG (`ffd8ff`), PNG (`89504e47`), WebP (`52494646`...`57454250`); từ chối mọi tệp không khớp định dạng bằng `ValidationFailedError`.
+  - **Triển khai Admin Category CRUD & Status API (`C-403` / GAP-05)**:
+    - Triển khai `listAllCategories`, `createCategory`, `updateCategory`, `updateCategoryStatus` trong `PgCatalogHttpService`.
+    - Bảo đảm quy tắc RB-KN04 (cây danh mục tối đa 2 cấp) và phòng ngừa chu trình cha-con.
+    - Mount router tại `backend/src/platform/http/routes/admin-routes.ts`.
+  - **Cập nhật OpenAPI 3.1.0 Spec (`openapi-spec.ts`)**:
+    - Khai báo đầy đủ 10 endpoint mới, thỏa mãn kiểm tra route mounting tự động của test runner backend (`openapi-spec.spec.ts`).
+  - **Nâng cấp Frontend UI & Repositories (`B-105`, `C-205`)**:
+    - `ProductDetailScreen`: Truy vấn review thật qua `repositories.review().getReviewsByProduct(productId)`, hiển thị điểm đánh giá và danh sách đánh giá thực tế (hiển thị empty state khi chưa có đánh giá, không fallback 5 sao giả); hỗ trợ gallery ảnh và `next/image` alt text.
+    - `SellerProductsScreen`: Bổ sung cột "Trạng thái" và nút toggle "Ẩn/Hiện" trực tiếp với loading spinner; kết nối `apiCatalogRepository.getSellerProducts` và `updateProductStatus`.
+  - **Kết quả Kiểm thử Toàn hệ thống**:
+    - Backend Typecheck: PASS 0 errors (`tsc --noEmit`).
+    - Backend Lint: PASS 0 errors, 0 warnings (`eslint --max-warnings=0`).
+    - Backend Build: PASS `dist/app.js` (260.7kb).
+    - Backend Node Native Tests: 172 test suites, **609/609 tests PASS (100%)**.
+    - Frontend Typecheck: PASS 0 errors (`tsc --noEmit`).
+    - Frontend Lint: PASS 0 errors, 0 warnings (`eslint`).
+    - Frontend Vitest: 34 test files, **190/190 tests PASS (100%)**.
+    - Frontend Next.js Build: 22/22 routes prerendered sạch sẽ (Turbopack).
 
 ### 2026-09-28 (Đối soát Toàn diện Khớp nối Code & Docs theo Yêu cầu của Lead)
 
