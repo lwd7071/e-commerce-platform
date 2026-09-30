@@ -62,6 +62,7 @@
   - Review & Notification runtime services sẵn sàng cho Người 2 (Notification UI) và Người 5 (Review Form O-507 & Timeline C-204/C-206).
   - Checkout E2E test suite và handshake `/orders?created=...` bàn giao cho Người 5 để kiểm thử luồng tích hợp toàn hệ thống.
 - **Blocker:** Không.
+- **Còn lại:** Không (Đã hoàn tất 100% các hạng mục B-408, Q-804, Review/Notification runtime; không còn việc tồn đọng).
 
 ### 2026-09-29 — Chuẩn hóa FE Address/Cart/Voucher Adapters và Wire Runtime (Plan v3.2)
 
