@@ -339,10 +339,10 @@ export function SellerProductsScreen() {
                             <span
                               className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold border ${
                                 item.total_stock > 10
-                                  ? "bg-[var(--success-surface)] text-[var(--success-text)] border-[var(--border)]"
+                                  ? "bg-[var(--success-surface)] text-[var(--success)] border-[var(--success-border)]"
                                   : item.total_stock > 0
-                                  ? "bg-[var(--warning-surface)] text-[var(--warning-text)] border-[var(--warning-border)]"
-                                  : "bg-[var(--danger-surface)] text-[var(--danger-text)] border-[var(--danger-border)]"
+                                  ? "bg-[var(--warning-surface)] text-[var(--warning)] border-[var(--warning-border)]"
+                                  : "bg-[var(--danger-surface)] text-[var(--danger)] border-[var(--danger-border)]"
                               }`}
                             >
                               {item.total_stock > 0 ? item.total_stock : "Hết hàng"}

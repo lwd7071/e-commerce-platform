@@ -1,5 +1,5 @@
 import { features } from "../config/features";
-import { catalogApi } from "../api/catalog.api";
+import { catalogApi, type WireCatalogProductItem, type WireCatalogProductDetail } from "../api/catalog.api";
 import { buyerApi } from "../api/buyer.api";
 import { orderApi, type WireOrder } from "../api/order.api";
 import { voucherApi } from "../api/voucher.api";
@@ -119,53 +119,87 @@ const apiAdminRepository: IAdminRepository = {
 // 2. Mock / Fixture Implementations
 // ==========================================
 
+const initialMockProducts: WireCatalogProductItem[] = [
+  {
+    product_id: "00000000-0000-0000-0000-000000000101",
+    product_name: "Serum Dưỡng Trắng & Cấp Ẩm Chuyên Sâu",
+    shop_id: "00000000-0000-0000-0000-000000000001",
+    category_id: "00000000-0000-0000-0000-000000000010",
+    min_price: "280000.00",
+    max_price: "350000.00",
+    total_stock: 50,
+    image_url: "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=800",
+    created_at: new Date().toISOString(),
+  },
+  {
+    product_id: "00000000-0000-0000-0000-000000000102",
+    product_name: "Kem Chống Nắng Phổ Rộng SPF 50+ PA++++",
+    shop_id: "00000000-0000-0000-0000-000000000001",
+    category_id: "00000000-0000-0000-0000-000000000010",
+    min_price: "320000.00",
+    max_price: "320000.00",
+    total_stock: 120,
+    image_url: "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=800",
+    created_at: new Date().toISOString(),
+  },
+  {
+    product_id: "00000000-0000-0000-0000-000000000103",
+    product_name: "Áo Sơ Mi Linen Form Rộng Cao Cấp",
+    shop_id: "00000000-0000-0000-0000-000000000002",
+    category_id: "00000000-0000-0000-0000-000000000011",
+    min_price: "289000.00",
+    max_price: "320000.00",
+    total_stock: 75,
+    image_url: "https://images.unsplash.com/photo-1598033129183-c4f50c736f10?w=800",
+    created_at: new Date().toISOString(),
+  },
+  {
+    product_id: "00000000-0000-0000-0000-000000000104",
+    product_name: "Bàn Phím Cơ Không Dây 3 Chế Độ RGB",
+    shop_id: "00000000-0000-0000-0000-000000000003",
+    category_id: "00000000-0000-0000-0000-000000000012",
+    min_price: "850000.00",
+    max_price: "1250000.00",
+    total_stock: 30,
+    image_url: "https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=800",
+    created_at: new Date().toISOString(),
+  },
+];
+
+const dynamicMockProducts: WireCatalogProductItem[] = [...initialMockProducts];
+const dynamicMockDetails: Record<string, WireCatalogProductDetail> = {
+  "00000000-0000-0000-0000-000000000101": {
+    product_id: "00000000-0000-0000-0000-000000000101",
+    shop_id: "00000000-0000-0000-0000-000000000001",
+    category_id: "00000000-0000-0000-0000-000000000010",
+    product_name: "Serum Dưỡng Trắng & Cấp Ẩm Chuyên Sâu",
+    description: "Chiết xuất thiên nhiên dưỡng da sáng hồng rạng rỡ, cấp ẩm sâu 72 giờ và phục hồi hàng rào bảo vệ da.",
+    status: "ACTIVE",
+    variants: [
+      {
+        variant_id: "00000000-0000-0000-0000-000000000201",
+        variant_name: "Dung tích",
+        variant_value: "Chai 30ml",
+        sku: "SERUM-30ML",
+        price: "280000.00",
+        stock_quantity: 35,
+        status: "ACTIVE",
+      },
+      {
+        variant_id: "00000000-0000-0000-0000-000000000202",
+        variant_name: "Dung tích",
+        variant_value: "Chai 50ml",
+        sku: "SERUM-50ML",
+        price: "350000.00",
+        stock_quantity: 15,
+        status: "ACTIVE",
+      },
+    ],
+  },
+};
+
 const mockCatalogRepository: ICatalogRepository = {
-  getProducts: async () => [
-    {
-      product_id: "00000000-0000-0000-0000-000000000101",
-      product_name: "Serum Dưỡng Trắng & Cấp Ẩm Chuyên Sâu",
-      shop_id: "00000000-0000-0000-0000-000000000001",
-      category_id: "00000000-0000-0000-0000-000000000010",
-      min_price: "280000.00",
-      max_price: "350000.00",
-      total_stock: 50,
-      image_url: "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=800",
-      created_at: new Date().toISOString(),
-    },
-    {
-      product_id: "00000000-0000-0000-0000-000000000102",
-      product_name: "Kem Chống Nắng Phổ Rộng SPF 50+ PA++++",
-      shop_id: "00000000-0000-0000-0000-000000000001",
-      category_id: "00000000-0000-0000-0000-000000000010",
-      min_price: "320000.00",
-      max_price: "320000.00",
-      total_stock: 120,
-      image_url: "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=800",
-      created_at: new Date().toISOString(),
-    },
-    {
-      product_id: "00000000-0000-0000-0000-000000000103",
-      product_name: "Áo Sơ Mi Linen Form Rộng Cao Cấp",
-      shop_id: "00000000-0000-0000-0000-000000000002",
-      category_id: "00000000-0000-0000-0000-000000000011",
-      min_price: "289000.00",
-      max_price: "320000.00",
-      total_stock: 75,
-      image_url: "https://images.unsplash.com/photo-1598033129183-c4f50c736f10?w=800",
-      created_at: new Date().toISOString(),
-    },
-    {
-      product_id: "00000000-0000-0000-0000-000000000104",
-      product_name: "Bàn Phím Cơ Không Dây 3 Chế Độ RGB",
-      shop_id: "00000000-0000-0000-0000-000000000003",
-      category_id: "00000000-0000-0000-0000-000000000012",
-      min_price: "850000.00",
-      max_price: "1250000.00",
-      total_stock: 30,
-      image_url: "https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=800",
-      created_at: new Date().toISOString(),
-    },
-  ],
+  getProducts: async () => [...dynamicMockProducts],
   getProductsPaginated: async (params) => {
     const isPage2 = params?.cursor === "mock_cursor_page_2";
     if (isPage2) {
@@ -234,56 +268,91 @@ const mockCatalogRepository: ICatalogRepository = {
       },
     };
   },
-  getProductById: async (id) => ({
-    product_id: id,
-    shop_id: "00000000-0000-0000-0000-000000000001",
-    category_id: "00000000-0000-0000-0000-000000000010",
-    product_name: "Serum Dưỡng Trắng & Cấp Ẩm Chuyên Sâu",
-    description: "Chiết xuất thiên nhiên dưỡng da sáng hồng rạng rỡ, cấp ẩm sâu 72 giờ và phục hồi hàng rào bảo vệ da.",
-    status: "ACTIVE",
-    variants: [
-      {
-        variant_id: "00000000-0000-0000-0000-000000000201",
-        variant_name: "Dung tích",
-        variant_value: "Chai 30ml",
-        sku: "SERUM-30ML",
-        price: "280000.00",
-        stock_quantity: 35,
-        status: "ACTIVE",
-      },
-      {
-        variant_id: "00000000-0000-0000-0000-000000000202",
-        variant_name: "Dung tích",
-        variant_value: "Chai 50ml",
-        sku: "SERUM-50ML",
-        price: "350000.00",
-        stock_quantity: 15,
-        status: "ACTIVE",
-      },
-    ],
-  }),
-  createProduct: async (data) => ({
-    product_id: "00000000-0000-0000-0000-000000000199",
-    shop_id: "00000000-0000-0000-0000-000000000001",
-    category_id: data.category_id,
-    product_name: data.product_name,
-    description: data.description ?? null,
-    status: "ACTIVE",
-    variants: data.variants.map((v, i) => ({
-      variant_id: `00000000-0000-0000-0000-00000000029${i}`,
-      variant_name: v.variant_name,
-      variant_value: v.variant_value ?? null,
-      sku: v.sku,
-      price: v.price,
-      stock_quantity: v.stock_quantity,
-      status: "ACTIVE" as const,
-    })),
-  }),
-  updateStock: async (variantId, quantity) => ({ variant_id: variantId, quantity, success: true }),
+  getProductById: async (id) => {
+    if (dynamicMockDetails[id]) {
+      return dynamicMockDetails[id];
+    }
+    const foundProd = dynamicMockProducts.find((p) => p.product_id === id);
+    return {
+      product_id: id,
+      shop_id: foundProd?.shop_id || "00000000-0000-0000-0000-000000000001",
+      category_id: foundProd?.category_id || "00000000-0000-0000-0000-000000000010",
+      product_name: foundProd?.product_name || "Serum Dưỡng Trắng & Cấp Ẩm Chuyên Sâu",
+      description: "Chiết xuất thiên nhiên dưỡng da sáng hồng rạng rỡ, cấp ẩm sâu 72 giờ và phục hồi hàng rào bảo vệ da.",
+      status: "ACTIVE",
+      variants: [
+        {
+          variant_id: `var-${id}-1`,
+          variant_name: "Dung tích",
+          variant_value: "Chai 30ml",
+          sku: `SKU-${id.slice(-4)}-1`,
+          price: foundProd?.min_price || "280000.00",
+          stock_quantity: foundProd?.total_stock || 35,
+          status: "ACTIVE",
+        },
+      ],
+    };
+  },
+  createProduct: async (data) => {
+    const newId = `00000000-0000-0000-0000-000000000${Math.floor(200 + Math.random() * 700)}`;
+    const prices = data.variants.map((v) => Number(v.price) || 0);
+    const minP = Math.min(...prices).toFixed(2);
+    const maxP = Math.max(...prices).toFixed(2);
+    const totalS = data.variants.reduce((s, v) => s + (Number(v.stock_quantity) || 0), 0);
+    const imgUrl = data.images?.[0]?.image_url || "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800";
+
+    const detail: WireCatalogProductDetail = {
+      product_id: newId,
+      shop_id: "00000000-0000-0000-0000-000000000001",
+      category_id: data.category_id,
+      product_name: data.product_name,
+      description: data.description ?? null,
+      status: "ACTIVE",
+      variants: data.variants.map((v, i) => ({
+        variant_id: `00000000-0000-0000-0000-000000000${Math.floor(300 + Math.random() * 600)}${i}`,
+        variant_name: v.variant_name,
+        variant_value: v.variant_value ?? null,
+        sku: v.sku,
+        price: v.price,
+        stock_quantity: v.stock_quantity,
+        status: "ACTIVE" as const,
+      })),
+    };
+
+    dynamicMockDetails[newId] = detail;
+    dynamicMockProducts.unshift({
+      product_id: newId,
+      product_name: data.product_name,
+      shop_id: "00000000-0000-0000-0000-000000000001",
+      category_id: data.category_id,
+      min_price: minP,
+      max_price: maxP,
+      total_stock: totalS,
+      image_url: imgUrl,
+      created_at: new Date().toISOString(),
+    });
+
+    return detail;
+  },
+  updateStock: async (variantId, quantity) => {
+    // Sync with dynamic mock stores
+    for (const [prodId, detail] of Object.entries(dynamicMockDetails)) {
+      const v = detail.variants.find((item) => item.variant_id === variantId);
+      if (v) {
+        v.stock_quantity = quantity;
+        const total = detail.variants.reduce((sum, item) => sum + item.stock_quantity, 0);
+        const prod = dynamicMockProducts.find((p) => p.product_id === prodId);
+        if (prod) {
+          prod.total_stock = total;
+        }
+        break;
+      }
+    }
+    return { variant_id: variantId, quantity, success: true };
+  },
   getSellerProducts: async () => {
-    const all = await mockCatalogRepository.getProducts();
     // Isolate products strictly belonging to the seller's shop (shop_id: ...0001)
-    return all.filter((p) => p.shop_id === "00000000-0000-0000-0000-000000000001");
+    return dynamicMockProducts.filter((p) => p.shop_id === "00000000-0000-0000-0000-000000000001");
   },
 };
 
@@ -686,3 +755,4 @@ export const repositories = {
     features.useMock() ? mockAdminRepository : apiAdminRepository,
 };
 
+export { mockCatalogRepository, apiCatalogRepository };
