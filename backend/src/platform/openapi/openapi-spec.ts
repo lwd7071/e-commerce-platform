@@ -106,6 +106,34 @@ export function generateOpenApiSpec(): OpenApiSpec {
             request_id: { type: 'string', example: 'req_01J8Y7...' },
           },
         },
+        NotificationDTO: {
+          type: 'object',
+          required: ['notificationId', 'recipientId', 'type', 'title', 'content', 'isRead', 'createdAt', 'readAt'],
+          properties: {
+            notificationId: { type: 'string', format: 'uuid' },
+            recipientId: { type: 'string', format: 'uuid' },
+            type: { type: 'string', enum: ['ORDER', 'PAYMENT', 'SHIPPING', 'VIOLATION', 'SYSTEM'] },
+            title: { type: 'string', maxLength: 255 },
+            content: { type: 'string' },
+            isRead: { type: 'boolean' },
+            createdAt: { type: 'string', format: 'date-time' },
+            readAt: { type: ['string', 'null'], format: 'date-time' },
+          },
+        },
+        NotificationListEnvelope: {
+          type: 'object', required: ['data', 'request_id'],
+          properties: {
+            data: { type: 'array', items: { $ref: '#/components/schemas/NotificationDTO' } },
+            request_id: { type: 'string' },
+          },
+        },
+        NotificationEnvelope: {
+          type: 'object', required: ['data', 'request_id'],
+          properties: {
+            data: { $ref: '#/components/schemas/NotificationDTO' },
+            request_id: { type: 'string' },
+          },
+        },
         OrderReadDTO: {
           type: 'object', required: ['order_id', 'buyer_id', 'shop_id', 'shop_name', 'status', 'subtotal', 'discount_amount', 'shipping_fee', 'total_amount', 'cancel_reason', 'created_at', 'updated_at', 'items'],
           properties: {
@@ -190,6 +218,23 @@ export function generateOpenApiSpec(): OpenApiSpec {
             '401': errorResponse('Authentication required'),
             '422': errorResponse('Validation failed'),
             '501': errorResponse('Profile service not available'),
+          },
+        },
+      },
+      '/profile/avatar': {
+        patch: {
+          summary: 'Attach a finalized avatar upload to the current profile',
+          security: [{ BearerAuth: [] }],
+          requestBody: jsonRequest({
+            type: 'object', required: ['media_id'], additionalProperties: false,
+            properties: { media_id: { type: 'string', format: 'uuid' } },
+          }),
+          responses: {
+            '200': successResponse('Profile avatar updated', '#/components/schemas/ProfileSuccessEnvelope'),
+            '401': errorResponse('Authentication required'),
+            '403': errorResponse('Media must be finalized and owned by the current user'),
+            '404': errorResponse('Profile not found'),
+            '422': errorResponse('Invalid media ID'),
           },
         },
       },
@@ -974,14 +1019,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
             },
           ],
           responses: {
-            '200': {
-              description: 'List of notifications',
-              content: {
-                'application/json': {
-                  schema: { $ref: '#/components/schemas/SuccessEnvelope' },
-                },
-              },
-            },
+            '200': successResponse('List of notifications', '#/components/schemas/NotificationListEnvelope'),
             '401': {
               description: 'Authentication required',
               content: {
@@ -990,7 +1028,6 @@ export function generateOpenApiSpec(): OpenApiSpec {
                 },
               },
             },
-            '501': errorResponse('Notification service is not configured in runtime'),
           },
         },
       },
@@ -1008,14 +1045,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
             },
           ],
           responses: {
-            '200': {
-              description: 'Notification marked as read',
-              content: {
-                'application/json': {
-                  schema: { $ref: '#/components/schemas/SuccessEnvelope' },
-                },
-              },
-            },
+            '200': successResponse('Notification marked as read', '#/components/schemas/NotificationEnvelope'),
             '401': {
               description: 'Authentication required',
               content: {
@@ -1039,12 +1069,12 @@ export function generateOpenApiSpec(): OpenApiSpec {
         get: {
           summary: 'Get Buyer Notification', security: [{ BearerAuth: [] }],
           parameters: [{ name: 'notification_id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
-          responses: { '200': successResponse('Notification detail'), '404': errorResponse('Notification not found'), '501': errorResponse('Notification service is not wired in the current runtime') },
+          responses: { '200': successResponse('Notification detail', '#/components/schemas/NotificationEnvelope'), '404': errorResponse('Notification not found') },
         },
         patch: {
           summary: 'Mark Buyer Notification As Read (alias)', security: [{ BearerAuth: [] }],
           parameters: [{ name: 'notification_id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
-          responses: { '200': successResponse('Notification updated'), '404': errorResponse('Notification not found'), '501': errorResponse('Notification service is not wired in the current runtime') },
+          responses: { '200': successResponse('Notification updated', '#/components/schemas/NotificationEnvelope'), '404': errorResponse('Notification not found') },
         },
       },
       '/admin/users': {
@@ -1166,7 +1196,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
       '/media/uploads/presign': {
         post: {
           summary: 'Presign media upload', security: [{ BearerAuth: [] }],
-          requestBody: jsonRequest({ type: 'object', required: ['filename', 'content_type', 'product_id'], properties: { filename: { type: 'string' }, content_type: { type: 'string', enum: ['image/jpeg', 'image/png', 'image/webp'] }, purpose: { type: 'string', enum: ['product_image'] }, product_id: { type: 'string', format: 'uuid' } } }),
+          requestBody: jsonRequest({ type: 'object', required: ['filename', 'content_type'], properties: { filename: { type: 'string' }, content_type: { type: 'string', enum: ['image/jpeg', 'image/png', 'image/webp'] }, purpose: { type: 'string', enum: ['product_image', 'avatar_image'] }, product_id: { type: 'string', format: 'uuid', description: 'Required for product_image; omitted for avatar_image.' } } }),
           responses: { '201': successResponse('Presigned upload URL'), '401': errorResponse('Authentication required'), '422': errorResponse('Invalid parameters') },
         },
       },

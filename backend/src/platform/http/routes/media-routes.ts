@@ -2,9 +2,9 @@ import { Router, type Request, type Response, type NextFunction, type RequestHan
 import type { Pool } from 'pg';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { buildSuccessEnvelope } from '../envelope.ts';
-import { AppError, ForbiddenError, NotFoundError, UnauthorizedError, ValidationFailedError } from '../../errors/app-error.ts';
+import { AppError, ForbiddenError, NotFoundError, UnauthorizedError } from '../../errors/app-error.ts';
 import type { RequestContext } from '../../context/request-context.ts';
-import { STORAGE_BUCKETS } from '../../../../db/storage.ts';
+import { STORAGE_BUCKETS, buildAvatarImagePath } from '../../../../db/storage.ts';
 import { attachFinalizedMedia, markMediaFinalized, registerPresignedMedia } from '../../../../db/media-lifecycle.ts';
 
 type AsyncRoute = (req: Request, res: Response, next: NextFunction) => Promise<void>;
@@ -72,14 +72,17 @@ export interface MediaRuntimeDependencies {
   storage: SupabaseClient;
 }
 
-export function mapPurposeToDb(purpose: string): 'PRODUCT' | 'REVIEW' {
+export function mapPurposeToDb(purpose: string): 'PRODUCT' | 'REVIEW' | 'AVATAR' {
   if (purpose === 'product_image' || purpose === 'PRODUCT' || purpose === 'product') {
     return 'PRODUCT';
   }
   if (purpose === 'review_image' || purpose === 'REVIEW' || purpose === 'review') {
     return 'REVIEW';
   }
-  throw new MediaValidationError(`Invalid purpose: ${purpose}. Allowed: product_image, review_image`, { field: 'purpose' });
+  if (purpose === 'avatar_image' || purpose === 'AVATAR' || purpose === 'avatar') {
+    return 'AVATAR';
+  }
+  throw new MediaValidationError(`Invalid purpose: ${purpose}. Allowed: product_image, review_image, avatar_image`, { field: 'purpose' });
 }
 
 /**
@@ -179,16 +182,24 @@ export function createMediaRouter(auth?: RequestHandler, runtime?: MediaRuntimeD
       let storagePath: string;
       let bucket: string;
 
-      if (runtime && dbPurpose === 'PRODUCT') {
-        const productId = typeof body.product_id === 'string' ? body.product_id : '';
-        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productId)) {
-          throw new MediaValidationError('product_id is required for product media uploads', { field: 'product_id' });
+      if (runtime && (dbPurpose === 'PRODUCT' || dbPurpose === 'AVATAR')) {
+        if (dbPurpose === 'PRODUCT') {
+          const productId = typeof body.product_id === 'string' ? body.product_id : '';
+          if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productId)) {
+            throw new MediaValidationError('product_id is required for product media uploads', { field: 'product_id' });
+          }
+          bucket = STORAGE_BUCKETS.PRODUCT_MEDIA;
+          storagePath = `shops/${ctx.shop_id}/products/${productId}/${mediaId}.${ext}`;
+        } else {
+          bucket = STORAGE_BUCKETS.PROFILE_MEDIA;
+          storagePath = buildAvatarImagePath(ctx.user_id, mediaId, ext);
         }
-        bucket = STORAGE_BUCKETS.PRODUCT_MEDIA;
-        storagePath = `shops/${ctx.shop_id}/products/${productId}/${mediaId}.${ext}`;
       } else if (dbPurpose === 'REVIEW') {
         bucket = STORAGE_BUCKETS.REVIEW_MEDIA;
         storagePath = `users/${ctx.user_id}/reviews/temp/${mediaId}.${ext}`;
+      } else if (dbPurpose === 'AVATAR') {
+        bucket = STORAGE_BUCKETS.PROFILE_MEDIA;
+        storagePath = buildAvatarImagePath(ctx.user_id, mediaId, ext);
       } else {
         bucket = STORAGE_BUCKETS.PRODUCT_MEDIA;
         const shopId = ctx.shop_id || '00000000-0000-0000-0000-000000000001';
@@ -196,15 +207,15 @@ export function createMediaRouter(auth?: RequestHandler, runtime?: MediaRuntimeD
       }
 
       if (runtime) {
-        if (dbPurpose !== 'PRODUCT') {
+        if (dbPurpose === 'REVIEW') {
           throw new MediaValidationError('Review media upload is not available in this runtime', { field: 'purpose' });
         }
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
         await registerPresignedMedia(runtime.pool, {
           mediaId,
           ownerId: ctx.user_id,
-          purpose: 'PRODUCT',
-          bucketId: STORAGE_BUCKETS.PRODUCT_MEDIA,
+          purpose: dbPurpose,
+          bucketId: bucket as typeof STORAGE_BUCKETS.PRODUCT_MEDIA | typeof STORAGE_BUCKETS.PROFILE_MEDIA,
           objectPath: storagePath,
           expiresAt,
         });
@@ -247,6 +258,75 @@ export function createMediaRouter(auth?: RequestHandler, runtime?: MediaRuntimeD
           requestId(req),
         ),
       );
+    }),
+  );
+
+  // PATCH /profile/avatar — only a finalized avatar_media_id owned by the caller can attach.
+  router.patch(
+    '/profile/avatar',
+    ...guards(auth, 'BUYER', 'SELLER', 'ADMIN'),
+    asyncRoute(async (req, res) => {
+      if (!runtime) throw new AppError(503, 'DEPENDENCY_UNAVAILABLE', 'Avatar media is not available in this runtime');
+      const ctx = context(req);
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const unknown = Object.keys(body).find((key) => key !== 'media_id');
+      const mediaId = typeof body.media_id === 'string' ? body.media_id : '';
+      if (unknown || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(mediaId)) {
+        throw new MediaValidationError('media_id is required; avatar URLs are not accepted', { field: unknown ?? 'media_id' });
+      }
+
+      const client = await runtime.pool.connect();
+      try {
+        await client.query('BEGIN');
+        const profileResult = await client.query<{
+          user_id: string; full_name: string | null; phone: string | null; avatar_url: string | null;
+        }>('SELECT user_id,full_name,phone,avatar_url FROM user_profiles WHERE user_id=$1 FOR UPDATE', [ctx.user_id]);
+        const profile = profileResult.rows[0];
+        if (!profile) throw new NotFoundError('User profile not found');
+
+        const mediaResult = await client.query<{
+          owner_id: string; purpose: string; bucket_id: string; object_path: string; status: string;
+        }>('SELECT owner_id,purpose,bucket_id,object_path,status FROM media_uploads WHERE media_id=$1 FOR UPDATE', [mediaId]);
+        const media = mediaResult.rows[0];
+        if (!media || media.owner_id !== ctx.user_id || media.purpose !== 'AVATAR'
+          || media.bucket_id !== STORAGE_BUCKETS.PROFILE_MEDIA || media.status !== 'FINALIZED') {
+          throw new ForbiddenError('MEDIA_NOT_OWNED', 'Avatar media must be finalized and owned by this user');
+        }
+
+        await attachFinalizedMedia(client, {
+          mediaId,
+          ownerId: ctx.user_id,
+          purpose: 'AVATAR',
+          resource: { kind: 'PROFILE', userId: ctx.user_id },
+        });
+        const avatarUrl = runtime.storage.storage.from(STORAGE_BUCKETS.PROFILE_MEDIA).getPublicUrl(media.object_path).data.publicUrl;
+        await client.query('UPDATE user_profiles SET avatar_url=$2,updated_at=now() WHERE user_id=$1', [ctx.user_id, avatarUrl]);
+
+        const oldMarker = '/storage/v1/object/public/profile-media/';
+        const oldPath = profile.avatar_url?.split(oldMarker)[1]?.split('?')[0];
+        if (oldPath && decodeURIComponent(oldPath) !== media.object_path) {
+          await client.query(`
+            UPDATE media_uploads
+            SET status='FINALIZED', attached_at=NULL, updated_at=now()
+            WHERE owner_id=$1 AND purpose='AVATAR' AND bucket_id='profile-media'
+              AND object_path=$2 AND status='ATTACHED' AND attached_at IS NOT NULL
+          `, [ctx.user_id, decodeURIComponent(oldPath)]);
+        }
+
+        await client.query('COMMIT');
+        res.json(buildSuccessEnvelope({
+          user_id: profile.user_id,
+          full_name: profile.full_name,
+          phone: profile.phone,
+          avatar_url: avatarUrl,
+          updated_at: new Date().toISOString(),
+        }, requestId(req)));
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      } finally {
+        client.release();
+      }
     }),
   );
 

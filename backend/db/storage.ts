@@ -1,6 +1,7 @@
 export const STORAGE_BUCKETS = {
   PRODUCT_MEDIA: 'product-media',
   REVIEW_MEDIA: 'review-media',
+  PROFILE_MEDIA: 'profile-media',
 } as const;
 
 export type StorageBucket = (typeof STORAGE_BUCKETS)[keyof typeof STORAGE_BUCKETS];
@@ -13,6 +14,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 const PRODUCT_IMAGE_PATH_REGEX = /^shops\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/products\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.(jpg|jpeg|png|webp)$/i;
 const SHOP_LOGO_PATH_REGEX = /^shops\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/logo\.(jpg|jpeg|png|webp)$/i;
 const REVIEW_IMAGE_PATH_REGEX = /^users\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/reviews\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.(jpg|jpeg|png|webp)$/i;
+const AVATAR_IMAGE_PATH_REGEX = /^users\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/avatar\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.(jpg|jpeg|png|webp)$/i;
 
 export interface ProductImagePathMetadata {
   type: 'product_image';
@@ -36,10 +38,18 @@ export interface ReviewImagePathMetadata {
   extension: AllowedImageExtension;
 }
 
+export interface AvatarImagePathMetadata {
+  type: 'avatar_image';
+  userId: string;
+  imageId: string;
+  extension: AllowedImageExtension;
+}
+
 export type StoragePathMetadata =
   | ProductImagePathMetadata
   | ShopLogoPathMetadata
-  | ReviewImagePathMetadata;
+  | ReviewImagePathMetadata
+  | AvatarImagePathMetadata;
 
 const sanitizeExt = (ext: string): AllowedImageExtension => {
   const normalized = ext.toLowerCase().replace(/^\./, '');
@@ -89,6 +99,14 @@ export function buildReviewImagePath(
   return `users/${userId}/reviews/${reviewId}/${imageId}.${sanitizeExt(ext)}`;
 }
 
+/** Sinh đường dẫn ảnh đại diện riêng theo chủ sở hữu. */
+export function buildAvatarImagePath(userId: string, imageId: string, ext: string): string {
+  if (!UUID_REGEX.test(userId) || !UUID_REGEX.test(imageId)) {
+    throw new Error('IDs must be valid UUIDs');
+  }
+  return `users/${userId}/avatar/${imageId}.${sanitizeExt(ext)}`;
+}
+
 /**
  * Kiểm tra tính hợp lệ của đường dẫn lưu trữ theo từng bucket.
  */
@@ -101,6 +119,10 @@ export function validateStoragePath(bucket: string, path: string): boolean {
 
   if (bucket === STORAGE_BUCKETS.REVIEW_MEDIA) {
     return REVIEW_IMAGE_PATH_REGEX.test(path);
+  }
+
+  if (bucket === STORAGE_BUCKETS.PROFILE_MEDIA) {
+    return AVATAR_IMAGE_PATH_REGEX.test(path);
   }
 
   return false;
@@ -138,6 +160,16 @@ export function parseStoragePath(path: string): StoragePathMetadata | null {
       reviewId: reviewMatch[2],
       imageId: reviewMatch[3],
       extension: reviewMatch[4] as AllowedImageExtension,
+    };
+  }
+
+  const avatarMatch = path.match(AVATAR_IMAGE_PATH_REGEX);
+  if (avatarMatch) {
+    return {
+      type: 'avatar_image',
+      userId: avatarMatch[1],
+      imageId: avatarMatch[2],
+      extension: avatarMatch[3] as AllowedImageExtension,
     };
   }
 

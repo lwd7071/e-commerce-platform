@@ -83,6 +83,12 @@ describe('Draft OpenAPI 3.1 Spec Generation & RBAC Audit (Phase 5)', () => {
     assert.ok(spec.paths['/cart/items']);
     assert.ok(spec.paths['/cart/items'].post);
 
+    // Profile avatar upload contract accepts only a finalized media_id.
+    assert.ok(spec.paths['/profile/avatar']?.patch);
+    const avatarPatch = spec.paths['/profile/avatar'].patch as { requestBody?: { content?: Record<string, { schema?: { required?: string[]; additionalProperties?: boolean } }> } };
+    assert.deepEqual(avatarPatch.requestBody?.content?.['application/json']?.schema?.required, ['media_id']);
+    assert.equal(avatarPatch.requestBody?.content?.['application/json']?.schema?.additionalProperties, false);
+
     // Orders & Checkout
     assert.ok(spec.paths['/checkout']);
     assert.ok(spec.paths['/checkout'].post);
@@ -137,6 +143,8 @@ describe('Draft OpenAPI 3.1 Spec Generation & RBAC Audit (Phase 5)', () => {
     assert.ok(spec.components.schemas);
     assert.ok(spec.components.schemas['ErrorEnvelope']);
     assert.ok(spec.components.schemas['SuccessEnvelope']);
+    assert.ok(spec.components.schemas['NotificationDTO']);
+    assert.ok(spec.components.schemas['NotificationListEnvelope']);
     assert.ok(spec.components.securitySchemes);
     assert.ok(spec.components.securitySchemes['BearerAuth']);
   });

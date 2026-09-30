@@ -4,8 +4,8 @@ type LifecycleQueryable = {
   query(text: string, values?: unknown[]): Promise<{ rowCount: number | null; rows?: Array<Record<string, unknown>> }>;
 };
 
-export type MediaPurpose = 'PRODUCT' | 'REVIEW';
-export type MediaBucket = 'product-media' | 'review-media';
+export type MediaPurpose = 'PRODUCT' | 'REVIEW' | 'AVATAR';
+export type MediaBucket = 'product-media' | 'review-media' | 'profile-media';
 export const MAX_MEDIA_PRESIGN_TTL_MS = 10 * 60_000;
 export const MAX_MEDIA_SIZE_BYTES = 5 * 1024 * 1024;
 
@@ -21,7 +21,8 @@ export function detectImageMimeFromMagicBytes(bytes: Uint8Array): 'image/jpeg' |
 
 const isValidPurposeBucket = (purpose: MediaPurpose, bucketId: MediaBucket): boolean =>
   (purpose === 'PRODUCT' && bucketId === 'product-media')
-  || (purpose === 'REVIEW' && bucketId === 'review-media');
+  || (purpose === 'REVIEW' && bucketId === 'review-media')
+  || (purpose === 'AVATAR' && bucketId === 'profile-media');
 const isUuid = (value: string): boolean =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 
@@ -46,6 +47,8 @@ export async function registerPresignedMedia(
     || !validateStoragePath(media.bucketId, media.objectPath)
     || (media.purpose === 'PRODUCT' && (pathMetadata?.type !== 'product_image' || pathMetadata.imageId !== media.mediaId))
     || (media.purpose === 'REVIEW' && (pathMetadata?.type !== 'review_image'
+      || pathMetadata.userId !== media.ownerId || pathMetadata.imageId !== media.mediaId))
+    || (media.purpose === 'AVATAR' && (pathMetadata?.type !== 'avatar_image'
       || pathMetadata.userId !== media.ownerId || pathMetadata.imageId !== media.mediaId))) {
     throw new Error(`invalid ${media.purpose.toLowerCase()} media path`);
   }
@@ -92,19 +95,23 @@ export async function attachFinalizedMedia(
     mediaId: string;
     ownerId: string;
     purpose: MediaPurpose;
-    resource: { kind: 'PRODUCT'; shopId: string; productId: string } | { kind: 'REVIEW'; reviewId: string };
+    resource: { kind: 'PRODUCT'; shopId: string; productId: string }
+      | { kind: 'REVIEW'; reviewId: string }
+      | { kind: 'PROFILE'; userId: string };
   },
 ): Promise<void> {
-  const expectedPurpose = media.resource.kind;
+  const expectedPurpose = media.resource.kind === 'PROFILE' ? 'AVATAR' : media.resource.kind;
   if (!isUuid(media.mediaId) || !isUuid(media.ownerId)
-    || !isUuid(media.resource.kind === 'PRODUCT' ? media.resource.shopId : media.resource.reviewId)
+    || !isUuid(media.resource.kind === 'PRODUCT' ? media.resource.shopId : media.resource.kind === 'REVIEW' ? media.resource.reviewId : media.resource.userId)
     || (media.resource.kind === 'PRODUCT' && !isUuid(media.resource.productId))) {
     throw new Error('media attachment IDs must be valid UUIDs');
   }
   if (media.purpose !== expectedPurpose) throw new Error('media purpose does not match attachment resource');
   const objectPathPrefix = media.resource.kind === 'PRODUCT'
     ? `shops/${media.resource.shopId}/products/${media.resource.productId}/`
-    : `users/${media.ownerId}/reviews/${media.resource.reviewId}/`;
+    : media.resource.kind === 'REVIEW'
+      ? `users/${media.ownerId}/reviews/${media.resource.reviewId}/`
+      : `users/${media.resource.userId}/avatar/`;
   const result = await client.query(`
     UPDATE media_uploads
     SET status='ATTACHED', attached_at=now(), updated_at=now()

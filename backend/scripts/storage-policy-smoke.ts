@@ -153,15 +153,35 @@ try {
        storage.foldername($3) AS folder_parts`,
     [shop.shopId, product.productId, `shops/${shop.shopId}/products/${product.productId}/${randomUUID()}.png`],
   );
+  const draftProductOwnership = await db.query<{ allowed: boolean }>(
+    'SELECT public.can_manage_product_media($1, $2) AS allowed',
+    [shop.shopId, randomUUID()],
+  );
   await db.query('RESET ROLE');
   if (!ownership.rows[0]?.allowed || ownership.rows[0]?.auth_uid !== seller.userId || ownership.rows[0]?.auth_role !== 'authenticated') {
     throw new Error('Storage ownership preflight did not match the authenticated seller and product fixture');
   }
   if (ownership.rows[0]?.folder_parts.length !== 4) throw new Error('Storage product path did not parse to four folders');
+  if (!draftProductOwnership.rows[0]?.allowed) {
+    throw new Error('An active shop owner must be allowed to upload media for a not-yet-created product draft');
+  }
   const pendingProductPath = `shops/${pendingShop.shopId}/products/${pendingProduct.productId}/${randomUUID()}.png`;
   await expectDenied(() => upload(otherSeller.client, 'product-media', pendingProductPath));
   process.stdout.write('Pending shop product upload denied as expected.\n');
   await db.query('ROLLBACK');
+  const avatarPath = `users/${buyer.userId}/avatar/${randomUUID()}.png`;
+  await upload(buyer.client, 'profile-media', avatarPath);
+  process.stdout.write('Profile avatar owner upload passed.\n');
+  await expectDenied(() => upload(otherBuyer.client, 'profile-media', `users/${buyer.userId}/avatar/${randomUUID()}.png`));
+  const { error: avatarDeleteDenied } = await otherBuyer.client.storage.from('profile-media').remove([avatarPath]);
+  if (avatarDeleteDenied) throw avatarDeleteDenied;
+  const avatarCheck = await buyer.client.storage.from('profile-media').list(`users/${buyer.userId}/avatar`);
+  if (avatarCheck.error || !avatarCheck.data.some((object) => object.name === avatarPath.split('/').at(-1))) {
+    throw avatarCheck.error ?? new Error('Non-owner unexpectedly removed profile avatar media');
+  }
+  const { error: avatarDeleteError } = await buyer.client.storage.from('profile-media').remove([avatarPath]);
+  if (avatarDeleteError) throw avatarDeleteError;
+
   const apiUser = await seller.client.auth.getUser();
   if (apiUser.error || apiUser.data.user?.id !== seller.userId) {
     throw new Error('Storage API client identity did not match the seller fixture');

@@ -23,11 +23,9 @@ describe('media lifecycle writes', () => {
       objectPath: 'shops/e2000000-0000-4000-8000-000000000022/products/e2000000-0000-4000-8000-000000000004/e2000000-0000-4000-8000-000000000020.png',
       expiresAt: new Date(Date.now() + 5 * 60_000),
     });
-    expect(client.query.mock.calls[0]?.[0]).toContain('JOIN products p ON p.shop_id=s.shop_id');
+    expect(client.query.mock.calls[0]?.[0]).not.toContain('JOIN products');
     expect(client.query.mock.calls[0]?.[0]).toContain("s.status='ACTIVE'");
-    expect(client.query.mock.calls[0]?.[1]).toEqual([
-      'e2000000-0000-4000-8000-000000000022', 'e2000000-0000-4000-8000-000000000004',
-    ]);
+    expect(client.query.mock.calls[0]?.[1]).toEqual(['e2000000-0000-4000-8000-000000000022']);
     expect(client.query.mock.calls[1]?.[0]).toContain("'PRESIGNED'");
     await expect(registerPresignedMedia(client, {
       mediaId: 'e2000000-0000-4000-8000-000000000020', ownerId: 'e2000000-0000-4000-8000-000000000021',
@@ -54,7 +52,7 @@ describe('media lifecycle writes', () => {
       purpose: 'PRODUCT', bucketId: 'product-media',
       objectPath: 'shops/e2000000-0000-4000-8000-000000000022/products/e2000000-0000-4000-8000-000000000004/e2000000-0000-4000-8000-000000000020.png',
       expiresAt: new Date(Date.now() + 5 * 60_000),
-    })).rejects.toThrow('not owned');
+    })).rejects.toThrow('owned by this user');
   });
 
   it('allows finalization only from PRESIGNED after server verification', async () => {
@@ -85,5 +83,16 @@ describe('media lifecycle writes', () => {
       mediaId: 'e2000000-0000-4000-8000-000000000020', ownerId: 'e2000000-0000-4000-8000-000000000021', purpose: 'PRODUCT',
       resource: { kind: 'REVIEW', reviewId: 'e2000000-0000-4000-8000-000000000030' },
     })).rejects.toThrow('purpose does not match');
+  });
+
+  it('attaches finalized avatar media only to its owner profile path', async () => {
+    const client = { query: vi.fn().mockResolvedValue({ rowCount: 1 }) };
+    await attachFinalizedMedia(client, {
+      mediaId: 'e2000000-0000-4000-8000-000000000020',
+      ownerId: 'e2000000-0000-4000-8000-000000000021',
+      purpose: 'AVATAR',
+      resource: { kind: 'PROFILE', userId: 'e2000000-0000-4000-8000-000000000021' },
+    });
+    expect(client.query.mock.calls[0]?.[1]?.[3]).toBe('users/e2000000-0000-4000-8000-000000000021/avatar/%');
   });
 });

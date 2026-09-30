@@ -19,4 +19,13 @@ describe('storage policy deployment safety', () => {
       databaseEnvironment: 'test', expectedProjectRef: 'demo123', allowStoragePolicyDeploy: 'true',
     }, 'demo123')).not.toThrow();
   });
+
+  it('does not let a configured fallback override a conflicting expected project ref', () => {
+    expect(() => assertStoragePolicyDeploymentAllowed({
+      databaseEnvironment: 'test',
+      expectedProjectRef: 'different-project',
+      configuredProjectRef: 'demo123',
+      allowStoragePolicyDeploy: 'true',
+    }, 'demo123')).toThrow('does not match');
+  });
 });
