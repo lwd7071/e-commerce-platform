@@ -2,7 +2,7 @@
 
 Đọc [implementation plan](../08-implementation-plan.md#phân-công-5-người-fe) và [UI/UX rules](../09-ui-ux-rules.md) trước khi nhận ticket. Mỗi người chỉ cập nhật file của mình; Người 1 quản lý bảng tổng quan và điều phối handoff trong README này. File progress là bằng chứng tiến độ, không thay thông báo trực tiếp hoặc review PR khi contract đổi.
 
-| Người | Phạm vi | File | Trạng thái hiện tại (2026-09-29) |
+| Người | Phạm vi | File | Trạng thái hiện tại (2026-09-30) |
 |---|---|---|---|
 | 1 | Platform, API, auth, tích hợp | [nguoi-1.md](./nguoi-1.md) | Foundation, auth/API, login/register, route guards BUYER và Q-806/Q-807 hoàn tất; các gate được báo cáo đạt. Xem file cá nhân để biết phạm vi và evidence. |
 | 2 | UI/UX, shared UI, account | [nguoi-2.md](./nguoi-2.md) | Shared UI/account và polish semantic token/touch-target/type-safety đã tích hợp vào `dev`; D-004 còn chờ Admin page sample, backend-gated features còn chờ runtime. QA evidence và gate còn lại ghi trong file cá nhân. |
