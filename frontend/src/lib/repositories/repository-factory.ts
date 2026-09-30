@@ -15,8 +15,6 @@ import type {
   WireReview,
   AdminUserItem,
   AdminShopItem,
-  LockShopPayload,
-  LockUserPayload,
 } from "./types";
 
 // ==========================================
