@@ -54,7 +54,7 @@ Thay `Người 1…5` bằng tên thành viên khi bắt đầu. Mỗi người 
 | Người 2 | Chưa bắt đầu | — | — | — |
 | Người 3 | Chưa bắt đầu | — | — | — |
 | Người 4 | Chưa bắt đầu | — | — | — |
-| Người 5 | Chưa bắt đầu | — | — | — |
+| Người 5 | Đã xác minh | 7 luồng Admin, Moderation, RBAC, Audit & Dashboard UI | 1 Thấp (Góp ý nhãn KPI) | 2026-10-01 |
 
 ## Tiêu chí hoàn thành
 
