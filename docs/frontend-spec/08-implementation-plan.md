@@ -322,7 +322,7 @@ Capability MUST: `auth`, `catalog`, `cart`, `checkout`, `seller_catalog`, `media
 - [x] B-102/B-103 media APIs + MediaRepository.
 - [x] B-105 `next/image` product assets.
 - [x] B-201–B-205 Seller product implementation/UI live routes.
-- [ ] B-206 Seller product E2E (upload → create → list → stock → hide/show); chưa thấy test này trong `frontend/e2e`.
+- [x] B-206 Seller product E2E (upload → create → list → stock → hide/show): kịch bản Playwright tại `frontend/e2e/seller-product-flow.spec.ts`.
 - [x] C-205 Product Detail rating/reviews thật.
 - [x] C-403 Admin category CRUD/status backend.
 - [x] Cập nhật catalog capability và loại production mock fallback.

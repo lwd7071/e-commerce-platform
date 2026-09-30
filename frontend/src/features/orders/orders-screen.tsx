@@ -95,11 +95,8 @@ export function OrdersScreen() {
   const handleConfirmReceived = async (order: WireOrder) => {
     try {
       const orderRepo = repositories.order();
-      let updated: WireOrder;
       if (orderRepo.confirmReceived) {
-        updated = await orderRepo.confirmReceived(order.id);
-      } else {
-        updated = { ...order, status: "COMPLETED" };
+        await orderRepo.confirmReceived(order.id);
       }
       setOrders((prev) =>
         prev.map((ord) => (ord.id === order.id ? { ...ord, status: "COMPLETED" } : ord))
