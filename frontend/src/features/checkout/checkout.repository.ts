@@ -184,6 +184,7 @@ export class MockCheckoutRepository implements ICheckoutRepository {
   }
 
   async submitCheckout(payload: CheckoutPayload, _idempotencyKey?: string): Promise<CheckoutResult> {
+    void _idempotencyKey;
     const result: CheckoutResult = {
       orders: [
         {

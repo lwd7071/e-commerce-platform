@@ -1,4 +1,3 @@
-import { features } from "@/lib/config/features";
 import { categoryAdapter, type CategoryItem, type CategoryTreeNode } from "@/lib/adapters/category.adapter";
 import { repositories } from "@/lib/repositories/repository-factory";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
@@ -176,10 +175,10 @@ const initialAuditLogs: AdminAuditLog[] = [
 ];
 
 // In-memory persistent stores
-let mockUsers = [...initialUsers];
-let mockShops = [...initialShops];
-let mockProducts = [...initialModerationProducts];
-let mockAuditLogs = [...initialAuditLogs];
+const mockUsers = [...initialUsers];
+const mockShops = [...initialShops];
+const mockProducts = [...initialModerationProducts];
+const mockAuditLogs = [...initialAuditLogs];
 
 // Local categories store for admin CRUD (A-709)
 let localCategories: CategoryItem[] = [];

@@ -7,7 +7,7 @@ import { Icon } from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { FormField, TextArea, TextInput } from "@/components/ui/form-controls";
-import { Skeleton, ErrorState, EmptyState } from "@/components/ui/data-states";
+import { Skeleton, ErrorState } from "@/components/ui/data-states";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
 import { adminRepository } from "./admin.repository";
 import type {
@@ -79,7 +79,34 @@ export function AdminDashboardScreen() {
   };
 
   useEffect(() => {
-    fetchData();
+    let ignore = false;
+    Promise.all([
+      adminRepository.getDashboardStats(),
+      adminRepository.getUsers(),
+      adminRepository.getShops(),
+      adminRepository.getModerationProducts(),
+      adminRepository.getAuditLogs(),
+    ])
+      .then(([statsData, usersData, shopsData, prodsData, logsData]) => {
+        if (!ignore) {
+          setStats(statsData);
+          setUsers(usersData);
+          setShops(shopsData);
+          setProducts(prodsData);
+          setLogs(logsData);
+          setLoading(false);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!ignore) {
+          setError(err instanceof Error ? err.message : "Không thể tải dữ liệu quản trị sàn.");
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   // User Lock/Unlock Actions (A-705)

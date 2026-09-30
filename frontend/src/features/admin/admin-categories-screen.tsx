@@ -66,7 +66,33 @@ export function AdminCategoriesScreen() {
   };
 
   useEffect(() => {
-    fetchCategoriesData();
+    let ignore = false;
+    Promise.all([
+      adminRepository.getCategoryTree(),
+      adminRepository.getCategories(),
+    ])
+      .then(([treeData, listData]) => {
+        if (!ignore) {
+          setTree(treeData);
+          setCategories(listData);
+          const expanded: Record<string, boolean> = {};
+          treeData.forEach((node) => {
+            expanded[node.id] = true;
+          });
+          setExpandedNodes(expanded);
+          setLoading(false);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!ignore) {
+          setError(err instanceof Error ? err.message : "Không thể tải danh sách danh mục.");
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   const toggleNodeExpansion = (nodeId: string) => {
