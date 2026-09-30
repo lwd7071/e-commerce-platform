@@ -210,7 +210,7 @@ export function CatalogListScreen({
             <button
               type="button"
               onClick={() => setSelectedCategory("")}
-              className={`min-h-11 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+              className={`min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg px-3.5 py-2.5 text-xs font-semibold transition-colors ${
                 selectedCategory === ""
                   ? "bg-[var(--primary-active)] text-white"
                   : "bg-[var(--card-muted)] text-[var(--subtext)] hover:text-[var(--foreground)]"
@@ -223,7 +223,7 @@ export function CatalogListScreen({
                 key={cat.id}
                 type="button"
                 onClick={() => setSelectedCategory(cat.id)}
-                className={`min-h-11 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                className={`min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg px-3.5 py-2.5 text-xs font-semibold transition-colors ${
                   selectedCategory === cat.id
                     ? "bg-[var(--primary-active)] text-white"
                     : "bg-[var(--card-muted)] text-[var(--subtext)] hover:text-[var(--foreground)]"
@@ -244,7 +244,7 @@ export function CatalogListScreen({
               placeholder="Giá từ (₫)"
               value={minPrice}
               onChange={(e) => setMinPrice(e.target.value)}
-              className="form-control h-8 w-28 text-xs px-2"
+              className="form-control min-h-[44px] h-11 w-28 text-xs px-2.5"
               aria-label="Giá thấp nhất"
             />
             <span className="text-[var(--subtext)]">-</span>
@@ -254,7 +254,7 @@ export function CatalogListScreen({
               placeholder="Đến (₫)"
               value={maxPrice}
               onChange={(e) => setMaxPrice(e.target.value)}
-              className="form-control h-8 w-28 text-xs px-2"
+              className="form-control min-h-[44px] h-11 w-28 text-xs px-2.5"
               aria-label="Giá cao nhất"
             />
           </div>
@@ -268,7 +268,7 @@ export function CatalogListScreen({
               id="catalog-sort"
               value={sort}
               onChange={(e) => setSort(e.target.value as SortOption)}
-              className="form-control h-8 text-xs py-0 px-2"
+              className="form-control min-h-[44px] h-11 text-xs py-0 px-2.5"
             >
               <option value="created_at_desc">Mới nhất</option>
               <option value="price_asc">Giá tăng dần</option>

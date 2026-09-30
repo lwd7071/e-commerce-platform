@@ -43,6 +43,7 @@ export interface WireOrderItem {
 /** Stable UI model produced at the API boundary; no backend DTO is consumed in components. */
 export interface WireOrder {
   id: string;
+  order_code?: string;
   buyer_id: string;
   shop_id: string;
   shop_name: string;

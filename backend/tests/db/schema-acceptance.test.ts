@@ -9,7 +9,7 @@ const expectedTables = [
   'product_images', 'product_variants', 'carts', 'cart_items', 'orders',
   'order_items', 'order_status_history', 'payments', 'shipments', 'vouchers',
   'voucher_usages', 'reviews', 'review_images', 'notifications',
-  'moderation_records', 'admin_logs',
+  'moderation_records', 'admin_logs', 'media_uploads',
 ];
 const supportTables = ['_prisma_migrations'];
 const remoteDescribe = parseRunRemoteDbTests(process.env) ? describe : describe.skip;
@@ -33,7 +33,7 @@ remoteDescribe('Schema Freeze v1 migration acceptance', () => {
     expect(result.rows.map((row) => row.table_name).sort()).toEqual([...expectedTables, ...supportTables].sort());
   }, 15_000);
 
-  it('keeps operational idempotency storage separate from the 22 business tables', async () => {
+  it('keeps operational idempotency storage separate from business tables', async () => {
     if (!pool) throw new Error('Pool was not initialized');
     const table = await pool.query<{ table_name: string }>("SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name='api_idempotency_records'");
     expect(table.rows).toEqual([{ table_name: 'api_idempotency_records' }]);

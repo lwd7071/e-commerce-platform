@@ -255,21 +255,21 @@ export function SellerOrdersScreen() {
             </div>
           </div>
 
-          <div className="surface-card p-4 flex items-center justify-between border-l-4 border-l-[var(--primary-border)]">
+          <div className="surface-card p-4 flex items-center justify-between border-l-4 border-l-[var(--info-border)]">
             <div>
               <p className="text-xs text-[var(--subtext)] font-semibold uppercase tracking-wider">
                 Đang chuẩn bị hàng
               </p>
-              <p className="text-2xl font-bold mt-1 tabular-nums text-[var(--primary-active)]">
+              <p className="text-2xl font-bold mt-1 tabular-nums text-[var(--info)]">
                 {preparingCount}
               </p>
             </div>
-            <div className="w-10 h-10 rounded-full bg-[var(--primary-surface)] flex items-center justify-center text-[var(--primary-active)]">
+            <div className="w-10 h-10 rounded-full bg-[var(--info-surface)] flex items-center justify-center text-[var(--info)]">
               <Icon name="grid" className="w-5 h-5" />
             </div>
           </div>
 
-          <div className="surface-card p-4 flex items-center justify-between border-l-4 border-l-[var(--success)]">
+          <div className="surface-card p-4 flex items-center justify-between border-l-4 border-l-[var(--success-border)]">
             <div>
               <p className="text-xs text-[var(--subtext)] font-semibold uppercase tracking-wider">
                 Đang vận chuyển

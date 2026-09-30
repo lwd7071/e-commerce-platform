@@ -1,5 +1,5 @@
 import { features } from "../config/features";
-import { catalogApi } from "../api/catalog.api";
+import { catalogApi, type WireCatalogProductItem, type WireCatalogProductDetail } from "../api/catalog.api";
 import { buyerApi } from "../api/buyer.api";
 import { orderApi, type WireOrder } from "../api/order.api";
 import { voucherApi } from "../api/voucher.api";
@@ -117,53 +117,87 @@ const apiAdminRepository: IAdminRepository = {
 // 2. Mock / Fixture Implementations
 // ==========================================
 
+const initialMockProducts: WireCatalogProductItem[] = [
+  {
+    product_id: "00000000-0000-0000-0000-000000000101",
+    product_name: "Serum Dưỡng Trắng & Cấp Ẩm Chuyên Sâu",
+    shop_id: "00000000-0000-0000-0000-000000000001",
+    category_id: "00000000-0000-0000-0000-000000000010",
+    min_price: "280000.00",
+    max_price: "350000.00",
+    total_stock: 50,
+    image_url: "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=800",
+    created_at: new Date().toISOString(),
+  },
+  {
+    product_id: "00000000-0000-0000-0000-000000000102",
+    product_name: "Kem Chống Nắng Phổ Rộng SPF 50+ PA++++",
+    shop_id: "00000000-0000-0000-0000-000000000001",
+    category_id: "00000000-0000-0000-0000-000000000010",
+    min_price: "320000.00",
+    max_price: "320000.00",
+    total_stock: 120,
+    image_url: "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=800",
+    created_at: new Date().toISOString(),
+  },
+  {
+    product_id: "00000000-0000-0000-0000-000000000103",
+    product_name: "Áo Sơ Mi Linen Form Rộng Cao Cấp",
+    shop_id: "00000000-0000-0000-0000-000000000002",
+    category_id: "00000000-0000-0000-0000-000000000011",
+    min_price: "289000.00",
+    max_price: "320000.00",
+    total_stock: 75,
+    image_url: "https://images.unsplash.com/photo-1598033129183-c4f50c736f10?w=800",
+    created_at: new Date().toISOString(),
+  },
+  {
+    product_id: "00000000-0000-0000-0000-000000000104",
+    product_name: "Bàn Phím Cơ Không Dây 3 Chế Độ RGB",
+    shop_id: "00000000-0000-0000-0000-000000000003",
+    category_id: "00000000-0000-0000-0000-000000000012",
+    min_price: "850000.00",
+    max_price: "1250000.00",
+    total_stock: 30,
+    image_url: "https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=800",
+    created_at: new Date().toISOString(),
+  },
+];
+
+const dynamicMockProducts: WireCatalogProductItem[] = [...initialMockProducts];
+const dynamicMockDetails: Record<string, WireCatalogProductDetail> = {
+  "00000000-0000-0000-0000-000000000101": {
+    product_id: "00000000-0000-0000-0000-000000000101",
+    shop_id: "00000000-0000-0000-0000-000000000001",
+    category_id: "00000000-0000-0000-0000-000000000010",
+    product_name: "Serum Dưỡng Trắng & Cấp Ẩm Chuyên Sâu",
+    description: "Chiết xuất thiên nhiên dưỡng da sáng hồng rạng rỡ, cấp ẩm sâu 72 giờ và phục hồi hàng rào bảo vệ da.",
+    status: "ACTIVE",
+    variants: [
+      {
+        variant_id: "00000000-0000-0000-0000-000000000201",
+        variant_name: "Dung tích",
+        variant_value: "Chai 30ml",
+        sku: "SERUM-30ML",
+        price: "280000.00",
+        stock_quantity: 35,
+        status: "ACTIVE",
+      },
+      {
+        variant_id: "00000000-0000-0000-0000-000000000202",
+        variant_name: "Dung tích",
+        variant_value: "Chai 50ml",
+        sku: "SERUM-50ML",
+        price: "350000.00",
+        stock_quantity: 15,
+        status: "ACTIVE",
+      },
+    ],
+  },
+};
+
 const mockCatalogRepository: ICatalogRepository = {
-  getProducts: async () => [
-    {
-      product_id: "00000000-0000-0000-0000-000000000101",
-      product_name: "Serum Dưỡng Trắng & Cấp Ẩm Chuyên Sâu",
-      shop_id: "00000000-0000-0000-0000-000000000001",
-      category_id: "00000000-0000-0000-0000-000000000010",
-      min_price: "280000.00",
-      max_price: "350000.00",
-      total_stock: 50,
-      image_url: "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=800",
-      created_at: new Date().toISOString(),
-    },
-    {
-      product_id: "00000000-0000-0000-0000-000000000102",
-      product_name: "Kem Chống Nắng Phổ Rộng SPF 50+ PA++++",
-      shop_id: "00000000-0000-0000-0000-000000000001",
-      category_id: "00000000-0000-0000-0000-000000000010",
-      min_price: "320000.00",
-      max_price: "320000.00",
-      total_stock: 120,
-      image_url: "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=800",
-      created_at: new Date().toISOString(),
-    },
-    {
-      product_id: "00000000-0000-0000-0000-000000000103",
-      product_name: "Áo Sơ Mi Linen Form Rộng Cao Cấp",
-      shop_id: "00000000-0000-0000-0000-000000000002",
-      category_id: "00000000-0000-0000-0000-000000000011",
-      min_price: "289000.00",
-      max_price: "320000.00",
-      total_stock: 75,
-      image_url: "https://images.unsplash.com/photo-1598033129183-c4f50c736f10?w=800",
-      created_at: new Date().toISOString(),
-    },
-    {
-      product_id: "00000000-0000-0000-0000-000000000104",
-      product_name: "Bàn Phím Cơ Không Dây 3 Chế Độ RGB",
-      shop_id: "00000000-0000-0000-0000-000000000003",
-      category_id: "00000000-0000-0000-0000-000000000012",
-      min_price: "850000.00",
-      max_price: "1250000.00",
-      total_stock: 30,
-      image_url: "https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=800",
-      created_at: new Date().toISOString(),
-    },
-  ],
+  getProducts: async () => [...dynamicMockProducts],
   getProductsPaginated: async (params) => {
     const isPage2 = params?.cursor === "mock_cursor_page_2";
     if (isPage2) {
@@ -232,56 +266,91 @@ const mockCatalogRepository: ICatalogRepository = {
       },
     };
   },
-  getProductById: async (id) => ({
-    product_id: id,
-    shop_id: "00000000-0000-0000-0000-000000000001",
-    category_id: "00000000-0000-0000-0000-000000000010",
-    product_name: "Serum Dưỡng Trắng & Cấp Ẩm Chuyên Sâu",
-    description: "Chiết xuất thiên nhiên dưỡng da sáng hồng rạng rỡ, cấp ẩm sâu 72 giờ và phục hồi hàng rào bảo vệ da.",
-    status: "ACTIVE",
-    variants: [
-      {
-        variant_id: "00000000-0000-0000-0000-000000000201",
-        variant_name: "Dung tích",
-        variant_value: "Chai 30ml",
-        sku: "SERUM-30ML",
-        price: "280000.00",
-        stock_quantity: 35,
-        status: "ACTIVE",
-      },
-      {
-        variant_id: "00000000-0000-0000-0000-000000000202",
-        variant_name: "Dung tích",
-        variant_value: "Chai 50ml",
-        sku: "SERUM-50ML",
-        price: "350000.00",
-        stock_quantity: 15,
-        status: "ACTIVE",
-      },
-    ],
-  }),
-  createProduct: async (data) => ({
-    product_id: "00000000-0000-0000-0000-000000000199",
-    shop_id: "00000000-0000-0000-0000-000000000001",
-    category_id: data.category_id,
-    product_name: data.product_name,
-    description: data.description ?? null,
-    status: "ACTIVE",
-    variants: data.variants.map((v, i) => ({
-      variant_id: `00000000-0000-0000-0000-00000000029${i}`,
-      variant_name: v.variant_name,
-      variant_value: v.variant_value ?? null,
-      sku: v.sku,
-      price: v.price,
-      stock_quantity: v.stock_quantity,
-      status: "ACTIVE" as const,
-    })),
-  }),
-  updateStock: async (variantId, quantity) => ({ variant_id: variantId, quantity, success: true }),
+  getProductById: async (id) => {
+    if (dynamicMockDetails[id]) {
+      return dynamicMockDetails[id];
+    }
+    const foundProd = dynamicMockProducts.find((p) => p.product_id === id);
+    return {
+      product_id: id,
+      shop_id: foundProd?.shop_id || "00000000-0000-0000-0000-000000000001",
+      category_id: foundProd?.category_id || "00000000-0000-0000-0000-000000000010",
+      product_name: foundProd?.product_name || "Serum Dưỡng Trắng & Cấp Ẩm Chuyên Sâu",
+      description: "Chiết xuất thiên nhiên dưỡng da sáng hồng rạng rỡ, cấp ẩm sâu 72 giờ và phục hồi hàng rào bảo vệ da.",
+      status: "ACTIVE",
+      variants: [
+        {
+          variant_id: `var-${id}-1`,
+          variant_name: "Dung tích",
+          variant_value: "Chai 30ml",
+          sku: `SKU-${id.slice(-4)}-1`,
+          price: foundProd?.min_price || "280000.00",
+          stock_quantity: foundProd?.total_stock || 35,
+          status: "ACTIVE",
+        },
+      ],
+    };
+  },
+  createProduct: async (data) => {
+    const newId = `00000000-0000-0000-0000-000000000${Math.floor(200 + Math.random() * 700)}`;
+    const prices = data.variants.map((v) => Number(v.price) || 0);
+    const minP = Math.min(...prices).toFixed(2);
+    const maxP = Math.max(...prices).toFixed(2);
+    const totalS = data.variants.reduce((s, v) => s + (Number(v.stock_quantity) || 0), 0);
+    const imgUrl = data.images?.[0]?.image_url || "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800";
+
+    const detail: WireCatalogProductDetail = {
+      product_id: newId,
+      shop_id: "00000000-0000-0000-0000-000000000001",
+      category_id: data.category_id,
+      product_name: data.product_name,
+      description: data.description ?? null,
+      status: "ACTIVE",
+      variants: data.variants.map((v, i) => ({
+        variant_id: `00000000-0000-0000-0000-000000000${Math.floor(300 + Math.random() * 600)}${i}`,
+        variant_name: v.variant_name,
+        variant_value: v.variant_value ?? null,
+        sku: v.sku,
+        price: v.price,
+        stock_quantity: v.stock_quantity,
+        status: "ACTIVE" as const,
+      })),
+    };
+
+    dynamicMockDetails[newId] = detail;
+    dynamicMockProducts.unshift({
+      product_id: newId,
+      product_name: data.product_name,
+      shop_id: "00000000-0000-0000-0000-000000000001",
+      category_id: data.category_id,
+      min_price: minP,
+      max_price: maxP,
+      total_stock: totalS,
+      image_url: imgUrl,
+      created_at: new Date().toISOString(),
+    });
+
+    return detail;
+  },
+  updateStock: async (variantId, quantity) => {
+    // Sync with dynamic mock stores
+    for (const [prodId, detail] of Object.entries(dynamicMockDetails)) {
+      const v = detail.variants.find((item) => item.variant_id === variantId);
+      if (v) {
+        v.stock_quantity = quantity;
+        const total = detail.variants.reduce((sum, item) => sum + item.stock_quantity, 0);
+        const prod = dynamicMockProducts.find((p) => p.product_id === prodId);
+        if (prod) {
+          prod.total_stock = total;
+        }
+        break;
+      }
+    }
+    return { variant_id: variantId, quantity, success: true };
+  },
   getSellerProducts: async () => {
-    const all = await mockCatalogRepository.getProducts();
     // Isolate products strictly belonging to the seller's shop (shop_id: ...0001)
-    return all.filter((p) => p.shop_id === "00000000-0000-0000-0000-000000000001");
+    return dynamicMockProducts.filter((p) => p.shop_id === "00000000-0000-0000-0000-000000000001");
   },
 };
 
@@ -480,6 +549,135 @@ const mockOrderRepository: IOrderRepository = {
   },
 };
 
+/**
+ * Register a newly created order from checkout into the in-memory store
+ * so that both Buyer orders (/orders) and Seller orders (/seller/orders)
+ * display the order immediately even with GAP-01 in place.
+ */
+export function registerCreatedOrder(order: Partial<WireOrder> & { id: string }): WireOrder {
+  const existing = inMemoryMockOrders.find((o) => o.id === order.id);
+  if (existing) {
+    Object.assign(existing, order);
+    return existing;
+  }
+
+  const newOrder: WireOrder = {
+    id: order.id,
+    buyer_id: order.buyer_id || "user_dev",
+    shop_id: order.shop_id || "00000000-0000-0000-0000-000000000001",
+    shop_name:
+      order.shop_name ||
+      (order.shop_id === "00000000-0000-0000-0000-000000000002"
+        ? "Dino Tech Store"
+        : "Dino Beauty Official"),
+    status: order.status || "PENDING_CONFIRMATION",
+    total_amount: order.total_amount || "0.00",
+    shipping_fee: order.shipping_fee || "0.00",
+    discount_amount: order.discount_amount || "0.00",
+    cancel_reason: order.cancel_reason || null,
+    created_at: order.created_at || new Date().toISOString(),
+    items: order.items || [
+      {
+        id: `item_${Date.now()}`,
+        product_name: "Sản phẩm vừa đặt",
+        variant_name: "Mặc định",
+        price: order.total_amount || "0.00",
+        quantity: 1,
+        subtotal: order.total_amount || "0.00",
+      },
+    ],
+  };
+
+  inMemoryMockOrders.unshift(newOrder);
+  return newOrder;
+}
+
+/**
+ * Hybrid Order Repository (Người 5 - GAP-01 & Transaction core):
+ * - Reads: Uses in-memory mock store because backend GET /orders and GET /orders/:id
+ *   do not return complete persistent order lists yet.
+ * - Actions (cancel/confirm/transition): When in live mode or with valid backend orders,
+ *   attempts live API call and propagates conflict errors (409) to the UI,
+ *   while synchronizing successful updates with the in-memory mock store.
+ */
+const hybridOrderRepository: IOrderRepository = {
+  getOrders: (params) => mockOrderRepository.getOrders(params),
+  getOrderById: (id) => mockOrderRepository.getOrderById(id),
+
+  cancelOrder: async (id, reason) => {
+    if (!features.domains.ordersMock()) {
+      try {
+        const liveUpdated = await apiOrderRepository.cancelOrder(id, reason);
+        const found = inMemoryMockOrders.find((o) => o.id === id);
+        if (found) {
+          found.status = "CANCELLED";
+          found.cancel_reason = reason;
+        }
+        return liveUpdated?.id
+          ? liveUpdated
+          : (found ?? { ...inMemoryMockOrders[0], id, status: "CANCELLED", cancel_reason: reason });
+      } catch (err: unknown) {
+        const status = (err as { status?: number })?.status;
+        if (status === 409 || status === 400 || status === 403) {
+          throw err;
+        }
+        return mockOrderRepository.cancelOrder(id, reason);
+      }
+    }
+    return mockOrderRepository.cancelOrder(id, reason);
+  },
+
+  confirmOrder: async (id, reason) => {
+    if (!features.domains.ordersMock()) {
+      try {
+        const liveUpdated = await apiOrderRepository.confirmOrder(id, reason);
+        const found = inMemoryMockOrders.find((o) => o.id === id);
+        if (found) {
+          found.status = "CONFIRMED";
+        }
+        return liveUpdated?.id
+          ? liveUpdated
+          : (found ?? { ...inMemoryMockOrders[0], id, status: "CONFIRMED" });
+      } catch (err: unknown) {
+        const status = (err as { status?: number })?.status;
+        if (status === 409 || status === 400 || status === 403) {
+          throw err;
+        }
+        return mockOrderRepository.confirmOrder(id, reason);
+      }
+    }
+    return mockOrderRepository.confirmOrder(id, reason);
+  },
+
+  transitionOrder: async (id, to, reason) => {
+    if (!features.domains.ordersMock()) {
+      try {
+        const liveUpdated = await apiOrderRepository.transitionOrder(id, to, reason);
+        const found = inMemoryMockOrders.find((o) => o.id === id);
+        if (found) {
+          found.status = to as WireOrder["status"];
+          if (to === "CANCELLED") found.cancel_reason = reason;
+        }
+        return liveUpdated?.id
+          ? liveUpdated
+          : (found ?? {
+              ...inMemoryMockOrders[0],
+              id,
+              status: to as WireOrder["status"],
+              cancel_reason: reason,
+            });
+      } catch (err: unknown) {
+        const status = (err as { status?: number })?.status;
+        if (status === 409 || status === 400 || status === 403) {
+          throw err;
+        }
+        return mockOrderRepository.transitionOrder(id, to, reason);
+      }
+    }
+    return mockOrderRepository.transitionOrder(id, to, reason);
+  },
+};
+
 const mockVoucherRepository: IVoucherRepository = {
   getVouchers: async () => [
     {
@@ -672,8 +870,7 @@ export const repositories = {
   buyer: (): IBuyerRepository =>
     features.domains.cartMock() ? mockBuyerRepository : apiBuyerRepository,
 
-  order: (): IOrderRepository =>
-    features.domains.ordersMock() ? mockOrderRepository : apiOrderRepository,
+  order: (): IOrderRepository => hybridOrderRepository,
 
   voucher: (): IVoucherRepository =>
     features.useMock() ? mockVoucherRepository : apiVoucherRepository,
@@ -684,3 +881,4 @@ export const repositories = {
     features.useMock() ? mockAdminRepository : apiAdminRepository,
 };
 
+export { mockCatalogRepository, apiCatalogRepository };

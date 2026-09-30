@@ -10,13 +10,13 @@ import { closeDatabasePool, createDatabasePool } from '../../db/client.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// 22 bảng nghiệp vụ bắt buộc theo Schema Freeze v1
+// Bảng nghiệp vụ hiện hành; operational tables được kiểm riêng bên dưới.
 const EXPECTED_BUSINESS_TABLES = [
   'app_users', 'user_profiles', 'addresses', 'shops', 'categories', 'products',
   'product_images', 'product_variants', 'carts', 'cart_items', 'orders',
   'order_items', 'order_status_history', 'payments', 'shipments', 'vouchers',
   'voucher_usages', 'reviews', 'review_images', 'notifications',
-  'moderation_records', 'admin_logs',
+  'moderation_records', 'admin_logs', 'media_uploads',
 ];
 
 const runRemoteDbTests = parseRunRemoteDbTests(process.env);
@@ -38,6 +38,7 @@ describe('Migration Rebuild & Clean Replay Safety (T3 Unit)', () => {
     expect(entries).toContain('20260924120000_t3_idempotency_rls_hardening');
     expect(entries).toContain('20260926100000_t3_cross_domain_hardening');
     expect(entries).toContain('20260929120000_auth_user_bootstrap');
+    expect(entries).toContain('20260930150000_media_upload_lifecycle');
   });
 
   it('contains durable notification event idempotency migration', () => {
