@@ -1,4 +1,9 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+
+vi.mock("../src/lib/config/features", () => ({
+  features: { domains: { ordersMock: () => true } },
+}));
+
 import { repositories } from "../src/lib/repositories/repository-factory";
 
 describe("Seller Orders Management and Sequential Fulfillment (O-504, O-505)", () => {

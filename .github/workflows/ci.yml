@@ -24,6 +24,9 @@ jobs:
       DATABASE_URL: postgresql://postgres.localtest:localtest@localhost:5432/postgres
       SUPABASE_URL: https://localtest.supabase.co
       DIRECT_URL: postgresql://postgres.localtest:localtest@localhost:5432/postgres
+      DATABASE_ENVIRONMENT: test
+      EXPECTED_SUPABASE_PROJECT_REF: localtest
+      ALLOW_MIGRATION_DEPLOY: "true"
       RUN_REMOTE_DB_TESTS: "true"
     services:
       postgres:
