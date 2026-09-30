@@ -138,58 +138,19 @@ export class MockReviewRepository implements IReviewRepository {
 }
 
 export class ApiReviewRepository implements IReviewRepository {
-  private mockFallback = new MockReviewRepository();
-
   async submitReview(payload: CreateReviewPayload): Promise<ReviewResult> {
     validateReviewPayload(payload);
-
-    try {
-      const res = await apiClient.post<ReviewResult>("/reviews", payload);
-      // Synchronize in mockFallback
-      for (const item of payload.reviews) {
-        await this.mockFallback.submitReview({
-          order_id: payload.order_id,
-          reviews: [item],
-        }).catch(() => {});
-      }
-      return res;
-    } catch (err: unknown) {
-      const status = (err as { status?: number })?.status;
-      const code = (err as { code?: string })?.code;
-      const message = (err as Error)?.message || "";
-
-      const isNetworkOrAuth =
-        code === "NETWORK_ERROR" ||
-        code === "UNAUTHORIZED" ||
-        status === 0 ||
-        status === 401 ||
-        message.includes("Authentication required") ||
-        message.includes("fetch failed");
-
-      if (features.useMock() || isNetworkOrAuth) {
-        return this.mockFallback.submitReview(payload);
-      }
-      throw err;
-    }
+    return apiClient.post<ReviewResult>("/reviews", payload);
   }
 
   async getOrderReviews(orderId: string): Promise<ReviewRecord[]> {
-    try {
-      const res = await apiClient.get<ReviewRecord[]>(`/orders/${orderId}/reviews`);
-      if (Array.isArray(res)) return res;
-      return this.mockFallback.getOrderReviews(orderId);
-    } catch {
-      return this.mockFallback.getOrderReviews(orderId);
-    }
+    const res = await apiClient.get<ReviewRecord[]>(`/orders/${orderId}/reviews`);
+    return Array.isArray(res) ? res : [];
   }
 
   async isOrderReviewed(orderId: string): Promise<boolean> {
-    try {
-      const list = await this.getOrderReviews(orderId);
-      return list.length > 0;
-    } catch {
-      return this.mockFallback.isOrderReviewed(orderId);
-    }
+    const list = await this.getOrderReviews(orderId);
+    return Array.isArray(list) && list.length > 0;
   }
 }
 

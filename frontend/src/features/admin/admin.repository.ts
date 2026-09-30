@@ -1,4 +1,6 @@
-import { DEV_CATEGORY_FIXTURES, type CategoryItem, type CategoryTreeNode } from "@/lib/adapters/category.adapter";
+import { apiClient } from "@/lib/api/client";
+import { features } from "@/lib/config/features";
+import { categoryAdapter, DEV_CATEGORY_FIXTURES, type CategoryItem, type CategoryTreeNode } from "@/lib/adapters/category.adapter";
 import { repositories } from "@/lib/repositories/repository-factory";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
 import type {
@@ -490,4 +492,131 @@ export class MockAdminRepository implements IAdminRepository {
   }
 }
 
-export const adminRepository: IAdminRepository = new MockAdminRepository();
+export class ApiAdminRepository implements IAdminRepository {
+  async getDashboardStats(): Promise<DashboardStats> {
+    return apiClient.get<DashboardStats>("/admin/stats");
+  }
+
+  async getUsers(): Promise<UserAccount[]> {
+    return apiClient.get<UserAccount[]>("/admin/users");
+  }
+
+  async lockUser(userId: string, reason: string, actor?: string): Promise<UserAccount> {
+    return apiClient.post<UserAccount>(`/admin/users/${userId}/lock`, { reason, actor });
+  }
+
+  async unlockUser(userId: string, actor?: string): Promise<UserAccount> {
+    return apiClient.post<UserAccount>(`/admin/users/${userId}/unlock`, { actor });
+  }
+
+  async getShops(): Promise<PlatformShop[]> {
+    return apiClient.get<PlatformShop[]>("/admin/shops");
+  }
+
+  async lockShop(shopId: string, reason: string, actor?: string): Promise<PlatformShop> {
+    return apiClient.post<PlatformShop>(`/admin/shops/${shopId}/lock`, { reason, actor });
+  }
+
+  async unlockShop(shopId: string, actor?: string): Promise<PlatformShop> {
+    return apiClient.post<PlatformShop>(`/admin/shops/${shopId}/unlock`, { actor });
+  }
+
+  async getModerationProducts(): Promise<ModerationProduct[]> {
+    return apiClient.get<ModerationProduct[]>("/admin/products");
+  }
+
+  async moderateProduct(
+    productId: string,
+    status: "ACTIVE" | "HIDDEN",
+    reason?: string,
+    actor?: string
+  ): Promise<ModerationProduct> {
+    return apiClient.patch<ModerationProduct>(`/admin/products/${productId}/moderate`, { status, reason, actor });
+  }
+
+  async getAuditLogs(): Promise<AdminAuditLog[]> {
+    return apiClient.get<AdminAuditLog[]>("/admin/audit-logs");
+  }
+
+  async getSellerKPI(shopId?: string): Promise<SellerKPIStats> {
+    return apiClient.get<SellerKPIStats>(`/seller/kpi${shopId ? `?shop_id=${shopId}` : ""}`);
+  }
+
+  async getCategories(): Promise<CategoryItem[]> {
+    return categoryAdapter.getCategories();
+  }
+
+  async getCategoryTree(): Promise<CategoryTreeNode[]> {
+    return categoryAdapter.getCategoryTree();
+  }
+
+  async createCategory(input: {
+    name: string;
+    parentId?: string | null;
+    description?: string | null;
+  }): Promise<CategoryItem> {
+    return apiClient.post<CategoryItem>("/categories", input);
+  }
+
+  async toggleCategoryStatus(id: string): Promise<CategoryItem> {
+    return apiClient.patch<CategoryItem>(`/categories/${id}/status`, {});
+  }
+
+  async deleteCategory(id: string): Promise<boolean> {
+    return apiClient.delete<boolean>(`/categories/${id}`);
+  }
+}
+
+export const mockAdminRepository = new MockAdminRepository();
+export const apiAdminRepository = new ApiAdminRepository();
+
+export const adminRepository: IAdminRepository = {
+  getDashboardStats: () =>
+    features.domains.adminMock() ? mockAdminRepository.getDashboardStats() : apiAdminRepository.getDashboardStats(),
+  getUsers: () =>
+    features.domains.adminMock() ? mockAdminRepository.getUsers() : apiAdminRepository.getUsers(),
+  lockUser: (userId, reason, actor) =>
+    features.domains.adminMock()
+      ? mockAdminRepository.lockUser(userId, reason, actor)
+      : apiAdminRepository.lockUser(userId, reason, actor),
+  unlockUser: (userId, actor) =>
+    features.domains.adminMock()
+      ? mockAdminRepository.unlockUser(userId, actor)
+      : apiAdminRepository.unlockUser(userId, actor),
+  getShops: () =>
+    features.domains.adminMock() ? mockAdminRepository.getShops() : apiAdminRepository.getShops(),
+  lockShop: (shopId, reason, actor) =>
+    features.domains.adminMock()
+      ? mockAdminRepository.lockShop(shopId, reason, actor)
+      : apiAdminRepository.lockShop(shopId, reason, actor),
+  unlockShop: (shopId, actor) =>
+    features.domains.adminMock()
+      ? mockAdminRepository.unlockShop(shopId, actor)
+      : apiAdminRepository.unlockShop(shopId, actor),
+  getModerationProducts: () =>
+    features.domains.adminMock()
+      ? mockAdminRepository.getModerationProducts()
+      : apiAdminRepository.getModerationProducts(),
+  moderateProduct: (productId, status, reason, actor) =>
+    features.domains.adminMock()
+      ? mockAdminRepository.moderateProduct(productId, status, reason, actor)
+      : apiAdminRepository.moderateProduct(productId, status, reason, actor),
+  getAuditLogs: () =>
+    features.domains.adminMock() ? mockAdminRepository.getAuditLogs() : apiAdminRepository.getAuditLogs(),
+  getSellerKPI: (shopId) =>
+    features.domains.adminMock()
+      ? mockAdminRepository.getSellerKPI(shopId)
+      : apiAdminRepository.getSellerKPI(shopId),
+  getCategories: () =>
+    features.domains.adminMock() ? mockAdminRepository.getCategories() : apiAdminRepository.getCategories(),
+  getCategoryTree: () =>
+    features.domains.adminMock() ? mockAdminRepository.getCategoryTree() : apiAdminRepository.getCategoryTree(),
+  createCategory: (input) =>
+    features.domains.adminMock() ? mockAdminRepository.createCategory(input) : apiAdminRepository.createCategory(input),
+  toggleCategoryStatus: (id) =>
+    features.domains.adminMock()
+      ? mockAdminRepository.toggleCategoryStatus(id)
+      : apiAdminRepository.toggleCategoryStatus(id),
+  deleteCategory: (id) =>
+    features.domains.adminMock() ? mockAdminRepository.deleteCategory(id) : apiAdminRepository.deleteCategory(id),
+};

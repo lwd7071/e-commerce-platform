@@ -315,7 +315,7 @@ Capability MUST: `auth`, `catalog`, `cart`, `checkout`, `seller_catalog`, `media
 - [x] B-104 purpose limits/validation/preview lifecycle; upload thật được dùng ở Seller Product và Profile avatar.
 - [x] C-303–C-305 Notification FE, rollback và bounded concurrency; live Buyer E2E mark-read còn bền sau reload.
 - [x] Profile/avatar nối media thật; `lvvd.jpg` upload và reload pass trên Supabase test.
-- [ ] Axe/manual keyboard/responsive QA và defect handoff.
+- [ ] Keyboard-only QA cho luồng đã đăng nhập và cross-browser QA màn Admin; backend-host readiness smoke đang bị 404. GitHub cleanup workflow cần secrets/vars và lần chạy xác nhận.
 
 ### Người 3 — Catalog/Media/Seller Products
 
@@ -339,10 +339,10 @@ Capability MUST: `auth`, `catalog`, `cart`, `checkout`, `seller_catalog`, `media
 
 ### Người 5 — Transaction/Order/Review/Admin FE
 
-- [ ] A-203–A-205 inventory race, cancel/restore và exceptional cancellation.
-- [ ] C-101–C-107 timeline, shipment, confirm-received, delivery-failed và Order UI.
-- [ ] C-204/C-206 Review form và Order→Review E2E.
-- [ ] C-404–C-406 Admin UI + RBAC E2E.
+- [ ] A-203–A-205 inventory race, cancel/restore và exceptional cancellation (cần kiểm thử race tồn kho, hủy/hoàn tồn trên DB test thật).
+- [ ] C-101–C-107 timeline, shipment, confirm-received, delivery-failed và Order UI (chốt timeline/Shipment/DELIVERY_FAILED trên môi trường tích hợp).
+- [x] C-204/C-206 Review form và Order → Review E2E (`frontend/test/e2e-order-review-lifecycle.spec.ts`).
+- [ ] C-404–C-406 Admin UI + RBAC E2E (live Admin UI và RBAC E2E; đã cấu hình Zero-Silent-Fallback).
 - [ ] Buyer/Seller critical Playwright path và release evidence.
 
 Mỗi checkbox chỉ được tick khi progress file có link PR/commit, test đã chạy và blocker còn lại.

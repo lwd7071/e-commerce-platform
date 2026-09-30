@@ -1,4 +1,5 @@
 import { features } from "../config/features";
+import { apiClient } from "../api/client";
 import { catalogApi, type WireCatalogProductItem, type WireCatalogProductDetail } from "../api/catalog.api";
 import { buyerApi } from "../api/buyer.api";
 import { orderApi, type WireOrder } from "../api/order.api";
@@ -570,6 +571,11 @@ const mockOrderRepository: IOrderRepository = {
   transitionOrder: async (id, to, reason) => {
     const found = inMemoryMockOrders.find((o) => o.id === id);
     if (!found) throw new Error("Không tìm thấy đơn hàng");
+    if (to === "COMPLETED") {
+      const error = new Error("Quy tắc QD11: Người bán không thể tự ý chuyển đơn hàng sang trạng thái COMPLETED.");
+      (error as unknown as { status: number }).status = 403;
+      throw error;
+    }
     if (["CANCELLED", "COMPLETED", "DELIVERY_FAILED"].includes(found.status)) {
       const error = new Error("Đơn hàng không thể chuyển đổi trạng thái khi đã kết thúc chu trình.");
       (error as unknown as { status: number }).status = 409;
@@ -633,100 +639,78 @@ export function registerCreatedOrder(order: Partial<WireOrder> & { id: string })
  *   while synchronizing successful updates with the in-memory mock store.
  */
 const hybridOrderRepository: IOrderRepository = {
-  getOrders: (params) => mockOrderRepository.getOrders(params),
-  getOrderById: (id) => mockOrderRepository.getOrderById(id),
+  getOrders: async (params) => {
+    if (!features.domains.ordersMock()) {
+      return apiOrderRepository.getOrders(params);
+    }
+    return mockOrderRepository.getOrders(params);
+  },
+  getOrderById: async (id) => {
+    if (!features.domains.ordersMock()) {
+      return apiOrderRepository.getOrderById(id);
+    }
+    return mockOrderRepository.getOrderById(id);
+  },
 
   cancelOrder: async (id, reason) => {
     if (!features.domains.ordersMock()) {
-      try {
-        const liveUpdated = await apiOrderRepository.cancelOrder(id, reason);
-        const found = inMemoryMockOrders.find((o) => o.id === id);
-        if (found) {
-          found.status = "CANCELLED";
-          found.cancel_reason = reason;
-        }
-        return liveUpdated?.id
-          ? liveUpdated
-          : (found ?? { ...inMemoryMockOrders[0], id, status: "CANCELLED", cancel_reason: reason });
-      } catch (err: unknown) {
-        const status = (err as { status?: number })?.status;
-        if (status === 409 || status === 400 || status === 403) {
-          throw err;
-        }
-        return mockOrderRepository.cancelOrder(id, reason);
+      const liveUpdated = await apiOrderRepository.cancelOrder(id, reason);
+      const found = inMemoryMockOrders.find((o) => o.id === id);
+      if (found) {
+        found.status = "CANCELLED";
+        found.cancel_reason = reason;
       }
+      return liveUpdated?.id
+        ? liveUpdated
+        : (found ?? { ...inMemoryMockOrders[0], id, status: "CANCELLED", cancel_reason: reason });
     }
     return mockOrderRepository.cancelOrder(id, reason);
   },
 
   confirmOrder: async (id, reason) => {
     if (!features.domains.ordersMock()) {
-      try {
-        const liveUpdated = await apiOrderRepository.confirmOrder(id, reason);
-        const found = inMemoryMockOrders.find((o) => o.id === id);
-        if (found) {
-          found.status = "CONFIRMED";
-        }
-        return liveUpdated?.id
-          ? liveUpdated
-          : (found ?? { ...inMemoryMockOrders[0], id, status: "CONFIRMED" });
-      } catch (err: unknown) {
-        const status = (err as { status?: number })?.status;
-        if (status === 409 || status === 400 || status === 403) {
-          throw err;
-        }
-        return mockOrderRepository.confirmOrder(id, reason);
+      const liveUpdated = await apiOrderRepository.confirmOrder(id, reason);
+      const found = inMemoryMockOrders.find((o) => o.id === id);
+      if (found) {
+        found.status = "CONFIRMED";
       }
+      return liveUpdated?.id
+        ? liveUpdated
+        : (found ?? { ...inMemoryMockOrders[0], id, status: "CONFIRMED" });
     }
     return mockOrderRepository.confirmOrder(id, reason);
   },
 
   confirmReceived: async (id) => {
     if (!features.domains.ordersMock()) {
-      try {
-        const liveUpdated = await apiOrderRepository.confirmReceived?.(id);
-        const found = inMemoryMockOrders.find((o) => o.id === id);
-        if (found) {
-          found.status = "COMPLETED";
-        }
-        return liveUpdated?.id
-          ? liveUpdated
-          : (found ?? { ...inMemoryMockOrders[0], id, status: "COMPLETED" });
-      } catch (err: unknown) {
-        const status = (err as { status?: number })?.status;
-        if (status === 409 || status === 400 || status === 403) {
-          throw err;
-        }
-        return mockOrderRepository.confirmReceived!(id);
+      const liveUpdated = await apiOrderRepository.confirmReceived?.(id);
+      const found = inMemoryMockOrders.find((o) => o.id === id);
+      if (found) {
+        found.status = "COMPLETED";
       }
+      return liveUpdated?.id
+        ? liveUpdated
+        : (found ?? { ...inMemoryMockOrders[0], id, status: "COMPLETED" });
     }
     return mockOrderRepository.confirmReceived!(id);
   },
 
   transitionOrder: async (id, to, reason) => {
     if (!features.domains.ordersMock()) {
-      try {
-        const liveUpdated = await apiOrderRepository.transitionOrder(id, to, reason);
-        const found = inMemoryMockOrders.find((o) => o.id === id);
-        if (found) {
-          found.status = to as WireOrder["status"];
-          if (to === "CANCELLED") found.cancel_reason = reason;
-        }
-        return liveUpdated?.id
-          ? liveUpdated
-          : (found ?? {
-              ...inMemoryMockOrders[0],
-              id,
-              status: to as WireOrder["status"],
-              cancel_reason: reason,
-            });
-      } catch (err: unknown) {
-        const status = (err as { status?: number })?.status;
-        if (status === 409 || status === 400 || status === 403) {
-          throw err;
-        }
-        return mockOrderRepository.transitionOrder(id, to, reason);
+      const liveUpdated = await apiOrderRepository.transitionOrder(id, to, reason);
+      const found = inMemoryMockOrders.find((o) => o.id === id);
+      if (found) {
+        found.status = to as WireOrder["status"];
+        if (to === "CANCELLED") found.cancel_reason = reason;
       }
+      return liveUpdated?.id
+        ? liveUpdated
+        : (found ?? {
+            ...inMemoryMockOrders[0],
+            id,
+            status: to as WireOrder["status"],
+            cancel_reason: reason,
+          });
     }
     return mockOrderRepository.transitionOrder(id, to, reason);
   },
@@ -787,6 +771,15 @@ const mockReviewRepository: IReviewRepository = {
     return review;
   },
   getReviewsByProduct: async () => mockReviewsStore,
+};
+
+const apiReviewRepository: IReviewRepository = {
+  createReview: async (payload: CreateReviewPayload) => {
+    return apiClient.post<WireReview>(`/order-items/${payload.order_item_id}/review`, payload);
+  },
+  getReviewsByProduct: async (productId: string) => {
+    return apiClient.get<WireReview[]>(`/products/${productId}/reviews`);
+  },
 };
 
 const mockAdminUsersStore: AdminUserItem[] = [
@@ -936,10 +929,11 @@ export const repositories = {
   voucher: (): IVoucherRepository =>
     features.useMock() ? mockVoucherRepository : apiVoucherRepository,
 
-  review: (): IReviewRepository => mockReviewRepository,
+  review: (): IReviewRepository =>
+    features.useMock() ? mockReviewRepository : apiReviewRepository,
 
   admin: (): IAdminRepository =>
-    features.useMock() ? mockAdminRepository : apiAdminRepository,
+    features.domains.adminMock() ? mockAdminRepository : apiAdminRepository,
 
   media: (): IMediaRepository =>
     features.useMock() ? mockMediaRepository : apiMediaRepository,
