@@ -2,9 +2,9 @@
 
 Đọc [implementation plan](../08-implementation-plan.md#phân-công-5-người-fe) và [UI/UX rules](../09-ui-ux-rules.md) trước khi nhận ticket. Mỗi người chỉ cập nhật file của mình; Người 1 quản lý bảng tổng quan và điều phối handoff trong README này. File progress là bằng chứng tiến độ, không thay thông báo trực tiếp hoặc review PR khi contract đổi.
 
-| Người | Phạm vi | File | Trạng thái hiện tại (2026-09-29) |
+| Người | Phạm vi | File | Trạng thái hiện tại (2026-09-30) |
 |---|---|---|---|
-| 1 | Platform, API, auth, tích hợp | [nguoi-1.md](./nguoi-1.md) | Dino MVP 30/09: Hoàn thành Block 0 (OpenAPI freeze, capability registry, build guard), Workstream A (onboarding, session refresh, seller navigation gating, safe returnTo), Workstream C (Admin API hardening, ADMIN_TARGET_PROTECTED). Quality Gates 100% (226 FE / 610 BE pass, 0 lints, 0 errors, build pass). |
+| 1 | Platform, API, auth, tích hợp | [nguoi-1.md](./nguoi-1.md) | Dino MVP 30/09: Hoàn thành Block 0 (OpenAPI freeze, capability registry, build guard `next.config.ts`, `GET /health/readiness`), Workstream A (onboarding, session refresh `reloadUser()`, seller navigation/stock gating khi Shop PENDING, safe returnTo), Workstream C (Admin API hardening, `403 ADMIN_TARGET_PROTECTED`). Quality Gates 100% (253 FE tests pass, 619 BE domain tests pass + DB integration tests pass, 0 lints, 0 errors, build pass). |
 | 2 | UI/UX, shared UI, account | [nguoi-2.md](./nguoi-2.md) | Shared UI/account và polish semantic token/touch-target/type-safety đã tích hợp vào `dev`; D-004 còn chờ Admin page sample, backend-gated features còn chờ runtime. QA evidence và gate còn lại ghi trong file cá nhân. |
 | 3 | Catalog, seller catalog, category | [nguoi-3.md](./nguoi-3.md) | Catalog, product detail, seller catalog, stock edit và category adapter đã triển khai; còn P-607a chờ GAP-09 và phối hợp nghiệm thu handoff. |
 | 4 | Cart, address, voucher, checkout | [nguoi-4.md](./nguoi-4.md) | Cart và checkout B-402–B-407 hoàn tất; còn B-408 E2E với DB thật và Q-804. |

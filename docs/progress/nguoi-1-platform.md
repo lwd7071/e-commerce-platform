@@ -2,12 +2,46 @@
 
 ## Trạng thái hiện tại
 
-- Mốc: T3 (Hoàn tất) & Frontend Phase 0/1 (Hoàn tất)
-- Cập nhật lần cuối: 2026-09-28
-- Đang làm: Đã hoàn tất 100% Mốc T3 Backend (593/593 tests PASS) và hoàn thành trọn vẹn Phase 0 & Phase 1 Frontend Foundation trong thư mục `frontend/` (C-001, C-003–005, F-101–107, B-303, B-304, Q-801, Q-806). Toàn bộ Quality Gates đạt 100%: 12/12 unit tests PASS, typecheck 0 lỗi, lint pass, build Next.js 16 (Turbopack) thành công.
-- Bị block bởi: Không (Sẵn sàng bàn giao seam `src/lib/` cho Người 2, 3, 4, 5)
+- Mốc: Dino MVP 30/09 — Block 0, Workstream A & Workstream C (Hoàn tất 100%)
+- Cập nhật lần cuối: 2026-09-30
+- Đang làm: Đã hoàn tất 100% các hạng mục phụ trách theo `docs/frontend-spec/08-implementation-plan.md`:
+  1. `GET /api/v1/health/readiness` (và `/health/readiness`): trả commit/version, DB/Auth/Storage và 12 capabilities `LIVE` khớp manifest FE.
+  2. OpenAPI 3.1 & Contract Drift: Khóa ma trận canonical backend paths, bảo vệ khỏi drift.
+  3. Capability Readiness Registry (`capabilities.ts`) & build guard fail-fast trong `next.config.ts`.
+  4. Workstream A: Seller onboarding, AuthContext `reloadUser()`, Gating seller screens/stock khi Shop `PENDING`, củng cố `sanitizeReturnTo`.
+  5. Workstream C: Admin API hardening & bảo vệ tài khoản ADMIN với 403 `ADMIN_TARGET_PROTECTED`.
+  Toàn bộ Quality Gates đạt 100%: 619/619 tests backend PASS (173 suites) + DB integration tests pass, 253/253 tests frontend PASS, typecheck 0 lỗi, lint 0 lỗi.
+- Bị block bởi: Không
 
 ## Nhật ký theo ngày
+
+### 2026-09-30 (Dino MVP 30/09 — /health/readiness, Capability Registry, Seller Gating, Admin Target Protection)
+
+- **Đã làm:**
+  - **Backend /health/readiness (P0-03 & §10):**
+    - Hiện thực endpoint `GET /api/v1/health/readiness` và `/health/readiness` trong `backend/src/platform/routes/health.ts`.
+    - Kiểm tra latency DB, connection pool, status Supabase Auth và Supabase Storage.
+    - Trả về danh sách 12 MUST capabilities ở trạng thái `LIVE` khớp với manifest FE.
+    - Cập nhật OpenAPI spec 3.1 trong `backend/src/platform/openapi/openapi-spec.ts`.
+    - Viết unit tests tự động trong `backend/test/platform/health-route.spec.ts` (kiểm tra status 200 khi healthy và 503 khi pool degraded).
+  - **Admin Target Protection (C-401 & C-402):**
+    - Tạo exception `AdminTargetProtectedError` (HTTP 403 `ADMIN_TARGET_PROTECTED`).
+    - Thêm phương thức `getUserRole` trong `ITargetLookupRepository` và `PgModerationTargetRepository`.
+    - Cập nhật `ModerationService.moderateTarget`: từ chối mọi thao tác lock/unlock tài khoản ADMIN với HTTP 403 `ADMIN_TARGET_PROTECTED`.
+    - Viết unit & integration tests trong `moderation-service.spec.ts` và `admin-routes.spec.ts` (PASS 100%).
+  - **Frontend Capability Registry & Build Guard (P0-04):**
+    - Tạo `frontend/src/lib/config/capabilities.ts` và gắn `validateReleaseReadiness()` vào `frontend/next.config.ts`.
+    - Viết 5 unit tests trong `frontend/test/capabilities.spec.ts` (PASS 100%).
+  - **Seller Gating & Session Reload (A-101 đến A-104):**
+    - Cập nhật `AuthUser` lưu trữ `shopStatus`, cung cấp `reloadUser()` trong `AuthContext`.
+    - Gating các màn hình `seller-products-screen.tsx`, `seller-product-create-screen.tsx`, `seller-dashboard-screen.tsx` khi shop `PENDING`.
+    - Củng cố `sanitizeReturnTo` chống open-redirect và vector bypass `/\`.
+    - Viết bộ test `frontend/test/seller-onboarding-gating.spec.ts` (6/6 tests PASS).
+- **Quality Gates:**
+  - Backend: **619/619 tests PASS (173 suites)** + DB integration tests PASS.
+  - Frontend: **253/253 tests PASS (44 suites)**.
+  - Typecheck: **0 lỗi** trên cả backend và frontend.
+  - Lint: **0 errors, 0 warnings** trên cả backend và frontend.
 
 ### 2026-09-28 (Khởi tạo Frontend Foundation & Tích hợp Bộ Seam Dùng Chung F-101 đến F-107)
 
