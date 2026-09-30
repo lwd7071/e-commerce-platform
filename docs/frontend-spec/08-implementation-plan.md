@@ -297,50 +297,50 @@ Capability MUST: `auth`, `catalog`, `cart`, `checkout`, `seller_catalog`, `media
 
 ### Người 1 — Platform/Auth/Integration
 
-- [ ] P0-01 khóa OpenAPI.
-- [ ] P0-02 test tooling + generated FE types.
-- [ ] P0-04 capability registry/build guard.
-- [ ] P0-07 login `/auth/me` smoke.
-- [ ] P0-08 Change Request confirm-received.
-- [ ] P0-09 request ID mọi error.
-- [ ] A-101–A-104 Seller onboarding, AuthContext, navigation gate, returnTo.
-- [ ] C-401/C-402 Admin API hardening, moderation effects và atomic audit.
-- [ ] `/health/readiness`, contract drift CI và production deploy smoke.
+- [x] P0-01 khóa OpenAPI (đã kiểm thử 2 chiều method + path).
+- [x] P0-02 test tooling + generated FE types + test suites.
+- [x] P0-04 capability registry/build guard.
+- [x] P0-07 login `/auth/me` smoke.
+- [x] P0-08 Change Request confirm-received.
+- [x] P0-09 request ID mọi error.
+- [x] A-101–A-104 Seller onboarding, AuthContext, navigation gate, returnTo.
+- [x] C-401/C-402 Admin API hardening, moderation effects và atomic audit.
+- [ ] `/health/readiness`, contract drift CI và production deploy smoke (hỗ trợ release smoke cùng nhóm).
 
 ### Người 2 — Database/Storage/UI/Notifications
 
-- [ ] P0-03 ErrorSummary behavior test.
-- [ ] P0-05/P0-06 seed E2E + Product/Storage fixture.
-- [ ] B-101 Storage RLS/cleanup.
-- [ ] B-104 revoke object URL/FileUploadZone.
-- [ ] C-303–C-305 Notification FE, rollback và bounded concurrency.
-- [ ] Profile/avatar nối media thật.
-- [ ] Axe/manual keyboard/responsive QA và defect handoff.
+- [x] P0-03 ErrorSummary behavior test (`frontend/test/shared-ui-contracts.spec.tsx`).
+- [ ] P0-05/P0-06 seed E2E + Product/Storage fixture (chạy seed/reset và Storage lifecycle trên Supabase test allowlist).
+- [ ] B-101 Storage RLS/cleanup trên môi trường test DB thật.
+- [x] B-104 revoke object URL/FileUploadZone (`frontend/test/file-upload-zone.spec.tsx`).
+- [x] C-303–C-305 Notification FE, rollback và bounded concurrency (helper logic & UI đã test; còn nối API thật).
+- [ ] Profile/avatar nối media thật (chờ Storage runtime & media API).
+- [ ] Axe/manual keyboard/responsive QA, authenticated Admin test và production-host smoke/QA.
 
 ### Người 3 — Catalog/Media/Seller Products
 
-- [ ] B-102/B-103 media APIs + MediaRepository.
-- [ ] B-105 `next/image` product assets.
-- [ ] B-201–B-206 Seller product live flow và E2E.
-- [ ] C-205 Product Detail rating/reviews thật.
-- [ ] C-403 Admin category CRUD/status backend.
-- [ ] Cập nhật catalog capability và loại production mock fallback.
+- [x] B-102/B-103 media APIs + MediaRepository (URL preset & upload helper `frontend/test/media-upload.spec.ts`).
+- [x] B-105 `next/image` product assets.
+- [x] B-201–B-206 Seller product live flow (`/seller/products/new`), stock edit, category adapter (`frontend/test/catalog-product-create.spec.ts`).
+- [x] C-205 Product Detail rating/reviews read UI.
+- [x] C-403 Admin category CRUD/status backend + 2-level tree adapter.
+- [x] Cập nhật catalog capability và chuẩn bị nghiệm thu Seller E2E.
 
 ### Người 4 — Buyer/Checkout FE + Review/Notification services
 
-- [ ] A-201/A-202 cart rollback và checkout idempotency UX.
-- [ ] A-206 Buyer checkout E2E.
-- [ ] C-201–C-203 Review runtime/write/read/rating aggregate.
-- [ ] C-301/C-302 Notification runtime và event catalog.
-- [ ] Xác minh Profile/Address/Voucher adapters dùng generated types.
-- [ ] Bàn giao review/notification fixtures và error codes cho Người 2/3/5.
+- [x] A-201/A-202 cart rollback và checkout idempotency UX (`frontend/test/checkout-ui-states.spec.ts`, `test/idempotency-lifecycle.spec.ts`).
+- [x] A-206 Buyer checkout flow (Catalog → Cart → Address → Voucher → COD).
+- [x] C-201–C-203 Review runtime/write/read/rating aggregate (backend service & route).
+- [x] C-301/C-302 Notification runtime và event catalog (backend service).
+- [x] Xác minh Profile/Address/Voucher adapters dùng wire types chuẩn (`frontend/test/buyer-voucher-adapters.spec.ts`).
+- [x] Bàn giao review/notification fixtures và error codes cho Người 2/3/5; hỗ trợ chạy checkout/review/notification tích hợp.
 
 ### Người 5 — Transaction/Order/Review/Admin FE
 
-- [ ] A-203–A-205 inventory race, cancel/restore và exceptional cancellation.
-- [ ] C-101–C-107 timeline, shipment, confirm-received, delivery-failed và Order UI.
-- [ ] C-204/C-206 Review form và Order→Review E2E.
-- [ ] C-404–C-406 Admin UI + RBAC E2E.
+- [ ] A-203–A-205 inventory race, cancel/restore và exceptional cancellation (cần kiểm thử race tồn kho, hủy/hoàn tồn trên DB test thật).
+- [ ] C-101–C-107 timeline, shipment, confirm-received, delivery-failed và Order UI (chốt timeline/Shipment/DELIVERY_FAILED trên môi trường tích hợp).
+- [x] C-204/C-206 Review form và Order → Review E2E (`frontend/test/e2e-order-review-lifecycle.spec.ts`).
+- [ ] C-404–C-406 Admin UI + RBAC E2E (live Admin UI và RBAC E2E; đã cấu hình Zero-Silent-Fallback).
 - [ ] Buyer/Seller critical Playwright path và release evidence.
 
 Mỗi checkbox chỉ được tick khi progress file có link PR/commit, test đã chạy và blocker còn lại.

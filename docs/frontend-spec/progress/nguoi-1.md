@@ -2,12 +2,12 @@
 
 ## Trạng thái hiện tại
 
-- Phase/ticket: Phase 0, Phase 1 & Phase 8 hoàn tất (C-001, C-003–005, F-101–107, B-303, B-304, Q-801, Q-806, Q-807, Q-808)
-- Cập nhật lần cuối: 2026-09-29
-- Đang làm: Đã xử lý triệt để review của Lead: cấu hình chặt chẽ `allowedRoles: ["BUYER"]` cho `/orders` và `/notifications` trong `route-guards.ts`, các route review con (`/orders/[id]/review`) tự động thừa hưởng rule an toàn; bổ sung regression test bảo đảm chặn `SELLER`/`ADMIN`. Đồng bộ toàn diện sau khi kéo nhánh Người 2 và Người 5. Toàn bộ Quality Gates đạt 100%: unit tests frontend PASS, 600/600 tests backend PASS, typecheck 0 lỗi, lint 0 lỗi, build Turbopack 13 routes thành công.
+- Phase/ticket: Phase 0, Phase 1 & Phase 8 (C-001, C-003–005, F-101–107, B-303, B-304, Q-801, Q-806, Q-807, Q-808, P0-01–02, P0-04, P0-07–09, A-101–104, C-401–402)
+- Cập nhật lần cuối: 2026-09-30
+- Đang làm: Không thấy feature lớn còn thiếu. Hoàn tất platform, auth, route guards, resilience, OpenAPI drift contract tests, và đồng bộ tích hợp toàn đội.
 - Nhánh/PR: dev
 - Bị block bởi: Không
-- Việc tiếp theo: Toàn bộ công việc của Người 1 đã hoàn tất 100%, sẵn sàng bàn giao cho Release Candidate.
+- Việc tiếp theo: Chốt vai trò tích hợp: xác nhận OpenAPI/capability readiness khớp, theo dõi các blocker và hỗ trợ release smoke cùng nhóm.
 
 ## Nhật ký theo ngày
 

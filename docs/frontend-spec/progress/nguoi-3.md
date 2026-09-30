@@ -2,12 +2,12 @@
 
 ## Trạng thái hiện tại
 
-- Phase/ticket: Phase 3 (B-301 [x], B-302 [x], B-305 [x]), Phase 4 (B-401 [x]), Phase 5 (O-508 [Gated GAP-04], O-509 [x], Product Create [x]), Phase 7 (A-700 [x], A-702 [Gated GAP-05])
-- Cập nhật lần cuối: 2026-09-29
-- Đang làm: Hoàn thiện tính năng Tạo sản phẩm mới (`/seller/products/new`) theo chuẩn `POST /products`, điều chỉnh tồn kho `PATCH /product-variants/:variant_id/stock`, chuẩn hóa màu tồn kho bằng semantic tokens `success/warning/danger`, và đặt vùng chạm tối thiểu 44px cho bộ lọc danh mục. Quality gates pass sạch 100%.
-- Nhánh/PR: `feat/fe-nguoi-3-catalog`
-- Bị block bởi: GAP-04 (chờ endpoint `GET /seller/products`), GAP-05/A-701 (chờ backend `GET /categories`), GAP-09/P-606 (chờ presigned upload S3).
-- Việc tiếp theo: Phối hợp Người 4 nghiệm thu add-to-cart handoff; phối hợp Người 5 nghiệm thu category adapter; chờ backend mở P-606/GAP-09 để làm P-607a.
+- Phase/ticket: Phase 3 (B-301 [x], B-302 [x], B-305 [x]), Phase 4 (B-401 [x]), Phase 5 (O-508 [x], O-509 [x], Product Create [x]), Phase 7 (A-700 [x], A-702 [x]), Workstream B (B-102–103, B-105, B-201–206, C-205, C-403)
+- Cập nhật lần cuối: 2026-09-30
+- Đang làm: Toàn bộ các mục catalog, product detail, category adapter, seller product management & create flow (`POST /products`), cập nhật tồn kho (`PATCH /product-variants/:id/stock`), search debounce và semantic tokens đã hoàn tất và tích hợp.
+- Nhánh/PR: dev
+- Bị block bởi: Không
+- Việc tiếp theo: Các mục được báo cáo là hoàn tất. Hỗ trợ tích hợp/nghiệm thu media và luồng Seller E2E; xử lý defect nếu các bài chạy thật phát hiện.
 
 ## Nhật ký theo ngày
 

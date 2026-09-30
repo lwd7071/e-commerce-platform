@@ -2,25 +2,25 @@
 
 ## Trạng thái hiện tại
 
-- Phase/ticket: Phase 5 & Phase 6 — Orders, Review, Admin & Buyer Confirm-Received (Hoàn tất 100% Cụm 1, 2, 3, 4 và P0-08 / C-103, C-104)
+- Phase/ticket: Phase 5 & Phase 6 — Orders, Review, Admin & Buyer Confirm-Received (Hoàn tất 100% Cụm 1, 2, 3, 4, P0-08 / C-103, C-104 và Zero-Silent-Fallback)
 - Cập nhật lần cuối: 2026-09-30
-- Đang làm: Đã hoàn thành triển khai toàn bộ các cụm công việc Frontend của Người 5 và tính năng Buyer confirm-received theo Plan 08:
+- Đang làm: Đã hoàn thành triển khai toàn bộ các cụm công việc Frontend của Người 5, tính năng Buyer confirm-received và chuẩn hóa cơ chế **Zero-Silent-Fallback**:
   1. **Cụm 1 & 2 (Buyer Orders `/orders` & Seller Orders `/seller/orders`):**
-     - Kênh đọc đơn (`getOrders`, `getOrderById`): Đang chạy trên in-memory mock store (`hybridOrderRepository` / `mockOrderRepository`) do Backend chưa có live persistent query API hoàn chỉnh (GAP-01). Đơn mới tạo sau checkout được đồng bộ vào in-memory store qua `registerCreatedOrder`.
-     - Kênh thao tác đơn (`cancelOrder`, `confirmOrder`, `confirmReceived`, `transitionOrder`): Gọi API Backend live khi có kết nối, đồng bộ trạng thái vào in-memory store; lan truyền chính xác mã lỗi 409 Conflict / 400 / 403 để UI cảnh báo; tự động fallback sang mock khi offline / môi trường test / API lỗi kết nối.
-  2. **Cụm 3 (Review Form UI `/orders/[id]/review` & Media Upload):**
+     - Kênh đọc đơn (`getOrders`, `getOrderById`): Gọi API live khi `useMock=false`, và dùng in-memory mock store (`mockOrderRepository`) khi `useMock=true`.
+     - Kênh thao tác đơn (`cancelOrder`, `confirmOrder`, `confirmReceived`, `transitionOrder`): Gọi API Backend live khi `useMock=false` và ném lỗi trung thực (`AppError` / 409 Conflict / 400 / 403), không âm thầm fallback sang mock khi live gặp lỗi.
+  2. **Cụm 3 (Review Form UI `/orders/[id]/review` & Zero-Silent-Fallback):**
      - Giao diện O-507 (1..5 sao, nhận xét 10-500 ký tự, điều kiện QD14, chống trùng RB-LB09) và P-607c (upload xem trước tối đa 5 ảnh 5MB).
-     - Data layer: `ApiReviewRepository` gọi `POST /reviews` và `GET /orders/:id/reviews`, tự động fallback sang `MockReviewRepository` khi gặp lỗi mạng (`NETWORK_ERROR`), lỗi xác thực (`UNAUTHORIZED`, 401) hoặc mock mode.
+     - Data layer: `ApiReviewRepository` gọi `POST /reviews` và `GET /orders/:id/reviews`, ném lỗi chuẩn xác khi API lỗi; `reviewRepository` switch chuẩn theo `features.useMock()`, không silent fallback.
   3. **Cụm 4 (Admin Dashboard `/admin`, Moderation, Categories `/admin/categories`, Seller Dashboard `/seller`):**
      - Giao diện A-704, A-705 (khóa/mở kèm lý do bắt buộc RB-LTT08 & audit log), A-708 (Seller KPI tuân thủ QD19 chỉ tính đơn COMPLETED), A-709 (cây danh mục 2 cấp RB-KN04), Q-805 (RBAC route guard).
-     - Data layer: `apiAdminRepository` kết nối live API khi sẵn sàng và fallback sang `mockAdminRepository` khi gặp lỗi.
+     - Data layer: Triển khai `ApiAdminRepository` và `adminRepository` switch chuẩn theo `features.domains.adminMock()`, không hardcode mock.
   4. **Triển khai P0-08 / C-103, C-104 (Buyer `confirm-received`):**
      - Backend: Bổ sung route `POST /orders/:order_id/confirm-received` trong `order-routes.ts`, `t1-routes.ts`, `PgCheckoutService.confirmReceived` và `OrderLifecycleService.confirmReceived`, cập nhật `order-state-machine.ts` cho phép Buyer chuyển đơn từ `SHIPPING` $\rightarrow$ `COMPLETED`.
      - Frontend: Bổ sung `confirmReceived` vào `orderApi`, `IOrderRepository`, `hybridOrderRepository`, `mockOrderRepository`; gắn nút **"Đã nhận được hàng"** vào thẻ đơn `SHIPPING` trên trang `/orders`; hiển thị thông báo thành công và mở khóa nút viết đánh giá Review (QD14).
-  5. **Quality Gates:** 217/217 Vitest tests PASS (100%), backend node tests PASS (100%), typecheck 0 errors (`tsc --noEmit`), Next.js Production Build 100% SUCCESS (17/17 routes), 0 hardcoded hex colors.
-- Nhánh/PR: thanh-vien-5 (Đã đồng bộ toàn bộ code mới từ `dev`)
-- Bị block bởi: Không
-- Việc tiếp theo: Sẵn sàng bàn giao và tạo Pull Request vào `dev`.
+  5. **Quality Gates:** 218/218 Vitest tests PASS (100% trên 37 test suites, bao gồm `test/e2e-order-review-lifecycle.spec.ts`), typecheck 0 errors (`tsc --noEmit`), lint 0 errors & 0 warnings (`eslint`), Next.js Production Build 100% SUCCESS (22/22 routes), 0 hardcoded hex colors.
+- Nhánh/PR: dev
+- Bị block bởi: Không (Đã hoàn thành toàn bộ code, Zero-Silent-Fallback và bài kiểm thử tích hợp E2E chuỗi Checkout → Seller Ship → Buyer Confirm-Received → Review).
+- Việc tiếp theo: Phối hợp Người 1 đóng Release Candidate và bàn giao cho nhóm QA.
 
 ## Nhật ký theo ngày
 

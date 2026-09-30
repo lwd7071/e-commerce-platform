@@ -2,12 +2,12 @@
 
 ## Trạng thái hiện tại
 
-- Phase/ticket: Phase 4 — B-402, B-403, B-404, B-405, B-406, B-407 (Hoàn tất chuẩn hóa FE Adapters & Wire Runtime)
-- Cập nhật lần cuối: 2026-09-29
-- Đang làm: Đã hoàn tất sửa FE address/cart/voucher adapters khớp 100% path và DTO runtime backend, bảo vệ toàn bộ ràng buộc nghiệp vụ Cart write-ops, xử lý fail-fast GAP-07, pass toàn bộ 4 quality gates (139/139 tests).
-- Nhánh/PR: feat/fe-nguoi-4-cart/checkout
-- Bị block bởi: B-408 cần backend/test DB thật; Q-804 cần môi trường và phối hợp chạy Buyer/Seller critical E2E.
-- Việc tiếp theo: B-408 (E2E integration test backend DB) và Q-804 phối hợp với Người 5.
+- Phase/ticket: Phase 4 (B-402–407, A-201–202, A-206), Review/Notification services backend (C-201–203, C-301–302)
+- Cập nhật lần cuối: 2026-09-30
+- Đang làm: Đã hoàn tất toàn bộ Cart, Address, Voucher, Checkout idempotency UI, rollback optimistic update, phân loại lỗi 10-hàng, và hỗ trợ Review/Notification backend services.
+- Nhánh/PR: dev
+- Bị block bởi: Không
+- Việc tiếp theo: Các mục được báo cáo là hoàn tất. Hỗ trợ chạy checkout/review/notification trên môi trường tích hợp; phối hợp Người 5 kiểm chứng checkout → nhận hàng → review.
 
 ## Nhật ký theo ngày
 
