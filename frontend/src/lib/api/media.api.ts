@@ -1,6 +1,6 @@
-import { getSupabaseClient } from "../auth/supabase-client";
 import { apiClient } from "./client";
 import { features } from "../config/features";
+import { envConfig } from "../config/env";
 
 export const MAX_MEDIA_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
 export const ALLOWED_IMAGE_TYPES = [
@@ -51,16 +51,20 @@ export interface FinalizeUploadResponse {
 }
 
 export const mediaApi = {
-  presign: (filename: string, contentType: string, purpose = "product_image") =>
+  presign: (filename: string, contentType: string, purpose = "product_image", productId?: string) =>
     apiClient.post<PresignUploadResponse>("/media/uploads/presign", {
       filename,
       content_type: contentType,
       purpose,
+      ...(productId ? { product_id: productId } : {}),
     }),
 
-  finalize: (mediaId: string, magicBytes?: string) =>
-    apiClient.post<FinalizeUploadResponse>(`/media/uploads/${mediaId}/finalize`, {
-      magic_bytes: magicBytes,
+  finalize: (mediaId: string) =>
+    apiClient.post<FinalizeUploadResponse>(`/media/uploads/${mediaId}/finalize`, {}),
+
+  attach: (mediaId: string, productId: string) =>
+    apiClient.patch<{ media_id: string; attached: boolean }>(`/media/uploads/${mediaId}/attach`, {
+      product_id: productId,
     }),
 
   deleteMedia: (mediaId: string) =>
@@ -71,48 +75,65 @@ export interface UploadMediaOptions {
   bucket?: string;
   folder?: string;
   purpose?: string;
+  productId?: string;
+}
+
+export interface UploadedMedia {
+  url: string;
+  mediaId?: string;
 }
 
 /**
- * Upload file ảnh lên Supabase Storage hoặc fallback mock URL an toàn
- * Trong môi trường production (B-103), không fallback ảnh giả nếu upload thất bại
+ * Upload file ảnh theo luồng 3 bước: Presign -> Upload Storage -> Finalize (B-103)
+ * Trong môi trường production, tuyệt đối không fallback ảnh giả nếu upload thất bại
  */
-export async function uploadMedia(file: File, options?: UploadMediaOptions): Promise<string> {
+export async function uploadMediaAsset(file: File, options?: UploadMediaOptions): Promise<UploadedMedia> {
   const validation = validateMediaFile(file);
   if (!validation.valid) {
     throw new Error(validation.error || "File không hợp lệ");
   }
 
-  const bucket = options?.bucket || "media";
-  const folder = options?.folder || "uploads";
+  const purpose = options?.purpose || "product_image";
   const ext = file.name.split(".").pop() || "jpg";
-  const fileName = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const fileName = `${options?.folder || "uploads"}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
 
   try {
-    const supabase = getSupabaseClient();
-    if (supabase) {
-      const { data, error } = await supabase.storage.from(bucket).upload(fileName, file, {
-        cacheControl: "3600",
-        upsert: false,
-      });
+    // Bước 1: Presign qua backend API
+    const presignRes = await mediaApi.presign(file.name, file.type, purpose, options?.productId);
 
-      if (!error && data) {
-        const { data: publicData } = supabase.storage.from(bucket).getPublicUrl(data.path);
-        if (publicData?.publicUrl) {
-          return publicData.publicUrl;
-        }
-      }
+    // Bước 3: Upload lên upload_url bằng PUT
+    const uploadRes = await fetch(presignRes.upload_url, {
+      method: "PUT",
+      body: file,
+      headers: {
+        "Content-Type": file.type,
+        apikey: envConfig.supabaseAnonKey,
+      },
+    });
+
+    if (!uploadRes.ok) {
+      throw new Error(`Upload storage failed: ${uploadRes.statusText}`);
+    }
+
+    // Bước 4: Finalize để verify magic bytes và nhận public URL
+    const finalizeRes = await mediaApi.finalize(presignRes.media_id);
+    if (finalizeRes.public_url) {
+      return { url: finalizeRes.public_url, mediaId: presignRes.media_id };
     }
   } catch (err: unknown) {
-    if (features.isProduction()) {
+    if (features.isProduction() || !features.useMock()) {
       throw err instanceof Error ? err : new Error("Tải file thất bại. Vui lòng thử lại.");
     }
   }
 
-  // Fallback dev/mock URL khi không ở chế độ production
-  if (features.isProduction()) {
+  // Fallback demo URL is allowed only when the caller explicitly enabled mock mode.
+  if (features.isProduction() || !features.useMock()) {
     throw new Error("Không thể kết nối đến máy chủ lưu trữ hình ảnh. Vui lòng thử lại.");
   }
 
-  return `https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&q=80#${fileName}`;
+  return { url: `https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&q=80#${fileName}` };
+}
+
+export async function uploadMedia(file: File, options?: UploadMediaOptions): Promise<string> {
+  return (await uploadMediaAsset(file, options)).url;
 }

@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { repositories } from "@/lib/repositories/repository-factory";
 import { categoryAdapter, DEV_CATEGORY_FIXTURES, type CategoryItem } from "@/lib/adapters/category.adapter";
+import { uploadMediaAsset } from "@/lib/api/media.api";
 import { validateStockQuantityInput } from "@/features/catalog/catalog-query-engine";
 import { AppError } from "@/lib/api/app-error";
 import { useToast } from "@/components/ui/toast";
@@ -26,6 +27,7 @@ interface VariantFormItem {
 interface ImageFormItem {
   id: string;
   url: string;
+  mediaId?: string;
 }
 
 const VERIFIED_PRESET_IMAGES = [
@@ -47,10 +49,9 @@ export function SellerProductCreateScreen() {
   const [categoryId, setCategoryId] = useState("");
   const [description, setDescription] = useState("");
 
-  const [images, setImages] = useState<ImageFormItem[]>([
-    { id: "img-1", url: "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=800" },
-  ]);
+  const [images, setImages] = useState<ImageFormItem[]>([]);
   const [customImageUrl, setCustomImageUrl] = useState("");
+  const [draftProductId, setDraftProductId] = useState<string | null>(null);
 
   const [variants, setVariants] = useState<VariantFormItem[]>([
     {
@@ -82,6 +83,10 @@ export function SellerProductCreateScreen() {
   const handleAddImage = (url: string) => {
     const trimmed = url.trim();
     if (!trimmed) return;
+    if (images.length >= 5) {
+      showToast("Sản phẩm chỉ cho phép tải lên tối đa 5 hình ảnh", "error");
+      return;
+    }
     if (!/^https?:\/\//i.test(trimmed)) {
       showToast("URL ảnh phải bắt đầu bằng http:// hoặc https://", "error");
       return;
@@ -92,6 +97,27 @@ export function SellerProductCreateScreen() {
     }
     setImages((prev) => [...prev, { id: `img-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, url: trimmed }]);
     setCustomImageUrl("");
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (images.length >= 5) {
+      showToast("Sản phẩm chỉ cho phép tải lên tối đa 5 hình ảnh", "error");
+      return;
+    }
+    try {
+      const productId = draftProductId ?? crypto.randomUUID();
+      setDraftProductId(productId);
+      const uploaded = await uploadMediaAsset(file, { purpose: "product_image", productId });
+      setImages((prev) => [...prev, { id: `img-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, url: uploaded.url, mediaId: uploaded.mediaId }]);
+      showToast("Tải ảnh thành công!", "success");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Tải ảnh thất bại";
+      showToast(msg, "error");
+    } finally {
+      e.target.value = "";
+    }
   };
 
   const handleRemoveImage = (id: string) => {
@@ -181,11 +207,13 @@ export function SellerProductCreateScreen() {
 
     try {
       const payload = {
+        ...(draftProductId ? { product_id: draftProductId } : {}),
         category_id: categoryId,
         product_name: productName.trim(),
         description: description.trim() || null,
         images: images.map((img, idx) => ({
           image_url: img.url.trim(),
+          ...(img.mediaId ? { media_id: img.mediaId } : {}),
           sort_order: idx,
         })),
         variants: variants.map((v) => ({
@@ -350,24 +378,45 @@ export function SellerProductCreateScreen() {
             </div>
           </div>
 
-          {/* Custom URL input */}
-          <div className="flex gap-2">
-            <TextInput
-              id="custom-image-url"
-              placeholder="Dán URL hình ảnh HTTPS (https://...)"
-              value={customImageUrl}
-              onChange={(e) => setCustomImageUrl(e.target.value)}
-              className="flex-1"
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => handleAddImage(customImageUrl)}
-              disabled={!customImageUrl.trim()}
-              className="min-h-[44px] px-4 text-xs font-semibold whitespace-nowrap"
-            >
-              Thêm URL
-            </Button>
+          {/* Custom URL & File Upload */}
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <TextInput
+                id="custom-image-url"
+                placeholder="Dán URL hình ảnh HTTPS (https://...)"
+                value={customImageUrl}
+                onChange={(e) => setCustomImageUrl(e.target.value)}
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => handleAddImage(customImageUrl)}
+                disabled={!customImageUrl.trim() || images.length >= 5}
+                className="min-h-[44px] px-4 text-xs font-semibold whitespace-nowrap"
+              >
+                Thêm URL
+              </Button>
+            </div>
+            <div>
+              <label
+                htmlFor="product-file-upload"
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[var(--border)] bg-[var(--card)] text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--card-muted)] cursor-pointer transition-colors ${
+                  images.length >= 5 ? "opacity-50 cursor-not-allowed pointer-events-none" : ""
+                }`}
+              >
+                <Icon name="camera" className="h-4 w-4" />
+                Tải ảnh từ thiết bị (JPG, PNG, WebP ≤ 5MB)
+              </label>
+              <input
+                id="product-file-upload"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                disabled={images.length >= 5}
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+            </div>
           </div>
 
           {/* Image gallery previews */}

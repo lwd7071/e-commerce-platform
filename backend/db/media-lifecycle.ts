@@ -59,10 +59,10 @@ export async function registerPresignedMedia(
   if (pathMetadata?.type === 'product_image') {
     const shop = await client.query(`
       SELECT s.owner_id
-      FROM shops s JOIN products p ON p.shop_id=s.shop_id
-      WHERE s.shop_id=$1 AND p.product_id=$2 AND s.status='ACTIVE'
-    `, [pathMetadata.shopId, pathMetadata.productId]);
-    if (shop.rows?.[0]?.owner_id !== media.ownerId) throw new Error('product media shop is not owned by this user');
+      FROM shops s
+      WHERE s.shop_id=$1 AND s.status='ACTIVE'
+    `, [pathMetadata.shopId]);
+    if (shop.rows?.[0]?.owner_id !== media.ownerId) throw new Error('product media shop is not active and owned by this user');
   }
   const result = await client.query(`
     INSERT INTO media_uploads(media_id,owner_id,purpose,bucket_id,object_path,status,expires_at)

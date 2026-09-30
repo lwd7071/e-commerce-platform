@@ -213,8 +213,8 @@ export function generateOpenApiSpec(): OpenApiSpec {
             type: 'object', required: ['category_id', 'product_name', 'variants'],
             additionalProperties: false,
             properties: {
-              category_id: { type: 'string', format: 'uuid' }, product_name: { type: 'string' }, description: { type: ['string', 'null'] },
-              images: { type: 'array', items: { type: 'object', required: ['image_url'], additionalProperties: false, properties: { image_url: { type: 'string' }, sort_order: { type: 'integer', minimum: 0 } } } },
+              product_id: { type: 'string', format: 'uuid' }, category_id: { type: 'string', format: 'uuid' }, product_name: { type: 'string' }, description: { type: ['string', 'null'] },
+              images: { type: 'array', items: { type: 'object', required: ['image_url'], additionalProperties: false, properties: { image_url: { type: 'string', format: 'uri' }, media_id: { type: 'string', format: 'uuid' }, sort_order: { type: 'integer', minimum: 0 } } } },
               variants: { type: 'array', minItems: 1, items: { type: 'object', required: ['variant_name', 'sku', 'price'], additionalProperties: false, properties: { variant_name: { type: 'string' }, variant_value: { type: ['string', 'null'] }, sku: { type: 'string' }, price: { type: 'string' }, stock_quantity: { type: 'integer', minimum: 0 } } } },
             },
           }),
@@ -1166,7 +1166,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
       '/media/uploads/presign': {
         post: {
           summary: 'Presign media upload', security: [{ BearerAuth: [] }],
-          requestBody: jsonRequest({ type: 'object', required: ['filename', 'content_type'], properties: { filename: { type: 'string' }, content_type: { type: 'string' }, purpose: { type: 'string' } } }),
+          requestBody: jsonRequest({ type: 'object', required: ['filename', 'content_type', 'product_id'], properties: { filename: { type: 'string' }, content_type: { type: 'string', enum: ['image/jpeg', 'image/png', 'image/webp'] }, purpose: { type: 'string', enum: ['product_image'] }, product_id: { type: 'string', format: 'uuid' } } }),
           responses: { '201': successResponse('Presigned upload URL'), '401': errorResponse('Authentication required'), '422': errorResponse('Invalid parameters') },
         },
       },
@@ -1174,7 +1174,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
         post: {
           summary: 'Finalize media upload', security: [{ BearerAuth: [] }],
           parameters: [{ name: 'media_id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
-          requestBody: jsonRequest({ type: 'object', properties: { magic_bytes: { type: 'string' }, data_base64: { type: 'string' } } }),
+          requestBody: jsonRequest({ type: 'object', additionalProperties: false }),
           responses: { '200': successResponse('Media finalized'), '401': errorResponse('Authentication required'), '404': errorResponse('Upload not found'), '422': errorResponse('Magic bytes invalid') },
         },
       },
@@ -1183,6 +1183,14 @@ export function generateOpenApiSpec(): OpenApiSpec {
           summary: 'Delete unattached media upload', security: [{ BearerAuth: [] }],
           parameters: [{ name: 'media_id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
           responses: { '204': { description: 'Media deleted' }, '401': errorResponse('Authentication required') },
+        },
+      },
+      '/media/uploads/{media_id}/attach': {
+        patch: {
+          summary: 'Attach media upload to resource', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'media_id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: jsonRequest({ type: 'object', required: ['product_id'], properties: { product_id: { type: 'string', format: 'uuid' } } }),
+          responses: { '200': successResponse('Media attached'), '401': errorResponse('Authentication required'), '404': errorResponse('Upload not found') },
         },
       },
     },

@@ -1,4 +1,5 @@
 import express, { type Application, type RequestHandler } from 'express';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Pool } from 'pg';
 import { requestIdMiddleware } from './middlewares/request-id.ts';
 import { errorHandlerMiddleware } from './middlewares/error-handler.ts';
@@ -53,6 +54,7 @@ declare global {
 
 export interface PlatformApplications extends T1RouteApplications {
   pool?: Pool;
+  mediaStorage?: SupabaseClient;
   buyerServices?: BuyerServices;
   orderServices?: OrderServices;
   authRepository?: IAuthRepository;
@@ -94,7 +96,12 @@ export function createApp(applications: PlatformApplications = {}): Application 
   app.use('/api/v1', createOrderDomainRouter(orderTarget, auth));
 
   app.use('/api/v1', createAdminRouter(applications.moderation, auth, applications.catalog));
-  app.use('/api/v1', createMediaRouter(auth));
+  app.use('/api/v1', createMediaRouter(
+    auth,
+    applications.pool && applications.mediaStorage
+      ? { pool: applications.pool, storage: applications.mediaStorage }
+      : undefined,
+  ));
 
   app.use(errorHandlerMiddleware);
 
@@ -119,10 +126,17 @@ export function createRuntimeApp(
   const ownsPool = runtimeOverrides.pool === undefined;
   const pool = runtimeOverrides.pool ?? createDatabasePool(config);
   const supabaseUrl = envConfig.supabaseUrl ?? environment.SUPABASE_URL;
+  const supabaseSecretKey = environment.SUPABASE_SECRET_KEY;
   const jwksUrl = envConfig.supabaseJwksUrl ?? environment.SUPABASE_JWKS_URL;
   if (!runtimeOverrides.tokenVerifier && (!supabaseUrl || !jwksUrl)) {
     throw new AuthConfigurationError('SUPABASE_URL and SUPABASE_JWKS_URL are required for runtime auth');
   }
+  if (environment.NODE_ENV === 'production' && (!supabaseUrl || !supabaseSecretKey)) {
+    throw new AuthConfigurationError('SUPABASE_URL and SUPABASE_SECRET_KEY are required for runtime media storage');
+  }
+  const mediaStorage = supabaseUrl && supabaseSecretKey
+    ? createClient(supabaseUrl, supabaseSecretKey, { auth: { autoRefreshToken: false, persistSession: false } })
+    : undefined;
   const authRepository = new PgAuthRepository(pool);
   const onboardingService = new PgOnboardingService(pool);
   const checkoutService = new PgCheckoutService(pool);
@@ -138,6 +152,7 @@ export function createRuntimeApp(
   return {
     app: createApp({
       pool,
+      mediaStorage,
       trustProxy: envConfig.trustProxy,
       cors: { allowedOrigins: envConfig.corsAllowedOrigins },
       auth: createAuthMiddleware(authRepository, verifier),

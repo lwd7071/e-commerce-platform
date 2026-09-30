@@ -117,7 +117,7 @@ export function createCatalogRouter(application?: CatalogHttpApplication, auth?:
   }));
   router.post('/products', ...guards(auth, 'SELLER'), asyncRoute(async (req, res) => {
     const input = req.body as Record<string, unknown>;
-    rejectUnknown(input, ['category_id', 'product_name', 'description', 'variants', 'images']);
+    rejectUnknown(input, ['product_id', 'category_id', 'product_name', 'description', 'variants', 'images']);
     const result = await implementation(application?.createProduct, application)(context(req), input);
     res.status(201).json(buildSuccessEnvelope(result, requestId(req)));
   }));

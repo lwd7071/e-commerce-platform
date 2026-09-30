@@ -10,6 +10,7 @@ import {
   StockInvalidError,
 } from '../domain/errors.ts';
 import { withTransaction } from '../../../../db/transaction.ts';
+import { attachFinalizedMedia } from '../../../../db/media-lifecycle.ts';
 
 const decimal = /^\d+(\.\d{1,2})?$/;
 const objectValue = (value: unknown): Record<string, unknown> =>
@@ -174,8 +175,12 @@ export class PgCatalogHttpService {
       }
     }
 
+    const requestedProductId = typeof input.product_id === 'string' ? input.product_id : undefined;
+    if (requestedProductId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestedProductId)) {
+      throw new ValidationError('product_id must be a valid UUID');
+    }
     const now = new Date().toISOString();
-    const productId = crypto.randomUUID();
+    const productId = requestedProductId ?? crypto.randomUUID();
     const product: Product = {
       productId,
       shopId: context.shop_id,
@@ -204,6 +209,14 @@ export class PgCatalogHttpService {
     });
 
     const rawImages: unknown[] = Array.isArray(input.images) ? input.images : [];
+    const mediaAttachments = rawImages.flatMap((value) => {
+      const image = objectValue(value);
+      if (typeof image.media_id !== 'string') return [];
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(image.media_id)) {
+        throw new ValidationError('Image media_id must be a valid UUID');
+      }
+      return [{ mediaId: image.media_id, imageUrl: String(image.image_url ?? '') }];
+    });
     const images: ProductImage[] = rawImages.map((img, index: number) => {
       const image = objectValue(img);
       const url = typeof img === 'string' ? img : String(image.image_url ?? '');
@@ -241,7 +254,36 @@ export class PgCatalogHttpService {
         throw new SkuConflictError(`SKU '${existingSkuRes.rows[0].sku}' already exists in this shop`);
       }
 
+      const storageUrl = process.env.SUPABASE_URL?.replace(/\/$/, '');
+      for (const media of mediaAttachments) {
+        const registered = await txClient.query<{
+          owner_id: string; purpose: string; bucket_id: string; object_path: string; status: string;
+        }>(
+          'SELECT owner_id,purpose,bucket_id,object_path,status FROM media_uploads WHERE media_id=$1 FOR UPDATE',
+          [media.mediaId],
+        );
+        const row = registered.rows[0];
+        const path = row?.object_path;
+        const publicUrl = row && storageUrl
+          ? `${storageUrl}/storage/v1/object/public/${row.bucket_id}/${path}`
+          : '';
+        if (!row || row.owner_id !== context.user_id || row.purpose !== 'PRODUCT'
+          || row.bucket_id !== 'product-media' || row.status !== 'FINALIZED'
+          || !path?.startsWith(`shops/${context.shop_id}/products/${productId}/${media.mediaId}.`)
+          || media.imageUrl !== publicUrl) {
+          throw new ValidationError('Product image must reference a finalized upload owned by this seller and draft product');
+        }
+      }
+
       await this.products.create(product, variants, images, txClient);
+      for (const media of mediaAttachments) {
+        await attachFinalizedMedia(txClient, {
+          mediaId: media.mediaId,
+          ownerId: context.user_id,
+          purpose: 'PRODUCT',
+          resource: { kind: 'PRODUCT', shopId: context.shop_id!, productId },
+        });
+      }
       return {
         product_id: product.productId,
         shop_id: product.shopId,

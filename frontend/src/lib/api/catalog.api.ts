@@ -72,10 +72,11 @@ export interface GetProductsParams {
  * Payload tạo sản phẩm POST /products (Seller)
  */
 export interface CreateProductInput {
+  product_id?: string;
   category_id: string;
   product_name: string;
   description?: string | null;
-  images?: Array<{ image_url: string; sort_order?: number }>;
+  images?: Array<{ image_url: string; sort_order?: number; media_id?: string }>;
   variants: Array<{
     variant_name: string;
     variant_value?: string | null;
