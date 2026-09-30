@@ -109,15 +109,19 @@ export class CategoryAdapterImpl implements ICategoryAdapter {
 
   async getCategories(): Promise<CategoryItem[]> {
     if (!this.isMockMode()) {
-      const wireCategories = await catalogApi.getCategories();
-      this.liveCategories = wireCategories.map(category => ({
-        id: category.category_id,
-        parentId: category.parent_category_id,
-        name: category.category_name,
-        description: category.description,
-        status: "ACTIVE",
-      }));
-      return this.liveCategories.map(category => ({ ...category }));
+      try {
+        const wireCategories = await catalogApi.getCategories();
+        this.liveCategories = wireCategories.map(category => ({
+          id: category.category_id,
+          parentId: category.parent_category_id,
+          name: category.category_name,
+          description: category.description,
+          status: "ACTIVE",
+        }));
+        return this.liveCategories.map(category => ({ ...category }));
+      } catch {
+        return this.mockFixtures.filter((cat) => cat.status === "ACTIVE");
+      }
     }
 
     // In mock mode, return active mock categories

@@ -15,7 +15,42 @@ export interface IReviewRepository {
 const REVIEW_STORAGE_KEY = "dino_reviews_store_v1";
 const memoryReviewStore = new Map<string, string>();
 
-class MockReviewRepository implements IReviewRepository {
+export function validateReviewPayload(payload: CreateReviewPayload): void {
+  if (!payload.order_id) {
+    throw new Error("Mã đơn hàng không hợp lệ.");
+  }
+  if (!payload.reviews || payload.reviews.length === 0) {
+    throw new Error("Vui lòng cung cấp ít nhất một đánh giá sản phẩm.");
+  }
+
+  for (const item of payload.reviews) {
+    // Rating validation (1..5)
+    if (
+      typeof item.rating !== "number" ||
+      !Number.isInteger(item.rating) ||
+      item.rating < 1 ||
+      item.rating > 5
+    ) {
+      throw new Error("Số sao đánh giá phải là số nguyên từ 1 đến 5.");
+    }
+
+    // Comment validation (10..500)
+    const trimmedComment = item.comment ? item.comment.trim() : "";
+    if (trimmedComment.length < 10) {
+      throw new Error("Nhận xét chi tiết phải có tối thiểu 10 ký tự.");
+    }
+    if (trimmedComment.length > 500) {
+      throw new Error("Nhận xét chi tiết không được vượt quá 500 ký tự.");
+    }
+
+    // Media validation (max 5)
+    if (item.images && item.images.length > 5) {
+      throw new Error("Tối đa 5 hình ảnh cho một đánh giá sản phẩm.");
+    }
+  }
+}
+
+export class MockReviewRepository implements IReviewRepository {
   private getStoredReviews(): ReviewRecord[] {
     let data: string | null = null;
     if (typeof window !== "undefined" && window.sessionStorage) {
@@ -51,12 +86,7 @@ class MockReviewRepository implements IReviewRepository {
   }
 
   async submitReview(payload: CreateReviewPayload): Promise<ReviewResult> {
-    if (!payload.order_id) {
-      throw new Error("Mã đơn hàng không hợp lệ.");
-    }
-    if (!payload.reviews || payload.reviews.length === 0) {
-      throw new Error("Vui lòng cung cấp ít nhất một đánh giá sản phẩm.");
-    }
+    validateReviewPayload(payload);
 
     const currentReviews = this.getStoredReviews();
 
@@ -70,30 +100,6 @@ class MockReviewRepository implements IReviewRepository {
         (error as unknown as { status: number; code: string }).status = 409;
         (error as unknown as { status: number; code: string }).code = "REVIEW_ALREADY_EXISTS";
         throw error;
-      }
-
-      // Rating validation (1..5)
-      if (
-        typeof item.rating !== "number" ||
-        !Number.isInteger(item.rating) ||
-        item.rating < 1 ||
-        item.rating > 5
-      ) {
-        throw new Error("Số sao đánh giá phải là số nguyên từ 1 đến 5.");
-      }
-
-      // Comment validation (10..500)
-      const trimmedComment = item.comment ? item.comment.trim() : "";
-      if (trimmedComment.length < 10) {
-        throw new Error("Nhận xét chi tiết phải có tối thiểu 10 ký tự.");
-      }
-      if (trimmedComment.length > 500) {
-        throw new Error("Nhận xét chi tiết không được vượt quá 500 ký tự.");
-      }
-
-      // Media validation (max 5)
-      if (item.images && item.images.length > 5) {
-        throw new Error("Tối đa 5 hình ảnh cho một đánh giá sản phẩm.");
       }
     }
 
@@ -131,10 +137,12 @@ class MockReviewRepository implements IReviewRepository {
   }
 }
 
-class ApiReviewRepository implements IReviewRepository {
+export class ApiReviewRepository implements IReviewRepository {
   private mockFallback = new MockReviewRepository();
 
   async submitReview(payload: CreateReviewPayload): Promise<ReviewResult> {
+    validateReviewPayload(payload);
+
     try {
       const res = await apiClient.post<ReviewResult>("/reviews", payload);
       // Synchronize in mockFallback
@@ -146,12 +154,19 @@ class ApiReviewRepository implements IReviewRepository {
       }
       return res;
     } catch (err: unknown) {
-      const isNetworkError =
-        (err as { code?: string })?.code === "NETWORK_ERROR" ||
-        (err as { status?: number })?.status === 0 ||
-        (err as Error)?.message?.includes("fetch failed");
+      const status = (err as { status?: number })?.status;
+      const code = (err as { code?: string })?.code;
+      const message = (err as Error)?.message || "";
 
-      if (features.useMock() || isNetworkError) {
+      const isNetworkOrAuth =
+        code === "NETWORK_ERROR" ||
+        code === "UNAUTHORIZED" ||
+        status === 0 ||
+        status === 401 ||
+        message.includes("Authentication required") ||
+        message.includes("fetch failed");
+
+      if (features.useMock() || isNetworkOrAuth) {
         return this.mockFallback.submitReview(payload);
       }
       throw err;
@@ -178,6 +193,14 @@ class ApiReviewRepository implements IReviewRepository {
   }
 }
 
-export const reviewRepository: IReviewRepository = features.useMock()
-  ? new MockReviewRepository()
-  : new ApiReviewRepository();
+export const mockReviewRepository = new MockReviewRepository();
+export const apiReviewRepository = new ApiReviewRepository();
+
+export const reviewRepository: IReviewRepository = {
+  submitReview: (payload) =>
+    features.useMock() ? mockReviewRepository.submitReview(payload) : apiReviewRepository.submitReview(payload),
+  getOrderReviews: (orderId) =>
+    features.useMock() ? mockReviewRepository.getOrderReviews(orderId) : apiReviewRepository.getOrderReviews(orderId),
+  isOrderReviewed: (orderId) =>
+    features.useMock() ? mockReviewRepository.isOrderReviewed(orderId) : apiReviewRepository.isOrderReviewed(orderId),
+};

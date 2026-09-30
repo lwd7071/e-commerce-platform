@@ -1,5 +1,5 @@
 import { features } from "@/lib/config/features";
-import { categoryAdapter, type CategoryItem, type CategoryTreeNode } from "@/lib/adapters/category.adapter";
+import { categoryAdapter, DEV_CATEGORY_FIXTURES, type CategoryItem, type CategoryTreeNode } from "@/lib/adapters/category.adapter";
 import { repositories } from "@/lib/repositories/repository-factory";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
 import type {
@@ -182,7 +182,15 @@ let mockProducts = [...initialModerationProducts];
 let mockAuditLogs = [...initialAuditLogs];
 
 // Local categories store for admin CRUD (A-709)
-let localCategories: CategoryItem[] = [];
+let localCategories: CategoryItem[] = DEV_CATEGORY_FIXTURES.map((c) => ({ ...c }));
+
+export function resetMockAdminStore() {
+  mockUsers = [...initialUsers];
+  mockShops = [...initialShops];
+  mockProducts = [...initialModerationProducts];
+  mockAuditLogs = [...initialAuditLogs];
+  localCategories = DEV_CATEGORY_FIXTURES.map((c) => ({ ...c }));
+}
 
 export class MockAdminRepository implements IAdminRepository {
   async getDashboardStats(): Promise<DashboardStats> {
@@ -375,8 +383,7 @@ export class MockAdminRepository implements IAdminRepository {
   // Categories CRUD (A-709 consuming A-700 adapter)
   async getCategories(): Promise<CategoryItem[]> {
     if (localCategories.length === 0) {
-      const adapterCats = await categoryAdapter.getCategories();
-      localCategories = [...adapterCats];
+      localCategories = DEV_CATEGORY_FIXTURES.map((c) => ({ ...c }));
     }
     return [...localCategories];
   }

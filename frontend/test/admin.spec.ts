@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { MockAdminRepository } from "@/features/admin/admin.repository";
+import { MockAdminRepository, resetMockAdminStore } from "@/features/admin/admin.repository";
 import { matchRouteRule } from "@/lib/auth/route-guards";
 
 describe("Cụm 4 - Admin & Seller Management (A-704, A-705, A-708, A-709, Q-805)", () => {
   let adminRepo: MockAdminRepository;
 
   beforeEach(() => {
+    resetMockAdminStore();
     adminRepo = new MockAdminRepository();
   });
 
