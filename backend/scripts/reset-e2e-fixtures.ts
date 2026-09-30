@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import pg from 'pg';
 import { loadDatabaseConfig } from '../db/config.ts';
 import { assertE2ESeedAllowed } from '../db/seed/e2e-seed-safety.ts';
+import { resetE2EBuyerAddress, resetE2EBuyerCart } from '../db/seed/e2e-fixture-reset.ts';
 import { buildProductImagePath } from '../db/storage.ts';
 
 const required = (name: string): string => {
@@ -128,7 +129,6 @@ async function resetDatabaseFixtures(): Promise<void> {
     await client.query(`DELETE FROM shipments s USING orders o WHERE s.order_id=o.order_id AND o.buyer_id=$1`, [buyerId]);
     await client.query(`DELETE FROM order_status_history h USING orders o WHERE h.order_id=o.order_id AND o.buyer_id=$1`, [buyerId]);
     await client.query('DELETE FROM orders WHERE buyer_id=$1', [buyerId]);
-    await client.query('DELETE FROM cart_items WHERE cart_id=$1', [ids.cart]);
     await client.query('DELETE FROM notifications WHERE recipient_id=$1', [buyerId]);
 
     await client.query(`
@@ -214,15 +214,11 @@ async function resetDatabaseFixtures(): Promise<void> {
             ($3,$2,'Size','Last item','E2E-LAST-ITEM','100000.00',1,'ACTIVE')
       ON CONFLICT(variant_id) DO UPDATE SET product_id=EXCLUDED.product_id,variant_name=EXCLUDED.variant_name,variant_value=EXCLUDED.variant_value,sku=EXCLUDED.sku,price=EXCLUDED.price,stock_quantity=EXCLUDED.stock_quantity,status='ACTIVE',updated_at=now()`,
     [ids.regularVariant, ids.product, ids.lastItemVariant]);
-    await client.query(`
-      INSERT INTO addresses(address_id,user_id,recipient_name,phone,province,district,ward,detail_address,is_default)
-      VALUES($1,$2,'E2E Buyer','0900000000','TP Hồ Chí Minh','Quận 1','Bến Nghé','1 Dino E2E Street',true)
-      ON CONFLICT(address_id) DO UPDATE SET user_id=EXCLUDED.user_id,recipient_name=EXCLUDED.recipient_name,phone=EXCLUDED.phone,province=EXCLUDED.province,district=EXCLUDED.district,ward=EXCLUDED.ward,detail_address=EXCLUDED.detail_address,is_default=true,updated_at=now()`,
-    [ids.address, buyerId]);
-    await client.query(`
-      INSERT INTO carts(cart_id,buyer_id) VALUES($1,$2)
-      ON CONFLICT(buyer_id) DO UPDATE SET updated_at=now()`, [ids.cart, buyerId]);
-    await client.query('UPDATE carts SET cart_id=$1 WHERE buyer_id=$2', [ids.cart, buyerId]);
+    await resetE2EBuyerAddress(client, {
+      buyerId, addressId: ids.address, recipientName: 'E2E Buyer', phone: '0900000000',
+      province: 'TP Hồ Chí Minh', district: 'Quận 1', ward: 'Bến Nghé', detailAddress: '1 Dino E2E Street',
+    });
+    await resetE2EBuyerCart(client, { buyerId, cartId: ids.cart });
     await client.query(`
       INSERT INTO cart_items(cart_item_id,cart_id,variant_id,quantity,is_selected)
       VALUES($1,$2,$3,1,true),($4,$2,$5,1,false)

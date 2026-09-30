@@ -5,7 +5,6 @@ export const ALLOWED_IMAGE_TYPES = [
   "image/jpeg",
   "image/png",
   "image/webp",
-  "image/gif",
 ];
 
 export interface MediaValidationResult {
@@ -22,13 +21,13 @@ export function validateMediaFile(file: { name: string; size: number; type: stri
   }
 
   if (file.size > MAX_MEDIA_SIZE_BYTES) {
-    return { valid: false, error: "Dung lượng ảnh vượt quá giới hạn 5MB cho phép" };
+    return { valid: false, error: "Dung lượng ảnh vượt quá giới hạn 5 MB cho phép" };
   }
 
   if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
     return {
       valid: false,
-      error: "Định dạng file không được hỗ trợ. Chỉ chấp nhận JPG, PNG, WebP hoặc GIF",
+      error: "Định dạng file không được hỗ trợ. Chỉ chấp nhận JPG, PNG hoặc WebP",
     };
   }
 

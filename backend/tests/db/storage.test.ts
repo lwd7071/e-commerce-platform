@@ -89,6 +89,7 @@ describe('Storage Path Builder and Validation', () => {
 
     expect(policySql).toContain('FROM public.products p');
     expect(policySql).toContain('FROM public.reviews r');
+    expect(policySql).toContain("s.status = 'ACTIVE'");
     expect(policySql).toContain('owner_id = auth.uid()::text');
   });
 });
