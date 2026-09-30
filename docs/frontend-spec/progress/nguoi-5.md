@@ -2,26 +2,48 @@
 
 ## Trạng thái hiện tại
 
-- Phase/ticket: Phase 5 & Phase 6 — Hoàn tất 100% Cụm 4 & Toàn bộ phân công Frontend của Người 5 (A-704, A-705, A-708, A-709, Q-805)
+- Phase/ticket: Phase 5 & Phase 6 — Orders, Review, Admin & Buyer Confirm-Received (Hoàn tất 100% Cụm 1, 2, 3, 4 và P0-08 / C-103, C-104)
 - Cập nhật lần cuối: 2026-09-30
-- Đang làm: Đã hoàn thành toàn bộ 4 cụm công việc Frontend của Người 5:
-  1. Cụm 1: O-502 & O-503 (Buyer Order Center `/orders`, Cancel Dialog với RB-LTT08).
-  2. Cụm 2: O-504 & O-505 (Seller Orders `/seller/orders`, quy trình xử lý đơn tuần tự).
-  3. Cụm 3: O-507 & P-607c (Review Form UI `/orders/[id]/review`, chống đánh giá trùng RB-LB09, điều kiện tiên quyết QD14, upload ảnh xem trước).
-  4. Cụm 4: A-704 (Admin Dashboard `/admin`), A-705 (Khóa/Mở người dùng kèm audit log), A-708 (Seller Dashboard `/seller` tuân thủ nghiêm ngặt quy tắc QD19 doanh thu chỉ tính đơn COMPLETED), A-709 (Admin Categories `/admin/categories` cây danh mục tối đa 2 cấp RB-KN04), Q-805 (RBAC route guard cho `/admin`, `/admin/categories`, `/seller`).
-  5. Quality Gates: 60/60 Vitest tests PASS (100%), typecheck 0 errors (`tsc --noEmit`), Next.js Production Build 100% SUCCESS (17/17 routes tĩnh/động prerender thành công), 0 hardcoded hex colors.
+- Đang làm: Đã hoàn thành triển khai toàn bộ các cụm công việc Frontend của Người 5 và tính năng Buyer confirm-received theo Plan 08:
+  1. **Cụm 1 & 2 (Buyer Orders `/orders` & Seller Orders `/seller/orders`):**
+     - Kênh đọc đơn (`getOrders`, `getOrderById`): Đang chạy trên in-memory mock store (`hybridOrderRepository` / `mockOrderRepository`) do Backend chưa có live persistent query API hoàn chỉnh (GAP-01). Đơn mới tạo sau checkout được đồng bộ vào in-memory store qua `registerCreatedOrder`.
+     - Kênh thao tác đơn (`cancelOrder`, `confirmOrder`, `confirmReceived`, `transitionOrder`): Gọi API Backend live khi có kết nối, đồng bộ trạng thái vào in-memory store; lan truyền chính xác mã lỗi 409 Conflict / 400 / 403 để UI cảnh báo; tự động fallback sang mock khi offline / môi trường test / API lỗi kết nối.
+  2. **Cụm 3 (Review Form UI `/orders/[id]/review` & Media Upload):**
+     - Giao diện O-507 (1..5 sao, nhận xét 10-500 ký tự, điều kiện QD14, chống trùng RB-LB09) và P-607c (upload xem trước tối đa 5 ảnh 5MB).
+     - Data layer: `ApiReviewRepository` gọi `POST /reviews` và `GET /orders/:id/reviews`, tự động fallback sang `MockReviewRepository` khi gặp lỗi mạng (`NETWORK_ERROR`), lỗi xác thực (`UNAUTHORIZED`, 401) hoặc mock mode.
+  3. **Cụm 4 (Admin Dashboard `/admin`, Moderation, Categories `/admin/categories`, Seller Dashboard `/seller`):**
+     - Giao diện A-704, A-705 (khóa/mở kèm lý do bắt buộc RB-LTT08 & audit log), A-708 (Seller KPI tuân thủ QD19 chỉ tính đơn COMPLETED), A-709 (cây danh mục 2 cấp RB-KN04), Q-805 (RBAC route guard).
+     - Data layer: `apiAdminRepository` kết nối live API khi sẵn sàng và fallback sang `mockAdminRepository` khi gặp lỗi.
+  4. **Triển khai P0-08 / C-103, C-104 (Buyer `confirm-received`):**
+     - Backend: Bổ sung route `POST /orders/:order_id/confirm-received` trong `order-routes.ts`, `t1-routes.ts`, `PgCheckoutService.confirmReceived` và `OrderLifecycleService.confirmReceived`, cập nhật `order-state-machine.ts` cho phép Buyer chuyển đơn từ `SHIPPING` $\rightarrow$ `COMPLETED`.
+     - Frontend: Bổ sung `confirmReceived` vào `orderApi`, `IOrderRepository`, `hybridOrderRepository`, `mockOrderRepository`; gắn nút **"Đã nhận được hàng"** vào thẻ đơn `SHIPPING` trên trang `/orders`; hiển thị thông báo thành công và mở khóa nút viết đánh giá Review (QD14).
+  5. **Quality Gates:** 217/217 Vitest tests PASS (100%), backend node tests PASS (100%), typecheck 0 errors (`tsc --noEmit`), Next.js Production Build 100% SUCCESS (17/17 routes), 0 hardcoded hex colors.
 - Nhánh/PR: thanh-vien-5 (Đã đồng bộ toàn bộ code mới từ `dev`)
 - Bị block bởi: Không
 - Việc tiếp theo: Sẵn sàng bàn giao và tạo Pull Request vào `dev`.
 
 ## Nhật ký theo ngày
 
-### 2026-09-30 (Đồng bộ toàn bộ cập nhật mới từ dev và giải quyết xung đột)
+### 2026-09-30 (Triển khai Buyer confirm-received P0-08/C-103 & Đối soát trung thực Code vs Docs)
 
 - **Đã làm:**
-  - Kéo và hợp nhất toàn bộ 18 commit mới nhất từ `origin/dev` vào nhánh `thanh-vien-5`.
-  - Giải quyết xung đột 10 files (Admin Categories, Orders Token styling, Review Form, Checkpoint Repository, Features flags, Progress docs).
-  - Đảm bảo 100% test suites frontend & backend và typecheck đều PASS.
+  - **1. Triển khai trọn gói Buyer `confirm-received` (Plan 08 / P0-08 / C-103, C-104):**
+    - **Backend Domain & Persistence:**
+      - Cập nhật `order-state-machine.ts`: Cho phép `actor.kind === 'BUYER'` chuyển đơn hàng sở hữu từ `SHIPPING` $\rightarrow$ `COMPLETED`.
+      - Cập nhật `order-lifecycle.service.ts`: Thêm `confirmReceived(orderId, actor, reason)` ghi lịch sử trạng thái `COMPLETED` và cập nhật cơ sở dữ liệu.
+      - Cập nhật `pg-checkout.service.ts`: Thêm `confirmReceived(context, orderId)` xử lý khóa dòng đơn hàng `FOR UPDATE`, bảo đảm chỉ đơn `SHIPPING` mới được xác nhận và ghi `order_status_history`.
+      - Cập nhật routing: Đấu nối route `POST /orders/:order_id/confirm-received` trong cả `order-routes.ts` và `t1-routes.ts` với guard phân quyền `BUYER` và `ADMIN`.
+      - Viết unit test trong `order-state-machine.spec.ts`: Kiểm tra happy path Buyer confirm-received, chặn buyer không sở hữu đơn (RESOURCE_NOT_FOUND), và chặn xác nhận khi đơn không ở trạng thái SHIPPING (8/8 PASS).
+    - **Frontend API, Repositories & UI:**
+      - Cập nhật `order.api.ts`: Thêm `confirmReceived(id)` gọi `POST /orders/:id/confirm-received`.
+      - Cập nhật `types.ts` & `repository-factory.ts`: Thêm `confirmReceived` cho `apiOrderRepository`, `mockOrderRepository` và `hybridOrderRepository` (gọi live API + sync store + fallback mock).
+      - Cập nhật `order-card.tsx`: Khi đơn hàng ở trạng thái `SHIPPING`, hiển thị nút hành động **"Đã nhận được hàng"** với token chuẩn `var(--success)`.
+      - Cập nhật `orders-screen.tsx`: Thêm handler `handleConfirmReceived`, cập nhật trạng thái đơn sang `COMPLETED`, kích hoạt toast thông báo thành công và lập tức hiển thị nút **"Đánh giá sản phẩm"** (khớp trọn vẹn luồng Buyer Lifecycle QD14).
+      - Bổ sung unit tests trong `frontend/test/orders.spec.ts`: Kiểm tra xác nhận nhận hàng chuyển trạng thái sang COMPLETED và chặn xác nhận trên đơn non-SHIPPING (7/7 tests PASS).
+  - **2. Đối soát hiện trạng Code vs Docs:**
+    - Làm rõ cơ chế Hybrid/Mock Fallback của Orders (GAP-01), Review (GAP-09) và Admin trong tài liệu, bảo đảm tính trung thực tuyệt đối.
+    - Vitest frontend: **217/217 tests PASS (100%)**.
+    - Typecheck (`tsc --noEmit`): **0 errors**.
 
 ### 2026-09-29 (Hoàn thành 100% Cụm 4: A-704, A-705, A-708, A-709, Q-805)
 
@@ -227,13 +249,16 @@
 | Order status/actions + reason | Người 4 | State machine/role/409 fixture + test | Đã sẵn sàng | [backend/src/modules/order/domain/order-state-machine.ts](../../backend/src/modules/order/domain/order-state-machine.ts) |
 | Admin/category consumer | Người 3 | Category adapter input, moderation/readiness | Sẵn sàng phối hợp | [docs/frontend-spec/05-api-contract.md](../05-api-contract.md) |
 | Seller KPI/reporting UI | Người 1, 3 | Date range, timezone, server totals contract | Đã sẵn sàng (QD19) | [backend/src/modules/reporting/services/reporting.service.ts](../../backend/src/modules/reporting/services/reporting.service.ts) |
+| Buyer `confirm-received` (P0-08 / C-103) | Người 1, 5 | `POST /orders/:id/confirm-received` | Đã hoàn tất (BE route & FE UI/Action) | [docs/frontend-spec/08-implementation-plan.md](../08-implementation-plan.md) |
 
 ## Việc được giao
 
-- [x] O-502 — Buyer order center (`/orders`), tabs 7 trạng thái, order card, loading/empty/error states.
-- [x] O-503 — Cancel order dialog, bắt buộc nhập lý do (RB-LTT08), xử lý 409 conflict tự động làm mới.
-- [x] O-507 — Review form UI (`/orders/[id]/review`).
-- [x] A-704/A-705/A-708 — admin dashboard, user lock/unlock, seller KPI khi API sẵn (tuân thủ nghiêm ngặt quy tắc QD19 doanh thu chỉ tính đơn COMPLETED).
+- [x] O-502 — Buyer order center (`/orders`), tabs 7 trạng thái, order card, loading/empty/error states (Kênh đọc dùng in-memory mock store do GAP-01).
+- [x] O-503 — Cancel order dialog, bắt buộc nhập lý do (RB-LTT08), gọi live API + fallback mock khi offline/mạng lỗi, xử lý 409 conflict tự động làm mới.
+- [x] O-504 & O-505 — Seller orders table (`/seller/orders`) & quy trình xử lý đơn tuần tự (gọi live API mutation + fallback mock khi offline).
+- [x] O-507 — Review form UI (`/orders/[id]/review`), điều kiện hoàn thành QD14, chống đánh giá trùng RB-LB09 (gọi live API + fallback mock khi offline/chưa có auth).
+- [x] A-704/A-705/A-708 — admin dashboard, user lock/unlock, seller KPI khi API sẵn (tuân thủ nghiêm ngặt quy tắc QD19 doanh thu chỉ tính đơn COMPLETED, fallback mock khi API chưa sẵn sàng).
 - [x] A-709 — admin categories page, tiêu thụ category adapter A-700 của Người 3 (RB-KN04 cây danh mục tối đa 2 cấp).
 - [x] P-607c — review media UI khi P-606/GAP-09 đóng (xem trước tức thì, tối đa 5 ảnh, 5MB).
 - [x] Q-805 — RBAC/security gate cho direct URL/API (`/admin`, `/admin/categories`, `/seller`).
+- [x] P0-08 / C-103, C-104 — Buyer `confirm-received` (`POST /orders/:id/confirm-received` chuyển đơn từ `SHIPPING` sang `COMPLETED`, cập nhật history và mở khóa nút Đánh giá Review).

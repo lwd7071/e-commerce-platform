@@ -2,16 +2,30 @@
 
 ## Trạng thái hiện tại
 
-- Mốc: T3 (Hoàn tất) & Frontend Phase 5, Phase 6 (Hoàn tất 100% Cụm 1, 2, 3, 4 của Người 5)
-- Cập nhật lần cuối: 2026-09-29
-- Trạng thái: Hoàn tất 100% các hạng mục trọng điểm:
-  1. Cụm 1 & Cụm 2: Chuyển đổi toàn bộ màu sắc thống kê đơn seller và thông báo đơn hàng sang token semantic/brand của design system; FE Transaction core (POST /checkout kèm Idempotency-Key, order lifecycle hủy/xác nhận/chuyển trạng thái).
-  2. Cụm 3: O-507 (Review Form UI `/orders/[id]/review` bảo vệ quyền BUYER, điều kiện hoàn thành QD14, chống trùng RB-LB09, rating 1..5 sao, nhận xét 10-500 ký tự) và P-607c (Review Media Upload & Preview UI, tối đa 5 ảnh, 5MB/ảnh, xem trước tức thì và xóa từng ảnh).
-  3. Cụm 4: A-704 (Admin Dashboard `/admin`), A-705 (Khóa/Mở người dùng & gian hàng với lý do bắt buộc RB-LTT08 và audit logging), A-708 (Seller Dashboard & KPI UI `/seller` tuân thủ nghiêm ngặt quy tắc QD19 doanh thu chỉ tính đơn COMPLETED), A-709 (Admin Categories `/admin/categories` cây danh mục tối đa 2 cấp RB-KN04), Q-805 (RBAC route guard cho `/admin`, `/admin/categories`, `/seller`).
-  4. Quality Gates: 60/60 Vitest tests PASS (100%), typecheck 0 errors (`tsc --noEmit`), Next.js Production Build 100% SUCCESS (17/17 routes).
+- Mốc: T3 Backend (Hoàn tất) & Frontend Phase 5, Phase 6 (Hoàn tất 100% Cụm 1, 2, 3, 4 & Buyer Confirm-Received P0-08 / C-103)
+- Cập nhật lần cuối: 2026-09-30
+- Trạng thái: Hoàn tất các hạng mục trọng điểm và ghi nhận hiện trạng kết nối code thực tế:
+  1. Cụm 1 & Cụm 2: Chuyển đổi toàn bộ màu sắc thống kê đơn seller và thông báo đơn hàng sang token semantic/brand của design system; FE Transaction core (POST /checkout kèm Idempotency-Key, order mutation hủy/xác nhận/xác nhận nhận hàng/chuyển trạng thái kết nối API thật và có fallback mock). Kênh đọc đơn (`getOrders`, `getOrderById`) dùng mock in-memory do GAP-01.
+  2. Cụm 3: O-507 (Review Form UI `/orders/[id]/review` bảo vệ quyền BUYER, điều kiện hoàn thành QD14, chống trùng RB-LB09, rating 1..5 sao, nhận xét 10-500 ký tự) và P-607c (Review Media Upload & Preview UI, tối đa 5 ảnh, 5MB/ảnh). Data layer Review hỗ trợ live API và tự động fallback mock khi offline / lỗi xác thực / lỗi mạng.
+  3. Cụm 4: A-704 (Admin Dashboard `/admin`), A-705 (Khóa/Mở người dùng & gian hàng với lý do bắt buộc RB-LTT08 và audit logging), A-708 (Seller Dashboard & KPI UI `/seller` tuân thủ nghiêm ngặt quy tắc QD19 doanh thu chỉ tính đơn COMPLETED), A-709 (Admin Categories `/admin/categories` cây danh mục tối đa 2 cấp RB-KN04), Q-805 (RBAC route guard cho `/admin`, `/admin/categories`, `/seller`). Data layer Admin hỗ trợ fallback mock.
+  4. Triển khai hoàn tất: Endpoint Buyer `confirm-received` (`POST /orders/:id/confirm-received` theo Plan 08 / P0-08, C-103, C-104) đã được hiện thực hóa ở cả Backend (`order-routes.ts`, `t1-routes.ts`, `pg-checkout.service.ts`, `order-lifecycle.service.ts`, `order-state-machine.ts`) và Frontend (`order.api.ts`, `repository-factory.ts`, `order-card.tsx`, `orders-screen.tsx`).
+  5. Quality Gates: 217/217 Vitest tests PASS (100%), typecheck 0 errors (`tsc --noEmit`), Next.js Production Build 100% SUCCESS (17/17 routes).
 - Bị block bởi: Không
 
 ## Nhật ký theo ngày
+
+### 2026-09-30 (Triển khai Buyer confirm-received P0-08/C-103 & Đối soát trung thực Code vs Docs)
+
+- **Đã làm:**
+  - **1. Triển khai trọn gói Buyer `confirm-received` (P0-08 / C-103, C-104):**
+    - Backend: Thêm `POST /orders/:order_id/confirm-received`, cập nhật `order-state-machine.ts`, `order-lifecycle.service.ts`, `pg-checkout.service.ts` cho phép Buyer chuyển đơn từ `SHIPPING` $\rightarrow$ `COMPLETED`, kiểm thử 8/8 tests pass trong `order-state-machine.spec.ts`.
+    - Frontend: Thêm `confirmReceived` vào `orderApi`, `IOrderRepository`, `hybridOrderRepository`, `mockOrderRepository`. Gắn nút "Đã nhận được hàng" trên thẻ đơn hàng `SHIPPING` tại `/orders`, kích hoạt toast thành công và mở khóa nút viết đánh giá Review (QD14). Thêm tests pass 7/7 trong `orders.spec.ts`.
+  - **2. Đối soát Code vs Docs:**
+    - Làm rõ cơ chế Hybrid/Mock Fallback của Orders (GAP-01), Review (GAP-09) và Admin trong tài liệu, bảo đảm tính trung thực tuyệt đối.
+  - **3. Quality Gates:**
+    - Toàn bộ Vitest frontend: **217/217 tests PASS (100%)**.
+    - Backend node tests: PASS 100%.
+    - Typecheck (`tsc --noEmit`): **0 errors**.
 
 ### 2026-09-29 (Hoàn thành 100% Cụm 4: A-704, A-705, A-708, A-709, Q-805)
 

@@ -120,6 +120,46 @@ export class OrderLifecycleService {
   }
 
   /**
+   * Confirms receipt of an order by BUYER (matching owner) or ADMIN (P0-08 / C-103).
+   */
+  public async confirmReceived(orderId: UUID, actor: OrderActor, reason?: string): Promise<OrderRecord> {
+    const executeConfirmReceived = async (client?: PoolClient): Promise<OrderRecord> => {
+      const order = await this.orderRepo.findById(orderId, client);
+      if (!order) {
+        throw new OrderDomainError('RESOURCE_NOT_FOUND', 'Order was not found.');
+      }
+      if (actor.kind === 'BUYER' && actor.userId !== order.buyerId) {
+        throw new OrderDomainError('RESOURCE_NOT_FOUND', 'Order was not found.');
+      }
+      if (order.status !== 'SHIPPING') {
+        throw new OrderDomainError('ORDER_INVALID_TRANSITION', 'Only SHIPPING orders can be confirmed as received.');
+      }
+
+      transitionOrder(
+        { status: order.status, buyerId: order.buyerId, shopId: order.shopId },
+        { to: 'COMPLETED', actor, shipmentStatus: 'DELIVERED', reason: reason ?? 'Buyer confirmed receipt' },
+      );
+
+      const history = createOrderStatusHistoryRecord({
+        orderId,
+        oldStatus: order.status,
+        newStatus: 'COMPLETED',
+        changedBy: 'userId' in actor ? actor.userId : null,
+        reason: reason ?? 'Buyer confirmed receipt',
+      });
+
+      await this.orderRepo.updateStatus(orderId, 'COMPLETED', history, client);
+      const updated = await this.orderRepo.findById(orderId, client);
+      return updated ?? { ...order, status: 'COMPLETED' };
+    };
+
+    if (this.pool) {
+      return await withTransaction(this.pool, (client) => executeConfirmReceived(client));
+    }
+    return await executeConfirmReceived();
+  }
+
+  /**
    * Advances order status according to full state machine rules and options.
    */
   public async transitionOrder(

@@ -8,7 +8,7 @@
 | 2 | UI/UX, shared UI, account | [nguoi-2.md](./nguoi-2.md) | Shared UI/account và polish semantic token/touch-target/type-safety đã tích hợp vào `dev`; D-004 còn chờ Admin page sample, backend-gated features còn chờ runtime. QA evidence và gate còn lại ghi trong file cá nhân. |
 | 3 | Catalog, seller catalog, category | [nguoi-3.md](./nguoi-3.md) | Catalog, product detail, seller catalog, stock edit và category adapter đã triển khai; còn P-607a chờ GAP-09 và phối hợp nghiệm thu handoff. |
 | 4 | Cart, address, voucher, checkout | [nguoi-4.md](./nguoi-4.md) | Hoàn tất 100%: B-402–B-407, Review/Notification runtime (C-201–C-203, C-301/C-302), Checkout E2E DB thật (B-408) và Handshake Gate (Q-804). |
-| 5 | Orders, review, admin | [nguoi-5.md](./nguoi-5.md) | Buyer order center/cancel và seller orders/fulfillment O-502–O-505 hoàn tất; còn review, admin, media và Q-805. |
+| 5 | Orders, review, admin | [nguoi-5.md](./nguoi-5.md) | O-502–O-505 (Orders), O-507/P-607c (Review), A-704/705/708/709 (Admin), Q-805 và Buyer confirm-received (P0-08 / C-103) đã hoàn tất 100% BE route & FE UI/tests; kênh đọc đơn và Review/Admin ghi chú rõ cơ chế fallback mock (GAP-01/09). |
 
 Các trạng thái trên phản ánh nhật ký cá nhân và code đã tích hợp; ticket có điều kiện backend hoặc E2E chỉ được coi là hoàn tất khi có evidence nghiệm thu tương ứng.
 

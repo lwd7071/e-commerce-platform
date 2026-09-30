@@ -43,6 +43,7 @@ export interface IOrderRepository {
   getOrderById(id: string): Promise<WireOrder>;
   cancelOrder(id: string, reason: string): Promise<WireOrder>;
   confirmOrder(id: string, reason?: string): Promise<WireOrder>;
+  confirmReceived?(id: string): Promise<WireOrder>;
   transitionOrder(id: string, to: string, reason?: string): Promise<WireOrder>;
 }
 

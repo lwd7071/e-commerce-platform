@@ -37,6 +37,7 @@ export interface OrderHttpApplication {
   createOrder(context: RequestContext, command: ReturnType<typeof parseCheckoutCommand>): Promise<unknown>;
   cancelOrder(context: RequestContext, orderId: string, input: Record<string, unknown>): Promise<unknown>;
   confirmOrder(context: RequestContext, orderId: string): Promise<unknown>;
+  confirmReceived?(context: RequestContext, orderId: string): Promise<unknown>;
   transitionOrder(context: RequestContext, orderId: string, input: Record<string, unknown>): Promise<unknown>;
   retryPayment(context: RequestContext, orderId: string, input: Record<string, unknown>): Promise<unknown>;
 }
@@ -207,6 +208,9 @@ export function createOrderRouter(application?: OrderHttpApplication, auth?: Req
   }));
   router.post('/orders/:order_id/confirm', ...guards(auth, 'SELLER', 'ADMIN'), asyncRoute(async (req, res) => {
     res.json(buildSuccessEnvelope(await implementation(application?.confirmOrder, application)(context(req), req.params.order_id), requestId(req)));
+  }));
+  router.post('/orders/:order_id/confirm-received', ...guards(auth, 'BUYER', 'ADMIN'), asyncRoute(async (req, res) => {
+    res.json(buildSuccessEnvelope(await implementation(application?.confirmReceived, application)(context(req), req.params.order_id), requestId(req)));
   }));
   router.post('/orders/:order_id/transition', ...guards(auth, 'SELLER', 'ADMIN'), asyncRoute(async (req, res) => {
     res.json(buildSuccessEnvelope(await implementation(application?.transitionOrder, application)(context(req), req.params.order_id, req.body as Record<string, unknown>), requestId(req)));
