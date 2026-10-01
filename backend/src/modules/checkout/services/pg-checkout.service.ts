@@ -13,6 +13,8 @@ import { transitionOrder } from '../../order/domain/order-state-machine.ts';
 import type { OrderActor, OrderStatus, OrderTransition, OrderTransitionCommand } from '../../order/domain/types.ts';
 import { createPaymentRetry } from '../../payment/domain/payment-state-machine.ts';
 import type { PaymentAttempt } from '../../payment/domain/types.ts';
+import { PgAuditRepository } from '../../../platform/audit/pg-audit.repository.ts';
+import { ReasonRequiredError } from '../../../platform/errors/app-error.ts';
 
 type CheckoutRow = {
   cart_item_id: string; variant_id: string; quantity: number; price: string; stock_quantity: number;
@@ -21,7 +23,11 @@ type CheckoutRow = {
 };
 
 export class PgCheckoutService implements OrderHttpApplication {
-  constructor(private readonly pool: Pool, private readonly sleep: (ms: number) => Promise<void> = (ms) => new Promise(resolve => setTimeout(resolve, ms))) {}
+  private readonly auditRepository: PgAuditRepository;
+
+  constructor(private readonly pool: Pool, private readonly sleep: (ms: number) => Promise<void> = (ms) => new Promise(resolve => setTimeout(resolve, ms))) {
+    this.auditRepository = new PgAuditRepository();
+  }
 
   async createOrder(context: RequestContext, command: CheckoutCommand): Promise<CheckoutResult> {
     const fingerprint = canonicalCheckoutFingerprint(command);
@@ -132,18 +138,22 @@ export class PgCheckoutService implements OrderHttpApplication {
     });
   }
 
-  async confirmOrder(context: RequestContext, orderId: string): Promise<unknown> {
+  async confirmOrder(context: RequestContext, orderId: string, reason?: string): Promise<unknown> {
+    const effectiveReason = context.role === 'ADMIN' ? reason?.trim() : reason;
+    if (context.role === 'ADMIN' && !effectiveReason) throw new ReasonRequiredError('A reason is required for admin order actions.');
     return withTransaction(this.pool, async client => {
       const current = await client.query("SELECT o.status FROM orders o JOIN shops s ON o.shop_id=s.shop_id WHERE o.order_id=$1 AND ($2='ADMIN' OR ($2='SELLER' AND s.owner_id=$3)) FOR UPDATE OF o", [orderId, context.role, context.user_id]);
       if (!current.rows[0]) throw new ForbiddenError('ORDER_CONFIRM_FORBIDDEN', 'Order cannot be confirmed by this actor.');
       if (current.rows[0].status !== 'PENDING_CONFIRMATION') {
         throw new ConflictError('ORDER_INVALID_TRANSITION', 'Order cannot be confirmed in its current state.');
       }
-      return this.persistTransition(client, context, orderId, { from: 'PENDING_CONFIRMATION', to: 'CONFIRMED' });
+      return this.persistTransition(client, context, orderId, { from: 'PENDING_CONFIRMATION', to: 'CONFIRMED', reason: effectiveReason });
     });
   }
 
-  async confirmReceived(context: RequestContext, orderId: string): Promise<unknown> {
+  async confirmReceived(context: RequestContext, orderId: string, reason?: string): Promise<unknown> {
+    const effectiveReason = context.role === 'ADMIN' ? reason?.trim() : 'Buyer confirmed receipt';
+    if (context.role === 'ADMIN' && !effectiveReason) throw new ReasonRequiredError('A reason is required for admin order actions.');
     return withTransaction(this.pool, async client => {
       const current = await client.query(
         "SELECT status, buyer_id FROM orders WHERE order_id=$1 AND (buyer_id=$2 OR $3='ADMIN') FOR UPDATE",
@@ -153,11 +163,13 @@ export class PgCheckoutService implements OrderHttpApplication {
       if (current.rows[0].status !== 'SHIPPING') {
         throw new ConflictError('ORDER_INVALID_TRANSITION', 'Only SHIPPING orders can be confirmed as received.');
       }
-      return this.persistTransition(client, context, orderId, { from: 'SHIPPING', to: 'COMPLETED', reason: 'Buyer confirmed receipt' });
+      return this.persistTransition(client, context, orderId, { from: 'SHIPPING', to: 'COMPLETED', reason: effectiveReason });
     });
   }
 
   async transitionOrder(context: RequestContext, orderId: string, input: Record<string, unknown>): Promise<unknown> {
+    const reason = typeof input.reason === 'string' ? input.reason.trim() : '';
+    if (context.role === 'ADMIN' && !reason) throw new ReasonRequiredError('A reason is required for admin order actions.');
     return withTransaction(this.pool, async client => {
       const current = await client.query('SELECT o.*, s.owner_id FROM orders o JOIN shops s ON s.shop_id=o.shop_id WHERE o.order_id=$1 FOR UPDATE OF o', [orderId]);
       const row = current.rows[0]; if (!row) throw new NotFoundError('Order not found.');
@@ -172,7 +184,7 @@ export class PgCheckoutService implements OrderHttpApplication {
         {
           to,
           actor,
-          reason: typeof input.reason === 'string' ? input.reason : undefined,
+          reason: reason || undefined,
           processingEligible: true,
           exceptionalCancellation: context.role === 'ADMIN' && input.exceptional_cancellation === true,
           shipmentStatus,
@@ -197,6 +209,15 @@ export class PgCheckoutService implements OrderHttpApplication {
     const result = await client.query('UPDATE orders SET status=$1,updated_at=now(),cancel_reason=$2 WHERE order_id=$3 AND status=$4 RETURNING *', [decision.to, decision.to === 'CANCELLED' ? decision.reason : null, orderId, decision.from]);
     if (!result.rows[0]) throw new ConflictError('ORDER_INVALID_TRANSITION', 'Order state changed.');
     await client.query('INSERT INTO order_status_history (history_id,order_id,old_status,new_status,changed_by,reason) VALUES ($1,$2,$3,$4,$5,$6)', [crypto.randomUUID(), orderId, decision.from, decision.to, context.user_id, decision.reason ?? null]);
+    if (context.role === 'ADMIN') {
+      await this.auditRepository.logAdminAction(client, {
+        admin_id: context.user_id,
+        action: `ORDER_${decision.to}`,
+        target_type: 'ORDER',
+        target_id: orderId,
+        reason: decision.reason ?? '',
+      });
+    }
     const parties = await client.query<{ buyer_id: string; owner_id: string }>(
       'SELECT o.buyer_id,s.owner_id FROM orders o JOIN shops s ON s.shop_id=o.shop_id WHERE o.order_id=$1', [orderId],
     );

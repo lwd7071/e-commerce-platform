@@ -149,5 +149,152 @@ describe('TDD Slice 2: Atomic Review Creation with Media', () => {
       assert.strictEqual(res.body.data.review_id, reviewId);
       assert.strictEqual(res.body.data.rating, 5);
     });
+
+    it('rolls back transaction when media object_path does not match review_id', async () => {
+      const executedStatements: string[] = [];
+      let released = false;
+
+      const mockClient = {
+        query: async (sql: string, params?: unknown[]) => {
+          executedStatements.push(sql.trim().split(' ')[0].toUpperCase());
+          if (sql.includes('INSERT INTO reviews')) {
+            return {
+              rows: [{
+                review_id: params?.[0] || reviewId,
+                buyer_id: buyerId,
+                product_id: productId,
+                order_item_id: orderItemId,
+                rating: 5,
+                content: 'OK',
+                status: 'VISIBLE',
+                created_at: new Date(),
+                updated_at: new Date(),
+              }],
+              rowCount: 1,
+            };
+          }
+          if (sql.includes('SELECT owner_id,purpose,status,object_path FROM media_uploads')) {
+            return {
+              rows: [{
+                owner_id: buyerId,
+                purpose: 'REVIEW',
+                status: 'FINALIZED',
+                // Sai reviewId trong object_path!
+                object_path: `users/${buyerId}/reviews/another-review-id/${mediaId1}.jpg`,
+              }],
+              rowCount: 1,
+            };
+          }
+          return { rows: [], rowCount: 0 };
+        },
+        release: () => {
+          released = true;
+        },
+      };
+
+      const mockPool = {
+        connect: async () => mockClient,
+        query: async () => ({ rows: [], rowCount: 0 }),
+      };
+
+      const repo = new PostgresReviewRepository(mockPool as unknown as Pool);
+
+      await assert.rejects(async () => {
+        await repo.create(
+          {
+            reviewId,
+            buyerId,
+            productId,
+            orderItemId,
+            rating: 5,
+            content: 'OK',
+            status: 'VISIBLE',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+          undefined,
+          [mediaId1]
+        );
+      }, /object_path .* does not match review path prefix/);
+
+      assert.ok(executedStatements.includes('BEGIN'), 'Must have executed BEGIN');
+      assert.ok(executedStatements.includes('ROLLBACK'), 'Must have executed ROLLBACK on error');
+      assert.ok(!executedStatements.includes('COMMIT'), 'Must not execute COMMIT on error');
+      assert.strictEqual(released, true, 'Client must be released back to pool');
+    });
+
+    it('commits transaction atomically and releases connection upon successful creation', async () => {
+      const executedStatements: string[] = [];
+      let released = false;
+
+      const mockClient = {
+        query: async (sql: string, params?: unknown[]) => {
+          executedStatements.push(sql.trim().split(' ')[0].toUpperCase());
+          if (sql.includes('INSERT INTO reviews')) {
+            return {
+              rows: [{
+                review_id: params?.[0] || reviewId,
+                buyer_id: buyerId,
+                product_id: productId,
+                order_item_id: orderItemId,
+                rating: 5,
+                content: 'OK',
+                status: 'VISIBLE',
+                created_at: new Date(),
+                updated_at: new Date(),
+              }],
+              rowCount: 1,
+            };
+          }
+          if (sql.includes('SELECT owner_id,purpose,status,object_path FROM media_uploads')) {
+            return {
+              rows: [{
+                owner_id: buyerId,
+                purpose: 'REVIEW',
+                status: 'FINALIZED',
+                object_path: `users/${buyerId}/reviews/${reviewId}/${mediaId1}.jpg`,
+              }],
+              rowCount: 1,
+            };
+          }
+          if (sql.includes('UPDATE media_uploads') || sql.includes('INSERT INTO review_images')) {
+            return { rowCount: 1, rows: [] };
+          }
+          return { rows: [], rowCount: 0 };
+        },
+        release: () => {
+          released = true;
+        },
+      };
+
+      const mockPool = {
+        connect: async () => mockClient,
+        query: async () => ({ rows: [], rowCount: 0 }),
+      };
+
+      const repo = new PostgresReviewRepository(mockPool as unknown as Pool);
+
+      const created = await repo.create(
+        {
+          reviewId,
+          buyerId,
+          productId,
+          orderItemId,
+          rating: 5,
+          content: 'OK',
+          status: 'VISIBLE',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        undefined,
+        [mediaId1]
+      );
+
+      assert.strictEqual(created.reviewId, reviewId);
+      assert.ok(executedStatements.includes('BEGIN'), 'Must have executed BEGIN');
+      assert.ok(executedStatements.includes('COMMIT'), 'Must have executed COMMIT on success');
+      assert.ok(!executedStatements.includes('ROLLBACK'), 'Must not execute ROLLBACK on success');
+      assert.strictEqual(released, true, 'Client must be released back to pool');
+    });
   });
 });
