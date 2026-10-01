@@ -46,10 +46,12 @@ describe("ReviewScreen Live Media UI & Submission", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.spyOn(repositories, "order").mockReturnValue({
+      getOrders: vi.fn().mockResolvedValue([]),
       getOrderById: vi.fn().mockResolvedValue(mockOrder),
-      listOrders: vi.fn(),
       cancelOrder: vi.fn(),
+      confirmOrder: vi.fn(),
       confirmReceived: vi.fn(),
+      transitionOrder: vi.fn(),
     } as IOrderRepository);
 
     vi.spyOn(reviewRepository, "getOrderReviews").mockResolvedValue([]);

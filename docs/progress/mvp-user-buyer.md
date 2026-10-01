@@ -62,7 +62,7 @@ Baseline contract-audit gaps (recorded before implementation): onboarding/auth p
 - Onboarding retry with matching role/shop data returns current state; conflicting role/shop data returns 409.
 - `shops.owner_id` uniqueness is enforced in PostgreSQL and treated as the race-condition backstop.
 - PostgreSQL integration tests use a real isolated test database; no database mocks for TASK-01/02/07/09/10.
-- COD is in scope; online payment providers and avatar upload are outside this Buyer completion slice. Review text/rating and notifications are wired; review photo upload/persistence remains an explicit open acceptance item.
+- COD is in scope; online payment providers and avatar upload are outside this Buyer completion slice. Review text/rating, notifications, and review-media persistence are implemented; real Supabase Storage/browser acceptance remains open.
 - Frontend 3000, backend 3001. Secrets remain in provider settings/secret stores, never Git.
 - User may delete an address because orders store address snapshots; checkout reads and snapshots the chosen address in its transaction.
 
@@ -80,7 +80,7 @@ This update supersedes only the latest-evidence claims above; older baseline cou
 
 | Gate | Command / observed result | Status |
 |---|---|---|
-| Review media component TDD | Red: the selected file caused **0** HTTP calls (expected presign → PUT → finalize). Green: `frontend: npm test -- --reporter=dot test/review-media-upload-live.spec.tsx` — **1/1 pass**, verifies presign purpose/review ID, Storage PUT and finalize at the HTTP boundary | Component/API boundary verified; production flow still blocked by backend REVIEW presign rejection and missing atomic media claim on review create |
+| Review media implementation | Focused backend, frontend, and isolated PostgreSQL evidence is recorded in the final-slice update below. Browser tests mock the HTTP/Storage boundary; no live Storage object upload was run. | Implemented; live Storage/browser acceptance open |
 | Frontend suite | `frontend: npm test -- --reporter=dot` — **56 files / 293 tests pass** | PASS on 2026-10-01 |
 | Frontend static/build gates | `npm run typecheck`, `npm run lint`, `npm run build` in `frontend` — exit 0; build generated 26 pages | PASS on 2026-10-01 |
 | Backend unit/route suite | `backend: npm run test:node` — **650 pass / 1 fail** (651 total). Failure: `test/modules/order/admin-order-reason.spec.ts` expected a missing reason rejection but concurrent Admin order code did not reject | NOT PASS; failure is in Admin scope and was left untouched |
@@ -92,18 +92,17 @@ This update supersedes only the latest-evidence claims above; older baseline cou
 
 - OTP signup, Google OAuth and password recovery need provider credentials, test inbox and real smoke evidence.
 - Checkout/order lifecycle and ownership/concurrency need a confirmed isolated PostgreSQL test project plus live browser flow.
-- Review photo flow is completed end-to-end:
+- Review photo implementation and database persistence are verified; the full live browser/Storage flow is still open:
   - Backend presign supports purpose `review_image` / `REVIEW` with UUID `review_id` validation and signed URL generation (`test/platform/buyer-review-media.spec.ts` — 5/5 pass).
-  - Backend review creation atomically attaches finalized media to `media_uploads` and inserts `review_images` in transaction (`test/platform/buyer-review-creation.spec.ts` — 4/4 pass).
-  - Frontend `ReviewScreen` unlocks `ReviewMediaUpload` in live mode, supports mobile touch targets >= 44pt for removal, and submits `image_media_ids` with `review_id` (`test/review-screen-live.spec.tsx`, `test/review-media-upload-live.spec.tsx`, `test/review-api.spec.ts` — 5/5 pass).
-  - Backend full native test suite: 674/674 pass; backend typecheck/lint pass; frontend typecheck pass.
+  - Backend review creation attaches finalized media in a transaction and validates owner, status, and review path. Mocked backend behavior tests pass; isolated PostgreSQL transaction tests verify rollback/commit and the persisted URL.
+  - Frontend `ReviewScreen` unlocks `ReviewMediaUpload` in live mode and submits `image_media_ids` with `review_id`. Focused review/auth suite results are recorded below; the Storage HTTP requests are mocked in browser component tests.
 - Guest public/private access boundaries, full Buyer browser journey, and live runtime deployment checks remain open.
 
 ## Continuation update (2026-10-02)
 
 - Latest selected DB acceptance on the user-authorized in-progress Supabase project: 13 files / 84 tests passed (8 isolated-schema files / 27 tests; Shop-logo/media 2 files / 19 tests; catalog variant add/remove/history 2 selected tests; checkout runtime + PostgreSQL 2 files / 36 tests). The checkout suites completed successfully using their isolated-schema harness.
 - Post-run cleanup: removed 14 exact-match `p5_checkout_<32 hex>` schemas and one exact-match `p4_checkout_e2e_<32 hex>` schema after verifying their full table sets matched the checkout test fixture. Final read-only checks show no matching test schemas and all fixed catalog test fixture IDs have zero rows across Auth/app users, shops, categories, products, variants, and Buyer orders. The transient fixed-ID catalog fixtures in `public` were absent at final verification.
-- No migration, reset, seed, OTP/Google/recovery provider smoke, or live browser journey was run in this acceptance pass. Review photo remains incomplete because backend presign/create does not yet support REVIEW media.
+- No migration, reset, seed, OTP/Google/recovery provider smoke, or full live browser journey was run in this acceptance pass. Review media backend and persistence are implemented; real Storage/provider acceptance remains open.
 - Scope note: no Admin source or Admin progress document was edited by this Buyer/Seller pass. Shared-workspace Admin changes remain untouched.
 
 - Backend Node unit/route suite rerun on the current workspace: `backend: npm run test:node` — **657/657 pass**. The previous 650/651 result was superseded; the Admin order-reason failure now passes in the current concurrent workspace state.
@@ -142,6 +141,13 @@ This update supersedes only the latest-evidence claims above; older baseline cou
 
 ## Continuation update (2026-10-02) — Buyer MVP completion slices (Slices 1 to 5)
 
+### Final-slice verification — 2026-10-02
+
+- Fixed `PostgresReviewRepository` to use a checked-out `PoolClient` for the full review/media transaction; verify Buyer ownership, `FINALIZED` state, and exact review path prefix; rollback on failure and release the client. Runtime wiring now passes the configured `SUPABASE_URL`; review image URLs no longer use a generic hard-coded host.
+- Added `tests/db/review-media-transaction.integration.test.ts`. Against the authorized Supabase project it created and dropped a random isolated schema. Both real PostgreSQL checks passed: mismatched review path rolled back the review and kept media `FINALIZED`; valid media committed the review, `ATTACHED` state, `review_images`, and a URL under the configured project host. Read-only cleanup verification found **0** remaining `review_media_<uuid>` schemas.
+- Verification: backend review platform tests **17/17 pass**; isolated PostgreSQL tests **2/2 pass**; frontend review/auth tests **18/18 pass**; frontend typecheck pass; targeted Buyer backend/frontend lint pass; `git diff --check` pass.
+- Full backend typecheck is currently blocked by existing errors in concurrent Admin files (`admin-routes.ts` and `admin-user-shop-query.spec.ts`); no Admin files were changed. The true live Seller fulfillment → Buyer review browser flow and an actual Supabase Storage upload remain unverified.
+
 - **Slice 1 — Review Media Presign (TDD)**:
   - Presign endpoint `POST /api/v1/media/uploads/presign` hỗ trợ purpose `review_image` / `REVIEW`.
   - Canonical storage path: `users/:userId/reviews/:reviewId/:mediaId.:ext`. Bắt buộc gửi `review_id` chuẩn UUID.
@@ -149,17 +155,16 @@ This update supersedes only the latest-evidence claims above; older baseline cou
 - **Slice 2 — Atomic Review Creation with Media (TDD + DB)**:
   - Cập nhật DTO `validateCreateReviewDTO` hỗ trợ `review_id` và `image_media_ids` (tối đa 3 ảnh theo P-607c).
   - ReviewService và PostgresReviewRepository kiểm tra media thuộc buyer, status `FINALIZED`, cập nhật `ATTACHED` và insert vào `review_images` trong cùng transaction.
-  - Evidence: `cd backend; npx tsx --test test/platform/buyer-review-creation.spec.ts` — 4/4 PASS.
+  - Evidence: `cd backend; npx tsx --test test/platform/buyer-review-creation.spec.ts` — 6/6 PASS; real transaction rollback/commit acceptance is in `tests/db/review-media-transaction.integration.test.ts` — 2/2 PASS.
 - **Slice 3 — Review UI & Media Integration (/ui-ux-pro-max + TDD)**:
   - Mở khóa upload ảnh và toggle review ẩn danh trên Live mode (`features.useMock() === false`).
   - Mở rộng touch target cho nút xóa ảnh $\ge 44 \times 44\text{pt}$ (WCAG AAA) qua pseudo-element `before:-inset-2.5`.
-  - Evidence: `cd frontend; npx vitest run test/review-media-upload-live.spec.tsx test/review-screen-live.spec.tsx` — 3/3 PASS.
+  - Evidence: review component/screen tests pass within the focused 18/18 Buyer review/auth run.
 - **Slice 4 — Auth OTP & Password Recovery UI (TDD & UI/UX Pro Max)**:
-  - Triển khai UI test cho VerifyEmailPage (nhập OTP 6 số, countdown resend, disable khi chờ).
-  - ForgotPasswordPage & ResetPasswordPage: kiểm tra neutral message chống user enumeration, validate mật khẩu $\ge 8$ ký tự, submit thành công.
-  - Evidence: `cd frontend; npx vitest run test/auth-otp-and-recovery.spec.tsx` — 5/5 PASS.
-- **Slice 5 — Verification & Full Lifecycle Integration**:
-  - Test trọn vẹn luồng Buyer order $\to$ Seller delivery $\to$ Buyer confirm received $\to$ Presign review image $\to$ Submit review kèm ảnh $\to$ Chặn duplicate review (RB-LB09) $\to$ Public catalog hiển thị rating summary và review.
+  - Tests cover VerifyEmailPage six-digit validation and resend countdown, ForgotPasswordPage neutral response, and ResetPasswordPage minimum/matching password checks.
+  - Evidence: `cd frontend; npx vitest run test/auth-otp-and-recovery.spec.tsx` — 8/8 PASS.
+- **Slice 5 — Buyer Review Route Flow Integration**:
+  - Route-flow test covers review eligibility guard, review-media presign ID linkage, duplicate-review guard (RB-LB09), and public catalog response using in-memory repositories. It does not execute Seller fulfillment or a live end-to-end journey.
   - Sửa `GET /api/v1/products/:product_id/reviews` để ánh xạ snake_case (`review_id`, `order_item_id`, `product_id`, `buyer_id`, `created_at`, `updated_at`) đồng bộ conventions.
   - Evidence: `cd backend; npx tsx --test test/platform/buyer-seller-lifecycle-review.spec.ts` — 6/6 PASS.
 

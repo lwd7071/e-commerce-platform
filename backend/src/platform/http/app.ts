@@ -168,7 +168,7 @@ export function createRuntimeApp(
   const checkoutService = new PgCheckoutService(pool);
   const orderQueryService = new OrderQueryService(new PgOrderRepository(pool), pool);
   const sharedEventPort = new InMemoryTransactionEventPort();
-  const reviewService = new ReviewService(new PostgresReviewRepository(pool), orderQueryService);
+  const reviewService = new ReviewService(new PostgresReviewRepository(pool, supabaseUrl), orderQueryService);
   const notificationService = new NotificationService(new PostgresNotificationRepository(pool), sharedEventPort, orderQueryService);
   const adminCampaigns = new AdminNotificationCampaignService(pool);
   const stopAdminCampaignWorker = adminCampaigns.startWorker();

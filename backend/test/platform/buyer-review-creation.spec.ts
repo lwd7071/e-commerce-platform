@@ -117,7 +117,7 @@ describe('TDD Slice 2: Atomic Review Creation with Media', () => {
         },
       };
 
-      const repo = new PostgresReviewRepository(mockDb as unknown as Pool);
+      const repo = new PostgresReviewRepository(mockDb as unknown as Pool, 'https://project.supabase.co');
       const service = new ReviewService(repo, mockOrderQuery);
 
       const context = createRequestContext({
@@ -197,7 +197,7 @@ describe('TDD Slice 2: Atomic Review Creation with Media', () => {
         query: async () => ({ rows: [], rowCount: 0 }),
       };
 
-      const repo = new PostgresReviewRepository(mockPool as unknown as Pool);
+      const repo = new PostgresReviewRepository(mockPool as unknown as Pool, 'https://project.supabase.co');
 
       await assert.rejects(async () => {
         await repo.create(
@@ -272,7 +272,7 @@ describe('TDD Slice 2: Atomic Review Creation with Media', () => {
         query: async () => ({ rows: [], rowCount: 0 }),
       };
 
-      const repo = new PostgresReviewRepository(mockPool as unknown as Pool);
+      const repo = new PostgresReviewRepository(mockPool as unknown as Pool, 'https://project.supabase.co');
 
       const created = await repo.create(
         {

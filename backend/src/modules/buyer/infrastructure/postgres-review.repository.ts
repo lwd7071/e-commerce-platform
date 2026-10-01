@@ -12,7 +12,10 @@ import { mapReview } from './row-mappers';
  * - Liskov Substitution (L): Tuân thủ hoàn toàn IReviewRepository interface contract.
  */
 export class PostgresReviewRepository implements IReviewRepository {
-  constructor(private readonly db: IDbClient) {}
+  constructor(
+    private readonly db: IDbClient,
+    private readonly supabaseUrl?: string,
+  ) {}
 
   async findById(reviewId: UUID): Promise<Review | null> {
     const sql = `SELECT review_id, buyer_id, product_id, order_item_id, rating, content, status, created_at, updated_at FROM reviews WHERE review_id = $1`;
@@ -39,6 +42,9 @@ export class PostgresReviewRepository implements IReviewRepository {
   }
 
   async create(review: Review, images?: string[], mediaIds?: UUID[]): Promise<Review> {
+    if (mediaIds?.length && !this.supabaseUrl) {
+      throw new Error('SUPABASE_URL is required to attach review media');
+    }
     const pool = this.db as IDbClient & Pick<Pool, 'connect'>;
     const client: PoolClient | IDbClient = typeof pool.connect === 'function' ? await pool.connect() : this.db;
 
@@ -95,7 +101,7 @@ export class PostgresReviewRepository implements IReviewRepository {
             `UPDATE media_uploads SET status='ATTACHED', attached_at=now(), updated_at=now() WHERE media_id=$1`,
             [mId],
           );
-          const publicUrl = `https://supabase.co/storage/v1/object/public/review-media/${row.object_path}`;
+          const publicUrl = `${this.supabaseUrl!.replace(/\/$/, '')}/storage/v1/object/public/review-media/${row.object_path}`;
           const imageSql = `
             INSERT INTO review_images (review_image_id, review_id, image_url, sort_order)
             VALUES ($1, $2, $3, $4)
