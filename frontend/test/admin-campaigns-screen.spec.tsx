@@ -9,7 +9,7 @@ describe("Admin notification campaigns", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", fetchMock);
     fetchMock.mockReset();
-    fetchMock.mockImplementation(async (_url: RequestInfo | URL, init?: RequestInit) => new Response(JSON.stringify({ data: { campaign_id: "campaign-1", audience_role: "BUYER", title: "Sale", content: "Read now", status: "PENDING", recipient_count: 12, delivered_count: 0, created_at: "2026-10-02T00:00:00Z" }, request_id: "req-test" }), { status: 201, headers: { "content-type": "application/json" } }));
+    fetchMock.mockImplementation(async () => new Response(JSON.stringify({ data: { campaign_id: "campaign-1", audience_role: "BUYER", title: "Sale", content: "Read now", status: "PENDING", recipient_count: 12, delivered_count: 0, created_at: "2026-10-02T00:00:00Z" }, request_id: "req-test" }), { status: 201, headers: { "content-type": "application/json" } }));
   });
   afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
