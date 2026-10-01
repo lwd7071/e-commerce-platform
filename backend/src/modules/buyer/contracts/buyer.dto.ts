@@ -3,6 +3,8 @@ import { ValidationError } from '../domain/errors';
 
 // Helper kiểm tra UUID v4 canonical
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+// Helper kiểm tra định dạng số điện thoại Việt Nam (0xxxxxxxxx hoặc +84xxxxxxxxx)
+const PHONE_REGEX = /^(?:0\d{9,10}|\+84\d{9,10})$/;
 
 export function assertValidUUID(value: string, fieldName: string): void {
   if (!value || typeof value !== 'string' || !UUID_REGEX.test(value)) {
@@ -127,9 +129,14 @@ export function validateCreateAddressDTO(rawDto: unknown): CreateAddressDTO {
     isDefault = rawIsDefault;
   }
 
+  const cleanedPhone = String(phone).trim();
+  if (!PHONE_REGEX.test(cleanedPhone)) {
+    throw new ValidationError('Số điện thoại không hợp lệ (phải bắt đầu bằng 0 hoặc +84 và có 10-11 chữ số).', { field: 'phone' });
+  }
+
   return {
     recipientName: String(recipientName).trim(),
-    phone: String(phone).trim(),
+    phone: cleanedPhone,
     province: String(province).trim(),
     district: String(district).trim(),
     ward: String(ward).trim(),
@@ -176,6 +183,9 @@ export function validateUpdateAddressDTO(rawDto: unknown): UpdateAddressDTO {
       throw new ValidationError("Trường 'phone' không được để trống.", { field: 'phone' });
     }
     phone = rawPhone.trim();
+    if (!PHONE_REGEX.test(phone)) {
+      throw new ValidationError('Số điện thoại không hợp lệ (phải bắt đầu bằng 0 hoặc +84 và có 10-11 chữ số).', { field: 'phone' });
+    }
   }
 
   const rawProvince = dto.province;

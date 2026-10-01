@@ -254,6 +254,19 @@ describe('AddressService Tests (Ownership & RB-LB05)', () => {
     assert.equal(found, null);
   });
 
+  it('deleteAddress: khi xóa địa chỉ default thì tự động đôn địa chỉ còn lại lên làm default', async () => {
+    await addressRepo.create(mockAddress1); // isDefault: true
+    await addressRepo.create(mockAddress2); // isDefault: false
+
+    await addressService.deleteAddress(mockBuyerId, mockAddress1.addressId);
+
+    const foundDeleted = await addressRepo.findById(mockAddress1.addressId);
+    assert.equal(foundDeleted, null);
+
+    const remaining = await addressRepo.findById(mockAddress2.addressId);
+    assert.equal(remaining?.isDefault, true);
+  });
+
   it('[auth-rbac-rls.md §3] setDefault: ném 404 RESOURCE_NOT_FOUND khi setDefault địa chỉ của user khác', async () => {
     await addressRepo.create({ ...mockAddress1, userId: otherUserId });
 

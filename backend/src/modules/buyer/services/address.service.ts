@@ -109,6 +109,14 @@ export class AddressService {
       throw new ResourceNotFoundError('Address not found', { addressId });
     }
     await this.addressRepo.delete(addressId);
+
+    // Fallback default: Khi xóa địa chỉ đang là mặc định, đôn địa chỉ còn lại đầu tiên lên làm mặc định mới
+    if (address.isDefault) {
+      const remaining = await this.addressRepo.findByUserId(userId);
+      if (remaining.length > 0) {
+        await this.addressRepo.setDefault(userId, remaining[0].addressId);
+      }
+    }
   }
 
   async setDefault(userId: UUID, addressId: UUID): Promise<void> {

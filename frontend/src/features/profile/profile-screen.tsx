@@ -278,7 +278,7 @@ function ProfileReadyScreen({
           </form>
         </section>
       </div>
-      <AddressManager />
+      {profile.role === "BUYER" && <AddressManager />}
     </>
   );
 }
