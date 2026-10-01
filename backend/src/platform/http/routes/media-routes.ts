@@ -4,7 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { buildSuccessEnvelope } from '../envelope.ts';
 import { AppError, ForbiddenError, NotFoundError, UnauthorizedError } from '../../errors/app-error.ts';
 import type { RequestContext } from '../../context/request-context.ts';
-import { STORAGE_BUCKETS, buildAvatarImagePath, buildShopLogoPath } from '../../../../db/storage.ts';
+import { STORAGE_BUCKETS, buildAvatarImagePath, buildReviewImagePath, buildShopLogoPath } from '../../../../db/storage.ts';
 import { attachFinalizedMedia, markMediaFinalized, registerPresignedMedia } from '../../../../db/media-lifecycle.ts';
 
 type AsyncRoute = (req: Request, res: Response, next: NextFunction) => Promise<void>;
@@ -218,8 +218,12 @@ export function createMediaRouter(auth?: RequestHandler, runtime?: MediaRuntimeD
           storagePath = buildAvatarImagePath(ctx.user_id, mediaId, ext);
         }
       } else if (dbPurpose === 'REVIEW') {
+        const reviewId = typeof body.review_id === 'string' ? body.review_id.trim() : '';
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(reviewId)) {
+          throw new MediaValidationError('review_id is required and must be a valid UUID for review media uploads', { field: 'review_id' });
+        }
         bucket = STORAGE_BUCKETS.REVIEW_MEDIA;
-        storagePath = `users/${ctx.user_id}/reviews/temp/${mediaId}.${ext}`;
+        storagePath = buildReviewImagePath(ctx.user_id, reviewId, mediaId, ext);
       } else if (dbPurpose === 'AVATAR') {
         bucket = STORAGE_BUCKETS.PROFILE_MEDIA;
         storagePath = buildAvatarImagePath(ctx.user_id, mediaId, ext);
@@ -230,16 +234,13 @@ export function createMediaRouter(auth?: RequestHandler, runtime?: MediaRuntimeD
       }
 
       if (runtime) {
-        if (dbPurpose === 'REVIEW') {
-          throw new MediaValidationError('Review media upload is not available in this runtime', { field: 'purpose' });
-        }
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
         try {
           await registerPresignedMedia(runtime.pool, {
             mediaId,
             ownerId: ctx.user_id,
             purpose: dbPurpose,
-            bucketId: bucket as typeof STORAGE_BUCKETS.PRODUCT_MEDIA | typeof STORAGE_BUCKETS.PROFILE_MEDIA,
+            bucketId: bucket as typeof STORAGE_BUCKETS.PRODUCT_MEDIA | typeof STORAGE_BUCKETS.PROFILE_MEDIA | typeof STORAGE_BUCKETS.REVIEW_MEDIA,
             objectPath: storagePath,
             expiresAt,
           });
