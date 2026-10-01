@@ -179,7 +179,36 @@ export function createAdminRouter(moderation?: IModerationService, auth?: Reques
     '/admin/users',
     ...guards(auth, 'ADMIN'),
     asyncRoute(async (req, res) => {
-      const { role, status, search } = req.query;
+      const { role, status, search, cursor, limit } = req.query;
+      const modAny = moderation as Record<string, unknown> | undefined;
+      if (cursor !== undefined || limit !== undefined) {
+        if (reads) {
+          const page = await reads.listUsersPage({
+            role: typeof role === 'string' ? role : undefined,
+            status: typeof status === 'string' ? status : undefined,
+            search: typeof search === 'string' ? search : undefined,
+            cursor: typeof cursor === 'string' ? cursor : undefined,
+            limit: typeof limit === 'string' ? Number(limit) : undefined,
+          });
+          return void res.json(buildPaginatedEnvelope(page.items, { next_cursor: page.next_cursor, has_more: page.has_more, limit: page.limit }, requestId(req)));
+        }
+        if (typeof modAny?.listUsersPage === 'function') {
+          const listUsersPageFn = modAny.listUsersPage as (params: unknown) => Promise<{
+            items: unknown[];
+            next_cursor: string | null;
+            has_more: boolean;
+            limit: number;
+          }>;
+          const page = await listUsersPageFn({
+            role: typeof role === 'string' ? role : undefined,
+            status: typeof status === 'string' ? status : undefined,
+            search: typeof search === 'string' ? search : undefined,
+            cursor: typeof cursor === 'string' ? cursor : undefined,
+            limit: typeof limit === 'string' ? Number(limit) : undefined,
+          });
+          return void res.json(buildPaginatedEnvelope(page.items, { next_cursor: page.next_cursor, has_more: page.has_more, limit: page.limit }, requestId(req)));
+        }
+      }
       const service = implementation(moderation?.listUsers, moderation);
       const users = await service({
         role: typeof role === 'string' ? role : undefined,
@@ -187,6 +216,29 @@ export function createAdminRouter(moderation?: IModerationService, auth?: Reques
         search: typeof search === 'string' ? search : undefined,
       });
       res.json(buildSuccessEnvelope(users, requestId(req)));
+    })
+  );
+
+  // GET /admin/users/:id
+  router.get(
+    '/admin/users/:id',
+    ...guards(auth, 'ADMIN'),
+    asyncRoute(async (req, res) => {
+      const service = implementation(moderation?.getUserDetail, moderation);
+      const user = await service(req.params.id);
+      if (!user) throw new NotFoundError(`User with id '${req.params.id}' was not found`);
+      const u = user as unknown as Record<string, unknown>;
+      const full_name = u.full_name ?? u.fullName;
+      res.json(buildSuccessEnvelope({
+        id: u.id ?? u.user_id,
+        email: u.email,
+        fullName: full_name,
+        full_name,
+        role: u.role,
+        status: u.status,
+        created_at: u.created_at,
+        updated_at: u.updated_at,
+      }, requestId(req)));
     })
   );
 
@@ -241,13 +293,68 @@ export function createAdminRouter(moderation?: IModerationService, auth?: Reques
     '/admin/shops',
     ...guards(auth, 'ADMIN'),
     asyncRoute(async (req, res) => {
-      const { status, search } = req.query;
+      const { status, search, cursor, limit } = req.query;
+      const modAny = moderation as Record<string, unknown> | undefined;
+      if (cursor !== undefined || limit !== undefined) {
+        if (reads) {
+          const page = await reads.listShopsPage({
+            status: typeof status === 'string' ? status : undefined,
+            search: typeof search === 'string' ? search : undefined,
+            cursor: typeof cursor === 'string' ? cursor : undefined,
+            limit: typeof limit === 'string' ? Number(limit) : undefined,
+          });
+          return void res.json(buildPaginatedEnvelope(page.items, { next_cursor: page.next_cursor, has_more: page.has_more, limit: page.limit }, requestId(req)));
+        }
+        if (typeof modAny?.listShopsPage === 'function') {
+          const listShopsPageFn = modAny.listShopsPage as (params: unknown) => Promise<{
+            items: unknown[];
+            next_cursor: string | null;
+            has_more: boolean;
+            limit: number;
+          }>;
+          const page = await listShopsPageFn({
+            status: typeof status === 'string' ? status : undefined,
+            search: typeof search === 'string' ? search : undefined,
+            cursor: typeof cursor === 'string' ? cursor : undefined,
+            limit: typeof limit === 'string' ? Number(limit) : undefined,
+          });
+          return void res.json(buildPaginatedEnvelope(page.items, { next_cursor: page.next_cursor, has_more: page.has_more, limit: page.limit }, requestId(req)));
+        }
+      }
       const service = implementation(moderation?.listShops, moderation);
       const shops = await service({
         status: typeof status === 'string' ? status : undefined,
         search: typeof search === 'string' ? search : undefined,
       });
       res.json(buildSuccessEnvelope(shops, requestId(req)));
+    })
+  );
+
+  // GET /admin/shops/:id
+  router.get(
+    '/admin/shops/:id',
+    ...guards(auth, 'ADMIN'),
+    asyncRoute(async (req, res) => {
+      const service = implementation(moderation?.getShopDetail, moderation);
+      const shop = await service(req.params.id);
+      if (!shop) throw new NotFoundError(`Shop with id '${req.params.id}' was not found`);
+      const s = shop as unknown as Record<string, unknown>;
+      res.json(buildSuccessEnvelope({
+        id: s.shop_id ?? s.id,
+        shop_id: s.shop_id ?? s.id,
+        name: s.shop_name ?? s.name,
+        shop_name: s.shop_name ?? s.name,
+        ownerId: s.owner_id ?? s.ownerId,
+        ownerEmail: s.owner_email ?? s.ownerEmail ?? '',
+        productCount: Number(s.product_count ?? s.productCount ?? 0),
+        contactPhone: s.contact_phone ?? s.contactPhone ?? null,
+        pickupAddress: s.pickup_address ?? s.pickupAddress ?? null,
+        description: s.description ?? null,
+        status: s.status,
+        createdAt: s.created_at ?? s.createdAt,
+        created_at: s.created_at ?? s.createdAt,
+        updated_at: s.updated_at ?? s.updatedAt,
+      }, requestId(req)));
     })
   );
 

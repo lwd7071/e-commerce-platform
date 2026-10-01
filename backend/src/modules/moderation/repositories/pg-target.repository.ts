@@ -208,6 +208,62 @@ export class PgModerationTargetRepository implements ITargetLookupRepository {
     }));
   }
 
+  async getUserDetail(userId: string): Promise<AdminUserItem | null> {
+    const res = await this.pool.query(
+      `SELECT u.user_id, u.email, COALESCE(p.full_name, split_part(u.email, '@', 1)) as full_name,
+              u.role, u.status, u.created_at, u.updated_at
+         FROM app_users u
+         LEFT JOIN user_profiles p ON u.user_id = p.user_id
+        WHERE u.user_id = $1`,
+      [userId],
+    );
+    if (!res.rows[0]) return null;
+    const row = res.rows[0];
+    return {
+      id: row.user_id,
+      email: row.email,
+      full_name: row.full_name,
+      role: row.role as 'BUYER' | 'SELLER' | 'ADMIN',
+      status: row.status as UserStatus,
+      created_at: new Date(row.created_at).toISOString(),
+      updated_at: new Date(row.updated_at).toISOString(),
+    };
+  }
+
+  async getShopDetail(shopId: string): Promise<AdminShopItem | null> {
+    const res = await this.pool.query(
+      `SELECT s.shop_id, s.owner_id, s.shop_name, s.description, s.logo_url,
+              s.pickup_address, s.contact_phone, s.status, s.created_at, s.updated_at,
+              u.email as owner_email,
+              COALESCE(p.full_name, split_part(u.email, '@', 1)) as owner_name,
+              COUNT(pr.product_id)::int as product_count
+         FROM shops s
+         JOIN app_users u ON s.owner_id = u.user_id
+         LEFT JOIN user_profiles p ON u.user_id = p.user_id
+         LEFT JOIN products pr ON s.shop_id = pr.shop_id
+        WHERE s.shop_id = $1
+        GROUP BY s.shop_id, u.email, p.full_name`,
+      [shopId],
+    );
+    if (!res.rows[0]) return null;
+    const row = res.rows[0];
+    return {
+      shop_id: row.shop_id,
+      owner_id: row.owner_id,
+      shop_name: row.shop_name,
+      description: row.description,
+      logo_url: row.logo_url,
+      pickup_address: row.pickup_address,
+      contact_phone: row.contact_phone,
+      status: row.status as ShopStatus,
+      product_count: Number(row.product_count),
+      owner_email: row.owner_email,
+      owner_name: row.owner_name,
+      created_at: new Date(row.created_at).toISOString(),
+      updated_at: new Date(row.updated_at).toISOString(),
+    };
+  }
+
   async listModerationProducts(params?: { status?: string; search?: string }): Promise<AdminModerationProduct[]> {
     const values: unknown[] = [];
     const where: string[] = [];

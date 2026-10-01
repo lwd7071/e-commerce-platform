@@ -259,6 +259,14 @@ export class ModerationService {
     return this.targetRepo.listModerationReviews?.(params) ?? [];
   }
 
+  public async getUserDetail(userId: string): Promise<AdminUserItem | null> {
+    return this.targetRepo.getUserDetail?.(userId) ?? null;
+  }
+
+  public async getShopDetail(shopId: string): Promise<AdminShopItem | null> {
+    return this.targetRepo.getShopDetail?.(shopId) ?? null;
+  }
+
   private async verifyTargetExists(targetType: ModerationTargetType, targetId: string): Promise<void> {
     let exists = false;
     switch (targetType) {

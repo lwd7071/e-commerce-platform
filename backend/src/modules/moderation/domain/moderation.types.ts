@@ -110,6 +110,8 @@ export interface ITargetLookupRepository {
   listUsers?(params?: { role?: string; status?: string; search?: string }): Promise<AdminUserItem[]>;
   listModerationProducts?(params?: { status?: string; search?: string }): Promise<AdminModerationProduct[]>;
   listModerationReviews?(params?: { status?: string; search?: string }): Promise<AdminModerationReview[]>;
+  getUserDetail?(userId: string): Promise<AdminUserItem | null>;
+  getShopDetail?(shopId: string): Promise<AdminShopItem | null>;
 }
 
 export interface ITransactionManager {
@@ -127,4 +129,6 @@ export interface IModerationService {
   listUsers?(params?: { role?: string; status?: string; search?: string }): Promise<AdminUserItem[]>;
   listModerationProducts?(params?: { status?: string; search?: string }): Promise<AdminModerationProduct[]>;
   listModerationReviews?(params?: { status?: string; search?: string }): Promise<AdminModerationReview[]>;
+  getUserDetail?(userId: string): Promise<AdminUserItem | null>;
+  getShopDetail?(shopId: string): Promise<AdminShopItem | null>;
 }

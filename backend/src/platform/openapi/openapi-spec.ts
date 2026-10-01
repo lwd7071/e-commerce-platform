@@ -1108,8 +1108,17 @@ export function generateOpenApiSpec(): OpenApiSpec {
             { name: 'role', in: 'query', required: false, schema: { type: 'string', enum: ['BUYER', 'SELLER', 'ADMIN'] } },
             { name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['ACTIVE', 'LOCKED'] } },
             { name: 'search', in: 'query', required: false, schema: { type: 'string' } },
+            { name: 'limit', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 100 } },
+            { name: 'cursor', in: 'query', required: false, schema: { type: 'string' } },
           ],
           responses: { '200': successResponse('Users list retrieved'), '403': errorResponse('Admin role required') },
+        },
+      },
+      '/admin/users/{id}': {
+        get: {
+          summary: 'Get user detail for Admin', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: { '200': successResponse('User detail retrieved'), '403': errorResponse('Admin role required'), '404': errorResponse('User not found') },
         },
       },
       '/admin/stats': {
@@ -1190,8 +1199,17 @@ export function generateOpenApiSpec(): OpenApiSpec {
           parameters: [
             { name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['PENDING', 'ACTIVE', 'LOCKED', 'SUSPENDED'] } },
             { name: 'search', in: 'query', required: false, schema: { type: 'string' } },
+            { name: 'limit', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 100 } },
+            { name: 'cursor', in: 'query', required: false, schema: { type: 'string' } },
           ],
           responses: { '200': successResponse('Shops list retrieved'), '403': errorResponse('Admin role required') },
+        },
+      },
+      '/admin/shops/{id}': {
+        get: {
+          summary: 'Get shop detail for Admin', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: { '200': successResponse('Shop detail retrieved'), '403': errorResponse('Admin role required'), '404': errorResponse('Shop not found') },
         },
       },
       '/admin/shops/{id}/approve': {
