@@ -57,6 +57,7 @@
 | `ORDER_CANCELLATION_NOT_ALLOWED` | 409 | Actor/trạng thái không cho phép hủy |
 | `VOUCHER_NOT_APPLICABLE` | 422 | Voucher không đáp ứng điều kiện |
 | `VOUCHER_CODE_CONFLICT` | 409 | Mã Voucher đã tồn tại |
+| `VOUCHER_ALREADY_USED` | 409 | Voucher đã được sử dụng; điều kiện không thể sửa, chỉ bật/tắt |
 | `VOUCHER_ALREADY_APPLIED` | 409 | Order đã có VoucherUsage |
 | `VOUCHER_DISCOUNT_MISMATCH` | 500 | VoucherUsage và Order không khớp |
 | `PAYMENT_AMOUNT_INVALID` | 422 | Amount không bằng TotalAmount hoặc không dương |

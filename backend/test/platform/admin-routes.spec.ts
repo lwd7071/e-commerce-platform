@@ -42,6 +42,8 @@ class InMemoryAuthAndTargetRepository implements ITargetLookupRepository, IAuthR
     return this.shopsMap.has(shopId) || this.shops.has(shopId);
   }
 
+  async hasRequiredShopProfile(): Promise<boolean> { return true; }
+
   async getShopStatus(shopId: string): Promise<'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'LOCKED' | null> {
     const s = this.shopsMap.get(shopId);
     return s ? s.status : null;

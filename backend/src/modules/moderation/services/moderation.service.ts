@@ -104,7 +104,12 @@ export class ModerationService {
       if (cmd.target_type === 'USER') {
         const newStatus = cmd.action === 'LOCK' ? 'LOCKED' : 'ACTIVE';
         updateResult = await this.targetRepo.updateUserStatus(trx, cleanTargetId, newStatus);
-      } else if (cmd.target_type === 'SHOP' && this.targetRepo.updateShopStatus) {
+      } else if (cmd.target_type === 'SHOP') {
+        if (cmd.action === 'APPROVE' && !(await this.targetRepo.hasRequiredShopProfile(trx, cleanTargetId))) {
+          throw new ValidationFailedError('Shop requires a pickup address and contact phone before approval', {
+            fields: ['pickup_address', 'contact_phone'],
+          });
+        }
         const newShopStatus = cmd.action === 'LOCK' ? 'LOCKED' : 'ACTIVE';
         const shopRes = await this.targetRepo.updateShopStatus(trx, cleanTargetId, newShopStatus);
         updateResult = {

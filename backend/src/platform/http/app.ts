@@ -35,6 +35,18 @@ import { ReviewService } from '../../modules/buyer/services/review.service.ts';
 import { NotificationService } from '../../modules/buyer/services/notification.service.ts';
 import { InMemoryTransactionEventPort } from '../../modules/buyer/ports/buyer-event.port.ts';
 import { PgBuyerHttpService } from '../../modules/buyer/services/pg-buyer-http.service.ts';
+import { createSellerShopRouter } from './routes/seller-shop-routes.ts';
+import { SellerShopService } from '../../modules/shop/services/seller-shop.service.ts';
+import { PgSellerShopRepository } from '../../modules/shop/repositories/pg-seller-shop.repository.ts';
+import { createSellerAnalyticsRouter } from './routes/seller-analytics-routes.ts';
+import { SellerKpiService } from '../../modules/reporting/services/seller-kpi.service.ts';
+import { PgSellerKpiRepository } from '../../modules/reporting/repositories/pg-seller-kpi.repository.ts';
+import { createSellerVoucherRouter } from './routes/seller-voucher-routes.ts';
+import { SellerVoucherService } from '../../modules/voucher/services/seller-voucher.service.ts';
+import { PgSellerVoucherRepository } from '../../modules/voucher/repositories/pg-seller-voucher.repository.ts';
+import { createSellerReportingRouter } from './routes/seller-reporting-routes.ts';
+import { SellerRevenueService } from '../../modules/reporting/services/seller-revenue.service.ts';
+import { ReportingService } from '../../modules/reporting/services/reporting.service.ts';
 
 import { createSecurityHeadersMiddleware, createCorsMiddleware, type CorsOptions } from './middlewares/security-headers.ts';
 import { createLayeredRateLimiter } from './middlewares/rate-limiter.ts';
@@ -59,6 +71,10 @@ export interface PlatformApplications extends T1RouteApplications {
   orderServices?: OrderServices;
   authRepository?: IAuthRepository;
   onboardingService?: PgOnboardingService;
+  sellerShop?: Pick<SellerShopService, 'get' | 'update'>;
+  sellerKpi?: Pick<SellerKpiService, 'get'>;
+  sellerVouchers?: Pick<SellerVoucherService, 'list' | 'get' | 'create' | 'update' | 'setStatus'>;
+  sellerRevenue?: Pick<SellerRevenueService, 'get'>;
   rateLimiter?: RequestHandler | false;
   trustProxy?: boolean | string | number;
   cors?: CorsOptions;
@@ -88,6 +104,10 @@ export function createApp(applications: PlatformApplications = {}): Application 
   const auth = applications.auth;
   app.use('/api/v1', createIdentityRouter(applications.authRepository, applications.onboardingService, auth));
   app.use('/api/v1', createCatalogRouter(applications.catalog, auth));
+  app.use('/api/v1', createSellerShopRouter(applications.sellerShop, auth));
+  app.use('/api/v1', createSellerAnalyticsRouter(applications.sellerKpi, auth));
+  app.use('/api/v1', createSellerVoucherRouter(applications.sellerVouchers, auth));
+  app.use('/api/v1', createSellerReportingRouter(applications.sellerRevenue, auth));
 
   const buyerTarget = applications.buyerServices ?? applications.buyer;
   app.use('/api/v1', createBuyerDomainRouter(buyerTarget, auth));
@@ -158,6 +178,10 @@ export function createRuntimeApp(
       auth: createAuthMiddleware(authRepository, verifier),
       authRepository,
       onboardingService,
+      sellerShop: new SellerShopService(new PgSellerShopRepository(pool)),
+      sellerKpi: new SellerKpiService(new PgSellerKpiRepository(pool)),
+      sellerVouchers: new SellerVoucherService(new PgSellerVoucherRepository(pool)),
+      sellerRevenue: new SellerRevenueService(new ReportingService({ orderRepo: new PgOrderRepository(pool) })),
       catalog: new PgCatalogHttpService(pool),
       buyerServices: {
         legacyHttpApplication: new PgBuyerHttpService(pool),

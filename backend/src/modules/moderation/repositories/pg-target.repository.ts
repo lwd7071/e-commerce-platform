@@ -68,6 +68,19 @@ export class PgModerationTargetRepository implements ITargetLookupRepository {
     return res.rows[0].status as ShopStatus;
   }
 
+  async hasRequiredShopProfile(trx: unknown, shopId: string): Promise<boolean> {
+    const executor = this.getExecutor(trx);
+    const res = await executor.query(
+      `SELECT 1 FROM shops
+       WHERE shop_id = $1
+         AND NULLIF(BTRIM(pickup_address), '') IS NOT NULL
+         AND NULLIF(BTRIM(contact_phone), '') IS NOT NULL
+       FOR UPDATE`,
+      [shopId],
+    );
+    return (res.rowCount ?? 0) > 0;
+  }
+
   async updateShopStatus(trx: unknown, shopId: string, status: ShopStatus): Promise<ShopStatusUpdateResult> {
     const executor = this.getExecutor(trx);
     const res = await executor.query(

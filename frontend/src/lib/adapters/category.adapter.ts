@@ -37,11 +37,7 @@ export interface ICategoryAdapter {
 }
 
 /**
- * Development category fixtures for mock and UI testing.
- * Stable IDs can be inserted into an explicitly selected development/test database
- * with the backend's guarded db:seed:dev-categories command. GAP-05 still applies:
- * the backend has no public categories API, so live mode safely returns [] until
- * a category endpoint is mounted and wired.
+ * Development category fixtures for explicitly selected mock mode and UI testing.
  */
 export const DEV_CATEGORY_FIXTURES: CategoryItem[] = [
   // Cấp 1: Danh mục gốc (Roots - level 1)
@@ -109,19 +105,15 @@ export class CategoryAdapterImpl implements ICategoryAdapter {
 
   async getCategories(): Promise<CategoryItem[]> {
     if (!this.isMockMode()) {
-      try {
-        const wireCategories = await catalogApi.getCategories();
-        this.liveCategories = wireCategories.map(category => ({
-          id: category.category_id,
-          parentId: category.parent_category_id,
-          name: category.category_name,
-          description: category.description,
-          status: "ACTIVE",
-        }));
-        return this.liveCategories.map(category => ({ ...category }));
-      } catch {
-        return this.mockFixtures.filter((cat) => cat.status === "ACTIVE");
-      }
+      const wireCategories = await catalogApi.getCategories();
+      this.liveCategories = wireCategories.map(category => ({
+        id: category.category_id,
+        parentId: category.parent_category_id,
+        name: category.category_name,
+        description: category.description,
+        status: "ACTIVE",
+      }));
+      return this.liveCategories.map(category => ({ ...category }));
     }
 
     // In mock mode, return active mock categories

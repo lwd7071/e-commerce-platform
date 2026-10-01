@@ -28,6 +28,9 @@ Nội dung nghiệp vụ gốc nằm trong [`../../spec/schema-freeze-v1.md`](..
 | QD18 Không lưu dữ liệu thẻ thật | Payment request/log/storage | API + security policy | `PAYMENT_DATA_NOT_ALLOWED` | Payload chứa PAN/CVV bị từ chối; log redaction |
 | QD19 Doanh thu chỉ tính Order hợp lệ/completed | Reporting query | Reporting service | `REPORT_FILTER_INVALID` | Không tính cancelled/failed/pending |
 | QD20 Admin action quan trọng phải có log | Admin transaction | Service + append log | `AUDIT_WRITE_FAILED` | Action và AdminLog commit/rollback cùng nhau |
+| QD21 Shop phải có địa chỉ nhận hàng và điện thoại liên hệ trước khi duyệt; Seller `PENDING` được sửa hồ sơ | Seller shop profile / Admin approve | Shop service + moderation transaction | `VALIDATION_FAILED` | Seller chỉ sửa Shop của mình; hồ sơ thiếu trường không được kích hoạt hoặc ghi audit |
+
+QD21 được bổ sung theo [CR-SELLER-01](../../spec/changes/CR-SELLER-01-full-seller-operations.md) (Approved 2026-10-01).
 
 ## 3. Phân bổ RBTV
 

@@ -2,7 +2,7 @@
 
 > Cập nhật: 2026-10-01. Tài liệu này là bản tra cứu theo vai trò để FE, BE và database triển khai nhất quán. Mã quy tắc và thứ tự ưu tiên vẫn theo [Architecture Rules](rules/README.md), [Business Rules QD/RB](rules/business-rules.md), [Auth/RBAC/RLS](rules/auth-rbac-rls.md) và [Schema Freeze](../spec/schema-freeze-v1.md). Mục **Chưa triển khai/lệch code** là backlog, không có nghĩa API tương ứng đã hoạt động.
 
-Phần bổ sung Seller tự sửa địa chỉ lấy hàng là hướng phát triển đã thống nhất cho UX; trước khi đổi business rule/API đã khóa, cần ghi Change Request theo quy trình kiến trúc hiện hành.
+Các thay đổi vận hành Seller ở tài liệu này thuộc [CR-SELLER-01](../spec/changes/CR-SELLER-01-full-seller-operations.md), đã được Chủ dự án duyệt ngày 2026-10-01. Phần nào chưa triển khai vẫn được ghi riêng là backlog.
 
 ## 1. Khái niệm và nguyên tắc chung
 
@@ -76,9 +76,15 @@ Khi một tài nguyên private không thuộc người gọi, backend có thể 
 
 | Mục | Hiện trạng code 2026-10-01 | Việc cần làm |
 |---|---|---|
-| Hồ sơ chung | `GET/PATCH /profile` khai báo Buyer/Seller/Admin, nhưng guard hiện còn chặn Seller có Shop chưa ACTIVE; avatar có luồng attach media riêng. | Giữ hồ sơ cá nhân dùng chung và tách profile guard khỏi điều kiện Shop ACTIVE; Shop `PENDING` vẫn phải sửa được hồ sơ của mình. |
-| Địa chỉ Buyer | Các route `/addresses` chỉ nhận Buyer; checkout dùng Address của Buyer. | Chỉ render `AddressManager` cho Buyer. Hiện [`profile-screen.tsx`](../../frontend/src/features/profile/profile-screen.tsx) render component này cho mọi role, nên Seller gặp `Required role: BUYER`. |
-| Địa chỉ Shop | Bảng `shops` có `pickup_address`; onboarding Seller chỉ nhận `shop_name` và tạo Shop `PENDING`. Chưa thấy Seller self-service route để sửa `pickup_address`. | Thiết kế API có ownership check và UI hồ sơ Shop để Seller nhập/sửa địa chỉ lấy hàng. Không gọi `/addresses` cho việc này. |
+| Hồ sơ chung | `GET/PATCH /profile` nhận Buyer/Seller/Admin; profile guard không phụ thuộc Shop ACTIVE. Avatar có luồng attach media riêng. | Đã tách hồ sơ cá nhân khỏi Shop status trong runtime; Seller `PENDING` vẫn sửa profile cá nhân. |
+| Địa chỉ Buyer | Các route `/addresses` chỉ nhận Buyer; checkout dùng Address của Buyer. `profile-screen.tsx` chỉ render `AddressManager` khi role là Buyer. | Phân biệt đã có ở runtime; Seller cần hồ sơ Shop riêng theo CR-SELLER-01, không dùng `/addresses`. |
+| Địa chỉ Shop | `GET/PATCH /seller/shop` đọc và sửa Shop theo `context.user_id → shops.owner_id`; cho sửa khi `PENDING`/`ACTIVE`, chỉ đọc khi `SUSPENDED`/`LOCKED`. | Đã triển khai API và màn `/seller/shop`. `/addresses` tiếp tục chỉ dành cho Buyer. Admin approve yêu cầu pickup address và contact phone trong transaction. |
+| Dashboard Seller | `GET /seller/kpi` tự suy Shop từ auth context; doanh thu theo QD19. | Đã bỏ KPI mock/Shop ID khỏi Admin repository và nối dashboard với Seller API. Cần xác nhận báo cáo runtime trên PostgreSQL test. |
+| Catalog Seller | `/seller/products` trả cursor page; `GET /seller/products/:id` trả chi tiết riêng tư gồm variant inactive; Seller không được tự mở Product `HIDDEN`. | Danh sách, chi tiết và stock/status đã scope theo Shop. **Còn thiếu PATCH thông tin Product/Variant và màn sửa;** cần test ownership, SKU, giá, variant đã có giao dịch và media finalize. |
+| Đơn bán | `GET /orders` phân trang theo Shop từ context; detail có `status_history`; checkout, hủy và đổi trạng thái ghi Notification trong transaction. | Đã nối list/timeline và notification runtime; cần chạy database integration cho nhiều Shop, cạnh state machine, rollback và quyền Seller. |
+| Notification Seller | Seller đọc/đánh dấu Notification recipient của chính mình; không bắt buộc Shop ACTIVE. | Đã mở UI/runtime cho Seller và nối event đơn mới/hủy/hoàn tất. |
+| Voucher Shop | `/seller/vouchers` CRUD/status tự gắn Shop; không sửa điều kiện nếu đã được dùng. | Đã thêm API/UI và error `VOUCHER_ALREADY_USED`; cần chạy kiểm chứng checkout + PostgreSQL cross-shop. |
+| Revenue report | `/seller/reports/revenue` lọc ngày, tự scope Shop, chỉ tính Order `COMPLETED`. | Đã thêm API/UI; cần chạy PostgreSQL integration cho QD19/date range/cross-shop. |
 | Buyer/Seller đồng vai trò | `app_users.role` chỉ chứa một giá trị; Buyer routes và Seller routes kiểm tra role riêng. | Chưa mở tính năng mua hàng bằng Seller account cho tới khi có quyết định nghiệp vụ và thay đổi quyền tương ứng. |
 | Review ảnh | Review text/rating có API; media runtime hiện từ chối purpose `REVIEW`, UI ảnh còn data URL/progress giả. | Hoàn thiện Review media riêng; không coi preview là upload thật. |
 | Admin | Có routes quản lý User/Shop/Category; các acceptance về audit, RBAC và UI còn được theo dõi trong [implementation plan](../frontend-spec/08-implementation-plan.md). | Hoàn tất từng command và bằng chứng quyền theo rule tương ứng; không mở quyền ghi tùy ý. |

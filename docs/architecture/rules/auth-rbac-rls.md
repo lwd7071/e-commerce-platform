@@ -31,7 +31,9 @@ Backend dùng `jose` `createRemoteJWKSet`/`jwtVerify` với URL `SUPABASE_JWKS_U
 | Hành vi | Guest | Buyer | Seller | Admin |
 |---|---:|---:|---:|---:|
 | Xem nội dung công khai | ✓ | ✓ | ✓ | ✓ |
-| Quản lý hồ sơ/địa chỉ của mình |  | ✓ | ✓ | ✓ |
+| Quản lý hồ sơ cá nhân |  | ✓ | ✓ | ✓ |
+| Quản lý sổ địa chỉ giao hàng Buyer |  | ✓ |  |  |
+| Quản lý hồ sơ/địa chỉ nhận hàng Shop sở hữu |  |  | PENDING/ACTIVE | Kiểm soát |
 | Quản lý giỏ và checkout |  | ✓ |  |  |
 | Xem/hủy Order mua của mình |  | ✓ |  | ✓ |
 | Tạo Review đủ điều kiện |  | ✓ |  | Kiểm duyệt |
@@ -42,10 +44,12 @@ Backend dùng `jose` `createRemoteJWKSet`/`jwtVerify` với URL `SUPABASE_JWKS_U
 | Quản lý category toàn sàn |  |  |  | ✓ |
 | Quản lý User/Shop/vi phạm |  |  |  | ✓ |
 | Báo cáo |  | Cá nhân khi có | Shop sở hữu | Toàn hệ thống |
+| Đọc/đánh dấu Notification cá nhân |  | ✓ | ✓ (không cần Shop ACTIVE) | Theo API quản trị |
 
 - Role chỉ là điều kiện đầu tiên; resource ownership luôn phải được kiểm tra riêng.
 - Seller ownership đi theo `app_users.user_id → shops.owner_id`.
-- Seller có role `SELLER` nhưng shop `PENDING`/`SUSPENDED`/không tồn tại không được gọi thao tác Seller; chỉ `shop.status = ACTIVE` mới qua guard cho seller business routes.
+- Seller có role `SELLER` chỉ sửa hồ sơ Shop sở hữu khi `PENDING` hoặc `ACTIVE`; `SUSPENDED`/`LOCKED` chỉ được đọc hồ sơ.
+- `shop.status = ACTIVE` mới qua guard cho Seller business operations (Product, Voucher, Orders, reports). Personal profile và notification không dùng Shop ACTIVE guard.
 - Buyer ownership đi theo `orders.buyer_id`, `addresses.user_id`, `carts.buyer_id`, `notifications.recipient_id`.
 - Resource riêng tư không thuộc người gọi nên trả `404 RESOURCE_NOT_FOUND` khi cần tránh tiết lộ tồn tại; hành vi quản trị bị cấm rõ ràng có thể trả `403 RESOURCE_FORBIDDEN`.
 
@@ -63,7 +67,8 @@ Backend dùng `jose` `createRemoteJWKSet`/`jwtVerify` với URL `SUPABASE_JWKS_U
 
 ### Seller private data
 
-- Seller chỉ thao tác Product, ProductImage, ProductVariant, Voucher, Order và Shipment thuộc Shop sở hữu.
+- Seller chỉ thao tác Product, ProductImage, ProductVariant, Voucher, Order và Shipment thuộc Shop sở hữu. Shop profile phải scope theo `context.user_id → shops.owner_id`.
+- Seller Notification phải scope bằng `notifications.recipient_id = context.user_id`; trạng thái Shop không thay quyền sở hữu Notification.
 - `shop_id` trong body không đủ chứng minh ownership; backend phải join/lookup từ User.
 - Seller không được đọc dữ liệu Buyer ngoài phần cần thiết để thực hiện Order thuộc Shop.
 

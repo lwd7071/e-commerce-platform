@@ -135,7 +135,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
           },
         },
         OrderReadDTO: {
-          type: 'object', required: ['order_id', 'buyer_id', 'shop_id', 'shop_name', 'status', 'subtotal', 'discount_amount', 'shipping_fee', 'total_amount', 'cancel_reason', 'created_at', 'updated_at', 'items'],
+          type: 'object', required: ['order_id', 'buyer_id', 'shop_id', 'shop_name', 'status', 'subtotal', 'discount_amount', 'shipping_fee', 'total_amount', 'cancel_reason', 'created_at', 'updated_at', 'items', 'status_history'],
           properties: {
             order_id: { type: 'string', format: 'uuid' }, buyer_id: { type: 'string', format: 'uuid' }, shop_id: { type: 'string', format: 'uuid' }, shop_name: { type: 'string' },
             status: { type: 'string', enum: ['PENDING_CONFIRMATION', 'CONFIRMED', 'PREPARING', 'SHIPPING', 'COMPLETED', 'CANCELLED', 'DELIVERY_FAILED'] },
@@ -143,6 +143,10 @@ export function generateOpenApiSpec(): OpenApiSpec {
             cancel_reason: { type: ['string', 'null'] }, created_at: { type: 'string', format: 'date-time' }, updated_at: { type: 'string', format: 'date-time' },
             items: { type: 'array', items: { type: 'object', required: ['order_item_id', 'product_id', 'variant_id', 'product_name', 'variant_name', 'unit_price', 'quantity', 'line_total', 'image_url'], properties: {
               order_item_id: { type: 'string', format: 'uuid' }, product_id: { type: 'string', format: 'uuid' }, variant_id: { type: 'string', format: 'uuid' }, product_name: { type: 'string' }, variant_name: { type: 'string' }, unit_price: { type: 'string' }, quantity: { type: 'integer', minimum: 1 }, line_total: { type: 'string' }, image_url: { type: ['string', 'null'], format: 'uri' },
+            } } },
+            status_history: { type: 'array', items: { type: 'object', required: ['history_id', 'old_status', 'new_status', 'changed_by', 'reason', 'changed_at'], properties: {
+              history_id: { type: 'string', format: 'uuid' }, old_status: { type: ['string', 'null'] }, new_status: { type: 'string' },
+              changed_by: { type: ['string', 'null'], format: 'uuid' }, reason: { type: ['string', 'null'] }, changed_at: { type: 'string', format: 'date-time' },
             } } },
           },
         },
@@ -259,7 +263,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
             additionalProperties: false,
             properties: {
               product_id: { type: 'string', format: 'uuid' }, category_id: { type: 'string', format: 'uuid' }, product_name: { type: 'string' }, description: { type: ['string', 'null'] },
-              images: { type: 'array', items: { type: 'object', required: ['image_url'], additionalProperties: false, properties: { image_url: { type: 'string', format: 'uri' }, media_id: { type: 'string', format: 'uuid' }, sort_order: { type: 'integer', minimum: 0 } } } },
+              images: { type: 'array', items: { type: 'object', required: ['image_url', 'media_id'], additionalProperties: false, properties: { image_url: { type: 'string', format: 'uri' }, media_id: { type: 'string', format: 'uuid' }, sort_order: { type: 'integer', minimum: 0 } } } },
               variants: { type: 'array', minItems: 1, items: { type: 'object', required: ['variant_name', 'sku', 'price'], additionalProperties: false, properties: { variant_name: { type: 'string' }, variant_value: { type: ['string', 'null'] }, sku: { type: 'string' }, price: { type: 'string' }, stock_quantity: { type: 'integer', minimum: 0 } } } },
             },
           }),
@@ -537,9 +541,13 @@ export function generateOpenApiSpec(): OpenApiSpec {
         get: {
           summary: 'List Orders',
           security: [{ BearerAuth: [] }],
-          parameters: [{ name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['PENDING_CONFIRMATION', 'CONFIRMED', 'PREPARING', 'SHIPPING', 'COMPLETED', 'CANCELLED', 'DELIVERY_FAILED'] } }],
+          parameters: [
+            { name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['PENDING_CONFIRMATION', 'CONFIRMED', 'PREPARING', 'SHIPPING', 'COMPLETED', 'CANCELLED', 'DELIVERY_FAILED'] } },
+            { name: 'limit', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 100 } },
+            { name: 'cursor', in: 'query', required: false, schema: { type: 'string' } },
+          ],
           responses: {
-            '200': successResponse('Orders owned by the authenticated Buyer/Seller or visible to Admin', '#/components/schemas/OrderListSuccessEnvelope'),
+            '200': successResponse('Paginated Orders owned by the authenticated Buyer/Seller or visible to Admin', '#/components/schemas/PaginatedEnvelope'),
             '422': errorResponse('Invalid status filter or unsupported query field'),
           },
         },
@@ -1143,11 +1151,83 @@ export function generateOpenApiSpec(): OpenApiSpec {
           summary: 'List products belonging to seller shop', security: [{ BearerAuth: [] }],
           parameters: [
             { name: 'search', in: 'query', required: false, schema: { type: 'string' } },
-            { name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] } },
+            { name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['ACTIVE', 'INACTIVE', 'HIDDEN'] } },
             { name: 'limit', in: 'query', required: false, schema: { type: 'integer' } },
             { name: 'cursor', in: 'query', required: false, schema: { type: 'string' } },
           ],
-          responses: { '200': successResponse('Seller products'), '403': errorResponse('Seller role and active shop required') },
+          responses: { '200': successResponse('Seller product page', '#/components/schemas/PaginatedEnvelope'), '403': errorResponse('Seller role and active shop required') },
+        },
+      },
+      '/seller/products/{id}': {
+        get: {
+          summary: 'Read product details, including inactive variants, belonging to the authenticated Seller shop', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: { '200': successResponse('Seller product detail'), '403': errorResponse('Seller role and active shop required'), '404': errorResponse('Product not found') },
+        },
+        patch: {
+          summary: 'Update editable details and existing variant prices/SKUs for a Seller product', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: jsonRequest({ type: 'object', additionalProperties: false, minProperties: 1, properties: {
+            product_name: { type: 'string', minLength: 2, maxLength: 200 }, description: { type: ['string', 'null'] }, category_id: { type: 'string', format: 'uuid' },
+            variants: { type: 'array', minItems: 1, items: { type: 'object', required: ['variant_name', 'sku', 'price'], properties: { variant_id: { type: 'string', format: 'uuid' }, variant_name: { type: 'string', maxLength: 100 }, variant_value: { type: ['string', 'null'], maxLength: 150 }, sku: { type: 'string', maxLength: 100 }, price: { type: 'string' } } } },
+          } }),
+          responses: { '200': successResponse('Seller product updated'), '403': errorResponse('Seller role and active shop required'), '404': errorResponse('Product or variant not found'), '409': errorResponse('SKU already used in Seller shop'), '422': errorResponse('Invalid product fields') },
+        },
+      },
+      '/seller/shop': {
+        get: {
+          summary: 'Read the authenticated seller shop profile', security: [{ BearerAuth: [] }],
+          responses: { '200': successResponse('Seller shop profile'), '403': errorResponse('Seller role required'), '404': errorResponse('Seller shop not found') },
+        },
+        patch: {
+          summary: 'Update the authenticated seller shop profile', security: [{ BearerAuth: [] }],
+          requestBody: jsonRequest({ type: 'object', minProperties: 1, properties: {
+            shop_name: { type: 'string', minLength: 2, maxLength: 150 }, description: { type: ['string', 'null'] },
+            pickup_address: { type: ['string', 'null'], maxLength: 255 }, contact_phone: { type: ['string', 'null'], maxLength: 20 },
+          } }),
+          responses: { '200': successResponse('Seller shop profile updated'), '403': errorResponse('Shop profile is read-only'), '404': errorResponse('Seller shop not found'), '422': errorResponse('Invalid shop profile') },
+        },
+      },
+      '/seller/kpi': {
+        get: {
+          summary: 'Read KPI data for the authenticated seller shop', security: [{ BearerAuth: [] }],
+          responses: { '200': successResponse('Seller KPI'), '403': errorResponse('Seller role and active shop required'), '404': errorResponse('Seller shop not found') },
+        },
+      },
+      '/seller/vouchers': {
+        get: { summary: 'List vouchers belonging to the authenticated Seller shop', security: [{ BearerAuth: [] }], responses: { '200': successResponse('Shop vouchers'), '403': errorResponse('Active Seller shop required') } },
+        post: {
+          summary: 'Create a voucher for the authenticated Seller shop', security: [{ BearerAuth: [] }],
+          requestBody: jsonRequest({ type: 'object', additionalProperties: false, required: ['code', 'voucher_name', 'discount_type', 'discount_value', 'max_discount', 'min_order_value', 'quantity', 'start_at', 'end_at'], properties: {
+            code: { type: 'string', maxLength: 50 }, voucher_name: { type: 'string', maxLength: 150 }, discount_type: { type: 'string', enum: ['PERCENT', 'FIXED'] },
+            discount_value: { type: 'string', pattern: '^\\d+(?:\\.\\d{1,2})?$' }, max_discount: { type: ['string', 'null'] }, min_order_value: { type: 'string' },
+            quantity: { type: 'integer', minimum: 0 }, start_at: { type: 'string', format: 'date-time' }, end_at: { type: 'string', format: 'date-time' },
+          } }),
+          responses: { '201': successResponse('Shop voucher created'), '403': errorResponse('Active Seller shop required'), '409': errorResponse('Voucher code already exists'), '422': errorResponse('Invalid voucher fields') },
+        },
+      },
+      '/seller/vouchers/{voucher_id}': {
+        get: { summary: 'Get a voucher belonging to the authenticated Seller shop', security: [{ BearerAuth: [] }], parameters: [{ name: 'voucher_id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }], responses: { '200': successResponse('Shop voucher'), '404': errorResponse('Voucher not found') } },
+        patch: {
+          summary: 'Update unused voucher conditions', security: [{ BearerAuth: [] }], parameters: [{ name: 'voucher_id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: jsonRequest({ type: 'object', additionalProperties: false, properties: {
+            code: { type: 'string', maxLength: 50 }, voucher_name: { type: 'string', maxLength: 150 }, discount_type: { type: 'string', enum: ['PERCENT', 'FIXED'] },
+            discount_value: { type: 'string' }, max_discount: { type: ['string', 'null'] }, min_order_value: { type: 'string' }, quantity: { type: 'integer', minimum: 0 }, start_at: { type: 'string', format: 'date-time' }, end_at: { type: 'string', format: 'date-time' },
+          } }),
+          responses: { '200': successResponse('Shop voucher updated'), '404': errorResponse('Voucher not found'), '409': errorResponse('Used voucher conditions cannot be changed'), '422': errorResponse('Invalid voucher fields') },
+        },
+      },
+      '/seller/vouchers/{voucher_id}/status': {
+        patch: { summary: 'Activate or deactivate a Seller shop voucher', security: [{ BearerAuth: [] }], parameters: [{ name: 'voucher_id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }], requestBody: jsonRequest({ type: 'object', required: ['status'], properties: { status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] } } }), responses: { '200': successResponse('Voucher status updated'), '404': errorResponse('Voucher not found'), '422': errorResponse('Invalid status') } },
+      },
+      '/seller/reports/revenue': {
+        get: {
+          summary: 'Get completed-order revenue report for the authenticated Seller shop', security: [{ BearerAuth: [] }],
+          parameters: [
+            { name: 'from', in: 'query', required: false, schema: { type: 'string', format: 'date-time' } },
+            { name: 'to', in: 'query', required: false, schema: { type: 'string', format: 'date-time' } },
+          ],
+          responses: { '200': successResponse('Seller revenue report'), '403': errorResponse('Active Seller shop required'), '422': errorResponse('REPORT_FILTER_INVALID') },
         },
       },
       '/seller/products/{id}/status': {

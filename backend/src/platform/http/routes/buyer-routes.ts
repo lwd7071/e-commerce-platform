@@ -49,6 +49,19 @@ function profileGuards(auth: RequestHandler | undefined): RequestHandler[] {
   return auth ? [auth, handler] : [handler];
 }
 
+function notificationGuards(auth: RequestHandler | undefined): RequestHandler[] {
+  const handler: RequestHandler = (req, _res, next) => {
+    try {
+      const requestContext = context(req);
+      if (!['BUYER', 'SELLER'].includes(requestContext.role as Role)) {
+        throw new ForbiddenError('ROLE_REQUIRED', 'Required role: BUYER or SELLER');
+      }
+      next();
+    } catch (error) { next(error); }
+  };
+  return auth ? [auth, handler] : [handler];
+}
+
 function requireRole(...roles: Role[]): (req: Request, _res: Response, next: NextFunction) => void {
   return (req, _res, next) => {
     try {
@@ -375,7 +388,7 @@ export function createBuyerDomainRouter(
   // ==========================================
   // 5. NOTIFICATION ROUTES
   // ==========================================
-  router.get('/notifications', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
+  router.get('/notifications', ...notificationGuards(auth), asyncRoute(async (req, res) => {
     const ctx = context(req);
     if (!notificationService) {
       throw new NotImplementedError('Notifications are not available in the current runtime');
@@ -388,7 +401,7 @@ export function createBuyerDomainRouter(
     res.json(buildSuccessEnvelope(data, requestId(req)));
   }));
 
-  router.get('/notifications/:notification_id', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
+  router.get('/notifications/:notification_id', ...notificationGuards(auth), asyncRoute(async (req, res) => {
     const ctx = context(req);
     if (!notificationService) {
       throw new NotImplementedError('Notification details are not available in the current runtime');
@@ -406,8 +419,8 @@ export function createBuyerDomainRouter(
     res.json(buildSuccessEnvelope(data, requestId(req)));
   });
 
-  router.patch('/notifications/:notification_id/read', ...guards(auth, 'BUYER'), handleMarkNotificationRead);
-  router.patch('/notifications/:notification_id', ...guards(auth, 'BUYER'), handleMarkNotificationRead);
+  router.patch('/notifications/:notification_id/read', ...notificationGuards(auth), handleMarkNotificationRead);
+  router.patch('/notifications/:notification_id', ...notificationGuards(auth), handleMarkNotificationRead);
 
   return router;
 }

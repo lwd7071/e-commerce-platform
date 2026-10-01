@@ -6,7 +6,7 @@ import { OrderDomainError } from '../../../../src/modules/order/domain/errors.ts
 import type { OrderRecord } from '../../../../src/modules/order/domain/repositories.ts';
 import { ModerationService } from '../../../../src/modules/moderation/services/moderation.service.ts';
 import type { ITargetLookupRepository, IAuditPort, ITransactionManager, UserStatus, ModerationRecord } from '../../../../src/modules/moderation/domain/moderation.types.ts';
-import { AdminTargetProtectedError, ReasonRequiredError } from '../../../../src/platform/errors/app-error.ts';
+import { AdminTargetProtectedError } from '../../../../src/platform/errors/app-error.ts';
 
 class InMemoryModerationRepository implements ITargetLookupRepository {
   public users = new Map<string, { id: string; role: 'BUYER' | 'SELLER' | 'ADMIN'; status: UserStatus }>();
@@ -31,6 +31,7 @@ class InMemoryModerationRepository implements ITargetLookupRepository {
   async shopExists(shopId: string): Promise<boolean> {
     return this.shops.has(shopId);
   }
+  async hasRequiredShopProfile(): Promise<boolean> { return true; }
   async getShopStatus(shopId: string): Promise<'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'LOCKED' | null> {
     return this.shops.get(shopId)?.status ?? null;
   }
@@ -86,6 +87,7 @@ describe('/diagnose Person 5 - Admin Business Rules & Order Intervention', () =>
       oldStatus: null,
       newStatus: 'PENDING_CONFIRMATION',
       changedBy: buyerId,
+      reason: null,
       changedAt: new Date().toISOString(),
     });
 
@@ -114,6 +116,7 @@ describe('/diagnose Person 5 - Admin Business Rules & Order Intervention', () =>
       oldStatus: null,
       newStatus: 'PENDING_CONFIRMATION',
       changedBy: buyerId,
+      reason: null,
       changedAt: new Date().toISOString(),
     });
 
@@ -151,6 +154,7 @@ describe('/diagnose Person 5 - Admin Business Rules & Order Intervention', () =>
       oldStatus: 'PREPARING',
       newStatus: 'SHIPPING',
       changedBy: adminUserId,
+      reason: null,
       changedAt: new Date().toISOString(),
     });
 

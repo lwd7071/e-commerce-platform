@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { repositories } from "@/lib/repositories/repository-factory";
@@ -29,6 +29,9 @@ export function SellerProductsScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [stockFilter, setStockFilter] = useState<"all" | "in_stock" | "out_of_stock">("all");
   const [page, setPage] = useState(1);
+  const [cursor, setCursor] = useState<string | undefined>();
+  const [cursorHistory, setCursorHistory] = useState<string[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const itemsPerPage = 10;
 
   // Edit stock dialog state (O-509)
@@ -39,82 +42,55 @@ export function SellerProductsScreen() {
   const [stockInput, setStockInput] = useState<string>("0");
   const [isUpdatingStock, setIsUpdatingStock] = useState(false);
 
-  useEffect(() => {
-    let ignore = false;
-    repositories.catalog().getSellerProducts({ limit: 50 })
-      .then((data) => {
-        if (ignore) return;
-        setProducts(data);
+  const loadPage = useCallback((params: { cursor?: string; search?: string } = {}) => {
+    setIsLoading(true);
+    setError(null);
+    repositories.catalog().getSellerProductsPaginated({ limit: itemsPerPage, ...params })
+      .then((result) => {
+        setProducts(result.data);
+        setNextCursor(result.meta.next_cursor ?? null);
+        setCursor(params.cursor);
         setIsLoading(false);
       })
       .catch((err: unknown) => {
-        if (ignore) return;
-        const msg = err instanceof Error ? err.message : "Không thể tải danh sách sản phẩm.";
-        setError(msg);
+        setError(err instanceof Error ? err.message : "Không thể tải danh sách sản phẩm.");
         setIsLoading(false);
       });
-
-    return () => {
-      ignore = true;
-    };
   }, []);
 
   const handleRetry = () => {
-    setIsLoading(true);
-    setError(null);
-    repositories.catalog().getSellerProducts({ limit: 50 })
-      .then((data) => {
-        setProducts(data);
-        setIsLoading(false);
-      })
-      .catch((err: unknown) => {
-        const msg = err instanceof Error ? err.message : "Không thể tải danh sách sản phẩm.";
-        setError(msg);
-        setIsLoading(false);
-      });
+    loadPage({ cursor, search: searchQuery || undefined });
   };
 
   // Scope products strictly to seller context (O-508)
-  const sellerShopId = user?.shopId || "00000000-0000-0000-0000-000000000001";
   const isShopPending = user?.role === "SELLER" && user?.shopStatus === "PENDING";
-  const scopedProducts = useMemo(() => {
-    return products.filter((p) => {
-      if (sellerShopId && p.shop_id && p.shop_id !== sellerShopId) {
-        return false;
-      }
-      return true;
-    });
-  }, [products, sellerShopId]);
 
   // Apply search query and stock availability filter
-  const filteredProducts = useMemo(() => {
-    return scopedProducts.filter((item) => {
+  const filteredProducts = useMemo(() => products.filter((item) => {
       if (stockFilter === "in_stock" && item.total_stock <= 0) return false;
       if (stockFilter === "out_of_stock" && item.total_stock > 0) return false;
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const matchName = item.product_name.toLowerCase().includes(q);
-        const matchId = item.product_id.toLowerCase().includes(q);
-        if (!matchName && !matchId) return false;
-      }
       return true;
-    });
-  }, [scopedProducts, stockFilter, searchQuery]);
+    }), [products, stockFilter]);
 
-  // Client-side pagination
-  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / itemsPerPage));
-  const currentPage = Math.min(page, totalPages);
-  const paginatedProducts = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return filteredProducts.slice(start, start + itemsPerPage);
-  }, [filteredProducts, currentPage, itemsPerPage]);
+  const paginatedProducts = filteredProducts;
+  const currentPage = page;
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setPage(1);
+      setCursor(undefined);
+      setCursorHistory([]);
+      loadPage({ search: searchQuery.trim() || undefined });
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery, loadPage]);
 
   const handleOpenStockDialog = async (prod: WireCatalogProductItem) => {
     if (isShopPending) return;
     setActiveProduct(prod);
     setIsLoadingDetail(true);
     try {
-      const detail = await repositories.catalog().getProductById(prod.product_id);
+      const detail = await repositories.catalog().getSellerProductById!(prod.product_id);
       setProductDetail(detail);
       if (detail.variants && detail.variants.length > 0) {
         setEditingVariant(detail.variants[0]);
@@ -194,7 +170,11 @@ export function SellerProductsScreen() {
   const [isTogglingStatus, setIsTogglingStatus] = useState<string | null>(null);
 
   const handleToggleProductStatus = async (item: WireCatalogProductItem) => {
-    const currentStatus = (item as { status?: string }).status || "ACTIVE";
+    const currentStatus = item.status || "ACTIVE";
+    if (currentStatus === "HIDDEN") {
+      showToast("Sản phẩm đang bị Admin ẩn. Liên hệ hỗ trợ để được xem xét.", "error");
+      return;
+    }
     const nextStatus = currentStatus === "ACTIVE" ? "INACTIVE" : "ACTIVE";
     setIsTogglingStatus(item.product_id);
     try {
@@ -267,7 +247,7 @@ export function SellerProductsScreen() {
       <div className="notice notice--info" role="status">
         <Icon name="info" />
         <div>
-          <strong>Kênh quản lý sản phẩm gian hàng:</strong> Dữ liệu sản phẩm được giới hạn theo gian hàng của bạn (Shop ID: <code>{sellerShopId}</code>), hỗ trợ cập nhật tồn kho tức thời và bật/tắt hiển thị (B-201, B-204, B-205).
+          <strong>Kênh quản lý sản phẩm gian hàng:</strong> Dữ liệu được máy chủ giới hạn theo gian hàng của bạn; tại đây bạn có thể cập nhật tồn kho và trạng thái sản phẩm.
         </div>
       </div>
       {/* Sub-navigation tabs between Orders and Products */}
@@ -302,7 +282,7 @@ export function SellerProductsScreen() {
           description={error}
           onRetry={handleRetry}
         />
-      ) : scopedProducts.length === 0 ? (
+      ) : products.length === 0 ? (
         <EmptyState
           icon="bag"
           title={isShopPending ? "Gian hàng đang chờ duyệt" : "Gian hàng chưa có sản phẩm nào"}
@@ -352,7 +332,7 @@ export function SellerProductsScreen() {
                   }}
                   className="rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-xs text-[var(--foreground)]"
                 >
-                  <option value="all">Tất cả ({scopedProducts.length})</option>
+                  <option value="all">Tất cả trong trang ({products.length})</option>
                   <option value="in_stock">Còn hàng</option>
                   <option value="out_of_stock">Hết hàng</option>
                 </select>
@@ -428,6 +408,11 @@ export function SellerProductsScreen() {
                           </td>
                           <td className="py-3.5 px-4 text-center">
                             <div className="flex items-center justify-center gap-2">
+                              {!isShopPending && <Link
+                                href={`/seller/products/${item.product_id}/edit`}
+                                aria-label={`Sửa ${item.product_name}`}
+                                className="button button--secondary h-8 px-3 text-xs"
+                              >Sửa</Link>}
                               <Button
                                 variant="secondary"
                                 onClick={() => handleOpenStockDialog(item)}
@@ -441,10 +426,11 @@ export function SellerProductsScreen() {
                                 variant="ghost"
                                 onClick={() => handleToggleProductStatus(item)}
                                 loading={isTogglingStatus === item.product_id}
+                                disabled={item.status === "HIDDEN"}
                                 className="h-8 px-2.5 text-xs text-[var(--subtext)] hover:text-[var(--foreground)]"
-                                title={isItemActive ? "Ẩn khỏi gian hàng" : "Hiện sản phẩm"}
+                                title={item.status === "HIDDEN" ? "Sản phẩm do Admin ẩn" : isItemActive ? "Ẩn khỏi gian hàng" : "Hiện sản phẩm"}
                               >
-                                {isItemActive ? "Ẩn" : "Hiện"}
+                                {item.status === "HIDDEN" ? "Admin đã ẩn" : isItemActive ? "Ẩn" : "Hiện"}
                               </Button>
                               <Link
                                 href={`/products/${item.product_id}`}
@@ -466,24 +452,37 @@ export function SellerProductsScreen() {
               {/* Pagination bar (O-508) */}
               <div className="flex items-center justify-between border-t border-[var(--border)] px-4 py-3 bg-[var(--card-muted)]/30 text-xs">
                 <span className="text-[var(--subtext)]">
-                  Hiển thị {Math.min((currentPage - 1) * itemsPerPage + 1, filteredProducts.length)} - {Math.min(currentPage * itemsPerPage, filteredProducts.length)} trong số {filteredProducts.length} sản phẩm
+                  Trang {currentPage}: {filteredProducts.length} sản phẩm đang hiển thị
                 </span>
                 <div className="flex items-center gap-2">
                   <Button
                     variant="secondary"
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={currentPage <= 1}
+                    onClick={() => {
+                      const previous = cursorHistory[cursorHistory.length - 1];
+                      if (cursorHistory.length > 0) {
+                        setCursorHistory((history) => history.slice(0, -1));
+                        setPage((value) => Math.max(1, value - 1));
+                        loadPage({ cursor: previous || undefined, search: searchQuery || undefined });
+                      }
+                    }}
+                    disabled={cursorHistory.length === 0}
                     className="h-7 px-2.5 text-xs"
                   >
                     Trước
                   </Button>
                   <span className="font-semibold text-[var(--foreground)] px-1">
-                    {currentPage} / {totalPages}
+                    {currentPage}
                   </span>
                   <Button
                     variant="secondary"
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={currentPage >= totalPages}
+                    onClick={() => {
+                      if (nextCursor) {
+                        setCursorHistory((history) => [...history, cursor ?? ""]);
+                        setPage((value) => value + 1);
+                        loadPage({ cursor: nextCursor, search: searchQuery || undefined });
+                      }
+                    }}
+                    disabled={!nextCursor}
                     className="h-7 px-2.5 text-xs"
                   >
                     Sau

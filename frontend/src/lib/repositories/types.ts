@@ -20,9 +20,12 @@ export interface ICatalogRepository {
   getProducts(params?: GetProductsParams): Promise<WireCatalogProductItem[]>;
   getProductsPaginated(params?: GetProductsParams): Promise<PaginatedEnvelope<WireCatalogProductItem>>;
   getProductById(id: string): Promise<WireCatalogProductDetail>;
+  getSellerProductById?(id: string): Promise<WireCatalogProductDetail>;
+  updateSellerProduct?(id: string, input: Partial<Pick<WireCatalogProductDetail, "product_name" | "description" | "category_id">> & { variants?: Array<{ variant_id?: string; variant_name: string; variant_value?: string | null; sku: string; price: string }> }): Promise<WireCatalogProductDetail>;
   createProduct?(data: CreateProductInput): Promise<WireCatalogProductDetail>;
   updateStock?(variantId: string, quantity: number): Promise<unknown>;
   getSellerProducts(params?: { limit?: number; cursor?: string; search?: string; status?: string }): Promise<WireCatalogProductItem[]>;
+  getSellerProductsPaginated(params?: { limit?: number; cursor?: string; search?: string; status?: string }): Promise<PaginatedEnvelope<WireCatalogProductItem>>;
   updateProductStatus?(productId: string, status: "ACTIVE" | "INACTIVE"): Promise<unknown>;
 }
 
@@ -40,6 +43,7 @@ export interface IBuyerRepository {
 
 export interface IOrderRepository {
   getOrders(params?: { status?: string; shop_id?: string }): Promise<WireOrder[]>;
+  getOrdersPaginated?(params?: { status?: string; limit?: number; cursor?: string }): Promise<PaginatedEnvelope<WireOrder>>;
   getOrderById(id: string): Promise<WireOrder>;
   cancelOrder(id: string, reason: string): Promise<WireOrder>;
   confirmOrder(id: string, reason?: string): Promise<WireOrder>;
@@ -120,6 +124,11 @@ export interface IAdminRepository {
   approveShop(shopId: string, reason?: string): Promise<void>;
   lockShop(payload: LockShopPayload): Promise<void>;
   unlockShop(shopId: string, reason?: string): Promise<void>;
+}
+
+export interface ISellerRepository {
+  getKpi(): Promise<import('../../features/admin/admin.types').SellerKPIStats>;
+  getRevenueReport(filter?: { from?: string; to?: string }): Promise<import('../api/seller-report.api').SellerRevenueReport>;
 }
 
 export interface UploadMediaResult {

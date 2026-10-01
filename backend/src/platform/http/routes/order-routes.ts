@@ -1,5 +1,5 @@
 import { Router, type Request, type Response, type NextFunction, type RequestHandler } from 'express';
-import { buildSuccessEnvelope } from '../envelope.ts';
+import { buildPaginatedEnvelope, buildSuccessEnvelope } from '../envelope.ts';
 import { DependencyUnavailableError, ForbiddenError, NotFoundError, ReasonRequiredError, UnauthorizedError, ValidationFailedError } from '../../errors/app-error.ts';
 import { parseCheckoutCommand } from '../../../modules/checkout/contracts/checkout-command.ts';
 import type { RequestContext } from '../../context/request-context.ts';
@@ -107,14 +107,17 @@ export function createOrderDomainRouter(
   // ==========================================
   router.get('/orders', ...guards(auth, 'BUYER', 'SELLER', 'ADMIN'), asyncRoute(async (req, res) => {
     const ctx = context(req);
-    const unknown = Object.keys(req.query).find(key => key !== 'status');
+    const unknown = Object.keys(req.query).find(key => !['status', 'limit', 'cursor'].includes(key));
     if (unknown) throw new ValidationFailedError(`Unknown field: ${unknown}`, { field: unknown });
     const status = req.query.status;
     if (status !== undefined && typeof status !== 'string') throw new ValidationFailedError('Status must be a single value', { field: 'status' });
+    const limit = req.query.limit === undefined ? undefined : Number(req.query.limit);
+    const cursor = req.query.cursor;
+    if (cursor !== undefined && typeof cursor !== 'string') throw new ValidationFailedError('Cursor must be a single value', { field: 'cursor' });
 
     if (!orderQueryService) throw new DependencyUnavailableError('Order reads are not configured');
-    const orders = await orderQueryService.listOrders(ctx, status ? { status } : {});
-    res.json(buildSuccessEnvelope(orders, requestId(req)));
+    const page = await orderQueryService.listOrdersPaginated(ctx, { ...(status ? { status } : {}), ...(limit === undefined ? {} : { limit }), ...(cursor ? { cursor } : {}) });
+    res.json(buildPaginatedEnvelope(page.items, { next_cursor: page.next_cursor, has_more: page.has_more, limit: page.limit }, requestId(req)));
   }));
 
   // ==========================================

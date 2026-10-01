@@ -12,7 +12,7 @@ describe('/diagnose Person 4 - Seller Order Transitions', () => {
   const otherShopId = '99999999-9999-4999-8999-999999999999';
   const orderId = '44444444-4444-4444-8444-444444444444';
 
-  it('Issue 1: Seller chuyển đơn từ PREPARING sang SHIPPING khi gửi to = SHIPPING (mặc định bàn giao)', async () => {
+  it('Issue 1: Seller chuyển đơn từ PREPARING sang SHIPPING sau khi xác nhận bàn giao', async () => {
     const orderRepo = new InMemoryOrderRepository();
     const lifecycle = new OrderLifecycleService({ orderRepo });
 
@@ -40,14 +40,16 @@ describe('/diagnose Person 4 - Seller Order Transitions', () => {
       oldStatus: 'CONFIRMED',
       newStatus: 'PREPARING',
       changedBy: sellerUserId,
+      reason: null,
       changedAt: new Date().toISOString(),
     });
 
     const sellerActor = { kind: 'SELLER' as const, userId: sellerUserId, shopId };
 
-    // Seller bấm "Bàn giao vận chuyển" -> to = 'SHIPPING'
+    // Seller reports verified handover before moving to SHIPPING.
     const result = await lifecycle.transitionOrder(orderId, sellerActor, {
       to: 'SHIPPING',
+      shipmentStatus: 'HANDED_OVER',
     });
 
     assert.ok(result);
@@ -82,6 +84,7 @@ describe('/diagnose Person 4 - Seller Order Transitions', () => {
       oldStatus: 'PREPARING',
       newStatus: 'SHIPPING',
       changedBy: sellerUserId,
+      reason: null,
       changedAt: new Date().toISOString(),
     });
 
@@ -121,6 +124,7 @@ describe('/diagnose Person 4 - Seller Order Transitions', () => {
       oldStatus: null,
       newStatus: 'PENDING_CONFIRMATION',
       changedBy: buyerId,
+      reason: null,
       changedAt: new Date().toISOString(),
     });
 

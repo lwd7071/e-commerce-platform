@@ -54,6 +54,7 @@ describe('/diagnose Person 3 - Edge cases & Logic flaws', () => {
       oldStatus: null,
       newStatus: 'PENDING_CONFIRMATION',
       changedBy: buyerId,
+      reason: null,
       changedAt: new Date().toISOString(),
     };
     await orderRepo.createOrder(order, [item], hist);
@@ -112,6 +113,7 @@ describe('/diagnose Person 3 - Edge cases & Logic flaws', () => {
       oldStatus: null,
       newStatus: 'COMPLETED',
       changedBy: null,
+      reason: null,
       changedAt: new Date().toISOString(),
     });
 

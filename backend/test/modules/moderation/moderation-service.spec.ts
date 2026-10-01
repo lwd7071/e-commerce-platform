@@ -16,6 +16,7 @@ import {
 class InMemoryTargetRepository implements ITargetLookupRepository {
   public users: Map<string, { id: string; status: UserStatus; updated_at: string; role?: 'BUYER' | 'SELLER' | 'ADMIN' }> = new Map();
   public shops: Set<string> = new Set();
+  public completeShopProfiles = new Set<string>();
   public products: Set<string> = new Set();
   public reviews: Set<string> = new Set();
   public moderationRecords: ModerationRecord[] = [];
@@ -68,6 +69,14 @@ class InMemoryTargetRepository implements ITargetLookupRepository {
 
   async shopExists(shopId: string): Promise<boolean> {
     return this.shops.has(shopId);
+  }
+
+  async hasRequiredShopProfile(_trx: unknown, shopId: string): Promise<boolean> {
+    return this.completeShopProfiles.has(shopId);
+  }
+
+  async updateShopStatus(_trx: unknown, shopId: string, status: 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'LOCKED') {
+    return { shop_id: shopId, status, updated_at: new Date().toISOString() };
   }
 
   async productExists(productId: string): Promise<boolean> {
@@ -344,5 +353,19 @@ describe('Phase 3 — TDD Cycle 3.2: ModerationService with Atomic Transaction (
         return true;
       }
     );
+  });
+
+  it('refuses to approve a shop until pickup address and contact phone are present', async () => {
+    const shopId = '00000000-0000-0000-0000-000000000010';
+    await assert.rejects(service.approveShop(validAdminId, shopId), (err: unknown) => {
+      assert.ok(err instanceof ValidationFailedError);
+      assert.deepStrictEqual((err as ValidationFailedError).details, {
+        fields: ['pickup_address', 'contact_phone'],
+      });
+      return true;
+    });
+    assert.equal(txManager.committed, false);
+    assert.equal(targetRepo.moderationRecords.length, 0);
+    assert.equal(auditPort.auditRecords.length, 0);
   });
 });

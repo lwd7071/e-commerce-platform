@@ -1,6 +1,7 @@
 import { apiClient } from "./client";
 import type { OrderStatus } from "@/components/ui/status-badge";
 import type { components } from "./generated/openapi";
+import type { PaginatedEnvelope } from "./types";
 
 /** Backend read contract. Components consume the mapped OrderViewModel below. */
 export type OrderReadDTO = components["schemas"]["OrderReadDTO"];
@@ -33,6 +34,7 @@ export interface WireOrder {
   created_at: string;
   updated_at?: string;
   items: WireOrderItem[];
+  status_history?: Array<{ history_id: string; old_status: string | null; new_status: string; changed_by: string | null; reason: string | null; changed_at: string }>;
 }
 
 function mapOrder(dto: OrderReadDTO): WireOrder {
@@ -60,11 +62,16 @@ function mapOrder(dto: OrderReadDTO): WireOrder {
       subtotal: item.line_total,
       image_url: item.image_url,
     })),
+    status_history: dto.status_history,
   };
 }
 
 export const orderApi = {
-  getOrders: async (params?: { status?: string }) => (await apiClient.get<OrderReadDTO[]>("/orders", { params })).map(mapOrder),
+  getOrdersPaginated: async (params?: { status?: string; limit?: number; cursor?: string }): Promise<PaginatedEnvelope<WireOrder>> => {
+    const page = await apiClient.getPaginated<OrderReadDTO>("/orders", { params });
+    return { ...page, data: page.data.map(mapOrder) };
+  },
+  getOrders: async (params?: { status?: string }) => (await orderApi.getOrdersPaginated({ ...params, limit: 100 })).data,
   getOrderById: async (id: string) => mapOrder(await apiClient.get<OrderReadDTO>(`/orders/${id}`)),
   cancelOrder: async (id: string, reason: string) => { await apiClient.post<unknown>(`/orders/${id}/cancel`, { reason }); return orderApi.getOrderById(id); },
   confirmOrder: async (id: string, reason?: string) => { await apiClient.post<unknown>(`/orders/${id}/confirm`, { reason }); return orderApi.getOrderById(id); },

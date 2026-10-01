@@ -72,7 +72,8 @@ export interface ITargetLookupRepository {
   updateUserStatus(trx: unknown, userId: string, status: UserStatus): Promise<UserStatusUpdateResult>;
   shopExists(shopId: string): Promise<boolean>;
   getShopStatus?(shopId: string): Promise<ShopStatus | null>;
-  updateShopStatus?(trx: unknown, shopId: string, status: ShopStatus): Promise<ShopStatusUpdateResult>;
+  hasRequiredShopProfile(trx: unknown, shopId: string): Promise<boolean>;
+  updateShopStatus(trx: unknown, shopId: string, status: ShopStatus): Promise<ShopStatusUpdateResult>;
   productExists(productId: string): Promise<boolean>;
   reviewExists(reviewId: string): Promise<boolean>;
   insertModerationRecord(trx: unknown, record: ModerationRecord): Promise<void>;

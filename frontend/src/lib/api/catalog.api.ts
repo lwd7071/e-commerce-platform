@@ -24,6 +24,7 @@ export interface WireCatalogProductItem {
   total_stock: number;
   image_url: string | null;
   created_at: string;
+  status?: "ACTIVE" | "INACTIVE" | "HIDDEN";
 }
 
 export type VariantStatus = "ACTIVE" | "INACTIVE";
@@ -48,7 +49,7 @@ export interface WireCatalogProductDetail {
   category_id: string;
   product_name: string;
   description: string | null;
-  status: "ACTIVE";
+  status: "ACTIVE" | "INACTIVE" | "HIDDEN";
   variants: WireProductVariant[];
   images?: Array<{ image_id?: string; image_url: string; sort_order?: number }>;
   image_url?: string | null;
@@ -120,10 +121,22 @@ export const catalogApi = {
   },
 
   getSellerProducts: (params?: { limit?: number; cursor?: string; search?: string; status?: string }) => {
-    return apiClient.get<WireCatalogProductItem[]>("/seller/products", {
+    return apiClient.getPaginated<WireCatalogProductItem>("/seller/products", {
+      params: params as Record<string, string | number | boolean | undefined>,
+    }).then((page) => page.data);
+  },
+
+  getSellerProductsPaginated: (params?: { limit?: number; cursor?: string; search?: string; status?: string }) => {
+    return apiClient.getPaginated<WireCatalogProductItem>("/seller/products", {
       params: params as Record<string, string | number | boolean | undefined>,
     });
   },
+
+  getSellerProductById: (id: string) =>
+    apiClient.get<WireCatalogProductDetail>(`/seller/products/${id}`),
+
+  updateSellerProduct: (id: string, input: Partial<Pick<WireCatalogProductDetail, "product_name" | "description" | "category_id">> & { variants?: Array<{ variant_id?: string; variant_name: string; variant_value?: string | null; sku: string; price: string }> }) =>
+    apiClient.patch<WireCatalogProductDetail>(`/seller/products/${id}`, input),
 
   updateProductStatus: (productId: string, status: "ACTIVE" | "INACTIVE") => {
     return apiClient.patch<{ product_id: string; status: "ACTIVE" | "INACTIVE" }>(

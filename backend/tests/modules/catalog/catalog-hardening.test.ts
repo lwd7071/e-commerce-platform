@@ -17,6 +17,7 @@ import {
   ValidationError,
 } from '../../../src/modules/catalog/domain/errors.ts';
 import type { RequestContext } from '../../../src/contracts/request-context.contract.ts';
+import { createFixtureOrder, createFixtureOrderItem, createFixtureUser } from '../../db/fixtures/database-fixtures.ts';
 
 const runRemoteDbTests = parseRunRemoteDbTests(process.env);
 const remoteDescribe = runRemoteDbTests ? describe : describe.skip;
@@ -34,6 +35,7 @@ const shop1Id = '00000000-0000-4000-a000-000000000011';
 const shop2Id = '00000000-0000-4000-a000-000000000012';
 const categoryActiveId = '00000000-0000-4000-c000-000000000011';
 const categoryInactiveId = '00000000-0000-4000-c000-000000000012';
+const buyerHistoryTestId = '00000000-0000-4000-b000-000000000013';
 
 const contextSeller1: RequestContext = {
   request_id: 'req_seller1_t3',
@@ -61,6 +63,12 @@ remoteDescribe('Catalog Domain Hardening & Security Tests (Mốc T3)', () => {
     shopRepo = new PgShopRepository(pool);
     categoryRepo = new PgCategoryRepository(pool);
     productRepo = new PgProductRepository(pool);
+
+    // Order history must be removed before its referenced product fixtures.
+    await pool.query('DELETE FROM order_items WHERE order_id IN (SELECT order_id FROM orders WHERE buyer_id = $1)', [buyerHistoryTestId]);
+    await pool.query('DELETE FROM orders WHERE buyer_id = $1', [buyerHistoryTestId]);
+    await pool.query('DELETE FROM app_users WHERE user_id = $1', [buyerHistoryTestId]);
+    await pool.query('DELETE FROM auth.users WHERE id = $1', [buyerHistoryTestId]);
 
     // Cleanup previous test fixtures
     await pool.query(
@@ -95,6 +103,8 @@ remoteDescribe('Catalog Domain Hardening & Security Tests (Mốc T3)', () => {
         [id, email],
       );
     }
+    await pool.query('INSERT INTO auth.users (id, email) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING', [buyerHistoryTestId, 'catalog-history-buyer@example.com']);
+    await createFixtureUser(pool, { userId: buyerHistoryTestId, role: 'BUYER' });
 
     // Create 2 separate shops (Seller 1 -> Shop 1, Seller 2 -> Shop 2)
     const now = new Date().toISOString();
@@ -150,6 +160,11 @@ remoteDescribe('Catalog Domain Hardening & Security Tests (Mốc T3)', () => {
     if (pool) {
       // Clean up test data
       await pool.query(
+        'DELETE FROM order_items WHERE order_id IN (SELECT order_id FROM orders WHERE buyer_id = $1)',
+        [buyerHistoryTestId],
+      );
+      await pool.query('DELETE FROM orders WHERE buyer_id = $1', [buyerHistoryTestId]);
+      await pool.query(
         `DELETE FROM product_variants WHERE product_id IN (
            SELECT product_id FROM products WHERE shop_id IN ($1, $2)
          )`,
@@ -162,6 +177,8 @@ remoteDescribe('Catalog Domain Hardening & Security Tests (Mốc T3)', () => {
         [shop1Id, shop2Id],
       );
       await pool.query('DELETE FROM products WHERE shop_id IN ($1, $2)', [shop1Id, shop2Id]);
+      await pool.query('DELETE FROM app_users WHERE user_id = $1', [buyerHistoryTestId]);
+      await pool.query('DELETE FROM auth.users WHERE id = $1', [buyerHistoryTestId]);
       await pool.query('DELETE FROM categories WHERE category_id IN ($1, $2)', [categoryActiveId, categoryInactiveId]);
       await pool.query('DELETE FROM shops WHERE shop_id IN ($1, $2)', [shop1Id, shop2Id]);
       await pool.query('DELETE FROM app_users WHERE user_id IN ($1, $2)', [seller1UserId, seller2UserId]);
@@ -213,6 +230,71 @@ interface VariantStockUpdateResponse {
       })) as ProductCreatedResponse;
       variant1Id = createdProduct1.variants[0].variant_id;
     });
+
+    it('reads inactive-safe Seller detail and updates editable product/variant fields for its owner', async () => {
+      const updated = await catalogHttpService.updateSellerProduct(contextSeller1, createdProduct1.product_id, {
+        product_name: 'Tên đã cập nhật', description: 'Mô tả mới',
+        variants: [{ variant_id: variant1Id, variant_name: 'Red Switch', variant_value: 'Red', sku: 'KB-SHOP1-RED-UPDATED', price: '1600000.00' }],
+      }) as { product_name: string; variants: Array<{ sku: string; price: string; stock_quantity: number }> };
+      expect(updated.product_name).toBe('Tên đã cập nhật');
+      expect(updated.variants[0]).toMatchObject({ sku: 'KB-SHOP1-RED-UPDATED', price: '1600000.00', stock_quantity: 50 });
+      const privateDetail = await catalogHttpService.getSellerProduct(contextSeller1, createdProduct1.product_id) as { variants: unknown[] };
+      expect(privateDetail.variants).toHaveLength(1);
+    }, 90_000);
+
+    it('blocks another Shop from reading or editing the private Seller product', async () => {
+      await expect(catalogHttpService.getSellerProduct(contextSeller2, createdProduct1.product_id)).rejects.toThrowError(ForbiddenError);
+      await expect(catalogHttpService.updateSellerProduct(contextSeller2, createdProduct1.product_id, { product_name: 'Tamper' })).rejects.toThrowError(ForbiddenError);
+    }, 30_000);
+
+    it('adds a new variant and removes an unreferenced variant without changing stock on retained variants', async () => {
+      const created = await catalogHttpService.createProduct(contextSeller1, {
+        category_id: categoryActiveId, product_name: 'Variant replacement test',
+        variants: [
+          { variant_name: 'Color', variant_value: 'Blue', sku: `VAR-OLD-${Date.now()}`, price: '100.00', stock_quantity: 7 },
+          { variant_name: 'Size', variant_value: 'M', sku: `VAR-KEEP-${Date.now()}`, price: '120.00', stock_quantity: 12 },
+        ],
+      }) as ProductCreatedResponse;
+      const removedVariantId = created.variants[0].variant_id;
+      const retainedVariantId = created.variants[1].variant_id;
+      const updated = await catalogHttpService.updateSellerProduct(contextSeller1, created.product_id, {
+        variants: [
+          { variant_id: retainedVariantId, variant_name: 'Size', variant_value: 'Large', sku: `VAR-KEEP-UPDATED-${Date.now()}`, price: '130.00' },
+          { variant_name: 'Material', variant_value: 'Cotton', sku: `VAR-NEW-${Date.now()}`, price: '150.00' },
+        ],
+      }) as { variants: Array<{ variant_id: string; variant_name: string; variant_value: string | null; stock_quantity: number }> };
+      expect(updated.variants).toHaveLength(2);
+      expect(updated.variants.some((variant) => variant.variant_id === removedVariantId)).toBe(false);
+      expect(updated.variants.find((variant) => variant.variant_id === retainedVariantId)).toMatchObject({ variant_name: 'Size', variant_value: 'Large', stock_quantity: 12 });
+      expect(updated.variants.find((variant) => variant.variant_name === 'Material')).toMatchObject({ variant_value: 'Cotton', stock_quantity: 0 });
+    }, 90_000);
+
+    it('keeps an ordered variant as inactive when it is removed from the Seller variant form', async () => {
+      const suffix = Date.now();
+      const created = await catalogHttpService.createProduct(contextSeller1, {
+        category_id: categoryActiveId, product_name: 'Ordered variant retention test',
+        variants: [
+          { variant_name: 'Color', variant_value: 'Red', sku: `HISTORY-ORDERED-${suffix}`, price: '100.00', stock_quantity: 4 },
+          { variant_name: 'Size', variant_value: 'S', sku: `HISTORY-RETAINED-${suffix}`, price: '110.00', stock_quantity: 9 },
+        ],
+      }) as ProductCreatedResponse;
+      const orderedVariantId = created.variants[0].variant_id;
+      const retainedVariantId = created.variants[1].variant_id;
+      const order = await createFixtureOrder(pool!, buyerHistoryTestId, shop1Id);
+      await createFixtureOrderItem(pool!, order.orderId, created.product_id, orderedVariantId);
+
+      try {
+        const updated = await catalogHttpService.updateSellerProduct(contextSeller1, created.product_id, {
+          variants: [{ variant_id: retainedVariantId, variant_name: 'Size', variant_value: 'M', sku: `HISTORY-RETAINED-UPDATED-${suffix}`, price: '120.00' }],
+        }) as { variants: Array<{ variant_id: string; variant_value: string | null; stock_quantity: number; status: string }> };
+        expect(updated.variants).toHaveLength(2);
+        expect(updated.variants.find((variant) => variant.variant_id === orderedVariantId)).toMatchObject({ status: 'INACTIVE', stock_quantity: 4 });
+        expect(updated.variants.find((variant) => variant.variant_id === retainedVariantId)).toMatchObject({ variant_value: 'M', stock_quantity: 9, status: 'ACTIVE' });
+      } finally {
+        await pool!.query('DELETE FROM order_items WHERE order_id = $1', [order.orderId]);
+        await pool!.query('DELETE FROM orders WHERE order_id = $1', [order.orderId]);
+      }
+    }, 90_000);
 
     it('allows Seller 1 to update stock of its own variant in Shop 1', async () => {
       const result = (await catalogHttpService.updateVariantStock(contextSeller1, variant1Id, {
@@ -511,6 +593,15 @@ interface VariantStockUpdateResponse {
   });
 
   describe('3. Media Validation & Ordering [RB-MG11]', () => {
+    it('rejects arbitrary image URLs that are not finalized media uploads', async () => {
+      await expect(catalogHttpService.createProduct(contextSeller1, {
+        category_id: categoryActiveId,
+        product_name: 'Ảnh phải qua media upload',
+        variants: [{ variant_name: 'Bản 1', sku: 'MEDIA-REQUIRED-01', price: '100000.00', stock_quantity: 0 }],
+        images: [{ image_url: 'https://example.test/arbitrary.jpg', sort_order: 0 }],
+      })).rejects.toThrowError(ValidationError);
+    }, 30_000);
+
     it('rejects product creation when image sort_order is negative', async () => {
       await expect(
         catalogHttpService.createProduct(contextSeller1, {

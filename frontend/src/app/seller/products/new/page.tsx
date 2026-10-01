@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function NewProductPage() {
   return (
-    <ProtectedPage allowedRoles={["SELLER", "ADMIN"]}>
+    <ProtectedPage allowedRoles={["SELLER"]}>
       <div className="py-6">
         <SellerProductCreateScreen />
       </div>

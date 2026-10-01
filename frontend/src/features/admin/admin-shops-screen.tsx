@@ -388,9 +388,11 @@ export function AdminShopsScreen() {
                             <Button
                               variant="primary"
                               onClick={() => setApproveTarget(shop)}
+                              disabled={!shop.pickup_address?.trim() || !shop.contact_phone?.trim()}
+                              title={!shop.pickup_address?.trim() || !shop.contact_phone?.trim() ? "Shop cần có địa chỉ nhận hàng và số điện thoại liên hệ trước khi duyệt" : undefined}
                               className="h-8 px-3 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white"
                             >
-                              Duyệt ngay
+                              {!shop.pickup_address?.trim() || !shop.contact_phone?.trim() ? "Thiếu hồ sơ" : "Duyệt ngay"}
                             </Button>
                           )}
                           {isActive && (

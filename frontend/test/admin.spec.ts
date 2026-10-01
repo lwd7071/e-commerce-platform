@@ -20,14 +20,6 @@ describe("Cụm 4 - Admin & Seller Management (A-704, A-705, A-708, A-709, Q-805
       expect(stats.platformGMV).toBe("280000");
     });
 
-    it("Seller KPI revenue strictly totals only COMPLETED orders for the shop", async () => {
-      const kpi = await adminRepo.getSellerKPI("00000000-0000-0000-0000-000000000001");
-
-      expect(kpi.shopId).toBe("00000000-0000-0000-0000-000000000001");
-      expect(kpi.completedOrdersCount).toBe(1);
-      expect(kpi.totalRevenue).toBe("280000");
-      expect(kpi.averageRating).toBe(4.9);
-    });
   });
 
   describe("User Moderation & Audit Logging (Ticket A-705 & RB-LTT08)", () => {

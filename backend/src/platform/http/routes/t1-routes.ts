@@ -14,6 +14,8 @@ export interface CatalogHttpApplication {
   createProduct(context: RequestContext, input: Record<string, unknown>): Promise<unknown>;
   updateVariantStock(context: RequestContext, variantId: string, input: Record<string, unknown>): Promise<unknown>;
   listSellerProducts?(context: RequestContext, input: Record<string, unknown>): Promise<unknown>;
+  getSellerProduct?(context: RequestContext, productId: string): Promise<unknown>;
+  updateSellerProduct?(context: RequestContext, productId: string, input: Record<string, unknown>): Promise<unknown>;
   updateProductStatus?(context: RequestContext, productId: string, status: string): Promise<unknown>;
   listAllCategories?(): Promise<unknown[]>;
   createCategory?(input: Record<string, unknown>): Promise<unknown>;
@@ -131,7 +133,21 @@ export function createCatalogRouter(application?: CatalogHttpApplication, auth?:
     const allowed = ['search', 'status', 'limit', 'cursor'];
     const input = req.query as Record<string, unknown>;
     rejectUnknown(input, allowed);
-    const result = await implementation(application?.listSellerProducts, application)(context(req), input);
+    const result = await implementation(application?.listSellerProducts, application)(context(req), input) as {
+      items: unknown[]; next_cursor: string | null; has_more: boolean; limit: number;
+    };
+    res.json(buildPaginatedEnvelope(result.items, {
+      next_cursor: result.next_cursor, has_more: result.has_more, limit: result.limit,
+    }, requestId(req)));
+  }));
+  router.get('/seller/products/:id', ...guards(auth, 'SELLER'), asyncRoute(async (req, res) => {
+    const result = await implementation(application?.getSellerProduct, application)(context(req), req.params.id);
+    res.json(buildSuccessEnvelope(result, requestId(req)));
+  }));
+  router.patch('/seller/products/:id', ...guards(auth, 'SELLER'), asyncRoute(async (req, res) => {
+    const input = req.body as Record<string, unknown>;
+    rejectUnknown(input, ['product_name', 'description', 'category_id', 'variants']);
+    const result = await implementation(application?.updateSellerProduct, application)(context(req), req.params.id, input);
     res.json(buildSuccessEnvelope(result, requestId(req)));
   }));
   router.patch('/seller/products/:id/status', ...guards(auth, 'SELLER'), asyncRoute(async (req, res) => {

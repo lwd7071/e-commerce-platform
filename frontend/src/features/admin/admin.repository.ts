@@ -3,7 +3,6 @@ import { features } from "@/lib/config/features";
 import { categoryAdapter, DEV_CATEGORY_FIXTURES, type CategoryItem, type CategoryTreeNode } from "@/lib/adapters/category.adapter";
 import {
   mockOrderRepository,
-  mockCatalogRepository,
 } from "@/lib/repositories/repository-factory";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
 import type {
@@ -12,7 +11,6 @@ import type {
   ModerationProduct,
   AdminAuditLog,
   DashboardStats,
-  SellerKPIStats,
 } from "./admin.types";
 
 export interface IAdminRepository {
@@ -31,7 +29,6 @@ export interface IAdminRepository {
     actor?: string
   ): Promise<ModerationProduct>;
   getAuditLogs(): Promise<AdminAuditLog[]>;
-  getSellerKPI(shopId?: string): Promise<SellerKPIStats>;
 
   // Category management (A-709)
   getCategories(): Promise<CategoryItem[]>;
@@ -351,39 +348,6 @@ export class MockAdminRepository implements IAdminRepository {
     return [...mockAuditLogs];
   }
 
-  async getSellerKPI(shopId = "00000000-0000-0000-0000-000000000001"): Promise<SellerKPIStats> {
-    const allOrders = await mockOrderRepository.getOrders({ shop_id: shopId });
-
-    // Rule QD19: Only COMPLETED orders count into revenue
-    const completedOrders = allOrders.filter((o) => o.status === "COMPLETED");
-    const totalRevInt = completedOrders.reduce((acc, o) => {
-      return acc + moneyAdapter.toInteger(o.total_amount);
-    }, 0);
-
-    const pendingOrders = allOrders.filter((o) => o.status === "PENDING_CONFIRMATION");
-    let activeProductsCount = 18;
-    try {
-      const catalogProducts = await mockCatalogRepository.getProducts();
-      const shopProducts = catalogProducts.filter((p) => p.shop_id === shopId);
-      if (shopProducts.length > 0) {
-        activeProductsCount = shopProducts.length;
-      }
-    } catch {
-      // Fallback in case catalog API is offline or in mock tests
-      activeProductsCount = 18;
-    }
-
-    return {
-      shopId,
-      shopName: shopId === "00000000-0000-0000-0000-000000000002" ? "Dino Tech Store" : "Dino Beauty Official",
-      totalRevenue: totalRevInt.toString(),
-      completedOrdersCount: completedOrders.length,
-      pendingOrdersCount: pendingOrders.length,
-      activeProductsCount,
-      averageRating: 4.9,
-    };
-  }
-
   // Categories CRUD (A-709 consuming A-700 adapter)
   async getCategories(): Promise<CategoryItem[]> {
     if (localCategories.length === 0) {
@@ -541,10 +505,6 @@ export class ApiAdminRepository implements IAdminRepository {
     return apiClient.get<AdminAuditLog[]>("/admin/audit-logs");
   }
 
-  async getSellerKPI(shopId?: string): Promise<SellerKPIStats> {
-    return apiClient.get<SellerKPIStats>(`/seller/kpi${shopId ? `?shop_id=${shopId}` : ""}`);
-  }
-
   async getCategories(): Promise<CategoryItem[]> {
     return categoryAdapter.getCategories();
   }
@@ -606,10 +566,6 @@ export const adminRepository: IAdminRepository = {
       : apiAdminRepository.moderateProduct(productId, status, reason, actor),
   getAuditLogs: () =>
     features.domains.adminMock() ? mockAdminRepository.getAuditLogs() : apiAdminRepository.getAuditLogs(),
-  getSellerKPI: (shopId) =>
-    features.domains.adminMock()
-      ? mockAdminRepository.getSellerKPI(shopId)
-      : apiAdminRepository.getSellerKPI(shopId),
   getCategories: () =>
     features.domains.adminMock() ? mockAdminRepository.getCategories() : apiAdminRepository.getCategories(),
   getCategoryTree: () =>

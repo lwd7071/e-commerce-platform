@@ -22,12 +22,27 @@ export class OrderQueryService implements IOrderQueryPort {
     return this.fetchOrderReads(viewer, filter.status);
   }
 
+  async listOrdersPaginated(viewer: RequestContext, filter: { status?: string; limit?: number; cursor?: string } = {}) {
+    const limit = filter.limit === undefined ? 20 : Number(filter.limit);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
+      throw new ValidationFailedError('limit must be an integer from 1 to 100');
+    }
+    const rows = await this.fetchOrderReads(viewer, filter.status, undefined, { limit, cursor: filter.cursor });
+    const hasMore = rows.length > limit;
+    const items = rows.slice(0, limit);
+    const last = items.at(-1);
+    const cursor = hasMore && last
+      ? Buffer.from(JSON.stringify({ created_at: last.created_at, order_id: last.order_id }), 'utf8').toString('base64url')
+      : null;
+    return { items, limit, has_more: hasMore, next_cursor: cursor };
+  }
+
   async getOrderDetail(viewer: RequestContext, orderId: UUID): Promise<OrderReadDTO | null> {
     const rows = await this.fetchOrderReads(viewer, undefined, orderId);
     return rows[0] ?? null;
   }
 
-  private async fetchOrderReads(viewer: RequestContext, rawStatus?: string, orderId?: UUID): Promise<OrderReadDTO[]> {
+  private async fetchOrderReads(viewer: RequestContext, rawStatus?: string, orderId?: UUID, page?: { limit: number; cursor?: string }): Promise<OrderReadDTO[]> {
     if (!this.pool) throw new DependencyUnavailableError('Order query database is not configured');
     const statuses: readonly string[] = ['PENDING_CONFIRMATION', 'CONFIRMED', 'PREPARING', 'SHIPPING', 'COMPLETED', 'CANCELLED', 'DELIVERY_FAILED'];
     if (rawStatus !== undefined && !statuses.includes(rawStatus)) {
@@ -51,12 +66,23 @@ export class OrderQueryService implements IOrderQueryPort {
       values.push(orderId);
       where.push(`o.order_id=$${values.length}`);
     }
+    if (page?.cursor) {
+      try {
+        const parsed = JSON.parse(Buffer.from(page.cursor, 'base64url').toString('utf8')) as { created_at?: string; order_id?: string };
+        if (!parsed.created_at || Number.isNaN(Date.parse(parsed.created_at)) || !parsed.order_id || !/^[0-9a-f-]{36}$/i.test(parsed.order_id)) throw new Error();
+        values.push(parsed.created_at, parsed.order_id);
+        where.push(`(o.created_at,o.order_id)<($${values.length - 1}::timestamptz,$${values.length}::uuid)`);
+      } catch {
+        throw new ValidationFailedError('Invalid order cursor', { field: 'cursor' });
+      }
+    }
+    if (page) values.push(page.limit + 1);
     const result = await this.pool.query<Record<string, unknown>>(
       `SELECT o.order_id,o.buyer_id,o.shop_id,s.shop_name,o.status,o.subtotal,o.discount_amount,o.shipping_fee,
               o.total_amount,o.cancel_reason,o.created_at,o.updated_at
        FROM orders o JOIN shops s ON s.shop_id=o.shop_id
        ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-       ORDER BY o.created_at DESC,o.order_id DESC`, values,
+       ORDER BY o.created_at DESC,o.order_id DESC${page ? ` LIMIT $${values.length}` : ''}`, values,
     );
     if (result.rows.length === 0) return [];
     const ids = result.rows.map(row => String(row.order_id));
@@ -82,6 +108,22 @@ export class OrderQueryService implements IOrderQueryPort {
       });
       grouped.set(orderKey, items);
     }
+    const historyResult = await this.pool.query<Record<string, unknown>>(
+      `SELECT history_id,order_id,old_status,new_status,changed_by,reason,changed_at
+       FROM order_status_history WHERE order_id=ANY($1::uuid[]) ORDER BY changed_at,history_id`, [ids],
+    );
+    const histories = new Map<string, OrderReadDTO['status_history']>();
+    for (const row of historyResult.rows) {
+      const orderKey = String(row.order_id);
+      const history = histories.get(orderKey) ?? [];
+      history.push({
+        history_id: String(row.history_id), old_status: row.old_status == null ? null : String(row.old_status),
+        new_status: String(row.new_status), changed_by: row.changed_by == null ? null : String(row.changed_by),
+        reason: row.reason == null ? null : String(row.reason),
+        changed_at: row.changed_at instanceof Date ? row.changed_at.toISOString() : String(row.changed_at),
+      });
+      histories.set(orderKey, history);
+    }
     return result.rows.map(row => ({
       order_id: String(row.order_id), buyer_id: String(row.buyer_id), shop_id: String(row.shop_id), shop_name: String(row.shop_name),
       status: row.status as OrderStatus, subtotal: String(row.subtotal), discount_amount: String(row.discount_amount),
@@ -90,6 +132,7 @@ export class OrderQueryService implements IOrderQueryPort {
       created_at: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
       updated_at: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
       items: grouped.get(String(row.order_id)) ?? [],
+      status_history: histories.get(String(row.order_id)) ?? [],
     }));
   }
 
@@ -160,5 +203,13 @@ export interface OrderReadDTO {
     quantity: number;
     line_total: string;
     image_url: string | null;
+  }>;
+  status_history: Array<{
+    history_id: string;
+    old_status: string | null;
+    new_status: string;
+    changed_by: string | null;
+    reason: string | null;
+    changed_at: string;
   }>;
 }
