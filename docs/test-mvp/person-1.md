@@ -6,9 +6,9 @@ Phạm vi: luồng Guest, đăng ký/đăng nhập/đăng xuất, điều hướ
 
 - Trạng thái: Đã xác minh
 - Cập nhật gần nhất: 2026-10-01
-- Luồng đã hoàn tất: 6 / 6
+- Luồng đã hoàn tất: 10 / 10
 - Lỗi mở: Blocker 0 · Cao 0 · Vừa 0 · Thấp 0
-- Trở ngại/quyết định cần hỗ trợ: Không có. Toàn bộ các luồng Catalog công khai, Đăng ký, Đăng nhập điều hướng returnTo, Đăng xuất, Chặn Private API và Khóa tài khoản LOCKED đều hoạt động chuẩn xác 100%.
+- Trở ngại/quyết định cần hỗ trợ: Không có. Toàn bộ các luồng Catalog công khai, Đăng ký, Đăng nhập điều hướng returnTo, Đăng xuất, Chặn Private API, Khóa tài khoản LOCKED, Xử lý trùng email (QD01), Chặn token giả mạo (AUTH-02), Đọc Review công khai và Redaction bảo mật (QD02) đều hoạt động chuẩn xác 100%.
 
 ## Nhật ký kiểm thử và lỗi
 
@@ -136,4 +136,87 @@ Phạm vi: luồng Guest, đăng ký/đăng nhập/đăng xuất, điều hướ
 - Bằng chứng: `backend/test/platform/auth-middleware.spec.ts` ([AUTH-03 / QD03] returns 403 USER_LOCKED).
 - Mức độ: Không có lỗi.
 - Kiểm tra lại: Passed 100%.
+
+---
+
+### [TC-GST-07] Đăng ký trùng Email bị từ chối (`409 USER_EMAIL_CONFLICT`)
+- Trạng thái: Đã xác minh
+- Người thực hiện: Nông Văn Cường (Người 1)
+- Ngày cập nhật: 2026-10-01
+- Role và tài khoản/dữ liệu test: GUEST
+- Quy tắc tham chiếu: role-business-rules.md # Mục 2 & QD01 / RB-LB01
+- Điều kiện ban đầu: Email `test-duplicate@example.com` đã tồn tại trong database hệ thống.
+- Các bước thực hiện:
+  1. Gửi request đăng ký tài khoản mới với email đã tồn tại.
+  2. Kiểm tra phản hồi từ backend database và error translation middleware.
+- Kết quả mong đợi:
+  - Database unique constraint vi phạm được bắt tại middleware và dịch thành mã lỗi `409 USER_EMAIL_CONFLICT`.
+  - Không tạo tài khoản trùng, không để lộ tên constraint thô của database ra client.
+- Kết quả thực tế: Trả về HTTP 409 với error code `USER_EMAIL_CONFLICT` và thông báo "Email already exists".
+- Bằng chứng: `backend/test/platform/error-handling.spec.ts` (Case 1: maps unique violation 23505 to 409 USER_EMAIL_CONFLICT).
+- Mức độ: Không có lỗi.
+- Kiểm tra lại: Passed 100%.
+
+---
+
+### [TC-GST-08] Chặn Token giả mạo, sai định dạng hoặc không tồn tại User (`401 AUTH_INVALID_TOKEN`)
+- Trạng thái: Đã xác minh
+- Người thực hiện: Nông Văn Cường (Người 1)
+- Ngày cập nhật: 2026-10-01
+- Role và tài khoản/dữ liệu test: GUEST gửi token không hợp lệ
+- Quy tắc tham chiếu: role-business-rules.md # Mục 2 & Auth/RBAC/RLS # Xác minh request
+- Điều kiện ban đầu: Gửi request tới protected API kèm Authorization Bearer token giả mạo, rỗng hoặc token trỏ tới User không tồn tại.
+- Các bước thực hiện:
+  1. Gửi GET request tới `/api/v1/protected` với header `Authorization: Bearer invalid-malformed-token`.
+  2. Gửi GET request tới `/api/v1/protected` với header `Authorization: Bearer stub-token-non-existent-user`.
+- Kết quả mong đợi:
+  - Auth Middleware phát hiện token không hợp lệ và từ chối với `401 AUTH_INVALID_TOKEN`.
+  - Không cho phép truy cập tài nguyên được bảo vệ.
+- Kết quả thực tế: Middleware trả về chuẩn xác HTTP 401 `AUTH_INVALID_TOKEN` kèm message mô tả lỗi.
+- Bằng chứng: `backend/test/platform/auth-middleware.spec.ts` ([AUTH-02] returns 401 AUTH_INVALID_TOKEN when token format is invalid or decode fails / user not found).
+- Mức độ: Không có lỗi.
+- Kiểm tra lại: Passed 100%.
+
+---
+
+### [TC-GST-09] Guest xem Đánh giá công khai của sản phẩm (Public Reviews Read Scope)
+- Trạng thái: Đã xác minh
+- Người thực hiện: Nông Văn Cường (Người 1)
+- Ngày cập nhật: 2026-10-01
+- Role và tài khoản/dữ liệu test: GUEST (không mang JWT token)
+- Quy tắc tham chiếu: role-business-rules.md # Mục 2 & Auth/RBAC/RLS # Public Read
+- Điều kiện ban đầu: Sản phẩm đã có các đánh giá công khai (status `VISIBLE`).
+- Các bước thực hiện:
+  1. Gửi GET request đến `/api/v1/products/:product_id/reviews` mà không đính kèm Bearer token.
+  2. Kiểm tra response trả về danh sách đánh giá và thông tin tóm tắt rating (average, count).
+- Kết quả mong đợi:
+  - Trả về HTTP 200 kèm danh sách review công khai và rating summary mà không yêu cầu đăng nhập.
+  - Ngược lại nếu Guest cố gửi `POST /api/v1/order-items/:id/review` sẽ bị chặn với `401 AUTH_REQUIRED`.
+- Kết quả thực tế: Endpoint public trả về đầy đủ đánh giá (HTTP 200, count: 2, average: 4.5); endpoint tạo review chặn đúng phân quyền.
+- Bằng chứng: `backend/test/platform/review-notification-runtime.spec.ts` (GET /api/v1/products/:product_id/reviews: returns public reviews and rating summary).
+- Mức độ: Không có lỗi.
+- Kiểm tra lại: Passed 100%.
+
+---
+
+### [TC-GST-10] Bảo mật thông tin nhạy cảm & Redaction mật khẩu (Security Redaction)
+- Trạng thái: Đã xác minh
+- Người thực hiện: Nông Văn Cường (Người 1)
+- Ngày cập nhật: 2026-10-01
+- Role và tài khoản/dữ liệu test: GUEST / Hệ thống xác thực
+- Quy tắc tham chiếu: role-business-rules.md # Mục 1 & QD02 / error-observability.md
+- Điều kiện ban đầu: Xử lý request xác thực và các lỗi crash hệ thống.
+- Các bước thực hiện:
+  1. Kiểm tra đối tượng user trả về từ Auth Repository xem có chứa mật khẩu plaintext hay không.
+  2. Ghi log hệ thống chứa các trường nhạy cảm (`password`, `token`, `secret`, `connection string`).
+  3. Kiểm tra response lỗi 500 khi server gặp sự cố crash.
+- Kết quả mong đợi:
+  - Đối tượng User tuyệt đối không chứa password plaintext (QD02).
+  - Platform Logger tự động redact các khóa nhạy cảm `[REDACTED]`.
+  - Error handler không để lộ stack trace thô hay database connection string ra client.
+- Kết quả thực tế: Hoàn toàn đảm bảo chuẩn bảo mật, các test redaction và auth repository đều pass.
+- Bằng chứng: `backend/test/platform/security-redaction.spec.ts` ([REDACT-01..05]) và `backend/test/platform/auth-middleware.spec.ts` ([AUTH-07 / QD02]).
+- Mức độ: Không có lỗi.
+- Kiểm tra lại: Passed 100%.
+
 
