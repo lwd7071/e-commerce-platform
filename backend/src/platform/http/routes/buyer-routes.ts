@@ -347,9 +347,24 @@ export function createBuyerDomainRouter(
     };
     if (content !== undefined) reviewPayload.content = content;
     if (req.body?.images !== undefined) reviewPayload.images = req.body.images;
+    if (req.body?.review_id !== undefined || req.body?.reviewId !== undefined) {
+      reviewPayload.review_id = req.body?.review_id ?? req.body?.reviewId;
+    }
+    if (req.body?.image_media_ids !== undefined || req.body?.imageMediaIds !== undefined) {
+      reviewPayload.image_media_ids = req.body?.image_media_ids ?? req.body?.imageMediaIds;
+    }
 
     const data = await reviewService.createReview(ctx.user_id, orderItemId, productId, reviewPayload);
-    res.status(201).json(buildSuccessEnvelope(data, requestId(req)));
+    const responseData = {
+      ...data,
+      review_id: data.reviewId,
+      order_item_id: data.orderItemId,
+      product_id: data.productId,
+      buyer_id: data.buyerId,
+      created_at: data.createdAt,
+      updated_at: data.updatedAt,
+    };
+    res.status(201).json(buildSuccessEnvelope(responseData, requestId(req)));
   });
 
   router.post('/order-items/:order_item_id/review', ...guards(auth, 'BUYER'), handleCreateReview);
@@ -370,8 +385,21 @@ export function createBuyerDomainRouter(
       average = (sum / count).toFixed(1);
     }
 
+    const mappedReviews = reviews.map((r) => {
+      const rec = r as unknown as Record<string, unknown>;
+      return {
+        ...r,
+        review_id: r.reviewId ?? rec.review_id,
+        order_item_id: r.orderItemId ?? rec.order_item_id,
+        product_id: r.productId ?? rec.product_id,
+        buyer_id: r.buyerId ?? rec.buyer_id,
+        created_at: r.createdAt ?? rec.created_at,
+        updated_at: r.updatedAt ?? rec.updated_at,
+      };
+    });
+
     res.json({
-      data: reviews,
+      data: mappedReviews,
       meta: {
         limit,
         has_more: !!nextCursor,
