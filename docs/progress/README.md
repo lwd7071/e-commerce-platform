@@ -1,5 +1,10 @@
 # Nhật ký tiến độ Backend — Tổng quan
 
+## Nhật ký MVP theo role
+
+- [MVP User/Buyer implementation log](./mvp-user-buyer.md)
+- [MVP User/Seller implementation log](./mvp-user-seller.md) — cập nhật 2026-10-01; các capability chính đã được triển khai, acceptance tổng thể vẫn IN_PROGRESS.
+
 Nguồn phân công và dependency: [Kế hoạch Backend T1/T2/T3](../architecture/backend-work-plan.md).
 
 ## Cách đọc dành cho AI
