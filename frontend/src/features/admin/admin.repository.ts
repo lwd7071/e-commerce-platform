@@ -1,6 +1,6 @@
 import { apiClient } from "@/lib/api/client";
 import { features } from "@/lib/config/features";
-import { categoryAdapter, DEV_CATEGORY_FIXTURES, type CategoryItem, type CategoryTreeNode } from "@/lib/adapters/category.adapter";
+import { DEV_CATEGORY_FIXTURES, type CategoryItem, type CategoryTreeNode } from "@/lib/adapters/category.adapter";
 import {
   mockOrderRepository,
 } from "@/lib/repositories/repository-factory";
@@ -9,6 +9,7 @@ import type {
   UserAccount,
   PlatformShop,
   ModerationProduct,
+  ModerationReview,
   AdminAuditLog,
   DashboardStats,
 } from "./admin.types";
@@ -22,6 +23,8 @@ export interface IAdminRepository {
   lockShop(shopId: string, reason: string, actor?: string): Promise<PlatformShop>;
   unlockShop(shopId: string, actor?: string): Promise<PlatformShop>;
   getModerationProducts(): Promise<ModerationProduct[]>;
+  getModerationReviews(): Promise<ModerationReview[]>;
+  moderateReview(reviewId: string, status: "VISIBLE" | "HIDDEN", reason: string): Promise<ModerationReview>;
   moderateProduct(
     productId: string,
     status: "ACTIVE" | "HIDDEN",
@@ -38,8 +41,8 @@ export interface IAdminRepository {
     parentId?: string | null;
     description?: string | null;
   }): Promise<CategoryItem>;
+  updateCategory(id: string, input: { name?: string; parentId?: string | null; description?: string | null }): Promise<CategoryItem>;
   toggleCategoryStatus(id: string): Promise<CategoryItem>;
-  deleteCategory(id: string): Promise<boolean>;
 }
 
 // Initial mock data store
@@ -122,7 +125,6 @@ const initialModerationProducts: ModerationProduct[] = [
     shopName: "Dino Beauty Official",
     price: "280000.00",
     status: "ACTIVE",
-    reports: 0,
   },
   {
     id: "prod_mod_02",
@@ -130,7 +132,6 @@ const initialModerationProducts: ModerationProduct[] = [
     shopName: "Dino Tech Store",
     price: "850000.00",
     status: "ACTIVE",
-    reports: 0,
   },
   {
     id: "prod_mod_03",
@@ -138,8 +139,6 @@ const initialModerationProducts: ModerationProduct[] = [
     shopName: "Cửa Hàng Hàng Giả Kém Chất Lượng",
     price: "99000.00",
     status: "HIDDEN",
-    reports: 12,
-    reportReason: "Hàng giả nhái thương hiệu quốc tế",
   },
 ];
 
@@ -316,6 +315,13 @@ export class MockAdminRepository implements IAdminRepository {
     return [...mockProducts];
   }
 
+  async getModerationReviews(): Promise<ModerationReview[]> { return []; }
+
+  async moderateReview(reviewId: string, status: "VISIBLE" | "HIDDEN", reason: string): Promise<ModerationReview> {
+    void reviewId; void status; void reason;
+    throw new Error("Review moderation is unavailable in fixture mode.");
+  }
+
   async moderateProduct(
     productId: string,
     status: "ACTIVE" | "HIDDEN",
@@ -326,10 +332,6 @@ export class MockAdminRepository implements IAdminRepository {
     if (!found) throw new Error("Không tìm thấy sản phẩm.");
 
     found.status = status;
-    if (status === "HIDDEN" && reason) {
-      found.reportReason = reason;
-    }
-
     mockAuditLogs.unshift({
       id: `log_${Date.now()}`,
       action: status === "HIDDEN" ? "HIDE_PRODUCT" : "RESTORE_PRODUCT",
@@ -431,41 +433,40 @@ export class MockAdminRepository implements IAdminRepository {
     return { ...found };
   }
 
-  async deleteCategory(id: string): Promise<boolean> {
+  async updateCategory(id: string, input: { name?: string; parentId?: string | null; description?: string | null }): Promise<CategoryItem> {
     const cats = await this.getCategories();
     const found = cats.find((c) => c.id === id);
     if (!found) throw new Error("Không tìm thấy danh mục.");
-
-    // If it's a parent category with children, delete children or disallow
-    const children = cats.filter((c) => c.parentId === id);
-    if (children.length > 0) {
-      throw new Error("Không thể xóa danh mục cha đang chứa các danh mục con.");
-    }
-
-    localCategories = localCategories.filter((c) => c.id !== id);
+    Object.assign(found, {
+      ...(input.name !== undefined ? { name: input.name.trim() } : {}),
+      ...(input.parentId !== undefined ? { parentId: input.parentId } : {}),
+      ...(input.description !== undefined ? { description: input.description } : {}),
+    });
 
     mockAuditLogs.unshift({
       id: `log_${Date.now()}`,
-      action: "DELETE_CATEGORY",
+      action: "UPDATE_CATEGORY",
       targetType: "CATEGORY",
-      targetId: id,
+      targetId: found.id,
       targetName: found.name,
-      reason: "Xóa danh mục khỏi hệ thống",
+      reason: "Cập nhật danh mục",
       actor: "admin@dino.vn",
       createdAt: new Date().toISOString(),
     });
 
-    return true;
+    return { ...found };
   }
 }
 
 export class ApiAdminRepository implements IAdminRepository {
+  private moderationReviews: ModerationReview[] | null = null;
   async getDashboardStats(): Promise<DashboardStats> {
     return apiClient.get<DashboardStats>("/admin/stats");
   }
 
   async getUsers(): Promise<UserAccount[]> {
-    return apiClient.get<UserAccount[]>("/admin/users");
+    const rows = await apiClient.get<Array<{ id: string; email: string; full_name: string; role: UserAccount["role"]; status: UserAccount["status"]; created_at: string }>>("/admin/users");
+    return rows.map((row) => ({ id: row.id, email: row.email, fullName: row.full_name, role: row.role, status: row.status, createdAt: row.created_at }));
   }
 
   async lockUser(userId: string, reason: string, actor?: string): Promise<UserAccount> {
@@ -477,7 +478,8 @@ export class ApiAdminRepository implements IAdminRepository {
   }
 
   async getShops(): Promise<PlatformShop[]> {
-    return apiClient.get<PlatformShop[]>("/admin/shops");
+    const rows = await apiClient.get<Array<{ shop_id: string; shop_name: string; owner_email?: string; product_count: number; status: PlatformShop["status"]; created_at: string }>>("/admin/shops");
+    return rows.map((row) => ({ id: row.shop_id, name: row.shop_name, ownerEmail: row.owner_email ?? "", productCount: Number(row.product_count), status: row.status, createdAt: row.created_at }));
   }
 
   async lockShop(shopId: string, reason: string, actor?: string): Promise<PlatformShop> {
@@ -489,7 +491,23 @@ export class ApiAdminRepository implements IAdminRepository {
   }
 
   async getModerationProducts(): Promise<ModerationProduct[]> {
-    return apiClient.get<ModerationProduct[]>("/admin/products");
+    const rows = await apiClient.get<Array<{ product_id: string; product_name: string; shop_name: string; min_price: string | null; status: "DRAFT" | "ACTIVE" | "INACTIVE" | "HIDDEN" }>>("/admin/products");
+    return rows.map((row) => ({ id: row.product_id, name: row.product_name, shopName: row.shop_name, price: row.min_price ?? "0.00", status: row.status }));
+  }
+
+  async getModerationReviews(): Promise<ModerationReview[]> {
+    const rows = await apiClient.get<Array<{ review_id: string; product_id: string; product_name: string; buyer_id: string; rating: number; content: string | null; status: "VISIBLE" | "HIDDEN"; created_at: string }>>("/admin/reviews");
+    this.moderationReviews = rows.map((row) => ({ id: row.review_id, productId: row.product_id, productName: row.product_name, buyerId: row.buyer_id, rating: Number(row.rating), content: row.content, status: row.status, createdAt: row.created_at }));
+    return this.moderationReviews;
+  }
+
+  async moderateReview(reviewId: string, status: "VISIBLE" | "HIDDEN", reason: string): Promise<ModerationReview> {
+    const existing = (this.moderationReviews ?? await this.getModerationReviews()).find((review) => review.id === reviewId);
+    if (!existing) throw new Error("Không tìm thấy đánh giá.");
+    const result = await apiClient.patch<{ status: "VISIBLE" | "HIDDEN" }>(`/admin/reviews/${reviewId}/moderate`, { status, reason });
+    const updated = { ...existing, status: result.status };
+    this.moderationReviews = this.moderationReviews?.map((review) => review.id === reviewId ? updated : review) ?? null;
+    return updated;
   }
 
   async moderateProduct(
@@ -498,7 +516,11 @@ export class ApiAdminRepository implements IAdminRepository {
     reason?: string,
     actor?: string
   ): Promise<ModerationProduct> {
-    return apiClient.patch<ModerationProduct>(`/admin/products/${productId}/moderate`, { status, reason, actor });
+    void actor;
+    const existing = (await this.getModerationProducts()).find((product) => product.id === productId);
+    if (!existing) throw new Error("Không tìm thấy sản phẩm.");
+    const result = await apiClient.patch<{ product_id: string; status: "ACTIVE" | "HIDDEN" }>(`/admin/products/${productId}/moderate`, { status, reason });
+    return { ...existing, status: result.status };
   }
 
   async getAuditLogs(): Promise<AdminAuditLog[]> {
@@ -506,11 +528,24 @@ export class ApiAdminRepository implements IAdminRepository {
   }
 
   async getCategories(): Promise<CategoryItem[]> {
-    return categoryAdapter.getCategories();
+    const rows = await apiClient.get<Array<{ category_id: string; parent_category_id: string | null; category_name: string; description: string | null; status: "ACTIVE" | "INACTIVE" }>>("/admin/categories");
+    return rows.map((category) => ({
+      id: category.category_id,
+      parentId: category.parent_category_id,
+      name: category.category_name,
+      description: category.description,
+      status: category.status,
+    }));
   }
 
   async getCategoryTree(): Promise<CategoryTreeNode[]> {
-    return categoryAdapter.getCategoryTree();
+    const categories = await this.getCategories();
+    return categories
+      .filter((category) => category.parentId === null)
+      .map((root) => ({
+        ...root,
+        children: categories.filter((category) => category.parentId === root.id),
+      }));
   }
 
   async createCategory(input: {
@@ -518,15 +553,30 @@ export class ApiAdminRepository implements IAdminRepository {
     parentId?: string | null;
     description?: string | null;
   }): Promise<CategoryItem> {
-    return apiClient.post<CategoryItem>("/categories", input);
+    const category = await apiClient.post<{ category_id: string; parent_category_id: string | null; category_name: string; description: string | null; status: "ACTIVE" | "INACTIVE" }>("/admin/categories", {
+      name: input.name,
+      parent_category_id: input.parentId ?? null,
+      description: input.description ?? null,
+    });
+    return { id: category.category_id, parentId: category.parent_category_id, name: category.category_name, description: category.description, status: category.status };
+  }
+
+  async updateCategory(id: string, input: { name?: string; parentId?: string | null; description?: string | null }): Promise<CategoryItem> {
+    const category = await apiClient.patch<{ category_id: string; parent_category_id: string | null; category_name: string; description: string | null; status: "ACTIVE" | "INACTIVE" }>(`/admin/categories/${id}`, {
+      ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.parentId !== undefined ? { parent_category_id: input.parentId } : {}),
+      ...(input.description !== undefined ? { description: input.description } : {}),
+    });
+    return { id: category.category_id, parentId: category.parent_category_id, name: category.category_name, description: category.description, status: category.status };
   }
 
   async toggleCategoryStatus(id: string): Promise<CategoryItem> {
-    return apiClient.patch<CategoryItem>(`/categories/${id}/status`, {});
-  }
-
-  async deleteCategory(id: string): Promise<boolean> {
-    return apiClient.delete<boolean>(`/categories/${id}`);
+    const current = (await this.getCategories()).find((item) => item.id === id);
+    if (!current) throw new Error("Không tìm thấy danh mục.");
+    const category = await apiClient.patch<{ category_id: string; status: "ACTIVE" | "INACTIVE" }>(`/admin/categories/${id}/status`, {
+      status: current.status === "ACTIVE" ? "INACTIVE" : "ACTIVE",
+    });
+    return { ...current, status: category.status };
   }
 }
 
@@ -560,6 +610,8 @@ export const adminRepository: IAdminRepository = {
     features.domains.adminMock()
       ? mockAdminRepository.getModerationProducts()
       : apiAdminRepository.getModerationProducts(),
+  getModerationReviews: () => features.domains.adminMock() ? mockAdminRepository.getModerationReviews() : apiAdminRepository.getModerationReviews(),
+  moderateReview: (id, status, reason) => features.domains.adminMock() ? mockAdminRepository.moderateReview(id, status, reason) : apiAdminRepository.moderateReview(id, status, reason),
   moderateProduct: (productId, status, reason, actor) =>
     features.domains.adminMock()
       ? mockAdminRepository.moderateProduct(productId, status, reason, actor)
@@ -572,10 +624,10 @@ export const adminRepository: IAdminRepository = {
     features.domains.adminMock() ? mockAdminRepository.getCategoryTree() : apiAdminRepository.getCategoryTree(),
   createCategory: (input) =>
     features.domains.adminMock() ? mockAdminRepository.createCategory(input) : apiAdminRepository.createCategory(input),
+  updateCategory: (id, input) =>
+    features.domains.adminMock() ? mockAdminRepository.updateCategory(id, input) : apiAdminRepository.updateCategory(id, input),
   toggleCategoryStatus: (id) =>
     features.domains.adminMock()
       ? mockAdminRepository.toggleCategoryStatus(id)
       : apiAdminRepository.toggleCategoryStatus(id),
-  deleteCategory: (id) =>
-    features.domains.adminMock() ? mockAdminRepository.deleteCategory(id) : apiAdminRepository.deleteCategory(id),
 };

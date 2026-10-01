@@ -185,6 +185,7 @@ export function AdminDashboardScreen() {
 
   // Product Moderation Actions
   const handleToggleProductStatus = async (product: ModerationProduct) => {
+    if (product.status !== "ACTIVE" && product.status !== "HIDDEN") return;
     const targetStatus = product.status === "ACTIVE" ? "HIDDEN" : "ACTIVE";
     try {
       const updated = await adminRepository.moderateProduct(
@@ -257,6 +258,24 @@ export function AdminDashboardScreen() {
             >
               <Icon name="grid" className="w-4 h-4" />
               <span>Quản lý danh mục (A-709)</span>
+            </Link>
+            <Link href="/admin/reviews" className="button button--secondary text-xs py-2 px-3.5 flex items-center gap-1.5">
+              Kiểm duyệt đánh giá
+            </Link>
+            <Link href="/admin/vouchers" className="button button--secondary text-xs py-2 px-3.5 flex items-center gap-1.5">
+              Voucher toàn sàn
+            </Link>
+            <Link href="/admin/campaigns" className="button button--secondary text-xs py-2 px-3.5 flex items-center gap-1.5">
+              Chiến dịch thông báo
+            </Link>
+            <Link href="/admin/orders" className="button button--secondary text-xs py-2 px-3.5 flex items-center gap-1.5">
+              Đơn hàng
+            </Link>
+            <Link href="/admin/reports" className="button button--secondary text-xs py-2 px-3.5 flex items-center gap-1.5">
+              Báo cáo
+            </Link>
+            <Link href="/admin/audit-logs" className="button button--secondary text-xs py-2 px-3.5 flex items-center gap-1.5">
+              Nhật ký quản trị
             </Link>
           </div>
         </header>
@@ -510,6 +529,7 @@ export function AdminDashboardScreen() {
                       ) : (
                         filteredShops.map((s) => {
                           const isLocked = s.status === "LOCKED";
+                          const isPending = s.status === "PENDING";
                           return (
                             <tr key={s.id} className="hover:bg-[var(--card-muted)]/50 transition-colors">
                               <td className="py-3 px-4">
@@ -534,11 +554,13 @@ export function AdminDashboardScreen() {
                                       : "bg-[var(--success-surface)] text-[var(--success)] border border-[var(--success-border)]"
                                   }`}
                                 >
-                                  {isLocked ? "Đã khóa" : "Hoạt động"}
+                                  {isLocked ? "Đã khóa" : isPending ? "Chờ duyệt" : "Hoạt động"}
                                 </span>
                               </td>
                               <td className="py-3 px-4 text-right">
-                                {isLocked ? (
+                                {isPending ? (
+                                  <Link className="text-xs font-semibold text-[var(--primary)]" href="/admin/shops">Mở duyệt hồ sơ</Link>
+                                ) : isLocked ? (
                                   <Button
                                     variant="secondary"
                                     className="text-xs py-1 px-3"
@@ -580,7 +602,6 @@ export function AdminDashboardScreen() {
                         <th className="py-3 px-4">Tên Sản Phẩm</th>
                         <th className="py-3 px-4">Gian Hàng</th>
                         <th className="py-3 px-4 text-right">Giá Bán</th>
-                        <th className="py-3 px-4 text-center">Báo Cáo</th>
                         <th className="py-3 px-4 text-center">Trạng Thái</th>
                         <th className="py-3 px-4 text-right">Kiểm Duyệt</th>
                       </tr>
@@ -588,7 +609,7 @@ export function AdminDashboardScreen() {
                     <tbody className="divide-y divide-[var(--border)]">
                       {filteredProducts.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="py-8 text-center text-xs text-[var(--subtext)]">
+                          <td colSpan={5} className="py-8 text-center text-xs text-[var(--subtext)]">
                             Không tìm thấy sản phẩm cần kiểm duyệt.
                           </td>
                         </tr>
@@ -613,33 +634,23 @@ export function AdminDashboardScreen() {
                               </td>
                               <td className="py-3 px-4 text-center">
                                 <span
-                                  className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                                    p.reports > 0
-                                      ? "bg-[var(--danger-surface)] text-[var(--danger)]"
-                                      : "bg-[var(--card-muted)] text-[var(--subtext)]"
-                                  }`}
-                                >
-                                  {p.reports} vi phạm
-                                </span>
-                              </td>
-                              <td className="py-3 px-4 text-center">
-                                <span
                                   className={`text-xs font-semibold px-2 py-0.5 rounded-md inline-block ${
                                     isHidden
                                       ? "bg-[var(--danger-surface)] text-[var(--danger)] border border-[var(--danger-border)]"
                                       : "bg-[var(--success-surface)] text-[var(--success)] border border-[var(--success-border)]"
                                   }`}
                                 >
-                                  {isHidden ? "Đã ẩn" : "Hiển thị"}
+                                  {p.status === "HIDDEN" ? "Đã ẩn" : p.status === "ACTIVE" ? "Đang hiển thị" : p.status === "DRAFT" ? "Bản nháp" : "Ngừng bán"}
                                 </span>
                               </td>
                               <td className="py-3 px-4 text-right">
                                 <Button
                                   variant={isHidden ? "secondary" : "danger"}
                                   className="text-xs py-1 px-3"
+                                  disabled={p.status !== "ACTIVE" && p.status !== "HIDDEN"}
                                   onClick={() => handleToggleProductStatus(p)}
                                 >
-                                  {isHidden ? "Khôi phục" : "Ẩn vi phạm"}
+                                  {isHidden ? "Khôi phục" : p.status === "ACTIVE" ? "Ẩn sản phẩm" : "Không khả dụng"}
                                 </Button>
                               </td>
                             </tr>

@@ -68,55 +68,13 @@ const apiVoucherRepository: IVoucherRepository = {
 };
 
 const apiAdminRepository: IAdminRepository = {
-  getUsers: async (params) => {
-    try {
-      return await adminApi.getUsers(params);
-    } catch {
-      return mockAdminRepository.getUsers(params);
-    }
-  },
-  lockUser: async (payload) => {
-    try {
-      await adminApi.lockUser(payload);
-    } catch {
-      await mockAdminRepository.lockUser(payload);
-    }
-  },
-  unlockUser: async (userId) => {
-    try {
-      await adminApi.unlockUser(userId);
-    } catch {
-      await mockAdminRepository.unlockUser(userId);
-    }
-  },
-  getShops: async (params) => {
-    try {
-      return await adminApi.getShops(params);
-    } catch {
-      return mockAdminRepository.getShops(params);
-    }
-  },
-  approveShop: async (shopId, reason) => {
-    try {
-      await adminApi.approveShop(shopId, reason);
-    } catch {
-      await mockAdminRepository.approveShop(shopId, reason);
-    }
-  },
-  lockShop: async (payload) => {
-    try {
-      await adminApi.lockShop(payload);
-    } catch {
-      await mockAdminRepository.lockShop(payload);
-    }
-  },
-  unlockShop: async (shopId, reason) => {
-    try {
-      await adminApi.unlockShop(shopId, reason);
-    } catch {
-      await mockAdminRepository.unlockShop(shopId, reason);
-    }
-  },
+  getUsers: (params) => adminApi.getUsers(params),
+  lockUser: (payload) => adminApi.lockUser(payload),
+  unlockUser: (userId) => adminApi.unlockUser(userId),
+  getShops: (params) => adminApi.getShops(params),
+  approveShop: (shopId, reason) => adminApi.approveShop(shopId, reason),
+  lockShop: (payload) => adminApi.lockShop(payload),
+  unlockShop: (shopId, reason) => adminApi.unlockShop(shopId, reason),
 };
 
 const apiMediaRepository: IMediaRepository = {
@@ -903,7 +861,7 @@ const mockAdminShopsStore: AdminShopItem[] = Array.from({ length: 20 }, (_, i) =
   };
 });
 
-const mockAdminRepository: IAdminRepository = {
+export const mockAdminRepository: IAdminRepository = {
   getUsers: async (params) => {
     let list = [...mockAdminUsersStore];
     if (params?.role) {

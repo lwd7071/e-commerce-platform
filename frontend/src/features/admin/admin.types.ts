@@ -17,7 +17,7 @@ export interface PlatformShop {
   name: string;
   ownerEmail: string;
   productCount: number;
-  status: "ACTIVE" | "LOCKED";
+  status: "PENDING" | "ACTIVE" | "LOCKED";
   lockReason?: string | null;
   createdAt: string;
 }
@@ -27,16 +27,25 @@ export interface ModerationProduct {
   name: string;
   shopName: string;
   price: string;
-  status: "ACTIVE" | "HIDDEN";
-  reports: number;
-  reportReason?: string | null;
+  status: "DRAFT" | "ACTIVE" | "INACTIVE" | "HIDDEN";
+}
+
+export interface ModerationReview {
+  id: string;
+  productId: string;
+  productName: string;
+  buyerId: string;
+  rating: number;
+  content: string | null;
+  status: "VISIBLE" | "HIDDEN";
+  createdAt: string;
 }
 
 export interface AdminAuditLog {
   id: string;
-  action: "LOCK_USER" | "UNLOCK_USER" | "LOCK_SHOP" | "UNLOCK_SHOP" | "HIDE_PRODUCT" | "RESTORE_PRODUCT" | "CREATE_CATEGORY" | "UPDATE_CATEGORY" | "DELETE_CATEGORY";
-  targetType: "USER" | "SHOP" | "PRODUCT" | "CATEGORY";
-  targetId: string;
+  action: "LOCK_USER" | "UNLOCK_USER" | "LOCK_SHOP" | "UNLOCK_SHOP" | "HIDE_PRODUCT" | "RESTORE_PRODUCT" | "HIDE_REVIEW" | "RESTORE_REVIEW" | "CREATE_CATEGORY" | "UPDATE_CATEGORY" | string;
+  targetType: "USER" | "SHOP" | "PRODUCT" | "REVIEW" | "CATEGORY" | "ORDER" | "VOUCHER" | "CAMPAIGN" | null;
+  targetId: string | null;
   targetName?: string;
   reason: string;
   actor: string;

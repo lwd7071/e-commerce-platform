@@ -97,7 +97,6 @@ describe("Cụm 4 - Admin & Seller Management (A-704, A-705, A-708, A-709, Q-805
       );
 
       expect(hidden.status).toBe("HIDDEN");
-      expect(hidden.reportReason).toContain("vi phạm");
 
       const logs = await adminRepo.getAuditLogs();
       expect(logs[0].action).toBe("HIDE_PRODUCT");
@@ -138,10 +137,12 @@ describe("Cụm 4 - Admin & Seller Management (A-704, A-705, A-708, A-709, Q-805
       ).rejects.toThrow("Quy tắc RB-KN04: Danh mục chỉ được hỗ trợ tối đa 2 cấp phân cấp");
     });
 
-    it("prevents deleting a parent category that still has subcategories", async () => {
-      await expect(
-        adminRepo.deleteCategory("00000000-0000-0000-0000-000000000010")
-      ).rejects.toThrow("Không thể xóa danh mục cha đang chứa các danh mục con");
+    it("edits a category without deleting it", async () => {
+      const updated = await adminRepo.updateCategory("00000000-0000-0000-0000-000000000010", {
+        name: "Chăm sóc cá nhân",
+      });
+      expect(updated.name).toBe("Chăm sóc cá nhân");
+      expect(updated.status).toBe("ACTIVE");
     });
 
     it("toggles category status between ACTIVE and INACTIVE", async () => {
