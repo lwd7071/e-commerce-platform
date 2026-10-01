@@ -3,7 +3,6 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { SellerReportsScreen } from '@/features/seller/seller-reports-screen';
-import { repositories } from '@/lib/repositories/repository-factory';
 
 const mockReport = {
   grossRevenue: '2500000.00',

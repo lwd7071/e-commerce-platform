@@ -69,6 +69,20 @@ export async function registerPresignedMedia(
     `, [pathMetadata.shopId]);
     if (shop.rows?.[0]?.owner_id !== media.ownerId) throw new Error('product media shop is not active and owned by this user');
   }
+  if (pathMetadata?.type === 'shop_logo') {
+    const shop = await client.query(`
+      SELECT s.owner_id, s.status
+      FROM shops s
+      WHERE s.shop_id=$1
+    `, [pathMetadata.shopId]);
+    const shopRow = shop.rows?.[0];
+    if (!shopRow || shopRow.owner_id !== media.ownerId) {
+      throw new Error('shop logo must be owned by this user');
+    }
+    if (shopRow.status !== 'PENDING' && shopRow.status !== 'ACTIVE') {
+      throw new Error('shop status does not allow logo updates');
+    }
+  }
   const result = await client.query(`
     INSERT INTO media_uploads(media_id,owner_id,purpose,bucket_id,object_path,status,expires_at)
     VALUES($1,$2,$3,$4,$5,'PRESIGNED',$6)

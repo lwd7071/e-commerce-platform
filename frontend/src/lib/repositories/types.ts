@@ -23,7 +23,7 @@ export interface ICatalogRepository {
   getSellerProductById?(id: string): Promise<WireCatalogProductDetail>;
   updateSellerProduct?(id: string, input: Partial<Pick<WireCatalogProductDetail, "product_name" | "description" | "category_id">> & {
     variants?: Array<{ variant_id?: string; variant_name: string; variant_value?: string | null; sku: string; price: string }>;
-    images?: Array<{ media_id: string; image_url: string; sort_order: number }>;
+    images?: Array<{ image_id?: string; media_id?: string; image_url: string; sort_order: number }>;
   }): Promise<WireCatalogProductDetail>;
   createProduct?(data: CreateProductInput): Promise<WireCatalogProductDetail>;
   updateStock?(variantId: string, quantity: number): Promise<unknown>;

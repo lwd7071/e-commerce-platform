@@ -17,6 +17,7 @@ vi.mock('@/lib/api/seller-voucher.api', () => ({
 const mockVoucher: SellerVoucher = {
   voucher_id: '00000000-0000-0000-0000-000000000001',
   shop_id: '00000000-0000-0000-0000-000000000010',
+  scope: 'SHOP',
   code: 'SHOP10K',
   voucher_name: 'Giảm 10K cho đơn từ 100K',
   discount_type: 'FIXED',
@@ -24,7 +25,6 @@ const mockVoucher: SellerVoucher = {
   max_discount: null,
   min_order_value: '100000.00',
   quantity: 50,
-  used_count: 5,
   status: 'ACTIVE',
   start_at: '2026-10-01T00:00:00.000Z',
   end_at: '2026-10-31T23:59:59.000Z',

@@ -503,17 +503,26 @@ export class PgCatalogHttpService {
       throw new ValidationError('Images must be an array');
     }
     const rawImages = imagesInput as unknown[] | undefined;
-    const mediaAttachments = rawImages?.map((value, index) => {
+    const normalizedImages = rawImages?.map((value, index) => {
       const img = objectValue(value);
-      if (typeof img.media_id !== 'string') throw new ValidationError('Product images must use finalized seller media uploads');
-      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(img.media_id)) {
-        throw new ValidationError('Image media_id must be a valid UUID');
+      const imageId = typeof img.image_id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(img.image_id)
+        ? img.image_id
+        : undefined;
+      const mediaId = typeof img.media_id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(img.media_id)
+        ? img.media_id
+        : undefined;
+      const imageUrl = String(img.image_url ?? '').trim();
+      if (!imageUrl) {
+        throw new ValidationError('Each product image requires a valid image_url');
+      }
+      if (!imageId && !mediaId) {
+        throw new ValidationError('Each product image must specify image_id (for existing images) or media_id (for newly uploaded images)');
       }
       const sortOrder = img.sort_order !== undefined ? Number(img.sort_order) : index;
       if (!Number.isInteger(sortOrder) || sortOrder < 0) {
         throw new ValidationError('Image sortOrder must be a non-negative integer');
       }
-      return { mediaId: img.media_id, imageUrl: String(img.image_url ?? ''), sortOrder };
+      return { imageId, mediaId, imageUrl, sortOrder };
     });
 
     await withTransaction(this.pool, async (client) => {
@@ -573,14 +582,33 @@ export class PgCatalogHttpService {
         }
       }
 
-      if (mediaAttachments) {
+      if (normalizedImages) {
+        const existingImagesRes = await client.query<{ image_id: string; image_url: string }>(
+          'SELECT image_id, image_url FROM product_images WHERE product_id = $1',
+          [productId],
+        );
+        const existingImageMap = new Map(existingImagesRes.rows.map((r) => [r.image_id, r.image_url]));
         const storageUrl = process.env.SUPABASE_URL?.replace(/\/$/, '');
-        for (const media of mediaAttachments) {
+
+        const newMediaToAttach: string[] = [];
+        for (const img of normalizedImages) {
+          // Check if it's an existing image belonging to this product
+          const matchedImageId = img.imageId || (img.mediaId && existingImageMap.has(img.mediaId) ? img.mediaId : undefined);
+          if (matchedImageId && existingImageMap.has(matchedImageId) && existingImageMap.get(matchedImageId) === img.imageUrl) {
+            continue;
+          }
+
+          // Otherwise, it must be a newly finalized media upload
+          const targetMediaId = img.mediaId;
+          if (!targetMediaId) {
+            throw new ValidationError('Existing image reference is invalid or does not belong to this product');
+          }
+
           const registered = await client.query<{
             owner_id: string; purpose: string; bucket_id: string; object_path: string; status: string;
           }>(
             'SELECT owner_id,purpose,bucket_id,object_path,status FROM media_uploads WHERE media_id=$1 FOR UPDATE',
-            [media.mediaId],
+            [targetMediaId],
           );
           const r = registered.rows[0];
           const path = r?.object_path;
@@ -589,27 +617,30 @@ export class PgCatalogHttpService {
             : '';
           if (!r || r.owner_id !== context.user_id || r.purpose !== 'PRODUCT'
             || r.bucket_id !== 'product-media' || (r.status !== 'FINALIZED' && r.status !== 'ATTACHED')
-            || !path?.startsWith(`shops/${context.shop_id}/products/${productId}/${media.mediaId}.`)
-            || (storageUrl && media.imageUrl !== publicUrl)) {
+            || !path?.startsWith(`shops/${context.shop_id}/products/${productId}/${targetMediaId}.`)
+            || (storageUrl && img.imageUrl !== publicUrl)) {
             throw new ValidationError('Product image must reference a finalized upload owned by this seller and product');
+          }
+          if (r.status === 'FINALIZED') {
+            newMediaToAttach.push(targetMediaId);
           }
         }
 
         await client.query('DELETE FROM product_images WHERE product_id = $1', [productId]);
-        for (const media of mediaAttachments) {
+        for (const img of normalizedImages) {
           await client.query(
             'INSERT INTO product_images (image_id, product_id, image_url, sort_order) VALUES ($1, $2, $3, $4)',
-            [crypto.randomUUID(), productId, media.imageUrl, media.sortOrder],
+            [img.imageId || crypto.randomUUID(), productId, img.imageUrl, img.sortOrder],
           );
-          const registered = await client.query<{ status: string }>('SELECT status FROM media_uploads WHERE media_id=$1', [media.mediaId]);
-          if (registered.rows[0]?.status === 'FINALIZED') {
-            await attachFinalizedMedia(client, {
-              mediaId: media.mediaId,
-              ownerId: context.user_id,
-              purpose: 'PRODUCT',
-              resource: { kind: 'PRODUCT', shopId: context.shop_id!, productId },
-            });
-          }
+        }
+
+        for (const mediaId of newMediaToAttach) {
+          await attachFinalizedMedia(client, {
+            mediaId,
+            ownerId: context.user_id,
+            purpose: 'PRODUCT',
+            resource: { kind: 'PRODUCT', shopId: context.shop_id!, productId },
+          });
         }
       }
     });

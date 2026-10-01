@@ -18,6 +18,7 @@ type EditableVariant = { key: string; variant_id?: string; variant_name: string;
 interface ImageItem {
   id: string;
   url: string;
+  imageId?: string;
   mediaId?: string;
 }
 
@@ -50,7 +51,7 @@ export function SellerProductEditScreen() {
       setImages((detail.images ?? []).map((img, idx) => ({
         id: img.image_id ?? `img-${idx}`,
         url: img.image_url,
-        mediaId: img.image_id,
+        imageId: img.image_id,
       })));
       setError(null);
     }).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : "Không thể tải sản phẩm."))
@@ -97,9 +98,10 @@ export function SellerProductEditScreen() {
     setSaving(true);
     try {
       const validImages = images
-        .filter((img): img is ImageItem & { mediaId: string } => Boolean(img.mediaId))
+        .filter((img) => Boolean(img.imageId || img.mediaId))
         .map((img, idx) => ({
-          media_id: img.mediaId,
+          ...(img.imageId ? { image_id: img.imageId } : {}),
+          ...(img.mediaId ? { media_id: img.mediaId } : {}),
           image_url: img.url,
           sort_order: idx,
         }));

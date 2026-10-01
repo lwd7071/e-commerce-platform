@@ -186,7 +186,20 @@ export function createMediaRouter(auth?: RequestHandler, runtime?: MediaRuntimeD
       let bucket: string;
 
       if (dbPurpose === 'SHOP_LOGO') {
-        const shopId = ctx.shop_id || (typeof body.shop_id === 'string' ? body.shop_id : '');
+        if (ctx.role !== 'SELLER') {
+          throw new ForbiddenError('FORBIDDEN', 'Chỉ người bán mới có quyền tải lên logo gian hàng');
+        }
+        if (ctx.shop_status && ctx.shop_status !== 'ACTIVE' && ctx.shop_status !== 'PENDING') {
+          throw new ForbiddenError('FORBIDDEN', 'Gian hàng đang bị khóa hoặc đình chỉ');
+        }
+        const requestedShopId = typeof body.shop_id === 'string' ? body.shop_id : undefined;
+        if (requestedShopId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(requestedShopId)) {
+          throw new MediaValidationError('shop_id is required for shop logo upload', { field: 'shop_id' });
+        }
+        if (requestedShopId && ctx.shop_id && ctx.shop_id !== requestedShopId) {
+          throw new ForbiddenError('FORBIDDEN', 'Gian hàng không thuộc quyền quản lý của bạn');
+        }
+        const shopId = ctx.shop_id || requestedShopId || '';
         if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(shopId)) {
           throw new MediaValidationError('shop_id is required for shop logo upload', { field: 'shop_id' });
         }
@@ -221,14 +234,21 @@ export function createMediaRouter(auth?: RequestHandler, runtime?: MediaRuntimeD
           throw new MediaValidationError('Review media upload is not available in this runtime', { field: 'purpose' });
         }
         const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-        await registerPresignedMedia(runtime.pool, {
-          mediaId,
-          ownerId: ctx.user_id,
-          purpose: dbPurpose,
-          bucketId: bucket as typeof STORAGE_BUCKETS.PRODUCT_MEDIA | typeof STORAGE_BUCKETS.PROFILE_MEDIA,
-          objectPath: storagePath,
-          expiresAt,
-        });
+        try {
+          await registerPresignedMedia(runtime.pool, {
+            mediaId,
+            ownerId: ctx.user_id,
+            purpose: dbPurpose,
+            bucketId: bucket as typeof STORAGE_BUCKETS.PRODUCT_MEDIA | typeof STORAGE_BUCKETS.PROFILE_MEDIA,
+            objectPath: storagePath,
+            expiresAt,
+          });
+        } catch (err: unknown) {
+          if (err instanceof Error && (err.message.includes('owned by this user') || err.message.includes('not active and owned by this user') || err.message.includes('shop status does not allow'))) {
+            throw new ForbiddenError(err.message);
+          }
+          throw err;
+        }
         const signed = await runtime.storage.storage.from(bucket).createSignedUploadUrl(storagePath, { upsert: false });
         if (signed.error) {
           await runtime.pool.query("DELETE FROM media_uploads WHERE media_id=$1 AND status='PRESIGNED'", [mediaId]);

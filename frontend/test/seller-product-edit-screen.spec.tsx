@@ -3,7 +3,6 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { SellerProductEditScreen } from '@/features/seller/seller-product-edit-screen';
-import { repositories } from '@/lib/repositories/repository-factory';
 import { categoryAdapter } from '@/lib/adapters/category.adapter';
 import { uploadMediaAsset } from '@/lib/api/media.api';
 import type { WireCatalogProductDetail } from '@/lib/api/catalog.api';
@@ -70,7 +69,7 @@ describe('SellerProductEditScreen UI', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(categoryAdapter.getCategories).mockResolvedValue([
-      { id: 'cat-001', name: 'Thời trang nam', level: 0 },
+      { id: 'cat-001', name: 'Thời trang nam', parentId: null, status: 'ACTIVE' },
     ]);
   });
 
@@ -139,7 +138,7 @@ describe('SellerProductEditScreen UI', () => {
           product_name: 'Áo thun cotton cao cấp',
           images: [
             {
-              media_id: 'img-uuid-001',
+              image_id: 'img-uuid-001',
               image_url: 'https://cdn.example.com/shirt-1.png',
               sort_order: 0,
             },

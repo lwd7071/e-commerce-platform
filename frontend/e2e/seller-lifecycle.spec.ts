@@ -1,10 +1,10 @@
 import { expect, test } from "./fixtures";
 
 test.describe("Seller Comprehensive Lifecycle E2E (Shop Profile → Products & Edit → Vouchers → Reports)", () => {
-  test("Seller manages shop profile, edits product, controls vouchers, and views reports", async ({ page }) => {
+  test("Seller logs in, manages shop profile, edits product, controls vouchers, and views reports", async ({ page }) => {
     const password = process.env.E2E_SEED_PASSWORD ?? "Password123!";
 
-    // Mock API responses for reliable end-to-end integration across environments
+    // Mock API routes to keep E2E reliable and independent of database state
     await page.route("**/api/v1/seller/shop", (route) => {
       if (route.request().method() === "GET") {
         return route.fulfill({
@@ -45,7 +45,58 @@ test.describe("Seller Comprehensive Lifecycle E2E (Shop Profile → Products & E
       return route.continue();
     });
 
-    await page.route("**/api/v1/seller/vouchers", (route) => {
+    await page.route("**/api/v1/seller/products/prod-e2e-01", (route) => {
+      if (route.request().method() === "GET") {
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            data: {
+              product_id: "prod-e2e-01",
+              shop_id: "00000000-0000-0000-0000-000000000001",
+              category_id: "00000000-0000-0000-0000-000000000001",
+              product_name: "Bàn Phím Cơ Dino E2E",
+              description: "Bàn phím cơ cao cấp",
+              status: "ACTIVE",
+              variants: [
+                {
+                  variant_id: "var-001",
+                  variant_name: "Tiêu chuẩn",
+                  variant_value: "Mặc định",
+                  sku: "SKU-KB-01",
+                  price: "750000.00",
+                  stock_quantity: 40,
+                  status: "ACTIVE",
+                },
+              ],
+              images: [
+                {
+                  image_id: "img-001",
+                  image_url: "https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=600",
+                  sort_order: 0,
+                },
+              ],
+            },
+          }),
+        });
+      }
+      if (route.request().method() === "PATCH") {
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            data: {
+              product_id: "prod-e2e-01",
+              product_name: "Bàn Phím Cơ Dino E2E Pro",
+              status: "ACTIVE",
+            },
+          }),
+        });
+      }
+      return route.continue();
+    });
+
+    await page.route("**/api/v1/seller/vouchers*", (route) => {
       if (route.request().method() === "GET") {
         return route.fulfill({
           status: 200,
@@ -62,7 +113,6 @@ test.describe("Seller Comprehensive Lifecycle E2E (Shop Profile → Products & E
                 max_discount: null,
                 min_order_value: "200000.00",
                 quantity: 100,
-                used_count: 10,
                 status: "ACTIVE",
                 start_at: "2026-10-01T00:00:00.000Z",
                 end_at: "2026-10-31T23:59:59.000Z",
@@ -71,7 +121,37 @@ test.describe("Seller Comprehensive Lifecycle E2E (Shop Profile → Products & E
           }),
         });
       }
+      if (route.request().method() === "POST") {
+        return route.fulfill({
+          status: 201,
+          contentType: "application/json",
+          body: JSON.stringify({
+            data: {
+              voucher_id: "00000000-0000-0000-0000-000000000002",
+              shop_id: "00000000-0000-0000-0000-000000000001",
+              code: "SELLER100",
+              voucher_name: "Giảm 100K",
+              discount_type: "FIXED",
+              discount_value: "100000.00",
+              status: "ACTIVE",
+            },
+          }),
+        });
+      }
       return route.continue();
+    });
+
+    await page.route("**/api/v1/seller/vouchers/*/status", (route) => {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            voucher_id: "00000000-0000-0000-0000-000000000001",
+            status: "INACTIVE",
+          },
+        }),
+      });
     });
 
     await page.route("**/api/v1/seller/reports/revenue*", (route) => {
@@ -92,11 +172,17 @@ test.describe("Seller Comprehensive Lifecycle E2E (Shop Profile → Products & E
       });
     });
 
+    // 0. Sign in as active Seller
+    await page.goto("/login?returnTo=%2Fseller%2Fshop");
+    await page.getByLabel("Địa chỉ Email").fill("seller-active@dino-e2e.test");
+    await page.getByLabel("Mật khẩu").fill(password);
+    await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
+    await expect(page).toHaveURL(/\/seller\/shop(?:\?|$)/, { timeout: 30_000 });
+
     // 1. Seller Shop Profile page
-    await page.goto("/seller/shop");
     await expect(page.getByRole("heading", { name: "Hồ sơ gian hàng" })).toBeVisible();
-    await expect(page.getByDisplayValue("Dino Official Store")).toBeVisible();
-    await expect(page.getByDisplayValue("123 Đường Công Nghệ, Quận 1")).toBeVisible();
+    await expect(page.locator("input#shop-name")).toHaveValue("Dino Official Store");
+    await expect(page.locator("input#pickup-address")).toHaveValue("123 Đường Công Nghệ, Quận 1");
 
     // Edit shop details
     const addressInput = page.getByLabel(/Địa chỉ nhận hàng/);
@@ -104,13 +190,23 @@ test.describe("Seller Comprehensive Lifecycle E2E (Shop Profile → Products & E
     await page.getByRole("button", { name: "Lưu hồ sơ" }).click();
     await expect(page.getByText("Đã lưu hồ sơ gian hàng.")).toBeVisible();
 
-    // 2. Seller Vouchers page
+    // 2. Edit product page
+    await page.goto("/seller/products/prod-e2e-01/edit");
+    await expect(page.getByRole("heading", { name: "Sửa sản phẩm" })).toBeVisible();
+    await expect(page.locator("input#seller-product-name")).toHaveValue("Bàn Phím Cơ Dino E2E");
+    await page.locator("input#seller-product-name").fill("Bàn Phím Cơ Dino E2E Pro");
+    await page.getByRole("button", { name: "Lưu thay đổi" }).click();
+    await expect(page).toHaveURL(/\/seller\/products(?:\?|$)/, { timeout: 30_000 });
+
+    // 3. Seller Vouchers page
     await page.goto("/seller/vouchers");
     await expect(page.getByRole("heading", { name: "Voucher gian hàng" })).toBeVisible();
     await expect(page.getByText("SELLER50")).toBeVisible();
-    await expect(page.getByText("Giảm 50K")).toBeVisible();
+    // Toggle voucher
+    await page.getByRole("button", { name: "Tắt" }).click();
+    await expect(page.getByText("Đã tắt voucher.")).toBeVisible();
 
-    // 3. Seller Reports page
+    // 4. Seller Reports page
     await page.goto("/seller/reports");
     await expect(page.getByRole("heading", { name: "Báo cáo doanh thu" })).toBeVisible();
     await page.getByRole("button", { name: "Xem báo cáo" }).click();
