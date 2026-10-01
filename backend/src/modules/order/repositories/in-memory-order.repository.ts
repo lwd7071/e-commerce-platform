@@ -64,6 +64,7 @@ export class InMemoryOrderRepository implements IOrderRepository {
     this.orders.set(orderId, {
       ...order,
       status: newStatus,
+      cancelReason: newStatus === 'CANCELLED' ? (history.reason ?? order.cancelReason ?? null) : order.cancelReason,
       updatedAt: new Date().toISOString(),
     });
 

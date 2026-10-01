@@ -29,8 +29,8 @@ export class ReviewService {
   async createReview(
     buyerId: UUID,
     orderItemId: UUID,
-    productId: UUID,
-    rawInput: unknown
+    productId?: UUID,
+    rawInput?: unknown
   ): Promise<Review> {
     const validated: CreateReviewDTO = validateCreateReviewDTO(rawInput);
 
@@ -42,8 +42,8 @@ export class ReviewService {
       });
     }
 
-    // 2. [RB-LQH05] Review.ProductID === OrderItem.ProductID
-    if (orderItemContext.productId !== productId) {
+    // 2. [RB-LQH05] Review.ProductID === OrderItem.ProductID (nếu có gửi productId thì phải khớp)
+    if (productId && orderItemContext.productId !== productId) {
       throw new ValidationError(
         'Sản phẩm đánh giá không khớp với sản phẩm trong đơn hàng (RB-LQH05).',
         {
@@ -82,7 +82,7 @@ export class ReviewService {
     const newReview: Review = {
       reviewId: randomUUID(),
       buyerId,
-      productId,
+      productId: productId ?? orderItemContext.productId,
       orderItemId,
       rating: validated.rating,
       content: validated.content ?? null,

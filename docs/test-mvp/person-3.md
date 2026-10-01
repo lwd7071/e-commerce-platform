@@ -6,9 +6,12 @@ Phạm vi: khám phá sản phẩm → giỏ → checkout → đơn mua → hủ
 
 - Trạng thái: Đã xác minh
 - Cập nhật gần nhất: 2026-10-01
-- Luồng đã hoàn tất: 8 / 8
+- Luồng đã hoàn tất: 12 / 12
 - Lỗi mở: Blocker 0 · Cao 0 · Vừa 0 · Thấp 0
-- Trở ngại/quyết định cần hỗ trợ: Không có. Toàn bộ luồng Giỏ hàng, Checkout Đa Shop, Idempotency, Quản lý đơn và Đánh giá sản phẩm đã pass 100% test spec và xác minh trên browser.
+- Lỗi đã phát hiện qua /diagnose và đã sửa dứt điểm:
+  1. *[Lỗi Cao - Data Sync]* Khi hủy đơn PENDING_CONFIRMATION, `PgOrderRepository` & `InMemoryOrderRepository` chỉ update `status = 'CANCELLED'` mà quên cập nhật cột `cancel_reason` $\rightarrow$ làm mất lý do hủy đơn khi đọc danh sách/chi tiết đơn hàng và giao diện `OrderCard`. Đã sửa câu SQL update `cancel_reason` và lưu vào `OrderRecord`.
+  2. *[Lỗi Vừa - API Contract]* `ReviewService.createReview` bắt buộc client gửi `product_id` trùng khớp, khiến request chuẩn REST `POST /order-items/:id/review` khi không có `product_id` trong body bị lỗi `422 VALIDATION_FAILED` (do so sánh với `undefined`). Đã sửa cho phép `productId` là optional và fallback về `orderItemContext.productId`.
+- Trở ngại/quyết định cần hỗ trợ: Không có. Toàn bộ 12 luồng Người 3 đã pass 100% test spec (58 backend tests + 66 frontend vitest tests + 31 edge-case tests).
 
 ## Nhật ký kiểm thử và lỗi
 
@@ -177,4 +180,88 @@ Phạm vi: khám phá sản phẩm → giỏ → checkout → đơn mua → hủ
 - Bằng chứng: `frontend/test/cart-checkout.spec.ts` (Plan v3.3 DOM hierarchy & responsive invariant tests).
 - Mức độ: Không có lỗi.
 - Kiểm tra lại: Passed 100%.
+
+---
+
+### [TC-BUY-09] Chặn Checkout bằng địa chỉ không thuộc sở hữu (IDOR Address on Checkout)
+- Trạng thái: Đã xác minh
+- Người thực hiện: Nguyễn Trung Hải (Người 3)
+- Ngày cập nhật: 2026-10-01
+- Role và tài khoản/dữ liệu test: BUYER A (`buyer1@example.com`) thử dùng `address_id` của BUYER B
+- Quy tắc tham chiếu: role-business-rules.md # Mục 3 & Mục 6 (Ranh giới dữ liệu Address)
+- Điều kiện ban đầu: Giỏ hàng có sản phẩm hợp lệ, `address_id` thuộc sở hữu của Buyer khác.
+- Các bước thực hiện:
+  1. Gửi request checkout `POST /api/v1/checkout` với `address_id` của Buyer B.
+- Kết quả mong đợi:
+  - Hệ thống kiểm tra quyền sở hữu địa chỉ theo `buyer_id`.
+  - Từ chối tạo đơn với lỗi `404 RESOURCE_NOT_FOUND` ("Address was not found for this buyer"), không để lộ thông tin địa chỉ người khác.
+- Kết quả thực tế: Chặn thành công, giao dịch checkout bị huỷ bỏ an toàn.
+- Bằng chứng: `backend/src/modules/checkout/services/pg-checkout.service.ts` (L47-48), `backend/test/platform/order-routes.spec.ts`.
+- Mức độ: Không có lỗi.
+- Kiểm tra lại: Passed 100%.
+
+---
+
+### [TC-BUY-10] Kiểm soát Điều kiện Đánh giá Sản phẩm Đa tầng (QD14, RB-LB09, RB-LQH05)
+- Trạng thái: Đã xác minh
+- Người thực hiện: Nguyễn Trung Hải (Người 3)
+- Ngày cập nhật: 2026-10-01
+- Role và tài khoản/dữ liệu test: BUYER (`buyer1@example.com`)
+- Quy tắc tham chiếu: role-business-rules.md # Mục 3 & QD14, RB-LB09, RB-LQH05
+- Điều kiện ban đầu: Các đơn hàng ở nhiều trạng thái (`SHIPPING`, `COMPLETED`), các `OrderItem` khác nhau.
+- Các bước thực hiện:
+  1. Thử đánh giá khi Order chưa `COMPLETED` (ví dụ `SHIPPING`).
+  2. Thử đánh giá OrderItem thuộc đơn hàng của Buyer khác.
+  3. Thử đánh giá với `productId` không khớp với `productId` trong OrderItem.
+  4. Thử đánh giá lại OrderItem đã có review trước đó.
+  5. Thử gửi rating ngoài khoảng $[1, 5]$ (ví dụ: rating = 0 hoặc 6).
+- Kết quả mong đợi:
+  - Bị chặn toàn bộ ở tầng Domain Service với mã lỗi chuẩn (`422 REVIEW_NOT_ELIGIBLE`, `409 REVIEW_ALREADY_EXISTS`, `422 VALIDATION_ERROR`).
+- Kết quả thực tế: Hoàn toàn chính xác theo đặc tả.
+- Bằng chứng: `backend/test/modules/buyer/integration/order-query-review.integration.spec.ts`, `backend/test/modules/buyer/hardening/buyer-negative-edge-cases.spec.ts`.
+- Mức độ: Không có lỗi.
+- Kiểm tra lại: Passed 100%.
+
+---
+
+### [TC-BUY-11] Quản lý và Đồng bộ Trạng thái Thông báo (RB-LTT07 & EventBus Integration)
+- Trạng thái: Đã xác minh
+- Người thực hiện: Nguyễn Trung Hải (Người 3)
+- Ngày cập nhật: 2026-10-01
+- Role và tài khoản/dữ liệu test: BUYER (`buyer1@example.com`)
+- Quy tắc tham chiếu: role-business-rules.md # Mục 3 & RB-LTT07, auth-rbac-rls §3
+- Điều kiện ban đầu: Buyer có thông báo hệ thống được sinh ra từ sự kiện chuyển trạng thái đơn hàng.
+- Các bước thực hiện:
+  1. Lấy danh sách thông báo qua `GET /api/v1/notifications`.
+  2. Đánh dấu đã đọc qua `PATCH /api/v1/notifications/:id/read`.
+  3. Thử đọc hoặc đánh dấu đã đọc thông báo của User khác.
+- Kết quả mong đợi:
+  - `is_read = true` và `read_at` được gán timestamp đồng thời (RB-LTT07).
+  - Không thể đọc hoặc sửa thông báo của người khác $\rightarrow$ Trả lỗi `404 RESOURCE_NOT_FOUND`.
+- Kết quả thực tế: Xử lý chuẩn xác, đảm bảo tính bất biến và phân quyền.
+- Bằng chứng: `backend/test/platform/review-notification-runtime.spec.ts`, `backend/src/modules/buyer/services/notification.service.ts`.
+- Mức độ: Không có lỗi.
+- Kiểm tra lại: Passed 100%.
+
+---
+
+### [TC-BUY-12] Ràng buộc Voucher Chống Gian Lận (QD09, RB-LTT03, RB-LTT05)
+- Trạng thái: Đã xác minh
+- Người thực hiện: Nguyễn Trung Hải (Người 3)
+- Ngày cập nhật: 2026-10-01
+- Role và tài khoản/dữ liệu test: BUYER (`buyer1@example.com`)
+- Quy tắc tham chiếu: role-business-rules.md # Mục 3 & QD09, RB-LTT03, RB-LTT05
+- Điều kiện ban đầu: Có các voucher SHOP và PLATFORM với các điều kiện ràng buộc khác nhau.
+- Các bước thực hiện:
+  1. Áp dụng voucher khi giá trị đơn hàng < `min_order_value`.
+  2. Áp dụng voucher đã hết hạn (`now > end_at`) hoặc chưa đến đợt kích hoạt (`now < start_at`).
+  3. Áp dụng voucher đã hết số lượng sử dụng (`quantity = 0`).
+  4. Áp dụng voucher cấp Shop của Shop A cho đơn hàng của Shop B.
+- Kết quả mong đợi:
+  - Tất cả các trường hợp gian lận hoặc sai điều kiện đều bị từ chối với lỗi rõ ràng (`VOUCHER_NOT_APPLICABLE`, `VOUCHER_SHOP_MISMATCH`).
+- Kết quả thực tế: Backend và Frontend tính toán chính xác 100%.
+- Bằng chứng: `backend/test/modules/buyer/hardening/buyer-negative-edge-cases.spec.ts` (suite 4), `frontend/test/buyer-voucher-adapters.spec.ts`.
+- Mức độ: Không có lỗi.
+- Kiểm tra lại: Passed 100%.
+
 
