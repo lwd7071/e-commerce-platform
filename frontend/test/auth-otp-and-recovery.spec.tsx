@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import VerifyEmailPage from "@/app/verify-email/page";
 import ForgotPasswordPage from "@/app/forgot-password/page";
 import ResetPasswordPage from "@/app/reset-password/page";
@@ -24,6 +24,7 @@ describe("Slice 4: Auth OTP and Password Recovery UI (TDD & UI/UX Pro Max)", () 
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useRealTimers();
     vi.mocked(useAuth).mockReturnValue({
       verifySignupOtp: mockVerifySignupOtp,
       resendSignupOtp: mockResendSignupOtp,
@@ -43,7 +44,24 @@ describe("Slice 4: Auth OTP and Password Recovery UI (TDD & UI/UX Pro Max)", () 
     });
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   describe("VerifyEmailPage (OTP flow)", () => {
+    it("disables submit button when OTP code has fewer than 6 digits", async () => {
+      render(<VerifyEmailPage />);
+
+      const otpInput = screen.getByLabelText("Mã xác minh");
+      await userEvent.type(otpInput, "12345");
+
+      const submitBtn = screen.getByRole("button", { name: "Xác minh" });
+      expect(submitBtn.hasAttribute("disabled")).toBe(true);
+
+      await userEvent.type(otpInput, "6");
+      expect(submitBtn.hasAttribute("disabled")).toBe(false);
+    });
+
     it("allows typing 6-digit OTP and submitting to verify", async () => {
       mockVerifySignupOtp.mockResolvedValueOnce(undefined);
       render(<VerifyEmailPage />);
@@ -72,23 +90,48 @@ describe("Slice 4: Auth OTP and Password Recovery UI (TDD & UI/UX Pro Max)", () 
       const alert = await screen.findByRole("alert");
       expect(alert.textContent).toContain("Mã OTP không chính xác hoặc đã hết hạn");
     });
+
+    it("disables resend button during 60s countdown and re-enables when timer reaches zero", () => {
+      vi.useFakeTimers();
+      render(<VerifyEmailPage />);
+
+      // Ban đầu: đang đếm ngược 60 giây
+      const resendBtn = screen.getByRole("button", { name: /Gửi lại mã sau/ });
+      expect(resendBtn.hasAttribute("disabled")).toBe(true);
+      expect(resendBtn.textContent).toContain("Gửi lại mã sau 60 giây");
+
+      // Cho trôi qua 60 giây (mỗi giây cần act riêng để React re-render và hook useEffect schedule timer kế tiếp)
+      for (let i = 0; i < 60; i++) {
+        act(() => {
+          vi.advanceTimersByTime(1000);
+        });
+      }
+
+      // Nút đã sẵn sàng gửi lại
+      const enabledResendBtn = screen.getByRole("button", { name: "Gửi lại mã" });
+      expect(enabledResendBtn.hasAttribute("disabled")).toBe(false);
+
+      vi.useRealTimers();
+    });
   });
 
   describe("ForgotPasswordPage", () => {
-    it("renders email input and sends reset link", async () => {
-      mockResetPassword.mockResolvedValueOnce(undefined);
+    it("renders neutral response to prevent account enumeration even if user does not exist", async () => {
+      mockResetPassword.mockRejectedValueOnce(new Error("User not found"));
       render(<ForgotPasswordPage />);
 
       const emailInput = screen.getByLabelText(/Email/i);
-      await userEvent.clear(emailInput);
-      await userEvent.type(emailInput, "user@dino.vn");
+      fireEvent.change(emailInput, { target: { value: "nonexistent@dino.vn" } });
 
       const submitBtn = screen.getByRole("button", { name: "Gửi hướng dẫn" });
-      await userEvent.click(submitBtn);
+      fireEvent.click(submitBtn);
 
+      // Luôn phản hồi trung tính không phân biệt tài khoản tồn tại hay không
       await waitFor(() => {
-        expect(mockResetPassword).toHaveBeenCalledWith("user@dino.vn");
+        const statusNotice = screen.getByRole("status");
+        expect(statusNotice.textContent).toBe("Nếu email tồn tại, thư hướng dẫn sẽ được gửi.");
       });
+      expect(mockResetPassword).toHaveBeenCalledWith("nonexistent@dino.vn");
     });
   });
 
@@ -98,16 +141,34 @@ describe("Slice 4: Auth OTP and Password Recovery UI (TDD & UI/UX Pro Max)", () 
 
       const passInput = screen.getByLabelText(/^Mật khẩu mới/i);
       const confirmInput = screen.getByLabelText(/^Xác nhận mật khẩu/i);
-      await userEvent.type(passInput, "12345");
-      await userEvent.type(confirmInput, "12345");
+      fireEvent.change(passInput, { target: { value: "12345" } });
+      fireEvent.change(confirmInput, { target: { value: "12345" } });
 
-      const form = passInput.closest("form")!;
+      const submitBtn = screen.getByRole("button", { name: "Cập nhật mật khẩu" });
+      fireEvent.click(submitBtn);
+
       await waitFor(() => {
-        form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+        const alert = screen.getByRole("alert");
+        expect(alert.textContent).toBe("Mật khẩu cần ít nhất 8 ký tự.");
       });
+      expect(mockUpdatePassword).not.toHaveBeenCalled();
+    });
 
-      const alert = await screen.findByRole("alert");
-      expect(alert.textContent).toContain("Mật khẩu cần ít nhất 8 ký tự.");
+    it("displays error alert when confirmation password does not match", async () => {
+      render(<ResetPasswordPage />);
+
+      const passInput = screen.getByLabelText(/^Mật khẩu mới/i);
+      const confirmInput = screen.getByLabelText(/^Xác nhận mật khẩu/i);
+      fireEvent.change(passInput, { target: { value: "Password123!" } });
+      fireEvent.change(confirmInput, { target: { value: "DifferentPass123!" } });
+
+      const submitBtn = screen.getByRole("button", { name: "Cập nhật mật khẩu" });
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        const alert = screen.getByRole("alert");
+        expect(alert.textContent).toBe("Mật khẩu xác nhận chưa khớp.");
+      });
       expect(mockUpdatePassword).not.toHaveBeenCalled();
     });
 
@@ -117,11 +178,11 @@ describe("Slice 4: Auth OTP and Password Recovery UI (TDD & UI/UX Pro Max)", () 
 
       const passInput = screen.getByLabelText(/^Mật khẩu mới/i);
       const confirmInput = screen.getByLabelText(/^Xác nhận mật khẩu/i);
-      await userEvent.type(passInput, "SecurePass123!");
-      await userEvent.type(confirmInput, "SecurePass123!");
+      fireEvent.change(passInput, { target: { value: "SecurePass123!" } });
+      fireEvent.change(confirmInput, { target: { value: "SecurePass123!" } });
 
       const submitBtn = screen.getByRole("button", { name: "Cập nhật mật khẩu" });
-      await userEvent.click(submitBtn);
+      fireEvent.click(submitBtn);
 
       await waitFor(() => {
         expect(mockUpdatePassword).toHaveBeenCalledWith("SecurePass123!");
