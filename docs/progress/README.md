@@ -4,6 +4,7 @@
 
 - [MVP User/Buyer implementation log](./mvp-user-buyer.md)
 - [MVP User/Seller implementation log](./mvp-user-seller.md) — cập nhật 2026-10-01; các capability chính đã được triển khai, acceptance tổng thể vẫn IN_PROGRESS.
+- [MVP User/Admin implementation log](./mvp-user-admin.md) — Admin Portal đang được hoàn thiện theo CR-ADMIN-01.
 
 Nguồn phân công và dependency: [Kế hoạch Backend T1/T2/T3](../architecture/backend-work-plan.md).
 
