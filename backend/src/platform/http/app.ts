@@ -47,6 +47,9 @@ import { PgSellerVoucherRepository } from '../../modules/voucher/repositories/pg
 import { createSellerReportingRouter } from './routes/seller-reporting-routes.ts';
 import { SellerRevenueService } from '../../modules/reporting/services/seller-revenue.service.ts';
 import { ReportingService } from '../../modules/reporting/services/reporting.service.ts';
+import { AdminReadService } from '../../modules/moderation/services/admin-read.service.ts';
+import { AdminVoucherService } from '../../modules/voucher/services/admin-voucher.service.ts';
+import { AdminNotificationCampaignService } from '../../modules/moderation/services/admin-notification-campaign.service.ts';
 
 import { createSecurityHeadersMiddleware, createCorsMiddleware, type CorsOptions } from './middlewares/security-headers.ts';
 import { createLayeredRateLimiter } from './middlewares/rate-limiter.ts';
@@ -75,6 +78,7 @@ export interface PlatformApplications extends T1RouteApplications {
   sellerKpi?: Pick<SellerKpiService, 'get'>;
   sellerVouchers?: Pick<SellerVoucherService, 'list' | 'get' | 'create' | 'update' | 'setStatus'>;
   sellerRevenue?: Pick<SellerRevenueService, 'get'>;
+  adminCampaigns?: AdminNotificationCampaignService;
   rateLimiter?: RequestHandler | false;
   trustProxy?: boolean | string | number;
   cors?: CorsOptions;
@@ -115,7 +119,9 @@ export function createApp(applications: PlatformApplications = {}): Application 
   const orderTarget = applications.orderServices ?? applications.orders;
   app.use('/api/v1', createOrderDomainRouter(orderTarget, auth));
 
-  app.use('/api/v1', createAdminRouter(applications.moderation, auth, applications.catalog));
+  const orderServices = applications.orderServices ?? applications.orders;
+  const adminOrderQueries = orderServices && 'orderQueryService' in orderServices ? orderServices.orderQueryService : undefined;
+  app.use('/api/v1', createAdminRouter(applications.moderation, auth, applications.catalog, applications.pool ? new AdminReadService(applications.pool) : undefined, applications.pool ? new AdminVoucherService(applications.pool) : undefined, applications.adminCampaigns, adminOrderQueries, orderServices?.transitionOrder));
   app.use('/api/v1', createMediaRouter(
     auth,
     applications.pool && applications.mediaStorage
@@ -164,6 +170,8 @@ export function createRuntimeApp(
   const sharedEventPort = new InMemoryTransactionEventPort();
   const reviewService = new ReviewService(new PostgresReviewRepository(pool), orderQueryService);
   const notificationService = new NotificationService(new PostgresNotificationRepository(pool), sharedEventPort, orderQueryService);
+  const adminCampaigns = new AdminNotificationCampaignService(pool);
+  const stopAdminCampaignWorker = adminCampaigns.startWorker();
   const verifier = runtimeOverrides.tokenVerifier ?? new SupabaseJwtVerifier({
     jwksUrl: new URL(jwksUrl!),
     issuer: new URL('/auth/v1', supabaseUrl!).toString().replace(/\/$/, ''),
@@ -172,6 +180,7 @@ export function createRuntimeApp(
   return {
     app: createApp({
       pool,
+      adminCampaigns,
       mediaStorage,
       trustProxy: envConfig.trustProxy,
       cors: { allowedOrigins: envConfig.corsAllowedOrigins },
@@ -194,7 +203,7 @@ export function createRuntimeApp(
         checkoutService,
         orderQueryService,
         cancelOrder: (context, orderId, input) => checkoutService.cancelOrder(context, orderId, input),
-        confirmOrder: (context, orderId) => checkoutService.confirmOrder(context, orderId),
+        confirmOrder: (context, orderId, reason) => checkoutService.confirmOrder(context, orderId, reason),
         transitionOrder: (context, orderId, input) => checkoutService.transitionOrder(context, orderId, input),
         retryPayment: (context, orderId, input) => checkoutService.retryPayment(context, orderId, input),
       },
@@ -205,6 +214,6 @@ export function createRuntimeApp(
       ),
     }),
     eventPort: sharedEventPort,
-    close: () => ownsPool ? closeDatabasePool(pool) : Promise.resolve(),
+    close: async () => { stopAdminCampaignWorker(); if (ownsPool) await closeDatabasePool(pool); },
   };
 }
