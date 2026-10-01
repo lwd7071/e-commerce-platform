@@ -80,7 +80,7 @@ test.describe("Seller Comprehensive Lifecycle E2E (Shop Profile → Products & E
         body: JSON.stringify({
           data: {
             media_id: "media-e2e-new-001",
-            public_url: "https://mock-storage.test/public/media-e2e-new-001.png",
+            public_url: "https://images.unsplash.com/photo-1523275335684-37898b6baf30",
             storage_path: "shops/00000000-0000-0000-0000-000000000001/products/prod-e2e-01/media-e2e-new-001.png",
             status: "FINALIZED",
           },

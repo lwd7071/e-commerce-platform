@@ -136,8 +136,15 @@ async function resetDatabaseFixtures(): Promise<void> {
 
     await client.query(`
       DELETE FROM product_variants v USING products p
-      WHERE v.product_id=p.product_id AND p.shop_id=$1 AND p.product_id<>$2`, [ids.activeShop, ids.product]);
-    await client.query('DELETE FROM products WHERE shop_id=$1 AND product_id<>$2', [ids.activeShop, ids.product]);
+      WHERE v.product_id=p.product_id AND p.shop_id=$1 AND p.product_id<>$2
+        AND NOT EXISTS (SELECT 1 FROM cart_items ci WHERE ci.variant_id=v.variant_id)
+        AND NOT EXISTS (SELECT 1 FROM order_items oi WHERE oi.variant_id=v.variant_id)`, [ids.activeShop, ids.product]);
+    await client.query(`
+      DELETE FROM products p
+      WHERE p.shop_id=$1 AND p.product_id<>$2
+        AND NOT EXISTS (SELECT 1 FROM product_variants v WHERE v.product_id=p.product_id)
+        AND NOT EXISTS (SELECT 1 FROM order_items oi WHERE oi.product_id=p.product_id)
+        AND NOT EXISTS (SELECT 1 FROM reviews r WHERE r.product_id=p.product_id)`, [ids.activeShop, ids.product]);
 
     const accountRows = [
       { id: buyerId, email: 'buyer@dino-e2e.test', role: 'BUYER', name: 'E2E Buyer' },
