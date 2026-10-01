@@ -5,6 +5,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { ReviewScreen } from "@/features/review/review-screen";
 import { repositories } from "@/lib/repositories/repository-factory";
 import { reviewRepository } from "@/features/review/review.repository";
+import type { IOrderRepository } from "@/lib/repositories/types";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
@@ -49,7 +50,7 @@ describe("ReviewScreen Live Media UI & Submission", () => {
       listOrders: vi.fn(),
       cancelOrder: vi.fn(),
       confirmReceived: vi.fn(),
-    } as any);
+    } as IOrderRepository);
 
     vi.spyOn(reviewRepository, "getOrderReviews").mockResolvedValue([]);
   });
@@ -73,7 +74,7 @@ describe("ReviewScreen Live Media UI & Submission", () => {
   });
 
   it("submits review with attached media_id and user comment", async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.endsWith("/media/uploads/presign")) {
         return new Response(JSON.stringify({

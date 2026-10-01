@@ -14,7 +14,6 @@ import { Skeleton, ErrorState } from "@/components/ui/data-states";
 import { ReviewMediaUpload } from "./review-media-upload";
 import type { ReviewImageUpload } from "./review-media-upload";
 import { reviewRepository } from "./review.repository";
-import { features } from "@/lib/config/features";
 import { RATING_LABELS, type ReviewRecord } from "./review.types";
 
 interface ReviewScreenProps {
