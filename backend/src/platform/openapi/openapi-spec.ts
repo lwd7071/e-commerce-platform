@@ -649,6 +649,14 @@ export function generateOpenApiSpec(): OpenApiSpec {
               schema: { type: 'string', format: 'uuid' },
             },
           ],
+          requestBody: {
+            required: false,
+            content: {
+              'application/json': {
+                schema: { type: 'object', properties: { reason: { type: 'string', example: 'Admin intervention after support review' } } },
+              },
+            },
+          },
           responses: {
             '200': {
               description: 'Order confirmed successfully',
@@ -690,6 +698,14 @@ export function generateOpenApiSpec(): OpenApiSpec {
               schema: { type: 'string', format: 'uuid' },
             },
           ],
+          requestBody: {
+            required: false,
+            content: {
+              'application/json': {
+                schema: { type: 'object', properties: { reason: { type: 'string', example: 'Admin intervention after support review' } } },
+              },
+            },
+          },
           responses: {
             '200': {
               description: 'Order receipt confirmed and order completed',
@@ -1096,6 +1112,62 @@ export function generateOpenApiSpec(): OpenApiSpec {
           responses: { '200': successResponse('Users list retrieved'), '403': errorResponse('Admin role required') },
         },
       },
+      '/admin/stats': {
+        get: { summary: 'Read Admin dashboard KPIs', security: [{ BearerAuth: [] }], responses: { '200': successResponse('Dashboard statistics'), '403': errorResponse('Admin role required') } },
+      },
+      '/admin/reports': {
+        get: {
+          summary: 'Read Admin operational report for an inclusive Ho Chi Minh date range', security: [{ BearerAuth: [] }],
+          parameters: [
+            { name: 'from', in: 'query', required: true, schema: { type: 'string', format: 'date' } },
+            { name: 'to', in: 'query', required: true, schema: { type: 'string', format: 'date' } },
+          ],
+          responses: { '200': successResponse('Daily GMV, order statuses, top shops, products and moderation actions'), '403': errorResponse('Admin role required'), '422': errorResponse('Invalid date range') },
+        },
+      },
+      '/admin/orders': {
+        get: {
+          summary: 'List all orders for Admin', security: [{ BearerAuth: [] }],
+          parameters: [
+            { name: 'status', in: 'query', schema: { type: 'string', enum: ['PENDING_CONFIRMATION', 'CONFIRMED', 'PREPARING', 'SHIPPING', 'COMPLETED', 'CANCELLED', 'DELIVERY_FAILED'] } },
+            { name: 'search', in: 'query', schema: { type: 'string' } }, { name: 'shop_id', in: 'query', schema: { type: 'string', format: 'uuid' } },
+            { name: 'buyer_id', in: 'query', schema: { type: 'string', format: 'uuid' } }, { name: 'from', in: 'query', schema: { type: 'string', format: 'date-time' } },
+            { name: 'to', in: 'query', schema: { type: 'string', format: 'date-time' } }, { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 100 } },
+            { name: 'cursor', in: 'query', schema: { type: 'string' } },
+          ],
+          responses: { '200': successResponse('Admin order page', '#/components/schemas/PaginatedEnvelope'), '403': errorResponse('Admin role required'), '422': errorResponse('Invalid filter or cursor') },
+        },
+      },
+      '/admin/orders/{id}': {
+        get: {
+          summary: 'Read an order, payment attempts, shipment and status history', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: { '200': successResponse('Admin order detail'), '403': errorResponse('Admin role required'), '404': errorResponse('Order not found') },
+        },
+      },
+      '/admin/orders/{id}/transition': {
+        patch: {
+          summary: 'Intervene in an order through the state machine', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: jsonRequest({ type: 'object', required: ['to', 'reason'], properties: { to: { type: 'string', enum: ['PENDING_CONFIRMATION', 'CONFIRMED', 'PREPARING', 'SHIPPING', 'COMPLETED', 'DELIVERY_FAILED', 'CANCELLED'] }, reason: { type: 'string', minLength: 1 }, exceptional_cancellation: { type: 'boolean' }, shipment_status: { type: 'string' } } }),
+          responses: { '200': successResponse('Order transitioned'), '403': errorResponse('Admin role required'), '404': errorResponse('Order not found'), '409': errorResponse('Invalid order transition'), '422': errorResponse('Reason required') },
+        },
+      },
+      '/admin/audit-logs': {
+        get: {
+          summary: 'List Admin audit log entries', security: [{ BearerAuth: [] }],
+          parameters: [
+            { name: 'action', in: 'query', required: false, schema: { type: 'string' } },
+            { name: 'target_type', in: 'query', required: false, schema: { type: 'string', enum: ['USER', 'SHOP', 'PRODUCT', 'REVIEW', 'ORDER', 'CATEGORY', 'VOUCHER', 'CAMPAIGN'] } },
+            { name: 'actor', in: 'query', required: false, schema: { type: 'string', format: 'uuid' } },
+            { name: 'from', in: 'query', required: false, schema: { type: 'string', format: 'date-time' } },
+            { name: 'to', in: 'query', required: false, schema: { type: 'string', format: 'date-time' } },
+            { name: 'limit', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 } },
+            { name: 'cursor', in: 'query', required: false, schema: { type: 'string' } },
+          ],
+          responses: { '200': successResponse('Paginated audit log entries', '#/components/schemas/PaginatedEnvelope'), '403': errorResponse('Admin role required'), '422': errorResponse('Invalid query') },
+        },
+      },
       '/admin/users/{id}/lock': {
         post: {
           summary: 'Lock user account', security: [{ BearerAuth: [] }],
@@ -1144,6 +1216,90 @@ export function generateOpenApiSpec(): OpenApiSpec {
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
           requestBody: jsonRequest({ type: 'object', properties: { reason: { type: 'string' } } }),
           responses: { '200': successResponse('Shop unlocked'), '403': errorResponse('Admin role required'), '404': errorResponse('Shop not found'), '409': errorResponse('Shop already active') },
+        },
+      },
+      '/admin/products': {
+        get: {
+          summary: 'List all products for Admin moderation', security: [{ BearerAuth: [] }],
+          parameters: [
+            { name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['DRAFT', 'ACTIVE', 'INACTIVE', 'HIDDEN'] } },
+            { name: 'search', in: 'query', required: false, schema: { type: 'string' } },
+          ],
+          responses: { '200': successResponse('Products retrieved'), '403': errorResponse('Admin role required') },
+        },
+      },
+      '/admin/vouchers': {
+        get: { summary: 'List platform and shop vouchers for Admin review', security: [{ BearerAuth: [] }], responses: { '200': successResponse('Voucher list'), '403': errorResponse('Admin role required') } },
+        post: {
+          summary: 'Create a PLATFORM voucher', security: [{ BearerAuth: [] }],
+          requestBody: jsonRequest({ type: 'object', required: ['code', 'voucher_name', 'discount_type', 'discount_value', 'max_discount', 'min_order_value', 'quantity', 'start_at', 'end_at', 'reason'], additionalProperties: false, properties: {
+            code: { type: 'string', maxLength: 50 }, voucher_name: { type: 'string', maxLength: 150 }, discount_type: { type: 'string', enum: ['PERCENT', 'FIXED'] }, discount_value: { type: 'string' }, max_discount: { type: ['string', 'null'] }, min_order_value: { type: 'string' }, quantity: { type: 'integer', minimum: 0 }, start_at: { type: 'string', format: 'date-time' }, end_at: { type: 'string', format: 'date-time' }, reason: { type: 'string', minLength: 1 },
+          } }),
+          responses: { '201': successResponse('Platform voucher created'), '403': errorResponse('Admin role required'), '422': errorResponse('Invalid voucher or reason') },
+        },
+      },
+      '/admin/notification-campaigns': {
+        post: {
+          summary: 'Create an idempotent Admin notification campaign and snapshot recipients', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'Idempotency-Key', in: 'header', required: true, schema: { type: 'string', minLength: 1, maxLength: 100 } }],
+          requestBody: jsonRequest({ type: 'object', required: ['audience_role', 'title', 'content', 'reason'], properties: { audience_role: { type: 'string', enum: ['BUYER', 'SELLER'] }, title: { type: 'string', maxLength: 200 }, content: { type: 'string' }, reason: { type: 'string', minLength: 1 } } }),
+          responses: { '201': successResponse('Campaign created'), '403': errorResponse('Admin role required'), '409': errorResponse('Idempotency key was reused'), '422': errorResponse('Invalid campaign') },
+        },
+      },
+      '/admin/notification-campaigns/preview': {
+        get: {
+          summary: 'Preview active recipient count for a campaign audience', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'audience_role', in: 'query', required: true, schema: { type: 'string', enum: ['BUYER', 'SELLER'] } }],
+          responses: { '200': successResponse('Audience count preview'), '403': errorResponse('Admin role required'), '422': errorResponse('Invalid audience') },
+        },
+      },
+      '/admin/notification-campaigns/{id}': {
+        get: {
+          summary: 'Read notification campaign delivery progress', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: { '200': successResponse('Campaign progress'), '403': errorResponse('Admin role required'), '404': errorResponse('Campaign not found') },
+        },
+      },
+      '/admin/vouchers/{id}': {
+        patch: {
+          summary: 'Update an unused PLATFORM voucher', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: jsonRequest({ type: 'object', required: ['reason'], properties: { code: { type: 'string' }, voucher_name: { type: 'string' }, discount_type: { type: 'string', enum: ['PERCENT', 'FIXED'] }, discount_value: { type: 'string' }, max_discount: { type: ['string', 'null'] }, min_order_value: { type: 'string' }, quantity: { type: 'integer' }, start_at: { type: 'string', format: 'date-time' }, end_at: { type: 'string', format: 'date-time' }, reason: { type: 'string', minLength: 1 } } }),
+          responses: { '200': successResponse('Platform voucher updated'), '403': errorResponse('Admin role required'), '404': errorResponse('Voucher not found'), '409': errorResponse('Voucher already used'), '422': errorResponse('Invalid voucher or reason') },
+        },
+      },
+      '/admin/vouchers/{id}/status': {
+        patch: {
+          summary: 'Activate or deactivate a PLATFORM voucher', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: jsonRequest({ type: 'object', required: ['status', 'reason'], properties: { status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] }, reason: { type: 'string', minLength: 1 } } }),
+          responses: { '200': successResponse('Platform voucher status updated'), '403': errorResponse('Admin role required'), '404': errorResponse('Voucher not found'), '422': errorResponse('Invalid status or reason') },
+        },
+      },
+      '/admin/products/{id}/moderate': {
+        patch: {
+          summary: 'Hide or restore a product', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: jsonRequest({ type: 'object', required: ['status', 'reason'], additionalProperties: false, properties: { status: { type: 'string', enum: ['ACTIVE', 'HIDDEN'] }, reason: { type: 'string', minLength: 1 } } }),
+          responses: { '200': successResponse('Product moderated'), '403': errorResponse('Admin role required'), '404': errorResponse('Product not found'), '409': errorResponse('Invalid moderation transition'), '422': errorResponse('Reason required') },
+        },
+      },
+      '/admin/reviews': {
+        get: {
+          summary: 'List all reviews for Admin moderation', security: [{ BearerAuth: [] }],
+          parameters: [
+            { name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['VISIBLE', 'HIDDEN'] } },
+            { name: 'search', in: 'query', required: false, schema: { type: 'string' } },
+          ],
+          responses: { '200': successResponse('Reviews retrieved'), '403': errorResponse('Admin role required') },
+        },
+      },
+      '/admin/reviews/{id}/moderate': {
+        patch: {
+          summary: 'Hide or restore a review', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: jsonRequest({ type: 'object', required: ['status', 'reason'], additionalProperties: false, properties: { status: { type: 'string', enum: ['VISIBLE', 'HIDDEN'] }, reason: { type: 'string', minLength: 1 } } }),
+          responses: { '200': successResponse('Review moderated'), '403': errorResponse('Admin role required'), '404': errorResponse('Review not found'), '409': errorResponse('Invalid moderation transition'), '422': errorResponse('Reason required') },
         },
       },
       '/seller/products': {

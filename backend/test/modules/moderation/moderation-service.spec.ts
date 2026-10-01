@@ -18,15 +18,21 @@ class InMemoryTargetRepository implements ITargetLookupRepository {
   public shops: Set<string> = new Set();
   public completeShopProfiles = new Set<string>();
   public products: Set<string> = new Set();
+  public productStatuses = new Map<string, 'ACTIVE' | 'HIDDEN'>();
   public reviews: Set<string> = new Set();
+  public reviewStatuses = new Map<string, 'VISIBLE' | 'HIDDEN'>();
   public moderationRecords: ModerationRecord[] = [];
 
   private snapshot: Map<string, { id: string; status: UserStatus; updated_at: string; role?: 'BUYER' | 'SELLER' | 'ADMIN' }> | null = null;
   private modSnapshot: ModerationRecord[] | null = null;
+  private productSnapshot: Map<string, 'ACTIVE' | 'HIDDEN'> | null = null;
+  private reviewSnapshot: Map<string, 'VISIBLE' | 'HIDDEN'> | null = null;
 
   savepoint() {
     this.snapshot = new Map(Array.from(this.users.entries()).map(([k, v]) => [k, { ...v }]));
     this.modSnapshot = [...this.moderationRecords];
+    this.productSnapshot = new Map(this.productStatuses);
+    this.reviewSnapshot = new Map(this.reviewStatuses);
   }
 
   rollback() {
@@ -38,11 +44,15 @@ class InMemoryTargetRepository implements ITargetLookupRepository {
       this.moderationRecords = this.modSnapshot;
       this.modSnapshot = null;
     }
+    if (this.productSnapshot) this.productStatuses = this.productSnapshot;
+    if (this.reviewSnapshot) this.reviewStatuses = this.reviewSnapshot;
   }
 
   commit() {
     this.snapshot = null;
     this.modSnapshot = null;
+    this.productSnapshot = null;
+    this.reviewSnapshot = null;
   }
 
   async userExists(userId: string): Promise<boolean> {
@@ -83,8 +93,26 @@ class InMemoryTargetRepository implements ITargetLookupRepository {
     return this.products.has(productId);
   }
 
+  async getProductStatus(productId: string): Promise<'ACTIVE' | 'HIDDEN' | null> {
+    return this.productStatuses.get(productId) ?? null;
+  }
+
+  async updateProductStatus(_trx: unknown, productId: string, status: 'ACTIVE' | 'HIDDEN') {
+    this.productStatuses.set(productId, status);
+    return { product_id: productId, status, updated_at: new Date().toISOString() };
+  }
+
   async reviewExists(reviewId: string): Promise<boolean> {
     return this.reviews.has(reviewId);
+  }
+
+  async getReviewStatus(reviewId: string): Promise<'VISIBLE' | 'HIDDEN' | null> {
+    return this.reviewStatuses.get(reviewId) ?? null;
+  }
+
+  async updateReviewStatus(_trx: unknown, reviewId: string, status: 'VISIBLE' | 'HIDDEN') {
+    this.reviewStatuses.set(reviewId, status);
+    return { review_id: reviewId, status, updated_at: new Date().toISOString() };
   }
 
   async insertModerationRecord(_trx: unknown, record: ModerationRecord): Promise<void> {
@@ -146,7 +174,9 @@ describe('Phase 3 — TDD Cycle 3.2: ModerationService with Atomic Transaction (
     targetRepo.users.set(lockedUserId, { id: lockedUserId, status: 'LOCKED', updated_at: '2026-01-01T00:00:00.000Z' });
     targetRepo.shops.add('00000000-0000-0000-0000-000000000010');
     targetRepo.products.add('00000000-0000-0000-0000-000000000020');
+    targetRepo.productStatuses.set('00000000-0000-0000-0000-000000000020', 'ACTIVE');
     targetRepo.reviews.add('00000000-0000-0000-0000-000000000030');
+    targetRepo.reviewStatuses.set('00000000-0000-0000-0000-000000000030', 'VISIBLE');
 
     auditPort = new FakeAuditPort();
     txManager = new SpyTransactionManager(targetRepo);
@@ -367,5 +397,30 @@ describe('Phase 3 — TDD Cycle 3.2: ModerationService with Atomic Transaction (
     assert.equal(txManager.committed, false);
     assert.equal(targetRepo.moderationRecords.length, 0);
     assert.equal(auditPort.auditRecords.length, 0);
+  });
+
+  it('hides a product and restores it only through the moderation command', async () => {
+    const productId = '00000000-0000-0000-0000-000000000020';
+    await service.moderateTarget({
+      admin_id: validAdminId,
+      target_type: 'PRODUCT',
+      target_id: productId,
+      action: 'HIDE',
+      reason: 'Vi phạm quy định sản phẩm',
+    });
+    assert.equal(targetRepo.productStatuses.get(productId), 'HIDDEN');
+    assert.equal(targetRepo.moderationRecords[0]?.action, 'HIDE');
+    assert.equal(auditPort.auditRecords[0]?.action, 'HIDE_PRODUCT');
+    await service.moderateTarget({ admin_id: validAdminId, target_type: 'PRODUCT', target_id: productId, action: 'RESTORE', reason: 'Đã xử lý vi phạm' });
+    assert.equal(targetRepo.productStatuses.get(productId), 'ACTIVE');
+    await assert.rejects(service.moderateTarget({ admin_id: validAdminId, target_type: 'PRODUCT', target_id: productId, action: 'RESTORE', reason: 'Thử lặp' }), InvalidStateTransitionError);
+  });
+
+  it('hides a review and rejects restoring a review that is already visible', async () => {
+    const reviewId = '00000000-0000-0000-0000-000000000030';
+    await service.moderateTarget({ admin_id: validAdminId, target_type: 'REVIEW', target_id: reviewId, action: 'HIDE', reason: 'Ngôn từ xúc phạm' });
+    assert.equal(targetRepo.reviewStatuses.get(reviewId), 'HIDDEN');
+    await service.moderateTarget({ admin_id: validAdminId, target_type: 'REVIEW', target_id: reviewId, action: 'RESTORE', reason: 'Đã rà soát' });
+    assert.equal(targetRepo.reviewStatuses.get(reviewId), 'VISIBLE');
   });
 });

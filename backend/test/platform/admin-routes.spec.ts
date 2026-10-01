@@ -7,12 +7,16 @@ import type { ITargetLookupRepository, IAuditPort, ITransactionManager, UserStat
 import type { IAuthRepository } from '../../src/modules/identity/repositories/auth.repository.ts';
 import type { AuthUserRecord } from '../../src/modules/identity/domain/types.ts';
 import { createAuthMiddleware, StubTokenVerifier } from '../../src/platform/http/middlewares/auth.ts';
+import { OrderQueryService } from '../../src/modules/order/services/order-query.service.ts';
+import { InMemoryOrderRepository } from '../../src/modules/order/repositories/in-memory-order.repository.ts';
+import type { Pool } from 'pg';
 
 class InMemoryAuthAndTargetRepository implements ITargetLookupRepository, IAuthRepository {
   public users = new Map<string, { id: string; email: string; role: 'BUYER' | 'SELLER' | 'ADMIN'; status: UserStatus; updated_at: string }>();
   public shops = new Set<string>();
   public shopsMap = new Map<string, { shop_id: string; shop_name: string; status: 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'LOCKED'; owner_id: string; product_count: number }>();
   public products = new Set<string>();
+  public productStatuses = new Map<string, 'ACTIVE' | 'HIDDEN'>();
   public reviews = new Set<string>();
   public moderationRecords: ModerationRecord[] = [];
 
@@ -98,6 +102,15 @@ class InMemoryAuthAndTargetRepository implements ITargetLookupRepository, IAuthR
     return this.products.has(productId);
   }
 
+  async getProductStatus(productId: string): Promise<'ACTIVE' | 'HIDDEN' | null> {
+    return this.productStatuses.get(productId) ?? null;
+  }
+
+  async updateProductStatus(_trx: unknown, productId: string, status: 'ACTIVE' | 'HIDDEN') {
+    this.productStatuses.set(productId, status);
+    return { product_id: productId, status, updated_at: new Date().toISOString() };
+  }
+
   async reviewExists(reviewId: string): Promise<boolean> {
     return this.reviews.has(reviewId);
   }
@@ -160,6 +173,8 @@ describe('Phase 4 — Admin Lock & Unlock Endpoints (TDD Cycle 4.1 & 4.2)', () =
     repo.shopsMap.set(pendingShopId, { shop_id: pendingShopId, shop_name: 'Dino Demo Shop 01', status: 'PENDING', owner_id: buyerId, product_count: 5 });
     repo.shopsMap.set(activeShopId, { shop_id: activeShopId, shop_name: 'Active Shop', status: 'ACTIVE', owner_id: targetUserId, product_count: 10 });
     repo.shopsMap.set(lockedShopId, { shop_id: lockedShopId, shop_name: 'Locked Shop', status: 'LOCKED', owner_id: lockedUserId, product_count: 0 });
+    repo.products.add('88888888-8888-4888-8888-888888888888');
+    repo.productStatuses.set('88888888-8888-4888-8888-888888888888', 'ACTIVE');
 
     auditPort = new FakeAuditPort();
     txManager = new NoopTransactionManager();
@@ -284,6 +299,20 @@ describe('Phase 4 — Admin Lock & Unlock Endpoints (TDD Cycle 4.1 & 4.2)', () =
 
       assert.strictEqual(res.body.error.code, 'ADMIN_TARGET_PROTECTED');
     });
+  });
+
+  it('hides a product through an ADMIN-only command and returns the changed state', async () => {
+    const productId = '88888888-8888-4888-8888-888888888888';
+    const app = createApp({ auth: authMiddleware, moderation: moderationService });
+    const res = await request(app)
+      .patch(`/api/v1/admin/products/${productId}/moderate`)
+      .set('Authorization', `Bearer stub-token-${adminId}`)
+      .send({ status: 'HIDDEN', reason: 'Nội dung vi phạm quy định' })
+      .expect(200);
+
+    assert.equal(repo.productStatuses.get(productId), 'HIDDEN');
+    assert.equal(res.body.data.status, 'HIDDEN');
+    assert.equal(res.body.data.product_id, productId);
   });
 
   describe('Cycle 4.2: POST /api/v1/admin/users/:id/unlock', () => {
@@ -457,6 +486,52 @@ describe('Phase 4 — Admin Lock & Unlock Endpoints (TDD Cycle 4.1 & 4.2)', () =
       assert.strictEqual(res.body.data.length, 4);
       assert.ok(res.body.data.some((u: { role: string }) => u.role === 'ADMIN'));
       assert.ok(res.body.data.some((u: { role: string }) => u.role === 'BUYER'));
+    });
+  });
+
+  describe('Admin order routes', () => {
+    it('serves cursor metadata and requires a reason for state-machine intervention', async () => {
+      const pool = { query: async (sql: string) => {
+        if (sql.includes('SELECT o.order_id')) return { rows: [{ order_id: '00000000-0000-4000-8000-000000000001', buyer_id: buyerId, buyer_email: 'buyer@platform.com', shop_id: pendingShopId, shop_name: 'Dino Demo Shop 01', status: 'SHIPPING', subtotal: '100.00', discount_amount: '0.00', shipping_fee: '0.00', total_amount: '100.00', cancel_reason: null, created_at: new Date('2026-10-02T00:00:00Z'), updated_at: new Date('2026-10-02T00:00:00Z') }], rowCount: 1 };
+        return { rows: [], rowCount: 0 };
+      } } as unknown as Pool;
+      let transitionReason = '';
+      const app = createApp({
+        auth: authMiddleware,
+        orderServices: {
+          orderQueryService: new OrderQueryService(new InMemoryOrderRepository(), pool),
+          transitionOrder: async (_ctx, _id, input) => { transitionReason = String(input.reason); return { status: input.to }; },
+        },
+      });
+      const list = await request(app).get('/api/v1/admin/orders?search=buyer%40platform.com').set('Authorization', `Bearer stub-token-${adminId}`).expect(200);
+      assert.equal(list.body.data.length, 1);
+      assert.equal(list.body.data[0].payments.length, 0);
+      assert.equal(list.body.meta.has_more, false);
+
+      await request(app).patch('/api/v1/admin/orders/00000000-0000-4000-8000-000000000001/transition')
+        .set('Authorization', `Bearer stub-token-${adminId}`).send({ to: 'COMPLETED', reason: ' ' }).expect(422);
+      const result = await request(app).patch('/api/v1/admin/orders/00000000-0000-4000-8000-000000000001/transition')
+        .set('Authorization', `Bearer stub-token-${adminId}`).send({ to: 'COMPLETED', reason: 'Delivery proof reviewed' }).expect(200);
+      assert.equal(transitionReason, 'Delivery proof reviewed');
+      assert.equal(result.body.data.status, 'COMPLETED');
+    });
+  });
+
+  describe('Admin reporting routes', () => {
+    it('serves reports to Admin and denies Buyer access', async () => {
+      const pool = { query: async (sql: string) => {
+        if (sql.includes('GROUP BY status')) return { rows: [{ status: 'COMPLETED', order_count: '1' }] };
+        if (sql.includes('AS local_day')) return { rows: [{ local_day: '2026-10-01', order_count: '1', gmv: '100.00' }] };
+        if (sql.includes('AS shop_name')) return { rows: [] };
+        if (sql.includes('AS product_name')) return { rows: [] };
+        return { rows: [] };
+      } } as unknown as Pool;
+      const app = createApp({ auth: authMiddleware, pool });
+      const result = await request(app).get('/api/v1/admin/reports?from=2026-10-01&to=2026-10-02')
+        .set('Authorization', `Bearer stub-token-${adminId}`).expect(200);
+      assert.equal(result.body.data.dailyGmv[0].gmv, '100.00');
+      await request(app).get('/api/v1/admin/reports?from=2026-10-01&to=2026-10-02')
+        .set('Authorization', `Bearer stub-token-${buyerId}`).expect(403);
     });
   });
 });

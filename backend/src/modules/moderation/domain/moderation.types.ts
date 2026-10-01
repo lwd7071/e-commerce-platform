@@ -8,6 +8,8 @@ export type ModerationTargetType = typeof ALLOWED_MODERATION_TARGET_TYPES[number
 export type ModerationAction = 'LOCK' | 'UNLOCK' | 'HIDE' | 'RESTORE' | 'APPROVE';
 
 export type ShopStatus = 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'LOCKED';
+export type ModeratedContentStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'VISIBLE' | 'HIDDEN';
+export type ModerationTargetStatus = UserStatus | ShopStatus | ModeratedContentStatus;
 
 export interface ModerationRecord {
   moderation_id: string;
@@ -29,8 +31,11 @@ export interface ModerateTargetCommand {
 
 export interface UserStatusUpdateResult {
   user_id: string;
-  status: UserStatus;
+  status: ModerationTargetStatus;
   updated_at: string;
+  shop_id?: string;
+  product_id?: string;
+  review_id?: string;
 }
 
 export interface ShopStatusUpdateResult {
@@ -65,6 +70,26 @@ export interface AdminUserItem {
   updated_at: string;
 }
 
+export interface AdminModerationProduct {
+  product_id: string;
+  product_name: string;
+  shop_name: string;
+  min_price: string | null;
+  status: 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'HIDDEN';
+  created_at: string;
+}
+
+export interface AdminModerationReview {
+  review_id: string;
+  product_id: string;
+  product_name: string;
+  buyer_id: string;
+  rating: number;
+  content: string | null;
+  status: 'VISIBLE' | 'HIDDEN';
+  created_at: string;
+}
+
 export interface ITargetLookupRepository {
   userExists(userId: string): Promise<boolean>;
   getUserStatus(userId: string): Promise<UserStatus | null>;
@@ -76,9 +101,15 @@ export interface ITargetLookupRepository {
   updateShopStatus(trx: unknown, shopId: string, status: ShopStatus): Promise<ShopStatusUpdateResult>;
   productExists(productId: string): Promise<boolean>;
   reviewExists(reviewId: string): Promise<boolean>;
+  getProductStatus?(productId: string): Promise<ModeratedContentStatus | null>;
+  updateProductStatus?(trx: unknown, productId: string, status: 'ACTIVE' | 'HIDDEN'): Promise<{ product_id: string; status: 'ACTIVE' | 'HIDDEN'; updated_at: string }>;
+  getReviewStatus?(reviewId: string): Promise<ModeratedContentStatus | null>;
+  updateReviewStatus?(trx: unknown, reviewId: string, status: 'VISIBLE' | 'HIDDEN'): Promise<{ review_id: string; status: 'VISIBLE' | 'HIDDEN'; updated_at: string }>;
   insertModerationRecord(trx: unknown, record: ModerationRecord): Promise<void>;
   listShops?(params?: { status?: string; search?: string }): Promise<AdminShopItem[]>;
   listUsers?(params?: { role?: string; status?: string; search?: string }): Promise<AdminUserItem[]>;
+  listModerationProducts?(params?: { status?: string; search?: string }): Promise<AdminModerationProduct[]>;
+  listModerationReviews?(params?: { status?: string; search?: string }): Promise<AdminModerationReview[]>;
 }
 
 export interface ITransactionManager {
@@ -94,4 +125,6 @@ export interface IModerationService {
   unlockShop?(adminId: string, shopId: string, reason?: string): Promise<ShopStatusUpdateResult>;
   listShops?(params?: { status?: string; search?: string }): Promise<AdminShopItem[]>;
   listUsers?(params?: { role?: string; status?: string; search?: string }): Promise<AdminUserItem[]>;
+  listModerationProducts?(params?: { status?: string; search?: string }): Promise<AdminModerationProduct[]>;
+  listModerationReviews?(params?: { status?: string; search?: string }): Promise<AdminModerationReview[]>;
 }
