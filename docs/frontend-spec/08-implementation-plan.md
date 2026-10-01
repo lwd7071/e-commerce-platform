@@ -248,11 +248,11 @@ Event MVP: Order mới cho Seller; Seller confirm/prepare/ship cho Buyer; cancel
 | C-405 | Người 5 | Admin category UI live | Không local ID/create giả |
 | C-406 | Người 5 | Admin RBAC E2E | Buyer/Seller bị chặn route và API |
 
-Audit viewer, product/review moderation và KPI nằm backlog; audit write không được hoãn.
+Trạng thái sau khi Admin portal được mở rộng được ghi trong [mvp-user-admin.md](../progress/mvp-user-admin.md). Các hạng mục C-401–C-405 đã có implementation; C-406 còn cần browser E2E thực tế để chứng minh RBAC qua network/server. Audit viewer, moderation và operational reports không còn là backlog feature.
 
 ## 10. Capability readiness
 
-Capability MUST: `auth`, `catalog`, `cart`, `checkout`, `seller_catalog`, `media`, `orders`, `reviews`, `notifications`, `admin_users`, `admin_shops`, `admin_categories`.
+Capability registry hiện khai báo: `auth`, `catalog`, `cart`, `checkout`, `seller_catalog`, `media`, `orders`, `reviews`, `notifications`, `admin_users`, `admin_shops`, `admin_categories`. Chưa có capability key riêng cho Admin reports, campaigns, audit, vouchers, orders hoặc moderation.
 
 - Development `MOCK_DEV_ONLY`: UI có badge “Dữ liệu demo”.
 - Production `BLOCKED`: ẩn menu/CTA; direct route dùng `FeatureUnavailable`.
@@ -343,7 +343,8 @@ Capability MUST: `auth`, `catalog`, `cart`, `checkout`, `seller_catalog`, `media
 - [ ] A-203–A-205 inventory race, cancel/restore và exceptional cancellation (cần kiểm thử race tồn kho, hủy/hoàn tồn trên DB test thật).
 - [ ] C-101–C-107 timeline, shipment, confirm-received, delivery-failed và Order UI (chốt timeline/Shipment/DELIVERY_FAILED trên môi trường tích hợp).
 - [ ] C-204/C-206 Review form đã nối POST từng OrderItem đúng DTO; `frontend/test/e2e-order-review-lifecycle.spec.ts` vẫn chỉ dùng mock, chưa có Order → Review E2E trên backend thật.
-- [ ] C-404–C-406 Admin UI + RBAC E2E (live Admin UI và RBAC E2E; đã cấu hình Zero-Silent-Fallback).
+- [x] C-404 Admin users/shops UI live; C-405 Admin category UI live; Admin portal có thêm Orders, Reviews, Vouchers, Campaigns, Reports và Audit screens.
+- [ ] C-406 Playwright RBAC E2E qua server/network (hiện `admin-security-journey.spec.ts` là Vitest với mock repository, chưa phải browser E2E).
 - [ ] Buyer/Seller critical Playwright path và release evidence.
 
 Mỗi checkbox chỉ được tick khi progress file có link PR/commit, test đã chạy và blocker còn lại.
@@ -355,7 +356,7 @@ Mỗi checkbox chỉ được tick khi progress file có link PR/commit, test đ
 ## 14. Backlog sau MVP
 
 - Edit product name/description/price/variant structure.
-- Audit log viewer, product/review moderation UI, Seller/Admin analytics.
+- Seller analytics (Admin operational reports đã có; xem `docs/progress/mvp-user-admin.md`).
 - Dynamic SEO metadata từng Product và SSR optimization nâng cao.
 - Online payment provider và realtime notifications.
 - Auto-complete SHIPPING bằng shipment webhook/job.
@@ -372,3 +373,5 @@ Mỗi checkbox chỉ được tick khi progress file có link PR/commit, test đ
 - `DELIVERY_FAILED` không hoàn tồn tự động.
 - Refund/return không thuộc MVP.
 - Capability chưa qua integration cutoff giữ `BLOCKED`; không dùng mock production để che blocker.
+
+**Đối chiếu Admin ngày 2026-10-02:** Các mô tả MVP/Admin ở những mục trên được viết trước đợt hoàn thiện và giữ lại làm lịch sử kế hoạch. Hiện ADMIN-00–11 được tracker ghi DONE với evidence; ADMIN-12 accessibility QA, ADMIN-13 browser E2E/RBAC và ADMIN-14 final gates/test database độc lập vẫn mở. Không dùng các ghi chú cũ “audit viewer/moderation/KPI backlog” làm trạng thái hiện tại.

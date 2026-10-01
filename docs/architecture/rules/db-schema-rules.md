@@ -4,6 +4,8 @@
 
 [`../../spec/schema-freeze-v1.md`](../../spec/schema-freeze-v1.md) định nghĩa 22 bảng logic, cột và ràng buộc gốc. File này quy định cách triển khai vật lý trên PostgreSQL; không tự thay đổi ý nghĩa Schema Freeze.
 
+Các bảng phục vụ vận hành có thể được thêm mà không biến thành bảng nghiệp vụ của Schema Freeze, nhưng phải có CR Approved riêng nêu rõ mục đích, dữ liệu, quyền truy cập, lifecycle và migration; ví dụ `api_idempotency_records` được ghi trong [CR-IDEMP-01](../../spec/changes/CR-IDEMP-01-operational-storage.md). Repo hiện có thêm `media_uploads` qua migration `20260930150000_media_upload_lifecycle`; bộ tài liệu CR hiện hành chưa ghi nhận CR riêng cho bảng lifecycle media. Đây là khoảng trống traceability cần được xử lý trước lần mở rộng schema/media tiếp theo; không sửa Schema Freeze để bổ sung bảng này.
+
 ## 2. Mapping tên bảng vật lý
 
 | Tên logic | Tên PostgreSQL |

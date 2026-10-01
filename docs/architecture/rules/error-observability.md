@@ -18,8 +18,8 @@
 | `AUTH_INVALID_TOKEN` | 401 | Token hỏng, hết hạn, sai issuer/audience |
 | `AUTH_CONFIGURATION_ERROR` | 500 | Cấu hình Auth phía server sai |
 | `USER_LOCKED` | 403 | Tài khoản nghiệp vụ bị khóa |
-| `RESOURCE_FORBIDDEN` | 403 | Thiếu role hoặc ownership |
-| `RESOURCE_NOT_FOUND` | 404 | Không tồn tại hoặc được che giấu vì không thuộc quyền |
+| `RESOURCE_FORBIDDEN` | 403 | Thiếu role/ownership và endpoint công khai việc từ chối quyền |
+| `RESOURCE_NOT_FOUND` | 404 | Không tồn tại hoặc endpoint che giấu resource private không thuộc quyền |
 
 ### Validation và conflict chung
 

@@ -71,17 +71,22 @@ Status meanings below:
 | Orders | `GET /orders/:id` | Buyer/Seller/Admin | `AVAILABLE` | Cùng DTO với list; ngoài ownership và không tồn tại trả 404 |
 | Orders | cancel/confirm/transition | Theo route | `AVAILABLE` | Được `PgCheckoutService` xử lý; chỉ dùng khi có order ID hợp lệ |
 | Payment | `POST /orders/:id/payments` | Buyer | `AVAILABLE` | Chỉ retry payment; không tạo provider session, QR hoặc link |
-| Review | `POST /order-items/:id/review`, `POST /reviews`, `GET /products/:product_id/reviews` | Buyer/Public | `AVAILABLE` | `ReviewService` được inject trong `app.ts`; route vẫn có defensive 501 nếu service không được cung cấp. Cần DB/test-project smoke để xác nhận môi trường triển khai |
+| Review | `POST /order-items/:id/review`, `POST /reviews`, `GET /products/:product_id/reviews` | Buyer/Public | `PARTIAL` | Text/rating runtime được inject trong `app.ts`; route giữ defensive 501 nếu thiếu service. Ảnh review chưa live: REVIEW presign bị từ chối trong runtime, backend chưa nhận media IDs/attach trong transaction; cần isolated DB acceptance |
 | Notification | list/detail/read | Buyer | `AVAILABLE` | Runtime có `NotificationService`; FE API repository đã nối theo payload camelCase và OpenAPI có `NotificationDTO`, nhưng FE DTO chưa sinh tự động; production mặc định BLOCKED đến khi cấu hình capability và xác minh authenticated host |
 | Identity | `GET /auth/me`, `POST /auth/onboarding` | Authenticated | `AVAILABLE` | Role lấy từ `app_users`; onboarding Buyer/Seller chạy transaction; shop Seller ban đầu PENDING |
 | Profile | `GET/PATCH /profile`, `PATCH /profile/avatar` | Authenticated | `AVAILABLE` | Chỉ sửa `full_name`, `phone`; avatar nhận `media_id` đã finalize, không nhận URL tùy ý |
-| Admin | `GET /admin/users`, lock/unlock | Admin | `AVAILABLE/PARTIAL` | List/filter và mutation đã mount; cần pagination, protected Admin target và side-effect tests |
-| Admin | `GET /admin/shops`, approve/lock/unlock | Admin | `AVAILABLE/PARTIAL` | Routes đã mount; cần pagination và atomic audit evidence |
-| Admin | category writes | Admin | `AVAILABLE` | CRUD/status routes được mount; logs và product/review moderation nâng cao vẫn chưa có |
+| Admin | `GET /admin/users`, `GET /admin/users/:id`, lock/unlock | Admin | `AVAILABLE` | Cursor list/detail; mutation yêu cầu reason, target ADMIN bị bảo vệ và audit cùng transaction |
+| Admin | `GET /admin/shops`, `GET /admin/shops/:id`, approve/lock/unlock | Admin | `AVAILABLE` | Cursor list/detail; duyệt cần contact phone + pickup address; mutation ghi audit cùng transaction |
+| Admin | category list/create/update/status | Admin | `AVAILABLE` | Category CRUD/status; cây tối đa hai cấp, chặn cycle; INACTIVE bị loại khỏi public catalog |
+| Admin | product/review moderation | Admin | `AVAILABLE` | HIDE/RESTORE yêu cầu reason; moderation record + AdminLog atomic |
+| Admin | orders list/detail/transition | Admin | `AVAILABLE` | Toàn sàn; dùng state machine, reason, history và audit trong transaction |
+| Admin | platform vouchers | Admin | `AVAILABLE` | Admin chỉ ghi voucher PLATFORM; checkout từ chối voucher INACTIVE |
+| Admin | notification campaigns | Admin | `AVAILABLE` | Snapshot nhóm BUYER/SELLER, idempotency key và tiến độ worker |
+| Admin | audit logs/reports | Admin | `AVAILABLE` | Audit cursor/filter; report QD19 chỉ tính Order COMPLETED, ngày theo Asia/Ho_Chi_Minh |
 | Seller | seller stats | Seller | `MISSING` | Không có HTTP stats route |
 | Media | presign/finalize/attach/delete; `PATCH /profile/avatar` | Authenticated | `PARTIAL` | Product và avatar dùng Supabase Storage thật; avatar attach cập nhật profile transactionally. Review-media runtime vẫn chưa được nối; cần Storage host smoke trước release |
 
-Order reads, profile, public categories, addresses, enriched cart, seller product routes, review/notification services và Admin category routes hiện có trong runtime composition. Product/avatar media và Notifications có E2E trên Supabase test; backend host smoke vẫn mở do `/health/readiness` trả HTTP 404 trong cấu hình hiện tại. Seller stats, Admin log/moderation nâng cao và online payment provider chưa có. Google OAuth, email OTP/recovery vẫn phụ thuộc cấu hình provider tại Supabase/Google Cloud.
+Order reads, profile, public categories, addresses, enriched cart, seller product routes, review/notification services và Admin users/shops/categories/moderation/orders/vouchers/campaigns/audit/reports hiện có trong runtime composition. Admin PostgreSQL integration hiện pass 6 files/12 tests trên schema cô lập; browser E2E thật và Admin accessibility audit vẫn là acceptance mở theo `docs/progress/mvp-user-admin.md`. Seller stats và online payment provider chưa có. Google OAuth, email OTP/recovery vẫn phụ thuộc cấu hình provider tại Supabase/Google Cloud.
 
 ## 3. Catalog
 
@@ -353,7 +358,7 @@ Buyer runtime chỉ hủy được khi order còn `PENDING_CONFIRMATION`.
 
 ### Confirm
 
-`POST /orders/:order_id/confirm`, Seller/Admin. Body có thể có `reason`, nhưng runtime legacy service hiện không sử dụng reason khi confirm.
+`POST /orders/:order_id/confirm`, Seller/Admin. Admin command yêu cầu reason và ghi trạng thái/history/AdminLog atomic; Seller confirm giữ contract riêng theo quyền Seller.
 
 ### Transition
 
@@ -454,4 +459,4 @@ Các endpoint hiện chưa live chỉ được FE tiêu thụ sau khi OpenAPI, r
 
 Mọi 4xx/5xx, kể cả 404 và 429, phải dùng ErrorEnvelope có `meta.request_id`. FE hiển thị request ID ở error detail và không crash với error code chưa biết.
 
-Payment provider, realtime notification, audit viewer và seller/admin analytics không thuộc MVP freeze này.
+Payment provider và realtime notification không thuộc MVP freeze này. Admin audit viewer và operational reports được triển khai theo CR-ADMIN-01; Seller analytics ngoài scope của Admin report.

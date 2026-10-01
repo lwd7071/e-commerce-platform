@@ -31,14 +31,15 @@
 | Confirm order | `orderRepository.confirm` | `POST /orders/:id/confirm` | body không cần reason | `AVAILABLE` | handler thật; chỉ bật với order ID hợp lệ |
 | Transition order | `orderRepository.transition` | `POST /orders/:id/transition` | tuần tự theo state; `to`/`reason`/`shipment_status` | `AVAILABLE` | Seller không được nhảy `CONFIRMED → SHIPPING` hoặc tự hoàn tất đơn |
 | Payment retry | `paymentRepository.retry` | `POST /orders/:id/payments` | payment_method | `AVAILABLE` | retry hiện hữu; không gọi trong checkout success, không tạo QR/provider session |
-| Submit review | `reviewRepository.create` | `POST /order-items/:id/review` | product_id/rating/content/images | `NOT_IMPLEMENTED` (501) | làm UI text/rating bằng mock; production submit tắt |
-| Notifications | `notificationRepository` | `GET/PATCH /notifications...` | is_read | `NOT_IMPLEMENTED` (501) | mock/feature flag; route có nhưng runtime service chưa inject |
+| Submit review | `reviewRepository.submitReview` | `POST /order-items/:id/review` | product_id/rating/content; media IDs are not accepted by current backend DTO | `PARTIAL` | Text/rating API is wired; live image upload is blocked because runtime rejects REVIEW presign and create does not atomically claim media. Mock uploader remains available |
+| Notifications | `notificationRepository` | `GET/PATCH /notifications...` | is_read | `AVAILABLE` | Runtime service is injected; FE repository uses the live API boundary |
 | Profile | `profileRepository` | `GET/PATCH /profile` | `full_name`, `phone` | `AVAILABLE` | Email/role server-owned; avatar upload remains unsupported |
 | Seller product list | `sellerCatalogRepository.list` | `GET /seller/products` | filters/cursor | `TARGET B-201` | fake boundary chạy song song; live sau owner-scope runtime test |
 | Seller stock | `sellerCatalogRepository.updateStock` | `PATCH /product-variants/:id/stock` | quantity | `AVAILABLE` | integrate if variant IDs known |
 | Create product | `sellerCatalogRepository.create` | `POST /products` | create DTO | `PARTIAL` | static categories + URL images in dev |
-| Admin users/shops | `adminRepository` | `GET /admin/users`, `GET /admin/shops` | filters/cursor | `AVAILABLE/PARTIAL` | nối API thật; harden pagination/audit/side effects |
-| Lock/unlock user | `adminRepository.moderateUser` | `POST /admin/users/:id/lock|unlock` | reason | `AVAILABLE` | có mutation/audit; UI chỉ gọi khi có target ID hợp lệ |
+| Admin users/shops | `adminApi` + `adminRepository` adapters | `GET /admin/users`, `/admin/users/:id`, `/admin/shops`, `/admin/shops/:id` | filters, cursor, detail | `AVAILABLE` | Live reads; UI feature repository và shared repository factory đang cùng tồn tại, nên Admin API boundary chưa hợp nhất hoàn toàn |
+| Admin mutations | `adminRepository` / `adminApi` | users/shops/categories/products/reviews/orders/vouchers | reason hoặc command DTO theo endpoint | `AVAILABLE` | Backend kiểm tra role/state; moderation/order reason bắt buộc; AdminLog được ghi cho các lệnh audit |
+| Admin operations | Admin feature repository | `/admin/audit-logs`, `/admin/reports`, `/admin/notification-campaigns` | cursor, filters, date range, progress | `AVAILABLE` | Audit read-only, QD19 reports, campaign preview/create/progress |
 
 ## 1.1. Đối chiếu API modules hiện có trong FE
 
@@ -125,7 +126,7 @@ Không dùng nhiều boolean rời rạc. Registry typed có ba trạng thái:
 type CapabilityState = "LIVE" | "MOCK_DEV_ONLY" | "BLOCKED";
 ```
 
-Capability MVP: `auth`, `catalog`, `cart`, `checkout`, `seller_catalog`, `media`, `orders`, `reviews`, `notifications`, `admin_users`, `admin_shops`, `admin_categories`.
+Capability MVP registry currently declares `auth`, `catalog`, `cart`, `checkout`, `seller_catalog`, `media`, `orders`, `reviews`, `notifications`, `admin_users`, `admin_shops`, `admin_categories`. No separate capability keys exist for Admin reports, campaigns, audit, vouchers, orders or moderation.
 
 - Development được dùng `MOCK_DEV_ONLY` và phải hiện badge demo.
 - Production cấm `NEXT_PUBLIC_USE_MOCK=true`.

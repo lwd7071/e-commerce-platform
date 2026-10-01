@@ -16,13 +16,13 @@ Phân biệt hoàn tất mốc backend với integration readiness FE: T3 harden
 
 ## 2. Gaps ưu tiên
 
-### GAP-01 — Order reads, review và notification runtime wiring
+### GAP-01 — Order reads, review và notification runtime wiring (historical gap; update 2026-10-01)
 
 - **Severity:** BLOCKER.
-- **Hiện trạng:** `OrderQueryService` và PostgreSQL repository đã được inject; buyer/seller/admin ownership query có integration test thật. Review và notification còn 501. Address item routes đã được nối và test HTTP/PostgreSQL.
-- **Ảnh hưởng:** Order center và địa chỉ có thể đọc dữ liệu thật; review/notification chưa thể bật.
-- **Còn lại:** wire review/notification services và kiểm tra OpenAPI schema cho order reads.
-- **Đóng gap khi:** order query, address và các domain còn lại có runtime tests tương ứng; review/notification vẫn ghi riêng là ngoài phạm vi MVP Buyer.
+- **Hiện trạng:** `OrderQueryService`, `ReviewService` và `NotificationService` được inject; address item routes đã nối. Review text/rating API và notification list/read có runtime paths. Buyer/Seller ownership cần tiếp tục được kiểm chứng trên test DB riêng.
+- **Ảnh hưởng:** Order center và notification dùng API thật; review ảnh chưa hoàn chỉnh vì runtime media presign từ chối purpose REVIEW, FE không gửi ảnh trong production, và backend chưa nhận/claim media IDs cùng transaction tạo review.
+- **Còn lại:** hoàn thiện REVIEW media lifecycle + transaction attach; chạy acceptance PostgreSQL riêng và live browser flow. Không đánh dấu review ảnh hoàn tất từ unit/component tests.
+- **Đóng gap khi:** order/address/review/notification runtime tests có evidence trên test DB; review có ảnh finalized và được lưu/đọc lại bằng buyer flow.
 
 ### GAP-02 — Checkout/payment contract và provider
 
@@ -65,9 +65,9 @@ Phân biệt hoàn tất mốc backend với integration readiness FE: T3 harden
 
 ### GAP-08 — Admin read APIs và moderation scope
 
-- **Severity:** HIGH cho Admin UI/release.
-- **Hiện trạng:** Admin users/shops list và lock/approve actions cùng category CRUD/status routes đã có; frontend Admin UI/RBAC acceptance còn mở theo plan. Log viewer và product/review moderation nâng cao chưa có; một số list/action còn cần pagination, protected target và atomic audit evidence.
-- **Còn lại:** hoàn thiện Admin UI/RBAC E2E và các hardening items còn mở trong C-401–C-406.
+- **Severity:** MEDIUM cho acceptance/release.
+- **Hiện trạng:** Admin users/shops list/detail, cursor, mutations; category; Product/Review moderation; Orders; PLATFORM vouchers; campaigns; audit viewer; reports đã được triển khai. `docs/progress/mvp-user-admin.md` ghi ADMIN-00–11 DONE cùng PostgreSQL evidence.
+- **Còn lại:** ADMIN-12 Axe/contrast/reduced-motion/viewport QA, ADMIN-13 browser E2E và RBAC matrix, ADMIN-14 final gates trên test database độc lập.
 
 ### GAP-09 — Media upload
 
@@ -112,20 +112,19 @@ Phân biệt hoàn tất mốc backend với integration readiness FE: T3 harden
 | Online provider payment | `BLOCKED` | UI prototype | GAP-02 |
 | Order center | `READY` for API | Live query service and DTO adapter | PostgreSQL runtime ownership tests; production order E2E |
 | Cancel/confirm/transition/payment retry | `READY` for mutation only | có thể dùng contract thật với order ID hợp lệ | reads/order IDs cần GAP-01; payment provider vẫn GAP-02 |
-| Review submit/read | `READY/PARTIAL_MEDIA` | Text/rating + review API; image preview is not a real upload | C-201–C-206; implement REVIEW media lifecycle |
+| Review submit/read | `PARTIAL` | Text/rating API is wired; live photo upload and persistence are not available. Component upload seam passes, but production screen keeps it disabled until backend ownership/transaction support is complete | C-201–C-206; enable REVIEW presign + atomic media claim + PostgreSQL and browser acceptance |
 | Notifications | `READY` | Live list/read UI/API; Buyer E2E mark-read survives reload on Supabase test | Host smoke; realtime is not implemented |
 | Profile | `READY/PARTIAL_RELEASE` | Live GET/PATCH and avatar upload/attach; avatar survives reload on Supabase test | Backend-host smoke and API rate limit evidence |
 | Seller create product | `READY/PARTIAL_RELEASE` | Live form/API and real Storage image upload; Seller E2E passed on Supabase test | Host/release verification; Shop must be ACTIVE |
 | Seller fulfillment | `READY/PARTIAL_SHIPMENT` | Live order query/actions | C-101–C-107 timeline/shipment/confirm-received |
 | Seller KPI | `BLOCKED` | mock | GAP-12 |
-| Admin users/shops | `AVAILABLE/PARTIAL_HARDENING` | Nối API thật | C-401/C-402 pagination, side effects, atomic audit |
-| Admin categories | `UI_READY/BLOCKED_RUNTIME` | Tree/form UI, production mutation off | C-403/C-405 Admin CRUD/status |
+| Admin portal core | `IMPLEMENTED/QA_OPEN` | Dữ liệu/API thật cho users, shops, categories, moderation, orders, vouchers, campaigns, audit, reports | ADMIN-12–14 trong `mvp-user-admin.md` |
 
 ## 4. Quyết định sản phẩm/API đã khóa
 
 1. COD là payment production MVP; online provider không chặn release.
 2. Media dùng backend presign/finalize theo `media_id`, magic-byte validation và Supabase Storage policy.
-3. Admin MVP gồm users, shops, categories và atomic audit write; audit viewer/product-review moderation/KPI nằm backlog.
+3. Admin portal hiện gồm users, shops, categories, Product/Review moderation, Orders, PLATFORM vouchers, notification campaigns, audit viewer và operational reports; acceptance còn mở được theo dõi trong `docs/progress/mvp-user-admin.md`.
 4. Seller MVP gồm onboarding Shop PENDING, approve, create product có media, stock và ACTIVE↔INACTIVE.
 
 ## 5. Hướng triển khai FE theo runtime hiện có
@@ -133,7 +132,7 @@ Phân biệt hoàn tất mốc backend với integration readiness FE: T3 harden
 - Dùng API thật cho categories, profile, addresses, enriched cart, orders, checkout, vouchers và các catalog endpoints hiện có.
 - Không dùng client cart prices để tính checkout; backend đọc lại giá/tồn kho trong transaction.
 - Review/notification giữ `BLOCKED` trong production cho tới khi runtime services/integration tests pass; development fake boundary phải có badge demo.
-- Seller product/media/Admin category là target contract trong file 05/08; Admin users/shops reads đã có và phải chuyển sang API thật.
+- Seller product/media và các Admin capabilities được mô tả trong file 05/06/08; Admin portal đã dùng API thật, các QA gate còn mở xem trong progress tracker.
 - Không dùng `/buyers/addresses`, `/buyers/profile` hoặc FE DTO hiện có nếu chưa sửa theo `06-fe-be-mapping.md`.
 - Google/OTP/recovery cần cấu hình dashboard tương ứng; Gmail SMTP mặc định phù hợp demo, cần chuyển email provider và rà rate limits trước production.
 
@@ -149,7 +148,7 @@ Các câu hỏi ở mục 4 đã được chốt cho MVP:
 - Buyer `confirm-received` là đường MVP đưa Order `SHIPPING → COMPLETED`; thiếu Shipment trả conflict, không tự tạo.
 - Review runtime phải có cả create, public list và rating aggregate.
 - Notification runtime phải phát event cho order lifecycle, confirm-received và moderation.
-- Admin MVP gồm users, shops, categories và atomic audit writes. Audit viewer, product/review moderation và KPI được hoãn.
+- Admin portal đã mở rộng theo CR-ADMIN-01: users, shops, categories, moderation, Orders, PLATFORM vouchers, campaigns, audit viewer và QD19 reports. Chất lượng accessibility, browser E2E và full gates vẫn là các acceptance riêng.
 - Production readiness dùng build manifest + `/health/readiness`; không silent mock fallback.
 
 Gap còn lại và owner/acceptance cụ thể nằm trong [08-implementation-plan.md](./08-implementation-plan.md); nội dung readiness cũ phía trên chỉ dùng làm lịch sử audit nếu mâu thuẫn với section này.

@@ -4,7 +4,9 @@
 
 Nội dung nghiệp vụ gốc nằm trong [`../../spec/schema-freeze-v1.md`](../../spec/schema-freeze-v1.md). File này ánh xạ từng QD và RBTV sang thời điểm kiểm tra, tầng thực thi, error code và loại test. Khi mô tả khác nhau, Schema Freeze và CR Approved có ưu tiên cao hơn.
 
-## 2. QD01-QD20
+## 2. Business rules gốc và rule bổ sung đã duyệt
+
+QD01-QD20 thuộc Schema Freeze v1. Các rule bổ sung chỉ áp dụng khi được CR Approved; QD21 bên dưới được thêm theo CR-SELLER-01 và không sửa nội dung Schema Freeze.
 
 | Rule | Thời điểm | Tầng thực thi | Error code | Test bắt buộc |
 |---|---|---|---|---|

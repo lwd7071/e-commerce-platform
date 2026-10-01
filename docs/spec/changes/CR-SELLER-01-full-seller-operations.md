@@ -14,7 +14,7 @@
 
 Seller hiện có luồng tạo/quản lý một phần Product và fulfillment, nhưng chưa có API/UI tự quản lý Shop, voucher, báo cáo và thông báo. Dashboard FE đang dùng Shop ID mẫu, `/seller/kpi` chưa có runtime handler, và một số màn Seller vẫn lấy dữ liệu từ public/mock boundary. Các thay đổi dưới đây bổ sung khả năng Seller vận hành Shop thật, luôn scope theo identity đã xác thực.
 
-## Quyết định đề nghị
+## Quyết định đã duyệt
 
 1. Seller được đọc Shop sở hữu và cập nhật `shop_name`, `description`, `pickup_address`, `contact_phone` ở trạng thái `PENDING` hoặc `ACTIVE`. `PENDING` chỉ được hoàn thiện Shop; vẫn không được quản lý Product, Voucher, Order hay báo cáo bán hàng. Shop `SUSPENDED`/`LOCKED` chỉ đọc hồ sơ.
 2. Admin chỉ duyệt Shop khi có địa chỉ lấy hàng và số điện thoại liên hệ. Kiểm tra nằm trong transaction duyệt; lỗi validation không đổi trạng thái và không ghi audit thành công giả. Shop đã `ACTIVE` thiếu dữ liệu không tự bị đổi trạng thái.
@@ -55,13 +55,14 @@ Request/response DTO, error codes và OpenAPI phải được chốt trước im
 
 ## Implementation evidence và việc còn lại
 
-Implementation vẫn đang tiến hành; trạng thái Approved cho phép triển khai, không có nghĩa đã nghiệm thu.
+CR được Approved để triển khai; approval không phải nghiệm thu. Trạng thái dưới đây được đối chiếu với code tại HEAD `fd353e1` ngày 2026-10-01. Các con số test là evidence lịch sử ở lượt đã ghi; nhóm test thêm sau đó chưa có kết quả chạy mới trong nhật ký.
 
-- Đã triển khai trong worktree: Shop self-service và điều kiện duyệt nguyên tử; KPI/report/voucher API và màn hình; phân trang/lịch sử Order và Seller notification; product cursor list, private detail và sửa tên/mô tả/category cùng thêm/sửa/xóa variant (variant có Order được giữ lại ở trạng thái `INACTIVE`); tạo Product yêu cầu media ID đã finalize; Seller không thể tự kích hoạt Product bị Admin ẩn.
-- Đã qua focused backend REST tests cho Shop, KPI, Voucher, Report, Seller notification, Product detail/edit contract, Order route và moderation; full frontend Vitest (48 files/274 tests); backend/frontend typecheck, backend build, frontend build, lint và OpenAPI drift check. Catalog PostgreSQL test bảo toàn variant có Order đã pass; test thêm/xóa variant từng pass ở lượt trước, lượt chạy lại mới nhất lỗi `ETIMEDOUT` khi truy vấn detail sau cập nhật do DB từ xa mất kết nối, cần chạy lại khi DB ổn định.
-- Chưa triển khai: sửa/thay ảnh Product sau khi tạo; media `SHOP_LOGO`; UI tests cho thao tác Seller create/edit/order/voucher/report.
-- PostgreSQL runtime integration đã pass cho Shop completion/atomic approval, Voucher cross-Shop ownership và used-voucher behavior, Seller Product read/edit ownership và SKU/price qua catalog hardening, Seller revenue report QD19/date filter/Shop scope, Order pagination/history, cùng checkout multi-Shop/concurrency invariants. `RUN_REMOTE_DB_TESTS=true` được bật trong môi trường test.
-- Chưa chạy full browser E2E onboarding→checkout→fulfillment→report. Full backend Vitest run bị dừng sau khi chạy lâu và phát hiện mismatch assertion Voucher; assertion đã được sửa và các DB suite liên quan (Voucher, report, Shop, catalog, order, checkout) đều đã chạy riêng thành công. Chưa tính full backend Vitest là pass.
+- Đã triển khai: Shop self-service và điều kiện duyệt nguyên tử; KPI/report/voucher API và UI; order pagination/history và Seller notifications; Product list/detail/edit, variant lifecycle và guard moderation; Product media upload/finalize và edit ảnh; Shop logo media; UI tests cho Shop/product edit/voucher/report; Seller browser E2E dùng mock API. Các cập nhật sau `cf2003b` nằm trong `38b4501`, `1b7e014`, `2b9f4a6`, `fd353e1`.
+- Evidence lịch sử trước các cập nhật trên: focused backend REST, frontend Vitest 48 files/274 tests, backend/frontend typecheck, lint/build và OpenAPI drift pass; PostgreSQL integration riêng pass cho Shop approval, voucher, reporting, order/checkout và một số catalog behavior. Variant add/remove rerun mới nhất lúc đó lỗi `ETIMEDOUT`; chưa có kết quả rerun mới được ghi.
+- Evidence mới trong repository: focused UI tests, Seller mocked browser lifecycle E2E, Shop logo/media integration tests và PostgreSQL Product image update integration test. Sự hiện diện của test trong source không khẳng định test đã chạy pass.
+- Seller browser E2E hiện mock API; bao phủ Shop profile, upload/xóa ảnh Product khi edit, voucher và report. Chưa bao phủ full lifecycle onboarding → Admin approve → Buyer checkout → Seller fulfillment → Buyer confirm → report với backend/DB thật.
+- Full backend Vitest chưa có pass toàn suite được ghi nhận; lượt trước bị dừng sau mismatch assertion Voucher, assertion đã được sửa và các DB suite liên quan được chạy riêng. Không tính các suite riêng là full-suite pass.
+- Còn lại: chạy các test UI/E2E/media mới; xác minh migration và logo/media integration; rerun variant PostgreSQL integration khi DB reachable; chạy full backend Vitest; bổ sung/chạy full lifecycle browser E2E với backend thật; cập nhật evidence chính xác.
 
 ## Điều kiện áp dụng
 

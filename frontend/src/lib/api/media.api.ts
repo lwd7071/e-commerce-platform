@@ -51,12 +51,13 @@ export interface FinalizeUploadResponse {
 }
 
 export const mediaApi = {
-  presign: (filename: string, contentType: string, purpose = "product_image", productId?: string) =>
+  presign: (filename: string, contentType: string, purpose = "product_image", productId?: string, reviewId?: string) =>
     apiClient.post<PresignUploadResponse>("/media/uploads/presign", {
       filename,
       content_type: contentType,
       purpose,
       ...(productId ? { product_id: productId } : {}),
+      ...(reviewId ? { review_id: reviewId } : {}),
     }),
 
   finalize: (mediaId: string) =>
@@ -76,6 +77,7 @@ export interface UploadMediaOptions {
   folder?: string;
   purpose?: string;
   productId?: string;
+  reviewId?: string;
 }
 
 export interface UploadedMedia {
@@ -99,7 +101,9 @@ export async function uploadMediaAsset(file: File, options?: UploadMediaOptions)
 
   try {
     // Bước 1: Presign qua backend API
-    const presignRes = await mediaApi.presign(file.name, file.type, purpose, options?.productId);
+    const presignRes = options?.reviewId
+      ? await mediaApi.presign(file.name, file.type, purpose, options.productId, options.reviewId)
+      : await mediaApi.presign(file.name, file.type, purpose, options?.productId);
 
     // Bước 3: Upload lên upload_url bằng PUT
     const uploadRes = await fetch(presignRes.upload_url, {
