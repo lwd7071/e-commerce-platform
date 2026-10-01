@@ -53,7 +53,7 @@ Thay `Người 1…5` bằng tên thành viên khi bắt đầu. Mỗi người 
 | Người 1 | Đã xác minh | 6 luồng Guest, Đăng ký/nhập, returnTo, Logout, Chặn Private API & LOCKED | 0 (B:0, C:0, V:0, T:0) | 2026-10-01 |
 | Người 2 | Chưa bắt đầu | — | — | — |
 | Người 3 | Đã xác minh | 8 luồng Giỏ hàng, Checkout Đa Shop, Idempotency, Quản lý đơn & Đánh giá | 0 (B:0, C:0, V:0, T:0) | 2026-10-01 |
-| Người 4 | Chưa bắt đầu | — | — | — |
+| Người 4 | Đã xác minh | 7 luồng Shop PENDING, SP/SKU/Tồn kho, Media Storage, State Machine & Chặn chéo Shop | 0 (B:0, C:0, V:0, T:0) | 2026-10-01 |
 | Người 5 | Đã xác minh | 7 luồng Admin, Moderation, RBAC, Audit & Dashboard UI | 1 Thấp (Góp ý nhãn KPI) | 2026-10-01 |
 
 ## Tiêu chí hoàn thành
