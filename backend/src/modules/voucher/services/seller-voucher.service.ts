@@ -4,6 +4,37 @@ import type { ISellerVoucherRepository, SellerVoucher, SellerVoucherFields } fro
 
 const decimal = /^\d+(?:\.\d{1,2})?$/;
 
+export function validateVoucherFields(input: Record<string, unknown>): SellerVoucherFields {
+  const code = typeof input.code === 'string' ? input.code.trim().toUpperCase() : '';
+  const voucherName = typeof input.voucher_name === 'string' ? input.voucher_name.trim() : '';
+  const discountType = input.discount_type;
+  const discountValue = input.discount_value;
+  const maxDiscount = input.max_discount;
+  const minOrderValue = input.min_order_value;
+  const quantity = input.quantity;
+  const startAt = input.start_at;
+  const endAt = input.end_at;
+  if (!code || code.length > 50) throw new ValidationFailedError('Code must contain 1 to 50 characters', { field: 'code' });
+  if (!voucherName || voucherName.length > 150) throw new ValidationFailedError('Voucher name must contain 1 to 150 characters', { field: 'voucher_name' });
+  if (discountType !== 'PERCENT' && discountType !== 'FIXED') throw new ValidationFailedError('Invalid discount type', { field: 'discount_type' });
+  const asDecimal = (value: unknown, field: string, nullable = false): string | null => {
+    if (nullable && value === null) return null;
+    if (typeof value !== 'string' || !decimal.test(value)) throw new ValidationFailedError(`${field} must be a decimal amount`, { field });
+    return value;
+  };
+  const discount = asDecimal(discountValue, 'discount_value') as string;
+  const maximum = asDecimal(maxDiscount, 'max_discount', true) as string | null;
+  const minimum = asDecimal(minOrderValue, 'min_order_value') as string;
+  if (Number(discount) <= 0 || (discountType === 'PERCENT' && Number(discount) > 100)) throw new ValidationFailedError('Discount value is out of range', { field: 'discount_value' });
+  if (maximum !== null && Number(maximum) < 0) throw new ValidationFailedError('Maximum discount cannot be negative', { field: 'max_discount' });
+  if (Number(minimum) < 0) throw new ValidationFailedError('Minimum order value cannot be negative', { field: 'min_order_value' });
+  if (!Number.isInteger(quantity) || Number(quantity) < 0) throw new ValidationFailedError('Quantity must be a non-negative integer', { field: 'quantity' });
+  if (typeof startAt !== 'string' || Number.isNaN(Date.parse(startAt)) || typeof endAt !== 'string' || Number.isNaN(Date.parse(endAt)) || Date.parse(startAt) >= Date.parse(endAt)) {
+    throw new ValidationFailedError('Voucher start time must be before end time', { field: 'end_at' });
+  }
+  return { code, voucher_name: voucherName, discount_type: discountType, discount_value: discount, max_discount: maximum, min_order_value: minimum, quantity: Number(quantity), start_at: new Date(startAt).toISOString(), end_at: new Date(endAt).toISOString() };
+}
+
 export class SellerVoucherService {
   constructor(private readonly repository: ISellerVoucherRepository) {}
 
@@ -45,33 +76,6 @@ export class SellerVoucherService {
   }
 
   private validate(input: Record<string, unknown>): SellerVoucherFields {
-    const code = typeof input.code === 'string' ? input.code.trim().toUpperCase() : '';
-    const voucherName = typeof input.voucher_name === 'string' ? input.voucher_name.trim() : '';
-    const discountType = input.discount_type;
-    const discountValue = input.discount_value;
-    const maxDiscount = input.max_discount;
-    const minOrderValue = input.min_order_value;
-    const quantity = input.quantity;
-    const startAt = input.start_at;
-    const endAt = input.end_at;
-    if (!code || code.length > 50) throw new ValidationFailedError('Code must contain 1 to 50 characters', { field: 'code' });
-    if (!voucherName || voucherName.length > 150) throw new ValidationFailedError('Voucher name must contain 1 to 150 characters', { field: 'voucher_name' });
-    if (discountType !== 'PERCENT' && discountType !== 'FIXED') throw new ValidationFailedError('Invalid discount type', { field: 'discount_type' });
-    const asDecimal = (value: unknown, field: string, nullable = false): string | null => {
-      if (nullable && value === null) return null;
-      if (typeof value !== 'string' || !decimal.test(value)) throw new ValidationFailedError(`${field} must be a decimal amount`, { field });
-      return value;
-    };
-    const discount = asDecimal(discountValue, 'discount_value') as string;
-    const maximum = asDecimal(maxDiscount, 'max_discount', true) as string | null;
-    const minimum = asDecimal(minOrderValue, 'min_order_value') as string;
-    if (Number(discount) <= 0 || (discountType === 'PERCENT' && Number(discount) > 100)) throw new ValidationFailedError('Discount value is out of range', { field: 'discount_value' });
-    if (maximum !== null && Number(maximum) < 0) throw new ValidationFailedError('Maximum discount cannot be negative', { field: 'max_discount' });
-    if (Number(minimum) < 0) throw new ValidationFailedError('Minimum order value cannot be negative', { field: 'min_order_value' });
-    if (!Number.isInteger(quantity) || Number(quantity) < 0) throw new ValidationFailedError('Quantity must be a non-negative integer', { field: 'quantity' });
-    if (typeof startAt !== 'string' || Number.isNaN(Date.parse(startAt)) || typeof endAt !== 'string' || Number.isNaN(Date.parse(endAt)) || Date.parse(startAt) >= Date.parse(endAt)) {
-      throw new ValidationFailedError('Voucher start time must be before end time', { field: 'end_at' });
-    }
-    return { code, voucher_name: voucherName, discount_type: discountType, discount_value: discount, max_discount: maximum, min_order_value: minimum, quantity: Number(quantity), start_at: new Date(startAt).toISOString(), end_at: new Date(endAt).toISOString() };
+    return validateVoucherFields(input);
   }
 }
