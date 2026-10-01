@@ -10,7 +10,7 @@ import type { IOrderQueryPort, ReviewOrderItemDTO } from '../../src/modules/buye
 import type { Review } from '../../src/modules/buyer/domain/types.ts';
 import type { OrderStatus } from '../../src/modules/order/domain/types.ts';
 
-describe('Slice 5: Verification & Full Lifecycle (Buyer Order -> Seller Handover -> Buyer Review with Media)', () => {
+describe('Buyer Review Route Flow Integration (QD14 Guard, Presigned Media ID Linkage, RB-LB09 Duplicate Blocking & Public Catalog)', () => {
   const buyerId = '11111111-1111-4111-8111-111111111111';
   const sellerId = '22222222-2222-4222-8222-222222222222';
   const shopId = '33333333-3333-4333-8333-333333333333';
@@ -18,6 +18,7 @@ describe('Slice 5: Verification & Full Lifecycle (Buyer Order -> Seller Handover
   const orderItemId = '55555555-5555-4555-8555-555555555555';
   const productId = '66666666-6666-4666-8666-666666666666';
   const reviewId = '77777777-7777-4777-8777-777777777777';
+  let presignedMediaId = '';
 
   let currentOrderStatus: OrderStatus = 'PENDING_CONFIRMATION';
 
@@ -96,15 +97,12 @@ describe('Slice 5: Verification & Full Lifecycle (Buyer Order -> Seller Handover
     assert.strictEqual(res.body.error.code, 'REVIEW_NOT_ELIGIBLE');
   });
 
-  it('Step 2: Seller fulfills order and Buyer confirms received -> Order COMPLETED', () => {
-    // Seller transitions order to SHIPPING
-    currentOrderStatus = 'SHIPPING';
-    // Buyer marks as COMPLETED
+  it('Step 2: Order transitions to COMPLETED in order query port context', () => {
     currentOrderStatus = 'COMPLETED';
     assert.strictEqual(currentOrderStatus, 'COMPLETED');
   });
 
-  it('Step 3: Buyer requests presigned URL for review photo', async () => {
+  it('Step 3: Buyer requests presigned URL for review photo and receives mediaId', async () => {
     activeRole = 'BUYER';
 
     const res = await request(app)
@@ -118,15 +116,17 @@ describe('Slice 5: Verification & Full Lifecycle (Buyer Order -> Seller Handover
 
     assert.strictEqual(res.status, 201);
     assert.ok(res.body.data.upload_url);
+    assert.ok(res.body.data.media_id);
+    presignedMediaId = res.body.data.media_id;
     assert.strictEqual(
       res.body.data.storage_path,
-      `users/${buyerId}/reviews/${reviewId}/${res.body.data.media_id}.jpg`,
+      `users/${buyerId}/reviews/${reviewId}/${presignedMediaId}.jpg`,
     );
   });
 
-  it('Step 4: Buyer submits review with rating, content, and attached mediaId', async () => {
+  it('Step 4: Buyer submits review with rating, content, and the exact presigned mediaId', async () => {
     activeRole = 'BUYER';
-    const fakeMediaId = '88888888-8888-4888-8888-888888888888';
+    assert.ok(presignedMediaId, 'presignedMediaId must be captured from Step 3');
 
     const res = await request(app)
       .post(`/api/v1/order-items/${orderItemId}/review`)
@@ -135,13 +135,13 @@ describe('Slice 5: Verification & Full Lifecycle (Buyer Order -> Seller Handover
         rating: 5,
         content: 'Hàng nhận rất ưng ý, chất vải mềm mịn và đóng gói cẩn thận!',
         review_id: reviewId,
-        image_media_ids: [fakeMediaId],
+        image_media_ids: [presignedMediaId],
       });
 
     assert.strictEqual(res.status, 201);
     assert.strictEqual(res.body.data.review_id, reviewId);
     assert.strictEqual(res.body.data.rating, 5);
-    assert.strictEqual(reviewRepo.attachedMedia.get(reviewId)?.[0], fakeMediaId);
+    assert.strictEqual(reviewRepo.attachedMedia.get(reviewId)?.[0], presignedMediaId);
   });
 
   it('Step 5: Duplicate review on the same order item is blocked (RB-LB09)', async () => {
