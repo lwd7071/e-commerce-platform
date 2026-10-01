@@ -45,6 +45,49 @@ test.describe("Seller Comprehensive Lifecycle E2E (Shop Profile → Products & E
       return route.continue();
     });
 
+    let patchedProductPayload: {
+      product_name?: string;
+      images?: Array<{ image_id?: string; media_id?: string; image_url?: string; sort_order?: number }>;
+    } | null = null;
+
+    await page.route("**/api/v1/media/uploads/presign", (route) => {
+      return route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            media_id: "media-e2e-new-001",
+            upload_url: "https://mock-storage.test/upload/media-e2e-new-001.png",
+            storage_path: "shops/00000000-0000-0000-0000-000000000001/products/prod-e2e-01/media-e2e-new-001.png",
+            expires_in_seconds: 3600,
+          },
+        }),
+      });
+    });
+
+    await page.route("https://mock-storage.test/**", (route) => {
+      return route.fulfill({
+        status: 200,
+        contentType: "text/plain",
+        body: "OK",
+      });
+    });
+
+    await page.route("**/api/v1/media/uploads/*/finalize", (route) => {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: {
+            media_id: "media-e2e-new-001",
+            public_url: "https://mock-storage.test/public/media-e2e-new-001.png",
+            storage_path: "shops/00000000-0000-0000-0000-000000000001/products/prod-e2e-01/media-e2e-new-001.png",
+            status: "FINALIZED",
+          },
+        }),
+      });
+    });
+
     await page.route("**/api/v1/seller/products/prod-e2e-01", (route) => {
       if (route.request().method() === "GET") {
         return route.fulfill({
@@ -81,6 +124,7 @@ test.describe("Seller Comprehensive Lifecycle E2E (Shop Profile → Products & E
         });
       }
       if (route.request().method() === "PATCH") {
+        patchedProductPayload = route.request().postDataJSON();
         return route.fulfill({
           status: 200,
           contentType: "application/json",
@@ -190,13 +234,38 @@ test.describe("Seller Comprehensive Lifecycle E2E (Shop Profile → Products & E
     await page.getByRole("button", { name: "Lưu hồ sơ" }).click();
     await expect(page.getByText("Đã lưu hồ sơ gian hàng.")).toBeVisible();
 
-    // 2. Edit product page
+    // 2. Edit product page (including image upload and deletion)
     await page.goto("/seller/products/prod-e2e-01/edit");
     await expect(page.getByRole("heading", { name: "Sửa sản phẩm" })).toBeVisible();
     await expect(page.locator("input#seller-product-name")).toHaveValue("Bàn Phím Cơ Dino E2E");
+    await expect(page.getByAltText("Ảnh sản phẩm 1")).toBeVisible();
+
+    // Upload a new image
+    await page.getByLabel("Tải ảnh sản phẩm").setInputFiles({
+      name: "keycap-pro.png",
+      mimeType: "image/png",
+      buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64"),
+    });
+    await expect(page.getByText("Tải ảnh thành công!")).toBeVisible();
+    await expect(page.getByAltText("Ảnh sản phẩm 2")).toBeVisible();
+
+    // Delete the first (old) image
+    await page.getByLabel("Xóa ảnh 1").click();
+    await expect(page.getByAltText("Ảnh sản phẩm 2")).toHaveCount(0);
+
+    // Edit product name and submit changes
     await page.locator("input#seller-product-name").fill("Bàn Phím Cơ Dino E2E Pro");
     await page.getByRole("button", { name: "Lưu thay đổi" }).click();
     await expect(page).toHaveURL(/\/seller\/products(?:\?|$)/, { timeout: 30_000 });
+
+    // Assert that the payload sent to backend retained the new image with media_id and omitted old image
+    const payload = patchedProductPayload as {
+      product_name?: string;
+      images?: Array<{ image_id?: string; media_id?: string; image_url?: string; sort_order?: number }>;
+    } | null;
+    expect(payload?.product_name).toBe("Bàn Phím Cơ Dino E2E Pro");
+    expect(payload?.images).toHaveLength(1);
+    expect(payload?.images?.[0]?.media_id).toBe("media-e2e-new-001");
 
     // 3. Seller Vouchers page
     await page.goto("/seller/vouchers");

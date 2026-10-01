@@ -1170,6 +1170,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
           requestBody: jsonRequest({ type: 'object', additionalProperties: false, minProperties: 1, properties: {
             product_name: { type: 'string', minLength: 2, maxLength: 200 }, description: { type: ['string', 'null'] }, category_id: { type: 'string', format: 'uuid' },
             variants: { type: 'array', minItems: 1, items: { type: 'object', required: ['variant_name', 'sku', 'price'], properties: { variant_id: { type: 'string', format: 'uuid' }, variant_name: { type: 'string', maxLength: 100 }, variant_value: { type: ['string', 'null'], maxLength: 150 }, sku: { type: 'string', maxLength: 100 }, price: { type: 'string' } } } },
+            images: { type: 'array', items: { type: 'object', required: ['image_url'], properties: { image_id: { type: 'string', format: 'uuid' }, media_id: { type: 'string', format: 'uuid' }, image_url: { type: 'string' }, sort_order: { type: 'integer', minimum: 0 } } } },
           } }),
           responses: { '200': successResponse('Seller product updated'), '403': errorResponse('Seller role and active shop required'), '404': errorResponse('Product or variant not found'), '409': errorResponse('SKU already used in Seller shop'), '422': errorResponse('Invalid product fields') },
         },

@@ -2877,6 +2877,14 @@ export interface paths {
                             sku: string;
                             price: string;
                         }[];
+                        images?: {
+                            /** Format: uuid */
+                            image_id?: string;
+                            /** Format: uuid */
+                            media_id?: string;
+                            image_url: string;
+                            sort_order?: number;
+                        }[];
                     };
                 };
             };
