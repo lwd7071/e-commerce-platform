@@ -248,7 +248,7 @@ export function createOrderDomainRouter(
       const to = req.body?.to as OrderStatus;
       const reason = typeof req.body?.reason === 'string' ? req.body.reason : undefined;
       const exceptionalCancellation = req.body?.exceptional_cancellation === true;
-      const shipmentStatus = req.body?.shipment_status;
+      const shipmentStatus = req.body?.shipment_status ?? (to === 'SHIPPING' && ctx.role === 'SELLER' ? 'HANDED_OVER' : undefined);
       const processingEligible = req.body?.processing_eligible !== false;
 
       const result = await orderLifecycleService.transitionOrder(orderId, actor, {

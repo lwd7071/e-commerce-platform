@@ -69,6 +69,13 @@ export const orderApi = {
   cancelOrder: async (id: string, reason: string) => { await apiClient.post<unknown>(`/orders/${id}/cancel`, { reason }); return orderApi.getOrderById(id); },
   confirmOrder: async (id: string, reason?: string) => { await apiClient.post<unknown>(`/orders/${id}/confirm`, { reason }); return orderApi.getOrderById(id); },
   confirmReceived: async (id: string) => { await apiClient.post<unknown>(`/orders/${id}/confirm-received`, {}); return orderApi.getOrderById(id); },
-  transitionOrder: async (id: string, data: { to: string; reason?: string }) => { await apiClient.post<unknown>(`/orders/${id}/transition`, data); return orderApi.getOrderById(id); },
+  transitionOrder: async (id: string, data: { to: string; reason?: string; shipment_status?: string }) => {
+    const payload = {
+      ...data,
+      ...(data.to === 'SHIPPING' && !data.shipment_status ? { shipment_status: 'HANDED_OVER' } : {}),
+    };
+    await apiClient.post<unknown>(`/orders/${id}/transition`, payload);
+    return orderApi.getOrderById(id);
+  },
   retryPayment: (id: string, data: { payment_method: string }) => apiClient.post<unknown>(`/orders/${id}/payments`, data),
 };
