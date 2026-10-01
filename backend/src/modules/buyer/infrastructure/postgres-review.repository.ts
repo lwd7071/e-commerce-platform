@@ -37,7 +37,7 @@ export class PostgresReviewRepository implements IReviewRepository {
     return (result.rows ?? []).map(mapReview);
   }
 
-  async create(review: Review, images?: string[]): Promise<Review> {
+  async create(review: Review, images?: string[], mediaIds?: UUID[]): Promise<Review> {
     const reviewSql = `
       INSERT INTO reviews (
         review_id, buyer_id, product_id, order_item_id, rating, content, status, created_at, updated_at
@@ -66,6 +66,31 @@ export class PostgresReviewRepository implements IReviewRepository {
         `;
         const imageId = randomUUID();
         await this.db.query(imageSql, [imageId, createdReview.reviewId, images[i], i]);
+      }
+    }
+
+    if (mediaIds && mediaIds.length > 0) {
+      for (let i = 0; i < mediaIds.length; i++) {
+        const mId = mediaIds[i];
+        const mediaCheck = await this.db.query(
+          `SELECT owner_id,purpose,status,object_path FROM media_uploads WHERE media_id=$1 FOR UPDATE`,
+          [mId],
+        );
+        const row = mediaCheck.rows?.[0];
+        if (!row || row.owner_id !== review.buyerId || row.purpose !== 'REVIEW' || row.status !== 'FINALIZED') {
+          throw new Error(`Media ${mId} is not a finalized review media owned by this buyer`);
+        }
+        await this.db.query(
+          `UPDATE media_uploads SET status='ATTACHED', attached_at=now(), updated_at=now() WHERE media_id=$1`,
+          [mId],
+        );
+        const publicUrl = `https://supabase.co/storage/v1/object/public/review-media/${row.object_path}`;
+        const imageSql = `
+          INSERT INTO review_images (review_image_id, review_id, image_url, sort_order)
+          VALUES ($1, $2, $3, $4)
+        `;
+        const imageId = randomUUID();
+        await this.db.query(imageSql, [imageId, createdReview.reviewId, publicUrl, i]);
       }
     }
 

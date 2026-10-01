@@ -80,7 +80,7 @@ export class ReviewService {
     // 5. Tạo review với trạng thái mặc định VISIBLE
     const now = new Date().toISOString();
     const newReview: Review = {
-      reviewId: randomUUID(),
+      reviewId: validated.reviewId ?? randomUUID(),
       buyerId,
       productId: productId ?? orderItemContext.productId,
       orderItemId,
@@ -91,7 +91,7 @@ export class ReviewService {
       updatedAt: now,
     };
 
-    return this.reviewRepo.create(newReview, validatedImages);
+    return this.reviewRepo.create(newReview, validatedImages, validated.imageMediaIds);
   }
 
   async getReviewsByProduct(
