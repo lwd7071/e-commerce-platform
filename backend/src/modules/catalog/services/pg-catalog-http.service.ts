@@ -497,6 +497,25 @@ export class PgCatalogHttpService {
     if (normalizedVariants && new Set(normalizedVariants.map((variant) => variant.sku)).size !== normalizedVariants.length) {
       throw new SkuConflictError('Variant SKUs must be unique within this product');
     }
+
+    const imagesInput = input.images;
+    if (imagesInput !== undefined && !Array.isArray(imagesInput)) {
+      throw new ValidationError('Images must be an array');
+    }
+    const rawImages = imagesInput as unknown[] | undefined;
+    const mediaAttachments = rawImages?.map((value, index) => {
+      const img = objectValue(value);
+      if (typeof img.media_id !== 'string') throw new ValidationError('Product images must use finalized seller media uploads');
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(img.media_id)) {
+        throw new ValidationError('Image media_id must be a valid UUID');
+      }
+      const sortOrder = img.sort_order !== undefined ? Number(img.sort_order) : index;
+      if (!Number.isInteger(sortOrder) || sortOrder < 0) {
+        throw new ValidationError('Image sortOrder must be a non-negative integer');
+      }
+      return { mediaId: img.media_id, imageUrl: String(img.image_url ?? ''), sortOrder };
+    });
+
     await withTransaction(this.pool, async (client) => {
       const product = await client.query(
         'SELECT product_id, shop_id, status FROM products WHERE product_id = $1 FOR UPDATE',
@@ -550,6 +569,46 @@ export class PgCatalogHttpService {
                VALUES ($1,$2,$3,$4,$5,$6,0,'ACTIVE')`,
               [crypto.randomUUID(), productId, variant.variantName, variant.variantValue, variant.sku, variant.price],
             );
+          }
+        }
+      }
+
+      if (mediaAttachments) {
+        const storageUrl = process.env.SUPABASE_URL?.replace(/\/$/, '');
+        for (const media of mediaAttachments) {
+          const registered = await client.query<{
+            owner_id: string; purpose: string; bucket_id: string; object_path: string; status: string;
+          }>(
+            'SELECT owner_id,purpose,bucket_id,object_path,status FROM media_uploads WHERE media_id=$1 FOR UPDATE',
+            [media.mediaId],
+          );
+          const r = registered.rows[0];
+          const path = r?.object_path;
+          const publicUrl = r && storageUrl
+            ? `${storageUrl}/storage/v1/object/public/${r.bucket_id}/${path}`
+            : '';
+          if (!r || r.owner_id !== context.user_id || r.purpose !== 'PRODUCT'
+            || r.bucket_id !== 'product-media' || (r.status !== 'FINALIZED' && r.status !== 'ATTACHED')
+            || !path?.startsWith(`shops/${context.shop_id}/products/${productId}/${media.mediaId}.`)
+            || (storageUrl && media.imageUrl !== publicUrl)) {
+            throw new ValidationError('Product image must reference a finalized upload owned by this seller and product');
+          }
+        }
+
+        await client.query('DELETE FROM product_images WHERE product_id = $1', [productId]);
+        for (const media of mediaAttachments) {
+          await client.query(
+            'INSERT INTO product_images (image_id, product_id, image_url, sort_order) VALUES ($1, $2, $3, $4)',
+            [crypto.randomUUID(), productId, media.imageUrl, media.sortOrder],
+          );
+          const registered = await client.query<{ status: string }>('SELECT status FROM media_uploads WHERE media_id=$1', [media.mediaId]);
+          if (registered.rows[0]?.status === 'FINALIZED') {
+            await attachFinalizedMedia(client, {
+              mediaId: media.mediaId,
+              ownerId: context.user_id,
+              purpose: 'PRODUCT',
+              resource: { kind: 'PRODUCT', shopId: context.shop_id!, productId },
+            });
           }
         }
       }

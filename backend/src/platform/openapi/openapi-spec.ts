@@ -1188,6 +1188,26 @@ export function generateOpenApiSpec(): OpenApiSpec {
           responses: { '200': successResponse('Seller shop profile updated'), '403': errorResponse('Shop profile is read-only'), '404': errorResponse('Seller shop not found'), '422': errorResponse('Invalid shop profile') },
         },
       },
+      '/seller/shop/logo': {
+        patch: {
+          summary: 'Update the authenticated seller shop logo using a finalized media upload',
+          security: [{ BearerAuth: [] }],
+          requestBody: jsonRequest({
+            type: 'object',
+            required: ['media_id'],
+            properties: {
+              media_id: { type: 'string', format: 'uuid' },
+            },
+          }),
+          responses: {
+            '200': successResponse('Shop logo updated'),
+            '403': errorResponse('Seller role required or shop profile is read-only'),
+            '404': errorResponse('Seller shop not found'),
+            '422': errorResponse('Invalid media_id or media upload not finalized for shop logo'),
+          },
+        },
+      },
+
       '/seller/kpi': {
         get: {
           summary: 'Read KPI data for the authenticated seller shop', security: [{ BearerAuth: [] }],

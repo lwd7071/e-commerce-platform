@@ -315,12 +315,17 @@ const mockCatalogRepository: ICatalogRepository = {
   getSellerProductById: async (id) => mockCatalogRepository.getProductById(id),
   updateSellerProduct: async (id, input) => {
     const current = await mockCatalogRepository.getProductById(id);
-    const updated = { ...current, ...input, variants: input.variants ? input.variants.map((change) => {
-      const existing = change.variant_id && current.variants.find((variant) => variant.variant_id === change.variant_id);
-      return existing
-        ? { ...existing, ...change }
-        : { ...change, variant_id: `mock-${crypto.randomUUID()}`, variant_value: change.variant_value ?? null, stock_quantity: 0, status: "ACTIVE" as const };
-    }) : current.variants };
+    const updated = {
+      ...current,
+      ...input,
+      images: input.images ? input.images.map((img) => ({ image_id: img.media_id, image_url: img.image_url, sort_order: img.sort_order })) : current.images,
+      variants: input.variants ? input.variants.map((change) => {
+        const existing = change.variant_id && current.variants.find((variant) => variant.variant_id === change.variant_id);
+        return existing
+          ? { ...existing, ...change }
+          : { ...change, variant_id: `mock-${crypto.randomUUID()}`, variant_value: change.variant_value ?? null, stock_quantity: 0, status: "ACTIVE" as const };
+      }) : current.variants,
+    };
     dynamicMockDetails[id] = updated;
     return updated;
   },

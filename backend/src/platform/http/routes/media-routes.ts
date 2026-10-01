@@ -4,7 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { buildSuccessEnvelope } from '../envelope.ts';
 import { AppError, ForbiddenError, NotFoundError, UnauthorizedError } from '../../errors/app-error.ts';
 import type { RequestContext } from '../../context/request-context.ts';
-import { STORAGE_BUCKETS, buildAvatarImagePath } from '../../../../db/storage.ts';
+import { STORAGE_BUCKETS, buildAvatarImagePath, buildShopLogoPath } from '../../../../db/storage.ts';
 import { attachFinalizedMedia, markMediaFinalized, registerPresignedMedia } from '../../../../db/media-lifecycle.ts';
 
 type AsyncRoute = (req: Request, res: Response, next: NextFunction) => Promise<void>;
@@ -72,7 +72,7 @@ export interface MediaRuntimeDependencies {
   storage: SupabaseClient;
 }
 
-export function mapPurposeToDb(purpose: string): 'PRODUCT' | 'REVIEW' | 'AVATAR' {
+export function mapPurposeToDb(purpose: string): 'PRODUCT' | 'REVIEW' | 'AVATAR' | 'SHOP_LOGO' {
   if (purpose === 'product_image' || purpose === 'PRODUCT' || purpose === 'product') {
     return 'PRODUCT';
   }
@@ -82,7 +82,10 @@ export function mapPurposeToDb(purpose: string): 'PRODUCT' | 'REVIEW' | 'AVATAR'
   if (purpose === 'avatar_image' || purpose === 'AVATAR' || purpose === 'avatar') {
     return 'AVATAR';
   }
-  throw new MediaValidationError(`Invalid purpose: ${purpose}. Allowed: product_image, review_image, avatar_image`, { field: 'purpose' });
+  if (purpose === 'shop_logo' || purpose === 'SHOP_LOGO' || purpose === 'logo') {
+    return 'SHOP_LOGO';
+  }
+  throw new MediaValidationError(`Invalid purpose: ${purpose}. Allowed: product_image, review_image, avatar_image, shop_logo`, { field: 'purpose' });
 }
 
 /**
@@ -182,7 +185,14 @@ export function createMediaRouter(auth?: RequestHandler, runtime?: MediaRuntimeD
       let storagePath: string;
       let bucket: string;
 
-      if (runtime && (dbPurpose === 'PRODUCT' || dbPurpose === 'AVATAR')) {
+      if (dbPurpose === 'SHOP_LOGO') {
+        const shopId = ctx.shop_id || (typeof body.shop_id === 'string' ? body.shop_id : '');
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(shopId)) {
+          throw new MediaValidationError('shop_id is required for shop logo upload', { field: 'shop_id' });
+        }
+        bucket = STORAGE_BUCKETS.PRODUCT_MEDIA;
+        storagePath = buildShopLogoPath(shopId, ext);
+      } else if (runtime && (dbPurpose === 'PRODUCT' || dbPurpose === 'AVATAR')) {
         if (dbPurpose === 'PRODUCT') {
           const productId = typeof body.product_id === 'string' ? body.product_id : '';
           if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productId)) {
@@ -327,6 +337,74 @@ export function createMediaRouter(auth?: RequestHandler, runtime?: MediaRuntimeD
       } finally {
         client.release();
       }
+    }),
+  );
+
+  // PATCH /seller/shop/logo — only a finalized shop_logo media owned by the caller can attach.
+  router.patch(
+    '/seller/shop/logo',
+    ...guards(auth, 'SELLER'),
+    asyncRoute(async (req, res) => {
+      const ctx = context(req);
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const unknown = Object.keys(body).find((key) => key !== 'media_id');
+      const mediaId = typeof body.media_id === 'string' ? body.media_id : '';
+      if (unknown || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(mediaId)) {
+        throw new MediaValidationError('media_id is required; logo URLs are not accepted', { field: unknown ?? 'media_id' });
+      }
+
+      if (!ctx.shop_id) {
+        throw new ForbiddenError('SHOP_NOT_FOUND', 'Seller must own a shop to attach logo');
+      }
+
+      if (runtime) {
+        const client = await runtime.pool.connect();
+        try {
+          await client.query('BEGIN');
+          const mediaResult = await client.query<{
+            owner_id: string; purpose: string; bucket_id: string; object_path: string; status: string;
+          }>('SELECT owner_id,purpose,bucket_id,object_path,status FROM media_uploads WHERE media_id=$1 FOR UPDATE', [mediaId]);
+          const media = mediaResult.rows[0];
+          if (!media || media.owner_id !== ctx.user_id || media.purpose !== 'SHOP_LOGO'
+            || media.bucket_id !== STORAGE_BUCKETS.PRODUCT_MEDIA || media.status !== 'FINALIZED') {
+            throw new ForbiddenError('MEDIA_NOT_OWNED', 'Shop logo media must be finalized and owned by this seller');
+          }
+
+          await attachFinalizedMedia(client, {
+            mediaId,
+            ownerId: ctx.user_id,
+            purpose: 'SHOP_LOGO',
+            resource: { kind: 'SHOP', shopId: ctx.shop_id },
+          });
+
+          const logoUrl = runtime.storage.storage.from(STORAGE_BUCKETS.PRODUCT_MEDIA).getPublicUrl(media.object_path).data.publicUrl;
+          await client.query('UPDATE shops SET logo_url=$2, updated_at=now() WHERE shop_id=$1 AND owner_id=$3', [ctx.shop_id, logoUrl, ctx.user_id]);
+
+          await client.query('COMMIT');
+          res.json(buildSuccessEnvelope({
+            shop_id: ctx.shop_id,
+            logo_url: logoUrl,
+            updated_at: new Date().toISOString(),
+          }, requestId(req)));
+          return;
+        } catch (error) {
+          await client.query('ROLLBACK');
+          throw error;
+        } finally {
+          client.release();
+        }
+      }
+
+      const upload = uploadsStore.get(mediaId);
+      if (!upload || upload.userId !== ctx.user_id) {
+        throw new ForbiddenError('MEDIA_NOT_OWNED', 'Shop logo media must be finalized and owned by this seller');
+      }
+      upload.attached = true;
+      res.json(buildSuccessEnvelope({
+        shop_id: ctx.shop_id,
+        logo_url: `https://mock.storage/${upload.storagePath}`,
+        updated_at: new Date().toISOString(),
+      }, requestId(req)));
     }),
   );
 

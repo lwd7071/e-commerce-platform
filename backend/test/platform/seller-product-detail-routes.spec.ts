@@ -42,7 +42,20 @@ describe('Seller product detail HTTP behavior', () => {
     await request(app).patch('/api/v1/seller/products/product-1')
       .send({ product_name: 'Updated name', shop_id: 'attacker' }).expect(422);
     await request(app).patch('/api/v1/seller/products/product-1')
-      .send({ product_name: 'Updated name', variants: [{ variant_id: 'v1', variant_name: 'Size', variant_value: 'M', price: '10.00', sku: 'SKU-1' }] }).expect(200);
-    assert.deepEqual(received, [shopId, 'product-1', { product_name: 'Updated name', variants: [{ variant_id: 'v1', variant_name: 'Size', variant_value: 'M', price: '10.00', sku: 'SKU-1' }] }]);
+      .send({
+        product_name: 'Updated name',
+        variants: [{ variant_id: 'v1', variant_name: 'Size', variant_value: 'M', price: '10.00', sku: 'SKU-1' }],
+        images: [{ media_id: '00000000-0000-0000-0000-000000000001', image_url: 'https://example.com/1.jpg', sort_order: 0 }],
+      }).expect(200);
+    assert.deepEqual(received, [
+      shopId,
+      'product-1',
+      {
+        product_name: 'Updated name',
+        variants: [{ variant_id: 'v1', variant_name: 'Size', variant_value: 'M', price: '10.00', sku: 'SKU-1' }],
+        images: [{ media_id: '00000000-0000-0000-0000-000000000001', image_url: 'https://example.com/1.jpg', sort_order: 0 }],
+      },
+    ]);
   });
 });
+

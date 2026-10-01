@@ -146,7 +146,7 @@ export function createCatalogRouter(application?: CatalogHttpApplication, auth?:
   }));
   router.patch('/seller/products/:id', ...guards(auth, 'SELLER'), asyncRoute(async (req, res) => {
     const input = req.body as Record<string, unknown>;
-    rejectUnknown(input, ['product_name', 'description', 'category_id', 'variants']);
+    rejectUnknown(input, ['product_name', 'description', 'category_id', 'variants', 'images']);
     const result = await implementation(application?.updateSellerProduct, application)(context(req), req.params.id, input);
     res.json(buildSuccessEnvelope(result, requestId(req)));
   }));
