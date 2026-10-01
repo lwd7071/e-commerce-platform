@@ -17,9 +17,13 @@ import type {
 export interface IAdminRepository {
   getDashboardStats(): Promise<DashboardStats>;
   getUsers(): Promise<UserAccount[]>;
+  getUserDetail(userId: string): Promise<UserAccount>;
+  getUsersPage(params?: { status?: string; role?: string; search?: string; cursor?: string; limit?: number }): Promise<{ items: UserAccount[]; next_cursor: string | null; has_more: boolean }>;
   lockUser(userId: string, reason: string, actor?: string): Promise<UserAccount>;
   unlockUser(userId: string, actor?: string): Promise<UserAccount>;
   getShops(): Promise<PlatformShop[]>;
+  getShopDetail(shopId: string): Promise<PlatformShop & { contactPhone?: string | null; pickupAddress?: string | null; description?: string | null }>;
+  getShopsPage(params?: { status?: string; search?: string; cursor?: string; limit?: number }): Promise<{ items: PlatformShop[]; next_cursor: string | null; has_more: boolean }>;
   lockShop(shopId: string, reason: string, actor?: string): Promise<PlatformShop>;
   unlockShop(shopId: string, actor?: string): Promise<PlatformShop>;
   getModerationProducts(): Promise<ModerationProduct[]>;
@@ -213,6 +217,58 @@ export class MockAdminRepository implements IAdminRepository {
     return [...mockUsers];
   }
 
+  async getUserDetail(userId: string): Promise<UserAccount> {
+    const found = mockUsers.find((u) => u.id === userId);
+    if (!found) throw new Error("Không tìm thấy người dùng.");
+    return { ...found };
+  }
+
+  async getUsersPage(params?: { status?: string; role?: string; search?: string; cursor?: string; limit?: number }): Promise<{ items: UserAccount[]; next_cursor: string | null; has_more: boolean }> {
+    let list = [...mockUsers];
+    if (params?.role && params.role !== "ALL") list = list.filter((u) => u.role === params.role);
+    if (params?.status && params.status !== "ALL") list = list.filter((u) => u.status === params.status);
+    if (params?.search?.trim()) {
+      const q = params.search.toLowerCase();
+      list = list.filter((u) => u.email.toLowerCase().includes(q) || u.fullName.toLowerCase().includes(q));
+    }
+    const limit = params?.limit ?? 20;
+    return {
+      items: list.slice(0, limit),
+      next_cursor: list.length > limit ? "mock_next_cursor" : null,
+      has_more: list.length > limit,
+    };
+  }
+
+  async getShops(): Promise<PlatformShop[]> {
+    return [...mockShops];
+  }
+
+  async getShopDetail(shopId: string): Promise<PlatformShop & { contactPhone?: string | null; pickupAddress?: string | null; description?: string | null }> {
+    const found = mockShops.find((s) => s.id === shopId);
+    if (!found) throw new Error("Không tìm thấy gian hàng.");
+    return {
+      ...found,
+      contactPhone: "0901234567",
+      pickupAddress: "123 Đường Điện Biên Phủ, Phường 25, Quận Bình Thạnh, TP.HCM",
+      description: "Gian hàng chính thức trên sàn Dino E-Commerce",
+    };
+  }
+
+  async getShopsPage(params?: { status?: string; search?: string; cursor?: string; limit?: number }): Promise<{ items: PlatformShop[]; next_cursor: string | null; has_more: boolean }> {
+    let list = [...mockShops];
+    if (params?.status && params.status !== "ALL") list = list.filter((s) => s.status === params.status);
+    if (params?.search?.trim()) {
+      const q = params.search.toLowerCase();
+      list = list.filter((s) => s.name.toLowerCase().includes(q) || s.ownerEmail.toLowerCase().includes(q));
+    }
+    const limit = params?.limit ?? 20;
+    return {
+      items: list.slice(0, limit),
+      next_cursor: list.length > limit ? "mock_next_shop_cursor" : null,
+      has_more: list.length > limit,
+    };
+  }
+
   async lockUser(userId: string, reason: string, actor = "admin@dino.vn"): Promise<UserAccount> {
     if (!reason || reason.trim().length === 0) {
       throw new Error("Lý do khóa tài khoản là bắt buộc.");
@@ -260,10 +316,6 @@ export class MockAdminRepository implements IAdminRepository {
     });
 
     return { ...found };
-  }
-
-  async getShops(): Promise<PlatformShop[]> {
-    return [...mockShops];
   }
 
   async lockShop(shopId: string, reason: string, actor = "admin@dino.vn"): Promise<PlatformShop> {
@@ -469,6 +521,34 @@ export class ApiAdminRepository implements IAdminRepository {
     return rows.map((row) => ({ id: row.id, email: row.email, fullName: row.full_name, role: row.role, status: row.status, createdAt: row.created_at }));
   }
 
+  async getUserDetail(userId: string): Promise<UserAccount> {
+    const row = await apiClient.get<{ id: string; email: string; full_name?: string; fullName?: string; role: UserAccount["role"]; status: UserAccount["status"]; created_at: string; updated_at?: string }>(`/admin/users/${userId}`);
+    return {
+      id: row.id,
+      email: row.email,
+      fullName: row.fullName || row.full_name || row.email.split("@")[0],
+      role: row.role,
+      status: row.status,
+      createdAt: row.created_at,
+    };
+  }
+
+  async getUsersPage(params?: { status?: string; role?: string; search?: string; cursor?: string; limit?: number }): Promise<{ items: UserAccount[]; next_cursor: string | null; has_more: boolean }> {
+    const envelope = await apiClient.getPaginated<{ id: string; email: string; full_name?: string; fullName?: string; role: UserAccount["role"]; status: UserAccount["status"]; created_at: string }>("/admin/users", { params });
+    return {
+      items: (envelope.data || []).map((row) => ({
+        id: row.id,
+        email: row.email,
+        fullName: row.fullName || row.full_name || row.email.split("@")[0],
+        role: row.role,
+        status: row.status,
+        createdAt: row.created_at,
+      })),
+      next_cursor: envelope.meta?.next_cursor ?? null,
+      has_more: envelope.meta?.has_more ?? false,
+    };
+  }
+
   async lockUser(userId: string, reason: string, actor?: string): Promise<UserAccount> {
     return apiClient.post<UserAccount>(`/admin/users/${userId}/lock`, { reason, actor });
   }
@@ -480,6 +560,56 @@ export class ApiAdminRepository implements IAdminRepository {
   async getShops(): Promise<PlatformShop[]> {
     const rows = await apiClient.get<Array<{ shop_id: string; shop_name: string; owner_email?: string; product_count: number; status: PlatformShop["status"]; created_at: string }>>("/admin/shops");
     return rows.map((row) => ({ id: row.shop_id, name: row.shop_name, ownerEmail: row.owner_email ?? "", productCount: Number(row.product_count), status: row.status, createdAt: row.created_at }));
+  }
+
+  async getShopDetail(shopId: string): Promise<PlatformShop & { contactPhone?: string | null; pickupAddress?: string | null; description?: string | null }> {
+    const row = await apiClient.get<{
+      id?: string;
+      shop_id?: string;
+      name?: string;
+      shop_name?: string;
+      ownerId?: string;
+      owner_id?: string;
+      ownerEmail?: string;
+      owner_email?: string;
+      productCount?: number;
+      product_count?: number;
+      contactPhone?: string | null;
+      contact_phone?: string | null;
+      pickupAddress?: string | null;
+      pickup_address?: string | null;
+      description?: string | null;
+      status: PlatformShop["status"];
+      createdAt?: string;
+      created_at?: string;
+    }>(`/admin/shops/${shopId}`);
+    return {
+      id: row.id || row.shop_id || shopId,
+      name: row.name || row.shop_name || "Gian hàng",
+      ownerEmail: row.ownerEmail || row.owner_email || "",
+      productCount: Number(row.productCount ?? row.product_count ?? 0),
+      status: row.status,
+      createdAt: row.createdAt || row.created_at || new Date().toISOString(),
+      contactPhone: row.contactPhone ?? row.contact_phone ?? null,
+      pickupAddress: row.pickupAddress ?? row.pickup_address ?? null,
+      description: row.description ?? null,
+    };
+  }
+
+  async getShopsPage(params?: { status?: string; search?: string; cursor?: string; limit?: number }): Promise<{ items: PlatformShop[]; next_cursor: string | null; has_more: boolean }> {
+    const envelope = await apiClient.getPaginated<{ shop_id?: string; id?: string; shop_name?: string; name?: string; owner_email?: string; ownerEmail?: string; product_count?: number; productCount?: number; status: PlatformShop["status"]; created_at?: string; createdAt?: string }>("/admin/shops", { params });
+    return {
+      items: (envelope.data || []).map((row) => ({
+        id: row.id || row.shop_id || "",
+        name: row.name || row.shop_name || "",
+        ownerEmail: row.ownerEmail || row.owner_email || "",
+        productCount: Number(row.productCount ?? row.product_count ?? 0),
+        status: row.status,
+        createdAt: row.createdAt || row.created_at || new Date().toISOString(),
+      })),
+      next_cursor: envelope.meta?.next_cursor ?? null,
+      has_more: envelope.meta?.has_more ?? false,
+    };
   }
 
   async lockShop(shopId: string, reason: string, actor?: string): Promise<PlatformShop> {
@@ -588,6 +718,10 @@ export const adminRepository: IAdminRepository = {
     features.domains.adminMock() ? mockAdminRepository.getDashboardStats() : apiAdminRepository.getDashboardStats(),
   getUsers: () =>
     features.domains.adminMock() ? mockAdminRepository.getUsers() : apiAdminRepository.getUsers(),
+  getUserDetail: (userId: string) =>
+    features.domains.adminMock() ? mockAdminRepository.getUserDetail(userId) : apiAdminRepository.getUserDetail(userId),
+  getUsersPage: (params) =>
+    features.domains.adminMock() ? mockAdminRepository.getUsersPage(params) : apiAdminRepository.getUsersPage(params),
   lockUser: (userId, reason, actor) =>
     features.domains.adminMock()
       ? mockAdminRepository.lockUser(userId, reason, actor)
@@ -598,6 +732,10 @@ export const adminRepository: IAdminRepository = {
       : apiAdminRepository.unlockUser(userId, actor),
   getShops: () =>
     features.domains.adminMock() ? mockAdminRepository.getShops() : apiAdminRepository.getShops(),
+  getShopDetail: (shopId: string) =>
+    features.domains.adminMock() ? mockAdminRepository.getShopDetail(shopId) : apiAdminRepository.getShopDetail(shopId),
+  getShopsPage: (params) =>
+    features.domains.adminMock() ? mockAdminRepository.getShopsPage(params) : apiAdminRepository.getShopsPage(params),
   lockShop: (shopId, reason, actor) =>
     features.domains.adminMock()
       ? mockAdminRepository.lockShop(shopId, reason, actor)

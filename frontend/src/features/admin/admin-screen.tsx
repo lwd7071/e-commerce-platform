@@ -17,6 +17,11 @@ export function AdminScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Pagination state
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
   // Filters
   const [roleFilter, setRoleFilter] = useState<string>("ALL");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
@@ -27,12 +32,29 @@ export function AdminScreen() {
   const [lockReason, setLockReason] = useState("");
   const [isLocking, setIsLocking] = useState(false);
 
+  // Detail user modal state
+  const [detailUser, setDetailUser] = useState<AdminUserItem | null>(null);
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+
   const fetchUsers = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await repositories.admin().getUsers();
-      setUsers(data);
+      const adminRepo = repositories.admin();
+      if (adminRepo.getUsersPage) {
+        const page = await adminRepo.getUsersPage({
+          role: roleFilter !== "ALL" ? roleFilter : undefined,
+          status: statusFilter !== "ALL" ? statusFilter : undefined,
+          search: searchQuery.trim() || undefined,
+          limit: 20,
+        });
+        setUsers(page.items);
+        setNextCursor(page.next_cursor);
+        setHasMore(page.has_more);
+      } else {
+        const data = await adminRepo.getUsers();
+        setUsers(data);
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Tải danh sách người dùng thất bại");
     } finally {
@@ -40,23 +62,74 @@ export function AdminScreen() {
     }
   };
 
+  const handleLoadMore = async () => {
+    if (!nextCursor || isLoadingMore) return;
+    setIsLoadingMore(true);
+    try {
+      const adminRepo = repositories.admin();
+      if (adminRepo.getUsersPage) {
+        const page = await adminRepo.getUsersPage({
+          role: roleFilter !== "ALL" ? roleFilter : undefined,
+          status: statusFilter !== "ALL" ? statusFilter : undefined,
+          search: searchQuery.trim() || undefined,
+          cursor: nextCursor,
+          limit: 20,
+        });
+        setUsers((prev) => [...prev, ...page.items]);
+        setNextCursor(page.next_cursor);
+        setHasMore(page.has_more);
+      }
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Không thể tải thêm người dùng", "error");
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  const handleViewDetail = async (user: AdminUserItem) => {
+    setIsLoadingDetail(true);
+    setDetailUser(user);
+    try {
+      const adminRepo = repositories.admin();
+      if (adminRepo.getUserDetail) {
+        const fullDetail = await adminRepo.getUserDetail(user.id);
+        setDetailUser(fullDetail);
+      }
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Không thể tải chi tiết người dùng", "error");
+    } finally {
+      setIsLoadingDetail(false);
+    }
+  };
+
   useEffect(() => {
     let ignore = false;
-    repositories
-      .admin()
-      .getUsers()
-      .then((data) => {
-        if (!ignore) {
-          setUsers(data);
-          setIsLoading(false);
+    const loadInitial = async () => {
+      try {
+        const adminRepo = repositories.admin();
+        if (adminRepo.getUsersPage) {
+          const page = await adminRepo.getUsersPage({ limit: 20 });
+          if (!ignore) {
+            setUsers(page.items);
+            setNextCursor(page.next_cursor);
+            setHasMore(page.has_more);
+            setIsLoading(false);
+          }
+        } else {
+          const data = await adminRepo.getUsers();
+          if (!ignore) {
+            setUsers(data);
+            setIsLoading(false);
+          }
         }
-      })
-      .catch((err: unknown) => {
+      } catch (err: unknown) {
         if (!ignore) {
           setError(err instanceof Error ? err.message : "Tải danh sách người dùng thất bại");
           setIsLoading(false);
         }
-      });
+      }
+    };
+    loadInitial();
     return () => {
       ignore = true;
     };
@@ -266,27 +339,36 @@ export function AdminScreen() {
                         </span>
                       </td>
                       <td className="py-3.5 px-4 text-center">
-                        {!isAdmin ? (
-                          isLocked ? (
-                            <Button
-                              variant="secondary"
-                              onClick={() => handleUnlockUser(u)}
-                              className="h-8 px-3 text-xs"
-                            >
-                              Mở khóa
-                            </Button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <Button
+                            variant="secondary"
+                            onClick={() => handleViewDetail(u)}
+                            className="h-8 px-2.5 text-xs"
+                          >
+                            Chi tiết
+                          </Button>
+                          {!isAdmin ? (
+                            isLocked ? (
+                              <Button
+                                variant="secondary"
+                                onClick={() => handleUnlockUser(u)}
+                                className="h-8 px-2.5 text-xs text-[var(--success-text)]"
+                              >
+                                Mở khóa
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="danger"
+                                onClick={() => handleOpenLockDialog(u)}
+                                className="h-8 px-2.5 text-xs"
+                              >
+                                Khóa
+                              </Button>
+                            )
                           ) : (
-                            <Button
-                              variant="danger"
-                              onClick={() => handleOpenLockDialog(u)}
-                              className="h-8 px-3 text-xs"
-                            >
-                              Khóa tài khoản
-                            </Button>
-                          )
-                        ) : (
-                          <span className="text-xs text-[var(--subtext)] italic">Quản trị viên</span>
-                        )}
+                            <span className="text-xs text-[var(--subtext)] italic px-2">Quản trị viên</span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -294,7 +376,76 @@ export function AdminScreen() {
               </tbody>
             </table>
           </div>
+          {hasMore && (
+            <div className="p-4 border-t border-[var(--border)] flex justify-center bg-[var(--card)]">
+              <Button
+                variant="secondary"
+                onClick={handleLoadMore}
+                disabled={isLoadingMore}
+                className="text-xs px-6 py-2"
+              >
+                {isLoadingMore ? "Đang tải thêm..." : "Tải thêm người dùng"}
+              </Button>
+            </div>
+          )}
         </div>
+      )}
+
+      {/* Dialog Chi Tiết Tài Khoản */}
+      {detailUser && (
+        <Dialog
+          open
+          onOpenChange={(open) => !open && setDetailUser(null)}
+          title="Chi tiết tài khoản người dùng"
+          description={`Mã tài khoản: ${detailUser.id}`}
+          footer={
+            <div className="flex justify-end">
+              <Button variant="secondary" onClick={() => setDetailUser(null)}>
+                Đóng
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-3 text-sm">
+            {isLoadingDetail && (
+              <p className="text-xs text-[var(--subtext)] italic">Đang tải dữ liệu chi tiết mới nhất...</p>
+            )}
+            <div className="grid grid-cols-2 gap-3 p-3 bg-[var(--card-muted)] rounded-lg text-xs">
+              <div>
+                <span className="text-[var(--subtext)] block">Họ và tên:</span>
+                <strong className="text-[var(--foreground)]">{detailUser.full_name}</strong>
+              </div>
+              <div>
+                <span className="text-[var(--subtext)] block">Email:</span>
+                <strong className="text-[var(--foreground)] font-mono">{detailUser.email}</strong>
+              </div>
+              <div>
+                <span className="text-[var(--subtext)] block">Vai trò:</span>
+                <span className="inline-block px-2 py-0.5 mt-0.5 rounded border border-[var(--border)] bg-[var(--card)] font-bold text-[var(--foreground)]">
+                  {detailUser.role}
+                </span>
+              </div>
+              <div>
+                <span className="text-[var(--subtext)] block">Trạng thái:</span>
+                <span
+                  className={`inline-block px-2 py-0.5 mt-0.5 rounded font-bold ${
+                    detailUser.status === "LOCKED"
+                      ? "bg-[var(--danger-surface)] text-[var(--danger-text)] border border-[var(--danger-border)]"
+                      : "bg-[var(--success-surface)] text-[var(--success-text)] border border-[var(--border)]"
+                  }`}
+                >
+                  {detailUser.status === "LOCKED" ? "Bị khóa" : "Hoạt động"}
+                </span>
+              </div>
+              {detailUser.created_at && (
+                <div className="col-span-2">
+                  <span className="text-[var(--subtext)] block">Ngày tạo:</span>
+                  <span className="text-[var(--foreground)] font-mono">{new Date(detailUser.created_at).toLocaleString("vi-VN")}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </Dialog>
       )}
 
       {/* Dialog Khóa Tài Khoản */}

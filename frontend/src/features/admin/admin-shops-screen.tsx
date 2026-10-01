@@ -21,6 +21,11 @@ export function AdminShopsScreen() {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Pagination
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
   // Approve dialog
   const [approveTarget, setApproveTarget] = useState<AdminShopItem | null>(null);
   const [isApproving, setIsApproving] = useState(false);
@@ -30,12 +35,28 @@ export function AdminShopsScreen() {
   const [lockReason, setLockReason] = useState("");
   const [isLocking, setIsLocking] = useState(false);
 
+  // Detail dialog
+  const [detailShop, setDetailShop] = useState<AdminShopItem | null>(null);
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+
   const fetchShops = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await repositories.admin().getShops();
-      setShops(data);
+      const adminRepo = repositories.admin();
+      if (adminRepo.getShopsPage) {
+        const page = await adminRepo.getShopsPage({
+          status: statusFilter !== "ALL" ? statusFilter : undefined,
+          search: searchQuery.trim() || undefined,
+          limit: 20,
+        });
+        setShops(page.items);
+        setNextCursor(page.next_cursor);
+        setHasMore(page.has_more);
+      } else {
+        const data = await adminRepo.getShops();
+        setShops(data);
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Tải danh sách gian hàng thất bại");
     } finally {
@@ -43,23 +64,73 @@ export function AdminShopsScreen() {
     }
   };
 
+  const handleLoadMore = async () => {
+    if (!nextCursor || isLoadingMore) return;
+    setIsLoadingMore(true);
+    try {
+      const adminRepo = repositories.admin();
+      if (adminRepo.getShopsPage) {
+        const page = await adminRepo.getShopsPage({
+          status: statusFilter !== "ALL" ? statusFilter : undefined,
+          search: searchQuery.trim() || undefined,
+          cursor: nextCursor,
+          limit: 20,
+        });
+        setShops((prev) => [...prev, ...page.items]);
+        setNextCursor(page.next_cursor);
+        setHasMore(page.has_more);
+      }
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Không thể tải thêm gian hàng", "error");
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  const handleViewDetail = async (shop: AdminShopItem) => {
+    setIsLoadingDetail(true);
+    setDetailShop(shop);
+    try {
+      const adminRepo = repositories.admin();
+      if (adminRepo.getShopDetail) {
+        const fullDetail = await adminRepo.getShopDetail(shop.shop_id);
+        setDetailShop(fullDetail);
+      }
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Không thể tải chi tiết gian hàng", "error");
+    } finally {
+      setIsLoadingDetail(false);
+    }
+  };
+
   useEffect(() => {
     let ignore = false;
-    repositories
-      .admin()
-      .getShops()
-      .then((data) => {
-        if (!ignore) {
-          setShops(data);
-          setIsLoading(false);
+    const loadInitial = async () => {
+      try {
+        const adminRepo = repositories.admin();
+        if (adminRepo.getShopsPage) {
+          const page = await adminRepo.getShopsPage({ limit: 20 });
+          if (!ignore) {
+            setShops(page.items);
+            setNextCursor(page.next_cursor);
+            setHasMore(page.has_more);
+            setIsLoading(false);
+          }
+        } else {
+          const data = await adminRepo.getShops();
+          if (!ignore) {
+            setShops(data);
+            setIsLoading(false);
+          }
         }
-      })
-      .catch((err: unknown) => {
+      } catch (err: unknown) {
         if (!ignore) {
           setError(err instanceof Error ? err.message : "Tải danh sách gian hàng thất bại");
           setIsLoading(false);
         }
-      });
+      }
+    };
+    loadInitial();
     return () => {
       ignore = true;
     };
@@ -383,7 +454,14 @@ export function AdminShopsScreen() {
                         {renderStatusBadge(shop.status)}
                       </td>
                       <td className="py-3.5 px-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            variant="secondary"
+                            onClick={() => handleViewDetail(shop)}
+                            className="h-8 px-2.5 text-xs"
+                          >
+                            Chi tiết
+                          </Button>
                           {isPending && (
                             <Button
                               variant="primary"
@@ -424,6 +502,18 @@ export function AdminShopsScreen() {
               </tbody>
             </table>
           </div>
+          {hasMore && (
+            <div className="p-4 border-t border-[var(--border)] flex justify-center bg-[var(--card)]">
+              <Button
+                variant="secondary"
+                onClick={handleLoadMore}
+                disabled={isLoadingMore}
+                className="text-xs px-6 py-2"
+              >
+                {isLoadingMore ? "Đang tải thêm..." : "Tải thêm gian hàng"}
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
@@ -506,6 +596,74 @@ export function AdminShopsScreen() {
           </div>
         </div>
       </Dialog>
+
+      {/* Modal: Xem chi tiết shop */}
+      {detailShop && (
+        <Dialog
+          open
+          onOpenChange={(isOpen) => !isOpen && setDetailShop(null)}
+          title={`Chi tiết gian hàng: ${detailShop.shop_name}`}
+        >
+          <div className="space-y-3 text-sm">
+            {isLoadingDetail && (
+              <p className="text-xs text-[var(--subtext)] italic">Đang tải dữ liệu chi tiết mới nhất...</p>
+            )}
+            <div className="grid grid-cols-2 gap-3 p-3 bg-[var(--card-muted)] rounded-lg text-xs">
+              <div>
+                <span className="text-[var(--subtext)] block">Tên gian hàng:</span>
+                <strong className="text-[var(--foreground)]">{detailShop.shop_name}</strong>
+              </div>
+              <div>
+                <span className="text-[var(--subtext)] block">Mã shop:</span>
+                <strong className="font-mono text-[var(--foreground)]">{detailShop.shop_id}</strong>
+              </div>
+              <div>
+                <span className="text-[var(--subtext)] block">Chủ sở hữu:</span>
+                <strong className="text-[var(--foreground)]">{detailShop.owner_name || detailShop.owner_email || "N/A"}</strong>
+              </div>
+              <div>
+                <span className="text-[var(--subtext)] block">Email:</span>
+                <strong className="font-mono text-[var(--foreground)]">{detailShop.owner_email || "N/A"}</strong>
+              </div>
+              <div>
+                <span className="text-[var(--subtext)] block">Điện thoại liên hệ:</span>
+                <strong className="font-mono text-[var(--foreground)]">{detailShop.contact_phone || "Chưa thiết lập"}</strong>
+              </div>
+              <div>
+                <span className="text-[var(--subtext)] block">Số sản phẩm:</span>
+                <strong className="text-[var(--foreground)]">{detailShop.product_count} sản phẩm</strong>
+              </div>
+              <div className="col-span-2">
+                <span className="text-[var(--subtext)] block">Địa chỉ lấy hàng / kho:</span>
+                <span className="text-[var(--foreground)] font-semibold">{detailShop.pickup_address || "Chưa thiết lập"}</span>
+              </div>
+              {detailShop.description && (
+                <div className="col-span-2">
+                  <span className="text-[var(--subtext)] block">Mô tả gian hàng:</span>
+                  <span className="text-[var(--foreground)]">{detailShop.description}</span>
+                </div>
+              )}
+              <div className="col-span-2 flex items-center justify-between pt-1 border-t border-[var(--border)]">
+                <div>
+                  <span className="text-[var(--subtext)] block">Trạng thái:</span>
+                  {renderStatusBadge(detailShop.status)}
+                </div>
+                {detailShop.created_at && (
+                  <div className="text-right">
+                    <span className="text-[var(--subtext)] block">Ngày tham gia:</span>
+                    <span className="font-mono text-[var(--foreground)]">{new Date(detailShop.created_at).toLocaleDateString("vi-VN")}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex justify-end pt-2">
+              <Button variant="secondary" onClick={() => setDetailShop(null)}>
+                Đóng
+              </Button>
+            </div>
+          </div>
+        </Dialog>
+      )}
     </div>
   );
 }

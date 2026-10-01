@@ -69,9 +69,13 @@ const apiVoucherRepository: IVoucherRepository = {
 
 const apiAdminRepository: IAdminRepository = {
   getUsers: (params) => adminApi.getUsers(params),
+  getUserDetail: (userId) => adminApi.getUserDetail(userId),
+  getUsersPage: (params) => adminApi.getUsersPage(params),
   lockUser: (payload) => adminApi.lockUser(payload),
   unlockUser: (userId) => adminApi.unlockUser(userId),
   getShops: (params) => adminApi.getShops(params),
+  getShopDetail: (shopId) => adminApi.getShopDetail(shopId),
+  getShopsPage: (params) => adminApi.getShopsPage(params),
   approveShop: (shopId, reason) => adminApi.approveShop(shopId, reason),
   lockShop: (payload) => adminApi.lockShop(payload),
   unlockShop: (shopId, reason) => adminApi.unlockShop(shopId, reason),

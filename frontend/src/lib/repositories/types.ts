@@ -121,9 +121,13 @@ export interface LockShopPayload {
 
 export interface IAdminRepository {
   getUsers(params?: { status?: string; role?: string; search?: string }): Promise<AdminUserItem[]>;
+  getUserDetail?(userId: string): Promise<AdminUserItem>;
+  getUsersPage?(params?: { status?: string; role?: string; search?: string; cursor?: string; limit?: number }): Promise<{ items: AdminUserItem[]; next_cursor: string | null; has_more: boolean }>;
   lockUser(payload: LockUserPayload): Promise<void>;
   unlockUser(userId: string): Promise<void>;
   getShops(params?: { status?: string; search?: string }): Promise<AdminShopItem[]>;
+  getShopDetail?(shopId: string): Promise<AdminShopItem>;
+  getShopsPage?(params?: { status?: string; search?: string; cursor?: string; limit?: number }): Promise<{ items: AdminShopItem[]; next_cursor: string | null; has_more: boolean }>;
   approveShop(shopId: string, reason?: string): Promise<void>;
   lockShop(payload: LockShopPayload): Promise<void>;
   unlockShop(shopId: string, reason?: string): Promise<void>;
