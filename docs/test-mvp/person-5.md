@@ -6,8 +6,9 @@ Phạm vi: duyệt/khóa/mở Shop, khóa/mở User, category/kiểm duyệt, ca
 
 - Trạng thái: Đã xác minh
 - Cập nhật gần nhất: 2026-10-01
-- Luồng đã hoàn tất: 7 / 7
+- Luồng đã hoàn tất: 8 / 8
 - Lỗi mở: Blocker 0 · Cao 0 · Vừa 0 · Thấp 1 (Góp ý nhãn KPI)
+- Lỗi đã khắc phục: 1 lỗi tiềm ẩn (ApiAdminRepository thiếu default reason khi unlockUser/unlockShop gây lỗi 422 trên backend)
 - Trở ngại/quyết định cần hỗ trợ: Không có. Hệ thống Admin đã được xác minh toàn diện qua cả test tự động và kiểm chứng giao diện thực tế.
 
 ## Nhật ký kiểm thử và lỗi
@@ -170,5 +171,31 @@ Phạm vi: duyệt/khóa/mở Shop, khóa/mở User, category/kiểm duyệt, ca
 - Bằng chứng: Ảnh chụp màn hình kiểm chứng trực tiếp trên trình duyệt tại `/admin`.
 - Mức độ: Thấp (Góp ý cải thiện UX nhãn hiển thị).
 - Kiểm tra lại: Đã xác minh trên browser thật.
+
+---
+
+### [TC-ADM-08] Can thiệp Đơn hàng qua Command & State Machine (Admin Order Operations)
+- Trạng thái: Đã xác minh
+- Người thực hiện: Thành viên 5 (/diagnose hardening)
+- Ngày cập nhật: 2026-10-01
+- Role và tài khoản/dữ liệu test: ADMIN (admin@dino.vn)
+- Quy tắc tham chiếu: role-business-rules.md # Mục 5 & QD11, QD17, QD20
+- Điều kiện ban đầu: Hệ thống có đơn hàng ở các trạng thái `PENDING_CONFIRMATION`, `SHIPPING`, `COMPLETED`.
+- Các bước thực hiện:
+  1. Admin gửi POST `/orders/:id/cancel` không kèm lý do (hoặc lý do rỗng) $\rightarrow$ Kiểm tra từ chối `422 REASON_REQUIRED`.
+  2. Admin gửi POST `/orders/:id/cancel` có lý do hợp lệ $\rightarrow$ Hủy thành công, trạng thái chuyển `CANCELLED`, lưu `cancel_reason` và ghi log history với `changedBy = admin.user_id`.
+  3. Admin gửi POST `/orders/:id/transition` không kèm lý do $\rightarrow$ Kiểm tra từ chối `422 REASON_REQUIRED`.
+  4. Admin thử nhảy cóc trạng thái từ `PENDING_CONFIRMATION` sang `COMPLETED` $\rightarrow$ Kiểm tra từ chối `409 ORDER_INVALID_TRANSITION`.
+  5. Admin chuyển đơn `SHIPPING` sang `COMPLETED` không có `shipment_status: 'DELIVERED'` $\rightarrow$ Kiểm tra từ chối `409 ORDER_INVALID_TRANSITION`.
+  6. Admin chuyển đơn `SHIPPING` sang `COMPLETED` kèm `shipment_status: 'DELIVERED'` và lý do $\rightarrow$ Chuyển thành công sang `COMPLETED`.
+- Kết quả mong đợi:
+  - Mọi thao tác can thiệp đơn hàng của Admin bắt buộc phải có reason không rỗng (QD17, QD20).
+  - Admin không được nhảy cóc chu trình State Machine trái phép.
+  - Phải ghi nhận đầy đủ người thực hiện và lý do vào `order_status_history`.
+- Kết quả thực tế: Đạt 100% tiêu chí nghiệp vụ.
+- Bằng chứng: `backend/test/modules/buyer/hardening/person-5-diagnose.spec.ts` (4/4 tests passed).
+- Mức độ: Không có lỗi.
+- Kiểm tra lại: Passed 100% tự động.
+
 
 

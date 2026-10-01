@@ -508,8 +508,8 @@ export class ApiAdminRepository implements IAdminRepository {
     return apiClient.post<UserAccount>(`/admin/users/${userId}/lock`, { reason, actor });
   }
 
-  async unlockUser(userId: string, actor?: string): Promise<UserAccount> {
-    return apiClient.post<UserAccount>(`/admin/users/${userId}/unlock`, { actor });
+  async unlockUser(userId: string, actor?: string, reason = "Account unlocked by admin"): Promise<UserAccount> {
+    return apiClient.post<UserAccount>(`/admin/users/${userId}/unlock`, { reason, actor });
   }
 
   async getShops(): Promise<PlatformShop[]> {
@@ -520,8 +520,8 @@ export class ApiAdminRepository implements IAdminRepository {
     return apiClient.post<PlatformShop>(`/admin/shops/${shopId}/lock`, { reason, actor });
   }
 
-  async unlockShop(shopId: string, actor?: string): Promise<PlatformShop> {
-    return apiClient.post<PlatformShop>(`/admin/shops/${shopId}/unlock`, { actor });
+  async unlockShop(shopId: string, actor?: string, reason = "Shop unlocked by admin"): Promise<PlatformShop> {
+    return apiClient.post<PlatformShop>(`/admin/shops/${shopId}/unlock`, { reason, actor });
   }
 
   async getModerationProducts(): Promise<ModerationProduct[]> {
