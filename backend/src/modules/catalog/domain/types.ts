@@ -16,6 +16,7 @@ export interface Shop {
   pickupAddress: string;
   contactPhone: string;
   status: ShopStatus;
+  tier?: 'STANDARD' | 'PREFERRED' | 'MALL';
   createdAt: string;
   updatedAt: string;
 }

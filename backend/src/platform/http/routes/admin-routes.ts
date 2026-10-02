@@ -2,7 +2,7 @@ import { Router, type Request, type Response, type NextFunction, type RequestHan
 import { buildPaginatedEnvelope, buildSuccessEnvelope } from '../envelope.ts';
 import { requireRole } from '../middlewares/rbac.ts';
 import { NotFoundError, ReasonRequiredError, UnauthorizedError, ValidationFailedError } from '../../errors/app-error.ts';
-import type { IModerationService } from '../../../modules/moderation/domain/moderation.types.ts';
+import type { IModerationService, ShopTier } from '../../../modules/moderation/domain/moderation.types.ts';
 import type { RequestContext } from '../../context/request-context.ts';
 import type { CatalogHttpApplication } from './t1-routes.ts';
 import type { AdminReadService } from '../../../modules/moderation/services/admin-read.service.ts';
@@ -293,12 +293,13 @@ export function createAdminRouter(moderation?: IModerationService, auth?: Reques
     '/admin/shops',
     ...guards(auth, 'ADMIN'),
     asyncRoute(async (req, res) => {
-      const { status, search, cursor, limit } = req.query;
+      const { status, search, cursor, limit, tier } = req.query;
       const modAny = moderation as Record<string, unknown> | undefined;
       if (cursor !== undefined || limit !== undefined) {
         if (reads) {
           const page = await reads.listShopsPage({
             status: typeof status === 'string' ? status : undefined,
+            tier: typeof tier === 'string' ? tier : undefined,
             search: typeof search === 'string' ? search : undefined,
             cursor: typeof cursor === 'string' ? cursor : undefined,
             limit: typeof limit === 'string' ? Number(limit) : undefined,
@@ -314,6 +315,7 @@ export function createAdminRouter(moderation?: IModerationService, auth?: Reques
           }>;
           const page = await listShopsPageFn({
             status: typeof status === 'string' ? status : undefined,
+            tier: typeof tier === 'string' ? tier : undefined,
             search: typeof search === 'string' ? search : undefined,
             cursor: typeof cursor === 'string' ? cursor : undefined,
             limit: typeof limit === 'string' ? Number(limit) : undefined,
@@ -324,6 +326,7 @@ export function createAdminRouter(moderation?: IModerationService, auth?: Reques
       const service = implementation(moderation?.listShops, moderation);
       const shops = await service({
         status: typeof status === 'string' ? status : undefined,
+        tier: typeof tier === 'string' ? tier : undefined,
         search: typeof search === 'string' ? search : undefined,
       });
       res.json(buildSuccessEnvelope(shops, requestId(req)));
@@ -351,10 +354,33 @@ export function createAdminRouter(moderation?: IModerationService, auth?: Reques
         pickupAddress: s.pickup_address ?? s.pickupAddress ?? null,
         description: s.description ?? null,
         status: s.status,
+        tier: s.tier ?? 'STANDARD',
         createdAt: s.created_at ?? s.createdAt,
         created_at: s.created_at ?? s.createdAt,
         updated_at: s.updated_at ?? s.updatedAt,
       }, requestId(req)));
+    })
+  );
+
+  // PATCH /admin/shops/:id/tier
+  router.patch(
+    '/admin/shops/:id/tier',
+    ...guards(auth, 'ADMIN'),
+    asyncRoute(async (req, res) => {
+      const ctx = context(req);
+      const targetId = req.params.id;
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const tier = typeof body.tier === 'string' ? body.tier : '';
+      const reason = typeof body.reason === 'string' ? body.reason : '';
+
+      if (moderation?.updateShopTier) {
+        const result = await moderation.updateShopTier(ctx.user_id, targetId, tier as ShopTier, reason);
+        res.json(buildSuccessEnvelope(result, requestId(req)));
+      } else {
+        const service = implementation(moderation?.updateShopTier, moderation);
+        const result = await service(ctx.user_id, targetId, tier as ShopTier, reason);
+        res.json(buildSuccessEnvelope(result, requestId(req)));
+      }
     })
   );
 

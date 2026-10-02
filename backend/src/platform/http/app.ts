@@ -29,6 +29,7 @@ import { PgOrderRepository } from '../../modules/order/repositories/pg-order.rep
 import { OrderQueryService } from '../../modules/order/services/order-query.service.ts';
 import { AddressService } from '../../modules/buyer/services/address.service.ts';
 import { ProfileService } from '../../modules/buyer/services/profile.service.ts';
+import { LoyaltyService } from '../../modules/loyalty/services/loyalty.service.ts';
 import { PostgresAddressRepository } from '../../modules/buyer/infrastructure/postgres-address.repository.ts';
 import { PostgresUserProfileRepository } from '../../modules/buyer/infrastructure/postgres-user-profile.repository.ts';
 import { PostgresReviewRepository } from '../../modules/buyer/infrastructure/postgres-review.repository.ts';
@@ -171,7 +172,8 @@ export function createRuntimeApp(
   const shippingFeeProvider = envConfig.shippingProvider === 'ghtk'
     ? new GhtkFeeProvider({ baseUrl: envConfig.ghtkApiBaseUrl, token: envConfig.ghtkApiToken! })
     : new MockFeeProvider();
-  const checkoutService = new PgCheckoutService(pool, undefined, shippingFeeProvider);
+  const loyaltyService = new LoyaltyService(pool);
+  const checkoutService = new PgCheckoutService(pool, undefined, shippingFeeProvider, loyaltyService);
   const orderQueryService = new OrderQueryService(new PgOrderRepository(pool), pool);
   const sharedEventPort = new InMemoryTransactionEventPort();
   const reviewService = new ReviewService(new PostgresReviewRepository(pool, supabaseUrl), orderQueryService);
@@ -202,6 +204,7 @@ export function createRuntimeApp(
         legacyHttpApplication: new PgBuyerHttpService(pool),
         addressService: new AddressService(new PostgresAddressRepository(pool)),
         profileService: new ProfileService(new PostgresUserProfileRepository(pool)),
+        loyaltyService,
         reviewService,
         notificationService,
       },
@@ -210,6 +213,7 @@ export function createRuntimeApp(
         orderQueryService,
         cancelOrder: (context, orderId, input) => checkoutService.cancelOrder(context, orderId, input),
         confirmOrder: (context, orderId, reason) => checkoutService.confirmOrder(context, orderId, reason),
+        confirmReceived: (context, orderId, reason) => checkoutService.confirmReceived(context, orderId, reason),
         transitionOrder: (context, orderId, input) => checkoutService.transitionOrder(context, orderId, input),
         retryPayment: (context, orderId, input) => checkoutService.retryPayment(context, orderId, input),
       },

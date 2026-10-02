@@ -242,6 +242,32 @@ export function generateOpenApiSpec(): OpenApiSpec {
           },
         },
       },
+      '/buyer/loyalty': {
+        get: {
+          summary: 'Get current buyer loyalty tier, spending progress, and DinoPoint balance',
+          security: [{ BearerAuth: [] }],
+          responses: {
+            '200': successResponse('Buyer loyalty status'),
+            '401': errorResponse('Authentication required'),
+            '403': errorResponse('Buyer role required'),
+          },
+        },
+      },
+      '/buyer/loyalty/history': {
+        get: {
+          summary: 'Get paginated buyer DinoPoint transaction history',
+          security: [{ BearerAuth: [] }],
+          parameters: [
+            { name: 'page', in: 'query', required: false, schema: { type: 'integer', default: 1 } },
+            { name: 'limit', in: 'query', schema: { type: 'integer', default: 10 }, required: false },
+          ],
+          responses: {
+            '200': successResponse('Buyer loyalty point transactions'),
+            '401': errorResponse('Authentication required'),
+            '403': errorResponse('Buyer role required'),
+          },
+        },
+      },
       '/products': {
         get: {
           summary: 'List public products',
@@ -1217,11 +1243,20 @@ export function generateOpenApiSpec(): OpenApiSpec {
           summary: 'List shops for moderation', security: [{ BearerAuth: [] }],
           parameters: [
             { name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['PENDING', 'ACTIVE', 'LOCKED', 'SUSPENDED'] } },
+            { name: 'tier', in: 'query', required: false, schema: { type: 'string', enum: ['STANDARD', 'PREFERRED', 'MALL'] } },
             { name: 'search', in: 'query', required: false, schema: { type: 'string' } },
             { name: 'limit', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 100 } },
             { name: 'cursor', in: 'query', required: false, schema: { type: 'string' } },
           ],
           responses: { '200': successResponse('Shops list retrieved'), '403': errorResponse('Admin role required') },
+        },
+      },
+      '/admin/shops/{id}/tier': {
+        patch: {
+          summary: 'Update shop tier', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: jsonRequest({ type: 'object', required: ['tier', 'reason'], additionalProperties: false, properties: { tier: { type: 'string', enum: ['STANDARD', 'PREFERRED', 'MALL'] }, reason: { type: 'string', minLength: 1 } } }),
+          responses: { '200': successResponse('Shop tier updated'), '403': errorResponse('Admin role required'), '404': errorResponse('Shop not found'), '422': errorResponse('Reason required or invalid tier') },
         },
       },
       '/admin/shops/{id}': {

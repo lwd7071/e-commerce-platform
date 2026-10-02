@@ -562,6 +562,34 @@ svg {
 .status-badge--cancelled,
 .status-badge--failed { border-color: var(--danger-border); background: var(--danger-surface); color: var(--danger-text); }
 
+.tier-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.tier-badge--mall {
+  background: #d0011b;
+  color: #ffffff;
+  border: 1px solid #d0011b;
+}
+.tier-badge--preferred {
+  background: #ee4d2d;
+  color: #ffffff;
+  border: 1px solid #ee4d2d;
+}
+.tier-badge--vip {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(217, 119, 6, 0.3);
+}
+
 .dialog {
   position: fixed;
   inset: 0;

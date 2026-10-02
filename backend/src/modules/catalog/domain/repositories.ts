@@ -25,6 +25,7 @@ export interface PublicProductFilter {
   limit?: number;
   offset?: number;
   cursor?: string;
+  shopTier?: string;
 }
 
 export interface PublicProductSummary {
@@ -38,6 +39,7 @@ export interface PublicProductSummary {
   totalStock: number;
   imageUrl: string | null;
   createdAt: string;
+  shopTier?: string;
 }
 
 export interface IShopRepository {

@@ -107,6 +107,7 @@ export interface AdminShopItem {
   pickup_address: string | null;
   contact_phone: string | null;
   status: ShopStatus;
+  tier?: "STANDARD" | "PREFERRED" | "MALL";
   product_count: number;
   owner_email?: string;
   owner_name?: string;
@@ -125,12 +126,13 @@ export interface IAdminRepository {
   getUsersPage?(params?: { status?: string; role?: string; search?: string; cursor?: string; limit?: number }): Promise<{ items: AdminUserItem[]; next_cursor: string | null; has_more: boolean }>;
   lockUser(payload: LockUserPayload): Promise<void>;
   unlockUser(userId: string): Promise<void>;
-  getShops(params?: { status?: string; search?: string }): Promise<AdminShopItem[]>;
+  getShops(params?: { status?: string; search?: string; tier?: string }): Promise<AdminShopItem[]>;
   getShopDetail?(shopId: string): Promise<AdminShopItem>;
-  getShopsPage?(params?: { status?: string; search?: string; cursor?: string; limit?: number }): Promise<{ items: AdminShopItem[]; next_cursor: string | null; has_more: boolean }>;
+  getShopsPage?(params?: { status?: string; search?: string; tier?: string; cursor?: string; limit?: number }): Promise<{ items: AdminShopItem[]; next_cursor: string | null; has_more: boolean }>;
   approveShop(shopId: string, reason?: string): Promise<void>;
   lockShop(payload: LockShopPayload): Promise<void>;
   unlockShop(shopId: string, reason?: string): Promise<void>;
+  updateShopTier?(shopId: string, tier: "STANDARD" | "PREFERRED" | "MALL", reason: string): Promise<void>;
 }
 
 export interface ISellerRepository {

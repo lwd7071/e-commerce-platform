@@ -13,6 +13,7 @@ import { useToast } from "../../components/ui/toast";
 import { buyerApi } from "../../lib/api/buyer.api";
 import { uploadMediaAsset } from "../../lib/api/media.api";
 import { AddressManager } from "./address-manager";
+import { BuyerLoyaltyCard } from "./loyalty-card";
 import { profileFailureState, type ProfileRequestState, type ProfileSnapshot } from "./profile-request-state";
 
 export type AuthProfileSnapshot = ProfileSnapshot & { avatarUrl?: string | null };
@@ -278,7 +279,12 @@ function ProfileReadyScreen({
           </form>
         </section>
       </div>
-      {profile.role === "BUYER" && <AddressManager />}
+      {profile.role === "BUYER" && (
+        <div className="space-y-6 mt-6">
+          <BuyerLoyaltyCard />
+          <AddressManager />
+        </div>
+      )}
     </>
   );
 }
