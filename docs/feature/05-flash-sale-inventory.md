@@ -5,8 +5,8 @@
 - Owner: nthai212006-gh — Flash Sale
 - Người phối hợp: Đội ngũ Platform & Auth (xác thực JWT sub qua `req.context`), Đội ngũ Catalog & Orders (khung schema `orders`, `order_items`)
 - Trạng thái: Hoàn thành 100% (Đã khắc phục toàn diện theo Remediation Plan V10, sẵn sàng merge vào `dev`)
-- Cập nhật lần cuối: 2026-10-02 (23:30)
-- Nhánh / PR / commit: `feat/flash-sale-concurrency` (Đã fast-forward khớp `origin/dev`)
+- Cập nhật lần cuối: 2026-10-02 (23:35)
+- Nhánh / PR / commit: `nthai-gh-Flash-sale` (Đã fast-forward khớp `origin/dev`)
 - Ngày hoàn thành: 2026-10-02 (Hoàn thành đúng tiến độ)
 - Blocker: **Không có blocker**. Toàn bộ 14 bài integration tests, 7 router auth tests và benchmark 1.000 concurrent requests đã đạt 100% PASS.
 
@@ -176,4 +176,4 @@ Khi nhà tuyển dụng hỏi sâu về Module Flash Sale trên CV của bạn:
     - Chạy stress test 1.000 concurrent requests: **1.000 requests, 10 thành công, 990 hết hàng, 0 oversold (0.00%)**.
   - **Task 5 (Báo cáo & Vận hành):** Hoàn thiện tài liệu nghiệm thu kỹ thuật và checklist ký duyệt PR.
 - **Lưu ý vận hành (Monitoring Gap):** Đội ngũ vận hành cần cấu hình cảnh báo nếu có bản ghi `flash_sale_compensation_logs` ở trạng thái `PENDING` quá 15 phút để phát hiện sớm sự cố nghẽn pipeline Redis hoặc worker kẹt lock.
-- **Tiếp theo:** Tạo Pull Request từ nhánh `feat/flash-sale-concurrency` merge vào nhánh `dev`.
+- **Tiếp theo:** Tạo Pull Request từ nhánh `nthai-gh-Flash-sale` merge vào nhánh `dev`.
