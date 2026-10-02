@@ -51,6 +51,7 @@ export enum FlashSaleLuaCode {
   USER_PURCHASE_LIMIT_EXCEEDED = -2,
   VOUCHER_ALREADY_USED_BY_USER = -3,
   VOUCHER_OUT_OF_STOCK = -4,
+  LUA_ARGV_MISSING = -5,
 }
 
 export interface PurchaseFlashSaleCommand {

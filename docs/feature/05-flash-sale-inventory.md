@@ -2,11 +2,13 @@
 
 ## Owner và trạng thái
 
-- Owner: Thành viên phụ trách Feature 05
-- Người phối hợp: Không
-- Trạng thái: Hoàn thành
-- Cập nhật lần cuối: 2026-10-02
-- Nhánh / PR / commit: `feat/flash-sale-concurrency`
+- Owner: nthai212006-gh — Flash Sale
+- Người phối hợp: Đội ngũ Platform & Auth (xác thực JWT sub qua `req.context`), Đội ngũ Catalog & Orders (khung schema `orders`, `order_items`)
+- Trạng thái: Hoàn thành 100% (Đã khắc phục toàn diện theo Remediation Plan V10, sẵn sàng merge vào `dev`)
+- Cập nhật lần cuối: 2026-10-02 (23:30)
+- Nhánh / PR / commit: `feat/flash-sale-concurrency` (Đã fast-forward khớp `origin/dev`)
+- Ngày hoàn thành: 2026-10-02 (Hoàn thành đúng tiến độ)
+- Blocker: **Không có blocker**. Toàn bộ 14 bài integration tests, 7 router auth tests và benchmark 1.000 concurrent requests đã đạt 100% PASS.
 
 ## Mục tiêu và phạm vi
 
@@ -59,10 +61,14 @@
 | 5 | Crash Sau Commit Trước ZREM | `vitest run tests/db/flash-sale-concurrency.integration.test.ts` | **PASS** | Watchdog thấy Order đã commit trong DB ➡️ Không hoàn stock nhầm, khôi phục Idempotency Replay Cache. |
 | 6 | Slot Upcoming (Chưa mở) | `vitest run tests/db/flash-sale-concurrency.integration.test.ts` | **PASS** | Reject mã `SLOT_NOT_ACTIVE (-1)`, không tạo đơn, stock giữ nguyên. |
 | 7 | Slot Ended (Đã kết thúc) | `vitest run tests/db/flash-sale-concurrency.integration.test.ts` | **PASS** | Reject mã `SLOT_NOT_ACTIVE (-1)`, không tạo đơn. |
+| 7b | Slot TTL Gate (Hết hạn tự nhiên) | `vitest run tests/db/flash-sale-concurrency.integration.test.ts` | **PASS** | Slot bắt đầu ACTIVE, warm-up đúng TTL (loại bỏ +86400s), trôi qua end_time ➡️ Lua time-check chặn mua với `SLOT_NOT_ACTIVE`. |
+| 7c | Admin hủy sớm slot (Status = ENDED) | `vitest run tests/db/flash-sale-concurrency.integration.test.ts` | **PASS** | Admin đổi status sang ENDED giữa phiên ➡️ Chặn mua ngay lập tức với `SLOT_NOT_ACTIVE`. |
 | 8a | User Limit (20 keys khác nhau, 1 user) | `vitest run tests/db/flash-sale-concurrency.integration.test.ts` | **PASS** | Đúng 1 thành công, 19 bị chặn bởi `USER_PURCHASE_LIMIT_EXCEEDED (-2)`, DB có đúng 1 order. |
 | 8b | Idempotency Concurrency (20 cùng 1 key) | `vitest run tests/db/flash-sale-concurrency.integration.test.ts` | **PASS** | 1 đơn giành lock xử lý, 19 đơn nhận in-progress; retry nhận replay kết quả cũ, DB đúng 1 order. |
 | 9 | Zero Stock Fast-Reject (DB Isolation) | `vitest run tests/db/flash-sale-concurrency.integration.test.ts` | **PASS** | 50 requests bị reject ở Redis; spy chứng minh `pool.connect()` = 0 calls (hoàn toàn không chạm DB). |
 | 10 | Reconciliation (Happy & Negative Path) | `vitest run tests/db/flash-sale-concurrency.integration.test.ts` | **PASS** | Happy path: `is_balanced: true`; Negative path (cố tình sửa stock = 999): phát hiện `is_balanced: false` và bắt đúng chênh lệch. |
+| 10b | Two-Phase Auto-Balance State Machine | `vitest run tests/db/flash-sale-concurrency.integration.test.ts` | **PASS** | Tự động cân bằng Redis stock về đúng số lượng; ghi log `PENDING` ➡️ `APPLIED` với UUID Admin hợp lệ; lần 2 kiểm tra `is_balanced === true`. |
+| 11 | Auth & RBAC Route Boundary (7 tests) | `node --import tsx --test test/platform/flash-sale-routes-auth.spec.ts` | **PASS** | 401 thiếu/sai token, 403 role Buyer, 200 Admin operations, 403 User Locked, chặn giả mạo `user_id` qua body. |
 
 ---
 
@@ -141,23 +147,33 @@ Khi nhà tuyển dụng hỏi sâu về Module Flash Sale trên CV của bạn:
 
 ## Việc còn lại và blocker
 
-- [x] Triển khai Schema Migration — Owner: Thành viên Feature 05 — Hoàn thành: 2026-10-02
-- [x] Xây dựng Module Flash Sale & Lua Engines — Owner: Thành viên Feature 05 — Hoàn thành: 2026-10-02
-- [x] Mở rộng Integration Test Suite (11 ca kiểm thử) — Owner: Thành viên Feature 05 — Hoàn thành: 2026-10-02
-- [x] Triển khai Stress Test Benchmark 1.000 requests — Owner: Thành viên Feature 05 — Hoàn thành: 2026-10-02
-- [x] Báo cáo nghiệm thu kỹ thuật & CV Highlights — Owner: Thành viên Feature 05 — Hoàn thành: 2026-10-02
-- Blocker: Không
+- [x] Triển khai Schema Migration (`flash_sale_sessions`, `flash_sale_items`, `flash_sale_compensation_logs`) — Owner: `nthai212006-gh` — Hoàn thành: 2026-10-02
+- [x] Xây dựng Module Flash Sale & Lua Engines (Fast-path + Compensation) — Owner: `nthai212006-gh` — Hoàn thành: 2026-10-02
+- [x] Khắc phục triệt để lỗ hổng TTL Gate (+86400s) & Lua Time-check Defense-in-Depth — Owner: `nthai212006-gh` — Hoàn thành: 2026-10-02
+- [x] Triển khai Auth & RBAC Route Boundary (7 ca kiểm thử Express) — Owner: `nthai212006-gh` — Hoàn thành: 2026-10-02
+- [x] Kiểm chứng Time-Window Gate (Test 7b TTL tự nhiên trôi qua, Test 7c Admin hủy sớm) — Owner: `nthai212006-gh` — Hoàn thành: 2026-10-02
+- [x] 3 hàm Repository mới + Two-Phase Auto-Balance State Machine (Test 10b) — Owner: `nthai212006-gh` — Hoàn thành: 2026-10-02
+- [x] Scheduler Worker tự động chạy nền & Route Lock dùng chung — Owner: `nthai212006-gh` — Hoàn thành: 2026-10-02
+- [x] Stress Test Benchmark 1.000 requests concurrency — Owner: `nthai212006-gh` — Hoàn thành: 2026-10-02
+- [x] Cập nhật Báo cáo kỹ thuật chuẩn mực Feature 05 — Owner: `nthai212006-gh` — Hoàn thành: 2026-10-02
+- Blocker: **Không có blocker**. Toàn bộ test suite và benchmark đều xanh 100%. Sẵn sàng merge vào `dev`.
+- Ngày dự kiến hoàn thành: 2026-10-02 (Đã hoàn thành trước hạn).
 
 ## Nhật ký cập nhật
 
-### 2026-10-02 (Cập nhật Mở rộng Test & Benchmark)
+### 2026-10-02 (Hoàn tất Remediation Plan V10 - Final Approved)
 
-- Đã làm:
-  - Bổ sung 6 test cases mới vào bộ kiểm thử: Slot Upcoming, Slot Ended, User Purchase Limit (20 keys khác nhau), Idempotency Concurrency (cùng 1 key), Zero Stock Fast-Reject (DB Isolation chứng minh `pool.connect()` = 0), Reconciliation Job (Happy & Negative path phát hiện sai lệch).
-  - Xây dựng và thực thi kịch bản In-Process Stress Test Benchmark 1.000 concurrent requests tranh mua 10 sản phẩm trên Upstash Redis và Supabase DB.
-  - Cập nhật số liệu đo đạc thực tế, phân tích nguyên nhân latency và bổ sung cẩm nang phỏng vấn kỹ thuật vào tài liệu.
-- Kiểm tra:
-  - 11/11 Integration Tests đạt PASS 100% (41.4s).
-  - Benchmark 1.000 requests đạt: 10 đơn thành công (1.00%), 990 đơn hết hàng (99.00%), **0 oversold (0.00%)**, 10 đơn hàng PostgreSQL và 0 pending lease tồn dư.
-  - TypeScript Typecheck: 0 errors.
-- Tiếp theo / blocker: Commit và push cập nhật lên nhánh `feat/flash-sale-concurrency`.
+- **Đã làm:**
+  - **Task 0 (Hotfix TTL & Lua Time-Check):** Loại bỏ `+86400` trong `warmUpSlot()`, đặt buffer an toàn 30s. Thêm `flash_sale:end_time:${slotId}` vào Redis. Thêm `KEYS[8]` và guard `if not now_ts then return -5` vào Lua script. Bổ sung `FlashSaleLuaCode.LUA_ARGV_MISSING = -5` và mapping trong `purchase()`.
+  - **Task 1 (Auth & RBAC Route Boundary):** Chặn hoàn toàn fallback `user_id` từ body/anonymous, trích xuất định danh duy nhất từ `req.context.user_id` (JWT context). Chặn Buyer gọi các endpoint Admin (`/warm-up`, `/reconcile`, `/watchdog/sweep`) với HTTP 403 `RESOURCE_FORBIDDEN`. Chặn tài khoản bị khóa trong DB với 403 `USER_LOCKED`. Xây dựng bộ test Express độc lập 7 ca kiểm thử.
+  - **Task 1b (Kiểm chứng Time Window Gate):** Thêm Test 7b (TTL tự nhiên hết hạn, slot ACTIVE trôi qua `end_time` bị Lua time-check chặn với `SLOT_NOT_ACTIVE`) và Test 7c (Admin hủy sớm slot sang `ENDED`).
+  - **Task 2 (Repository & Auto-Balance Two-Phase):** Bổ sung 3 hàm `countValidOrdersForItem`, `getUnifiedItemOrderSnapshot` (gom 1 query snapshot nhất quán), `listRecentlyEndedSessions`. Khắc phục nguy cơ lỗi FK 23503 khi ghi log bằng cách trích xuất UUID Admin thực tế từ DB (`app_users`). Triển khai Two-Phase Audit Log (`PENDING` ➡️ Redis Pipeline ➡️ `APPLIED`/`FAILED`).
+  - **Task 2b (Test Auto-Balance Thật):** Thêm Test 10b chứng minh khôi phục chuẩn xác tồn kho Redis (`stock = 999` ➡️ `8`) và ghi nhận log `APPLIED`.
+  - **Task 3 (Scheduler Worker & Route Lock):** Thêm `startWorker()` / `stopWorker()` với chu kỳ tùy biến qua `FLASH_SALE_WORKER_INTERVAL_MS` (mặc định 60s), xử lý batch 5 sessions/tick. Tích hợp route lock dùng chung `flash_sale:reconcile_lock:${slotId}` trả HTTP 409 khi đụng độ. Tích hợp vòng đời vào `app.ts`.
+  - **Task 4 (Full Test Suite & Benchmark):**
+    - Chạy bộ 7 test router auth: **7/7 PASS (100%)**.
+    - Chạy bộ 14 test concurrency integration: **14/14 PASS (100%)**.
+    - Chạy stress test 1.000 concurrent requests: **1.000 requests, 10 thành công, 990 hết hàng, 0 oversold (0.00%)**.
+  - **Task 5 (Báo cáo & Vận hành):** Hoàn thiện tài liệu nghiệm thu kỹ thuật và checklist ký duyệt PR.
+- **Lưu ý vận hành (Monitoring Gap):** Đội ngũ vận hành cần cấu hình cảnh báo nếu có bản ghi `flash_sale_compensation_logs` ở trạng thái `PENDING` quá 15 phút để phát hiện sớm sự cố nghẽn pipeline Redis hoặc worker kẹt lock.
+- **Tiếp theo:** Tạo Pull Request từ nhánh `feat/flash-sale-concurrency` merge vào nhánh `dev`.

@@ -149,7 +149,7 @@ describe('Feature 05: Flash Sale & Concurrency Inventory Engine', () => {
       [testVariantId]
     );
     expect(dbOrdersCount.rows[0].count).toBe(10);
-  });
+  }, 30_000);
 
   it('2. Test Concurrency Voucher: 2 users cùng bấm dùng 1 voucher chỉ còn 1 quota', async () => {
     const voucherCode = `FSVOUCHER-${Date.now()}`;
@@ -207,7 +207,7 @@ describe('Feature 05: Flash Sale & Concurrency Inventory Engine', () => {
     // Quota voucher trong Redis dừng ở 0 (không bị âm -1)
     const finalVoucherQuota = Number(await redis.get(`voucher:quota:${testSlotId}:${voucherCode}`));
     expect(finalVoucherQuota).toBe(0);
-  });
+  }, 30_000);
 
   it('3. Test Idempotent Retry: Gửi lại cùng Idempotency-Key trả lại kết quả cũ (HTTP 200 Replay)', async () => {
     const idempKey = `idemp-replay-${Date.now()}`;
@@ -404,6 +404,88 @@ describe('Feature 05: Flash Sale & Concurrency Inventory Engine', () => {
     expect(result.code).toBe(FlashSaleLuaCode.SLOT_NOT_ACTIVE);
   });
 
+  it('7b. Test Time Window: Slot bắt đầu ACTIVE, warm-up đúng TTL, trôi qua end_time -> Chặn mua SLOT_NOT_ACTIVE', async () => {
+    const slotId = crypto.randomUUID();
+    const now = Date.now();
+    const startTimeIso = new Date(now - 10000).toISOString();
+    const endTimeIso = new Date(now + 1500).toISOString();
+
+    // Dùng cùng nguồn thời gian local để tránh clock skew giữa Cloud DB (Supabase) và local node
+    await pool.query(
+      `INSERT INTO flash_sale_sessions (slot_id, slot_name, start_time, end_time, status)
+       VALUES ($1, 'Expiring Slot', $2, $3, 'ACTIVE')`,
+      [slotId, startTimeIso, endTimeIso]
+    );
+
+    const itemId = crypto.randomUUID();
+    await pool.query(
+      `INSERT INTO flash_sale_items (item_id, slot_id, product_id, variant_id, original_price, flash_sale_price, allocated_stock)
+       VALUES ($1, $2, $3, $4, 20000000, 999000, 10)`,
+      [itemId, slotId, testProductId, testVariantId]
+    );
+
+    // Warm-up slot đúng TTL
+    await service.warmUpSlot(slotId);
+
+    // Chờ 2.5 giây để trôi qua end_time
+    await new Promise((resolve) => setTimeout(resolve, 2500));
+
+    const buyerId = crypto.randomUUID();
+    await createBuyer(buyerId, `expiring-buyer-${Date.now()}@test.com`);
+
+    const result = await service.purchase({
+      idempotency_key: `idemp-expiring-${Date.now()}`,
+      user_id: buyerId,
+      slot_id: slotId,
+      item_id: itemId,
+      recipient_name: 'Expiring Buyer',
+      recipient_phone: '0901234567',
+      province: 'HCM', district: 'Q1', ward: 'BN', delivery_address: 'Addr',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.code).toBe(FlashSaleLuaCode.SLOT_NOT_ACTIVE);
+  }, 10_000);
+
+  it('7c. Test Time Window: Slot đang mở bán nhưng Admin hủy sớm (set ENDED) -> Chặn mua ngay lập tức', async () => {
+    const slotId = crypto.randomUUID();
+    // Tạo slot ACTIVE kết thúc sau 2 giờ (dùng server clock)
+    await pool.query(
+      `INSERT INTO flash_sale_sessions (slot_id, slot_name, start_time, end_time, status)
+       VALUES ($1, 'Early Cancel Slot', now() - interval '10 minutes', now() + interval '2 hours', 'ACTIVE')`,
+      [slotId]
+    );
+
+    const itemId = crypto.randomUUID();
+    await pool.query(
+      `INSERT INTO flash_sale_items (item_id, slot_id, product_id, variant_id, original_price, flash_sale_price, allocated_stock)
+       VALUES ($1, $2, $3, $4, 20000000, 999000, 10)`,
+      [itemId, slotId, testProductId, testVariantId]
+    );
+
+    await service.warmUpSlot(slotId);
+
+    // Admin can thiệp hủy sớm phiên Flash Sale
+    await pool.query('UPDATE flash_sale_sessions SET status = $1 WHERE slot_id = $2', ['ENDED', slotId]);
+    await redis.set(`flash_sale:slot_status:${slotId}`, 'ENDED');
+
+    const buyerId = crypto.randomUUID();
+    await createBuyer(buyerId, `early-cancel-buyer-${Date.now()}@test.com`);
+
+    const result = await service.purchase({
+      idempotency_key: `idemp-early-cancel-${Date.now()}`,
+      user_id: buyerId,
+      slot_id: slotId,
+      item_id: itemId,
+      recipient_name: 'Early Cancel Buyer',
+      recipient_phone: '0901234567',
+      province: 'HCM', district: 'Q1', ward: 'BN', delivery_address: 'Addr',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.code).toBe(FlashSaleLuaCode.SLOT_NOT_ACTIVE);
+  }, 10_000);
+
   it('8a. Test User Limit: Cùng 1 User gửi 20 requests với 20 idempotency_key khác nhau -> Chỉ đúng 1 thành công', async () => {
     // Nạp lại stock = 10 cho testItemId
     await redis.set(`flash_sale:stock:${testSlotId}:${testItemId}`, 10);
@@ -584,5 +666,104 @@ describe('Feature 05: Flash Sale & Concurrency Inventory Engine', () => {
     // Phải phát hiện ra sai lệch!
     expect(negativeReport.is_balanced).toBe(false);
     expect(negativeReport.discrepancy).not.toBe(0);
-  });
+  }, 30_000);
+
+  it('10b. Test Auto-Balance: Khôi phục Redis stock khi lệch và ghi Two-Phase log APPLIED', async () => {
+    // 1. Tạo một Admin user trong DB để làm operator cho Worker / Reconciler
+    const adminId = crypto.randomUUID();
+    const adminEmail = `admin-reconciler-${Date.now()}@test.com`;
+    await ensureAuthUser(pool, adminId, adminEmail);
+    await createFixtureUser(pool, { userId: adminId, email: adminEmail, role: 'ADMIN', status: 'ACTIVE' });
+
+    // 2. Tạo một slot đã kết thúc (status = 'ENDED')
+    const recSlotId = crypto.randomUUID();
+    const now = Date.now();
+    const startTimeIso = new Date(now - 7200000).toISOString();
+    const endTimeIso = new Date(now - 3600000).toISOString();
+
+    await pool.query(
+      `INSERT INTO flash_sale_sessions (slot_id, slot_name, start_time, end_time, status)
+       VALUES ($1, 'Ended Slot Reconcile', $2, $3, 'ENDED')`,
+      [recSlotId, startTimeIso, endTimeIso]
+    );
+
+    const varRes = await pool.query(
+      `INSERT INTO product_variants (variant_id, product_id, variant_name, sku, price, stock_quantity, status)
+       VALUES (gen_random_uuid(), $1, 'Rec Variant 10b', $2, 20000000, 500, 'ACTIVE')
+       RETURNING variant_id`,
+      [testProductId, `SKU-REC-10b-${Date.now()}`]
+    );
+    const recVariantId = varRes.rows[0].variant_id;
+
+    const recItemId = crypto.randomUUID();
+    const allocatedStock = 10;
+    await pool.query(
+      `INSERT INTO flash_sale_items (item_id, slot_id, product_id, variant_id, original_price, flash_sale_price, allocated_stock)
+       VALUES ($1, $2, $3, $4, 20000000, 999000, $5)`,
+      [recItemId, recSlotId, testProductId, recVariantId, allocatedStock]
+    );
+
+    // 3. Tạo 2 orders thật trong Postgres nằm trong khung giờ của slot
+    const buyer1Id = crypto.randomUUID();
+    await createBuyer(buyer1Id, `rec10b-buyer-1-${Date.now()}@test.com`);
+    const order1Id = crypto.randomUUID();
+    await pool.query(
+      `INSERT INTO orders (order_id, buyer_id, shop_id, recipient_name, recipient_phone, province, district, ward, delivery_address, subtotal, discount_amount, shipping_fee, total_amount, status, created_at)
+       VALUES ($1, $2, $3, 'B1', '0901234567', 'HCM', 'Q1', 'BN', 'Addr', 999000, 0, 0, 999000, 'PENDING_CONFIRMATION', $4::timestamptz)`,
+      [order1Id, buyer1Id, testShopId, new Date(now - 5000000).toISOString()]
+    );
+    await pool.query(
+      `INSERT INTO order_items (order_item_id, order_id, product_id, variant_id, product_name_snapshot, variant_snapshot, unit_price, quantity, line_total)
+       VALUES ($1, $2, $3, $4, 'P1', 'V1', 999000, 1, 999000)`,
+      [crypto.randomUUID(), order1Id, testProductId, recVariantId]
+    );
+
+    const buyer2Id = crypto.randomUUID();
+    await createBuyer(buyer2Id, `rec10b-buyer-2-${Date.now()}@test.com`);
+    const order2Id = crypto.randomUUID();
+    await pool.query(
+      `INSERT INTO orders (order_id, buyer_id, shop_id, recipient_name, recipient_phone, province, district, ward, delivery_address, subtotal, discount_amount, shipping_fee, total_amount, status, created_at)
+       VALUES ($1, $2, $3, 'B2', '0901234567', 'HCM', 'Q1', 'BN', 'Addr', 999000, 0, 0, 999000, 'CONFIRMED', $4::timestamptz)`,
+      [order2Id, buyer2Id, testShopId, new Date(now - 4000000).toISOString()]
+    );
+    await pool.query(
+      `INSERT INTO order_items (order_item_id, order_id, product_id, variant_id, product_name_snapshot, variant_snapshot, unit_price, quantity, line_total)
+       VALUES ($1, $2, $3, $4, 'P1', 'V1', 999000, 1, 999000)`,
+      [crypto.randomUUID(), order2Id, testProductId, recVariantId]
+    );
+
+    // 4. Cố tình set sai lệch trên Redis: ví dụ stock = 999
+    await redis.set(`flash_sale:stock:${recSlotId}:${recItemId}`, 999);
+
+    // Kiểm tra trước: read-only report thấy có sai lệch
+    const reportBefore = await service.reconcileSlot(recSlotId);
+    expect(reportBefore.is_balanced).toBe(false);
+    expect(reportBefore.discrepancy).not.toBe(0);
+
+    // 5. Kích hoạt autoBalance: true với operatorUserId của Admin
+    const balanceReport = await service.reconcileSlot(recSlotId, { autoBalance: true, operatorUserId: adminId });
+    expect(balanceReport.is_balanced).toBe(true);
+    expect(balanceReport.discrepancy).toBe(0);
+
+    // 6. Assert 1: Redis stock được khôi phục chính xác về allocated_stock - 2 = 8
+    const redisStock = await redis.get(`flash_sale:stock:${recSlotId}:${recItemId}`);
+    expect(Number(redisStock)).toBe(allocatedStock - 2);
+
+    // 7. Assert 2: Bản ghi Two-Phase Audit log chuyển sang APPLIED
+    const latestLogRes = await pool.query(
+      `SELECT compensation_id, slot_id, item_id, user_id, status
+       FROM flash_sale_compensation_logs
+       WHERE slot_id = $1
+       ORDER BY created_at DESC LIMIT 1`,
+      [recSlotId]
+    );
+    expect(latestLogRes.rows.length).toBe(1);
+    expect(latestLogRes.rows[0].status).toBe('APPLIED');
+    expect(latestLogRes.rows[0].user_id).toBe(adminId);
+
+    // 8. Assert 3: Gọi lại reconcileSlot lần 2 (read-only) thấy vẫn balanced
+    const reportAfter = await service.reconcileSlot(recSlotId);
+    expect(reportAfter.is_balanced).toBe(true);
+    expect(reportAfter.discrepancy).toBe(0);
+  }, 30_000);
 });

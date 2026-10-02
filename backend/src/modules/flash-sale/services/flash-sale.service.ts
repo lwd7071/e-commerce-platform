@@ -40,10 +40,11 @@ export class FlashSaleService {
       const items = await this.repo.listItemsBySlotId(slotId);
       const slotEndEpoch = new Date(session.end_time).getTime();
       const now = Date.now();
-      const ttlSeconds = Math.max(3600, Math.floor((slotEndEpoch - now) / 1000) + 86400);
+      const ttlSeconds = Math.max(60, Math.floor((slotEndEpoch - now) / 1000) + 30);
 
       // Cập nhật trạng thái Slot vào Redis (chống TOCTOU)
       await this.redis.set(`flash_sale:slot_status:${slotId}`, session.status, 'EX', ttlSeconds);
+      await this.redis.set(`flash_sale:end_time:${slotId}`, slotEndEpoch.toString(), 'EX', ttlSeconds);
 
       // Nạp stock từng sản phẩm
       for (const item of items) {
@@ -121,6 +122,7 @@ export class FlashSaleService {
       `flash_sale:slot_status:${slot_id}`,
       'flash_sale:pending_reservations',
       leaseKey,
+      `flash_sale:end_time:${slot_id}`,
     ];
 
     const deductResult = Number(
@@ -144,6 +146,7 @@ export class FlashSaleService {
       else if (code === FlashSaleLuaCode.USER_PURCHASE_LIMIT_EXCEEDED) msg = 'Mỗi khách hàng chỉ được mua 1 sản phẩm Flash Sale trong khung giờ.';
       else if (code === FlashSaleLuaCode.VOUCHER_ALREADY_USED_BY_USER) msg = 'Voucher đã được tài khoản của bạn sử dụng.';
       else if (code === FlashSaleLuaCode.VOUCHER_OUT_OF_STOCK) msg = 'Voucher khuyến mãi đã hết lượt sử dụng.';
+      else if (code === FlashSaleLuaCode.LUA_ARGV_MISSING) msg = 'Lỗi hệ thống nội bộ (LUA_ARGV_MISSING).';
 
       return { success: false, code, message: msg };
     }
@@ -406,29 +409,112 @@ export class FlashSaleService {
   }
 
   /**
-   * 4. Đối soát số liệu giữa Redis và Database (Reconciliation)
+   * 4. Đối soát số liệu giữa Redis và Database (Reconciliation & Two-Phase Auto-Balance)
    */
-  async reconcileSlot(slotId: string): Promise<ReconciliationReport> {
+  async reconcileSlot(
+    slotId: string,
+    options?: { autoBalance?: boolean; operatorUserId?: string }
+  ): Promise<ReconciliationReport> {
     const session = await this.repo.findSessionById(slotId);
     if (!session) {
       throw new Error('Khung giờ Flash Sale không tồn tại.');
     }
 
-    const items = await this.repo.listItemsBySlotId(slotId);
+    const snapshot = await this.repo.getUnifiedItemOrderSnapshot(
+      slotId,
+      session.start_time,
+      session.end_time
+    );
+
     let totalAllocated = 0;
     let totalRedisRemaining = 0;
+    let totalValidOrders = 0;
+    const itemDiscrepancies: Array<{
+      item_id: string;
+      allocated_stock: number;
+      valid_orders_count: number;
+      redis_stock: number;
+      target_redis_stock: number;
+      diff: number;
+    }> = [];
 
-    for (const item of items) {
+    for (const item of snapshot) {
       totalAllocated += item.allocated_stock;
+      totalValidOrders += item.valid_orders_count;
       const stockVal = await this.redis.get(`flash_sale:stock:${slotId}:${item.item_id}`);
-      totalRedisRemaining += stockVal !== null ? Number(stockVal) : item.allocated_stock;
+      const currentRedis = stockVal !== null ? Number(stockVal) : item.allocated_stock;
+      totalRedisRemaining += currentRedis;
+
+      const targetRedis = Math.max(0, item.allocated_stock - item.valid_orders_count);
+      const diff = currentRedis - targetRedis;
+      if (diff !== 0) {
+        itemDiscrepancies.push({
+          item_id: item.item_id,
+          allocated_stock: item.allocated_stock,
+          valid_orders_count: item.valid_orders_count,
+          redis_stock: currentRedis,
+          target_redis_stock: targetRedis,
+          diff,
+        });
+      }
     }
 
-    const soldViaRedis = totalAllocated - totalRedisRemaining;
-    const { validOrders, appliedCompensations } = await this.repo.getReconciliationCounts(slotId);
+    let soldViaRedis = totalAllocated - totalRedisRemaining;
+    let discrepancy = soldViaRedis - totalValidOrders;
 
-    // Công thức: Discrepancy = SoldViaRedis - ValidOrders
-    const discrepancy = soldViaRedis - validOrders;
+    // Two-Phase State Machine Auto-Balance
+    if (options?.autoBalance && itemDiscrepancies.length > 0) {
+      let operatorUserId = options.operatorUserId;
+      if (!operatorUserId) {
+        const adminRes = await this.pool.query(
+          `SELECT user_id FROM app_users WHERE role = 'ADMIN' LIMIT 1`
+        );
+        operatorUserId = adminRes.rows[0]?.user_id;
+      }
+
+      if (!operatorUserId) {
+        console.warn(`[reconcile] No ADMIN user found in app_users, skipping autoBalance for slot ${slotId}`);
+      } else {
+        const compIds: string[] = [];
+        // Phase 1: Ghi log trạng thái PENDING vào PostgreSQL
+        for (const item of itemDiscrepancies) {
+          const compId = crypto.randomUUID();
+          compIds.push(compId);
+          await this.repo.insertCompensationLog({
+            compensation_id: compId,
+            slot_id: slotId,
+            item_id: item.item_id,
+            user_id: operatorUserId,
+            reason: `AUTO_BALANCE: discrepancy ${item.diff} (redis=${item.redis_stock}, target=${item.target_redis_stock})`,
+            status: 'PENDING',
+          });
+        }
+
+        // Phase 2: Đồng bộ Redis stock bằng Pipeline
+        const pipeline = this.redis.pipeline();
+        for (const item of itemDiscrepancies) {
+          pipeline.set(`flash_sale:stock:${slotId}:${item.item_id}`, item.target_redis_stock);
+        }
+        const pipelineResults = await pipeline.exec();
+        const hasPipelineError = !pipelineResults || pipelineResults.some(([err]) => err !== null);
+
+        // Phase 3: Cập nhật trạng thái APPLIED / FAILED
+        for (const compId of compIds) {
+          await this.repo.updateCompensationLogStatus(
+            compId,
+            hasPipelineError ? 'FAILED' : 'APPLIED'
+          );
+        }
+
+        if (!hasPipelineError) {
+          totalRedisRemaining = Math.max(0, totalAllocated - totalValidOrders);
+          soldViaRedis = totalAllocated - totalRedisRemaining;
+          discrepancy = 0;
+        }
+      }
+    }
+
+    const { appliedCompensations } = await this.repo.getReconciliationCounts(slotId);
 
     return {
       slot_id: session.slot_id,
@@ -436,11 +522,47 @@ export class FlashSaleService {
       allocated_stock: totalAllocated,
       remaining_redis_stock: totalRedisRemaining,
       sold_via_redis: soldViaRedis,
-      valid_orders_in_db: validOrders,
+      valid_orders_in_db: totalValidOrders,
       compensation_applied_count: appliedCompensations,
       discrepancy,
       is_balanced: discrepancy === 0,
       timestamp: new Date().toISOString(),
     };
+  }
+
+  private workerTimer: NodeJS.Timeout | null = null;
+
+  /**
+   * 5. Scheduler Worker tự động đối soát các slot vừa kết thúc (batch 5 sessions/tick)
+   */
+  startWorker(): void {
+    if (this.workerTimer) return;
+    const interval = Number(process.env.FLASH_SALE_WORKER_INTERVAL_MS ?? 60_000);
+    this.workerTimer = setInterval(async () => {
+      try {
+        const sessions = await this.repo.listRecentlyEndedSessions(30, 5);
+        for (const session of sessions) {
+          const lockKey = `flash_sale:reconcile_lock:${session.slot_id}`;
+          const acquired = await this.redis.set(lockKey, 'worker', 'EX', 30, 'NX');
+          if (!acquired) continue;
+          try {
+            await this.reconcileSlot(session.slot_id, { autoBalance: true });
+          } catch (err) {
+            console.error(`[FlashSale Worker] Error reconciling slot ${session.slot_id}:`, err);
+          } finally {
+            await this.redis.del(lockKey);
+          }
+        }
+      } catch (err) {
+        console.error('[FlashSale Worker] Error in worker tick:', err);
+      }
+    }, interval);
+  }
+
+  stopWorker(): void {
+    if (this.workerTimer) {
+      clearInterval(this.workerTimer);
+      this.workerTimer = null;
+    }
   }
 }
