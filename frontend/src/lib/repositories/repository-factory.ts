@@ -7,6 +7,7 @@ import { voucherApi } from "../api/voucher.api";
 import { adminApi } from "../api/admin.api";
 import { mediaApi, uploadMedia } from "../api/media.api";
 import { sellerReportApi } from "../api/seller-report.api";
+import { chatApi } from "../api/chat.api";
 import type {
   ICatalogRepository,
   IBuyerRepository,
@@ -15,6 +16,7 @@ import type {
   IReviewRepository,
   IAdminRepository,
   IMediaRepository,
+  IChatRepository,
   CreateReviewPayload,
   WireReview,
   AdminUserItem,
@@ -953,6 +955,148 @@ const mockMediaRepository: IMediaRepository = {
   },
 };
 
+const apiChatRepository: IChatRepository = {
+  createOrGetConversation: (shopId, productId) => chatApi.createOrGetConversation(shopId, productId),
+  getConversations: () => chatApi.getConversations(),
+  getConversation: (id) => chatApi.getConversation(id),
+  getMessages: (id, limit, cursor) => chatApi.getMessages(id, limit, cursor),
+  sendMessage: (id, payload) => chatApi.sendMessage(id, payload),
+  requestHandoff: (id) => chatApi.requestHandoff(id),
+  updatePermissions: (id, permissions) => chatApi.updatePermissions(id, permissions),
+};
+
+const mockConversationsStore: import('../api/chat.api').WireChatConversation[] = [
+  {
+    conversation_id: 'mock-conv-1',
+    buyer_id: 'buyer-demo',
+    shop_id: '00000000-0000-0000-0000-000000000002',
+    current_product_id: '00000000-0000-0000-0000-000000000001',
+    mode: 'BOT_ASSISTANT',
+    bot_permissions: { allow_stock: true, allow_price: true, allow_variants: true, allow_description: true },
+    last_message_at: new Date().toISOString(),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    shop_name: 'Dino Official Store',
+    product_name: 'Áo Thun Cotton Cao Cấp',
+  },
+];
+
+const mockMessagesStore: Record<string, import('../api/chat.api').WireChatMessage[]> = {
+  'mock-conv-1': [
+    {
+      message_id: 'mock-msg-1',
+      conversation_id: 'mock-conv-1',
+      sender_id: null,
+      sender_role: 'BOT',
+      message_type: 'TEXT',
+      content: 'Dạ em chào bạn! Em là trợ lý tự động của Shop. Em có thể giải đáp thông tin tồn kho, giá bán và chất liệu sản phẩm ạ!',
+      metadata: { is_automated: true },
+      is_read: true,
+      created_at: new Date().toISOString(),
+    },
+  ],
+};
+
+const mockChatRepository: IChatRepository = {
+  createOrGetConversation: async (shopId, productId) => {
+    let conv = mockConversationsStore.find((c) => c.shop_id === shopId);
+    if (!conv) {
+      conv = {
+        conversation_id: `conv_${Date.now()}`,
+        buyer_id: 'buyer-demo',
+        shop_id: shopId,
+        current_product_id: productId ?? null,
+        mode: 'BOT_ASSISTANT',
+        bot_permissions: { allow_stock: true, allow_price: true, allow_variants: true, allow_description: true },
+        last_message_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        shop_name: 'Gian hàng đối tác',
+      };
+      mockConversationsStore.unshift(conv);
+      mockMessagesStore[conv.conversation_id] = [
+        {
+          message_id: `msg_${Date.now()}`,
+          conversation_id: conv.conversation_id,
+          sender_id: null,
+          sender_role: 'BOT',
+          message_type: 'TEXT',
+          content: 'Dạ em chào bạn! Em là trợ lý tự động của Shop. Em có thể giải đáp tồn kho, giá bán hoặc chất liệu sản phẩm ạ!',
+          metadata: { is_automated: true },
+          is_read: true,
+          created_at: new Date().toISOString(),
+        },
+      ];
+    }
+    return conv;
+  },
+  getConversations: async () => [...mockConversationsStore],
+  getConversation: async (id) => {
+    const conv = mockConversationsStore.find((c) => c.conversation_id === id);
+    if (!conv) throw new Error('Conversation not found');
+    return conv;
+  },
+  getMessages: async (id) => [...(mockMessagesStore[id] || [])],
+  sendMessage: async (id, payload) => {
+    const userMsg: import('../api/chat.api').WireChatMessage = {
+      message_id: `msg_u_${Date.now()}`,
+      conversation_id: id,
+      sender_id: 'buyer-demo',
+      sender_role: 'BUYER',
+      message_type: payload.message_type || 'TEXT',
+      content: payload.content,
+      metadata: payload.metadata || {},
+      is_read: true,
+      created_at: new Date().toISOString(),
+    };
+    if (!mockMessagesStore[id]) mockMessagesStore[id] = [];
+    mockMessagesStore[id].push(userMsg);
+
+    const conv = mockConversationsStore.find((c) => c.conversation_id === id);
+    if (conv && conv.mode === 'BOT_ASSISTANT') {
+      const botMsg: import('../api/chat.api').WireChatMessage = {
+        message_id: `msg_b_${Date.now()}`,
+        conversation_id: id,
+        sender_id: null,
+        sender_role: 'BOT',
+        message_type: 'TEXT',
+        content: `Dạ em đã ghi nhận câu hỏi của bạn về "${payload.content}". Sản phẩm hiện còn hàng trong kho với đầy đủ phân loại ạ! Bạn có thể bấm "Chat với Người Bán" nếu cần Shop tư vấn sâu hơn nhé!`,
+        metadata: { is_automated: true, can_handoff: true, suggest_handoff: true },
+        is_read: true,
+        created_at: new Date(Date.now() + 500).toISOString(),
+      };
+      mockMessagesStore[id].push(botMsg);
+      return { userMessage: userMsg, botResponse: botMsg };
+    }
+    return { userMessage: userMsg };
+  },
+  requestHandoff: async (id) => {
+    const conv = mockConversationsStore.find((c) => c.conversation_id === id);
+    if (!conv) throw new Error('Conversation not found');
+    conv.mode = 'LIVE_AGENT';
+    const sysMsg: import('../api/chat.api').WireChatMessage = {
+      message_id: `msg_sys_${Date.now()}`,
+      conversation_id: id,
+      sender_id: null,
+      sender_role: 'BOT',
+      message_type: 'HANDOFF_REQUEST',
+      content: 'Yêu cầu kết nối Người Bán đã được gửi đến Shop.',
+      metadata: { is_automated: true },
+      is_read: true,
+      created_at: new Date().toISOString(),
+    };
+    if (!mockMessagesStore[id]) mockMessagesStore[id] = [];
+    mockMessagesStore[id].push(sysMsg);
+    return { conversation: conv, systemMessage: sysMsg };
+  },
+  updatePermissions: async (id, permissions) => {
+    const conv = mockConversationsStore.find((c) => c.conversation_id === id);
+    if (!conv) throw new Error('Conversation not found');
+    conv.bot_permissions = { ...conv.bot_permissions, ...permissions };
+    return conv;
+  },
+};
+
 // ==========================================
 // 3. Central Dependency Switcher Factory
 // ==========================================
@@ -983,6 +1127,9 @@ export const repositories = {
 
   media: (): IMediaRepository =>
     features.useMock() ? mockMediaRepository : apiMediaRepository,
+
+  chat: (): IChatRepository =>
+    features.useMock() ? mockChatRepository : apiChatRepository,
 };
 
 export {
@@ -991,4 +1138,6 @@ export {
   mockOrderRepository,
   apiOrderRepository,
   apiReviewRepository,
+  apiChatRepository,
+  mockChatRepository,
 };

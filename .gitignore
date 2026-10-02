@@ -14,3 +14,4 @@ backend/.env.*
 !.env.example
 !ecommerce-web/.env.example
 /docs/demo-seed-accounts.local.md
+scratch/

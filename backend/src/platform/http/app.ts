@@ -58,6 +58,8 @@ import { createSecurityHeadersMiddleware, createCorsMiddleware, type CorsOptions
 import { createLayeredRateLimiter } from './middlewares/rate-limiter.ts';
 import { createMetricsMiddleware } from '../observability/metrics-middleware.ts';
 import { generateOpenApiSpec } from '../openapi/openapi-spec.ts';
+import { createChatRouter } from './routes/chat-routes.ts';
+import { PgChatService } from '../../modules/chat/services/pg-chat.service.ts';
 
 import { validateEnvConfig } from '../config/env-config.ts';
 import { AuthConfigurationError } from '../errors/app-error.ts';
@@ -82,6 +84,7 @@ export interface PlatformApplications extends T1RouteApplications {
   sellerVouchers?: Pick<SellerVoucherService, 'list' | 'get' | 'create' | 'update' | 'setStatus'>;
   sellerRevenue?: Pick<SellerRevenueService, 'get'>;
   adminCampaigns?: AdminNotificationCampaignService;
+  chatService?: PgChatService;
   rateLimiter?: RequestHandler | false;
   trustProxy?: boolean | string | number;
   cors?: CorsOptions;
@@ -116,6 +119,9 @@ export function createApp(applications: PlatformApplications = {}): Application 
   app.use('/api/v1', createSellerAnalyticsRouter(applications.sellerKpi, auth));
   app.use('/api/v1', createSellerVoucherRouter(applications.sellerVouchers, auth));
   app.use('/api/v1', createSellerReportingRouter(applications.sellerRevenue, auth));
+
+  const chatService = applications.chatService ?? (applications.pool ? new PgChatService(applications.pool) : undefined);
+  app.use('/api/v1', createChatRouter(chatService, auth));
 
   const buyerTarget = applications.buyerServices ?? applications.buyer;
   app.use('/api/v1', createBuyerDomainRouter(buyerTarget, auth));
@@ -200,6 +206,7 @@ export function createRuntimeApp(
       sellerVouchers: new SellerVoucherService(new PgSellerVoucherRepository(pool)),
       sellerRevenue: new SellerRevenueService(new ReportingService({ orderRepo: new PgOrderRepository(pool) })),
       catalog: new PgCatalogHttpService(pool),
+      chatService: new PgChatService(pool),
       buyerServices: {
         legacyHttpApplication: new PgBuyerHttpService(pool),
         addressService: new AddressService(new PostgresAddressRepository(pool)),

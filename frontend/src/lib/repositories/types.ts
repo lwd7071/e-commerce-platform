@@ -152,4 +152,14 @@ export interface IMediaRepository {
   deleteMedia?(mediaId: string): Promise<void>;
 }
 
+export interface IChatRepository {
+  createOrGetConversation(shopId: string, productId?: string): Promise<import('../api/chat.api').WireChatConversation>;
+  getConversations(): Promise<import('../api/chat.api').WireChatConversation[]>;
+  getConversation(conversationId: string): Promise<import('../api/chat.api').WireChatConversation>;
+  getMessages(conversationId: string, limit?: number, beforeCursor?: string): Promise<import('../api/chat.api').WireChatMessage[]>;
+  sendMessage(conversationId: string, payload: import('../api/chat.api').SendMessagePayload): Promise<import('../api/chat.api').SendMessageResponse>;
+  requestHandoff(conversationId: string): Promise<import('../api/chat.api').HandoffResponse>;
+  updatePermissions(conversationId: string, permissions: Partial<import('../api/chat.api').ProductBotPermissions>): Promise<import('../api/chat.api').WireChatConversation>;
+}
+
 

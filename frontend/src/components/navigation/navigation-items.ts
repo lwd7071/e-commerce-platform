@@ -12,6 +12,7 @@ const items: NavItem[] = [
   { href: "/seller", label: "Kênh người bán", icon: "grid", roles: ["SELLER"] },
   { href: "/seller/shop", label: "Hồ sơ gian hàng", icon: "grid", roles: ["SELLER"] },
   { href: "/seller/orders", label: "Đơn bán", icon: "bag", roles: ["SELLER"] },
+  { href: "/seller/chat", label: "Tin nhắn khách hàng", icon: "chat", roles: ["SELLER"] },
   { href: "/seller/products", label: "Sản phẩm", icon: "bag", roles: ["SELLER"] },
   { href: "/seller/vouchers", label: "Mã giảm giá", icon: "grid", roles: ["SELLER"] },
   { href: "/seller/reports", label: "Báo cáo doanh thu", icon: "grid", roles: ["SELLER"] },

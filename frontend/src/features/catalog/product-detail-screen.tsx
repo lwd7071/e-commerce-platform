@@ -14,6 +14,7 @@ import { useToast } from "@/components/ui/toast";
 import { Skeleton, EmptyState, ErrorState } from "@/components/ui/data-states";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { ChatWidget } from "@/components/chat/chat-widget";
 
 import { TierBadge } from "@/components/ui/tier-badge";
 
@@ -34,6 +35,7 @@ export function ProductDetailScreen({ productId }: Props) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   // C-205: Real reviews & ratings without fake fallback
   const [reviews, setReviews] = useState<WireReview[]>([]);
@@ -423,6 +425,23 @@ export function ProductDetailScreen({ productId }: Props) {
                   </>
                 )}
               </Button>
+
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  if (!user) {
+                    showToast("Vui lòng đăng nhập để chat với Shop", "info");
+                    router.push(`/login?returnTo=${encodeURIComponent(pathname)}`);
+                    return;
+                  }
+                  setIsChatOpen(true);
+                }}
+                className="h-12 px-5 text-sm font-bold border-[var(--primary)] text-[var(--primary)] hover:bg-[var(--primary-subtle)]"
+              >
+                <Icon name="chat" className="mr-1.5" />
+                Chat với Shop
+              </Button>
             </div>
           </div>
         </div>
@@ -505,6 +524,23 @@ export function ProductDetailScreen({ productId }: Props) {
           )}
         </div>
       </div>
+
+      <ChatWidget
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        productContext={
+          product
+            ? {
+                productId: product.product_id,
+                shopId: product.shop_id,
+                productName: product.product_name,
+                price: selectedVariant?.price ?? product.variants?.[0]?.price,
+                imageUrl: product.image_url ?? selectedImage,
+                totalStock: product.variants?.reduce((sum, v) => sum + (v.stock_quantity || 0), 0),
+              }
+            : null
+        }
+      />
     </div>
   );
 }

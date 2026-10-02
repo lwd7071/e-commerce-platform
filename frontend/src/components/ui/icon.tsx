@@ -4,6 +4,7 @@ export type IconName =
   | "bag"
   | "bell"
   | "camera"
+  | "chat"
   | "check"
   | "chevron-right"
   | "close"
@@ -25,6 +26,7 @@ const paths: Record<IconName, ReactNode> = {
   bag: <><path d="M5 8h14l1 12H4L5 8Z" /><path d="M9 8a3 3 0 0 1 6 0" /></>,
   bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M10 21h4" /></>,
   camera: <><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" /><circle cx="12" cy="13" r="3" /></>,
+  chat: <><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></>,
   check: <path d="m5 12 4 4L19 6" />,
   "chevron-right": <path d="m9 18 6-6-6-6" />,
   close: <><path d="m6 6 12 12M18 6 6 18" /></>,
