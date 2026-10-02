@@ -5,6 +5,8 @@ import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { loadDatabaseConfig, parseRunRemoteDbTests } from '../../db/config.ts';
 import { LoyaltyService } from '../../src/modules/loyalty/services/loyalty.service.ts';
+import { PgCheckoutService } from '../../src/modules/checkout/services/pg-checkout.service.ts';
+import type { RequestContext } from '../../src/contracts/request-context.contract.ts';
 import { withTransaction } from '../../db/transaction.ts';
 import {
   createFixtureUser,
@@ -59,6 +61,18 @@ dbDescribe('Tiering & Loyalty Integration (Real PostgreSQL)', { timeout: 60_000,
     });
   }
 
+  async function createShipment(orderId: string, status: 'SHIPPING' | 'DELIVERED' = 'SHIPPING') {
+    return runTx(async client => {
+      const shipmentId = randomUUID();
+      await client.query(
+        `INSERT INTO shipments (shipment_id, order_id, carrier_name, tracking_code, status)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [shipmentId, orderId, 'Express Courier', `TRK_${shipmentId.slice(0, 8)}`, status],
+      );
+      return { shipmentId, orderId, status };
+    });
+  }
+
   beforeAll(async () => {
     const config = loadDatabaseConfig(process.env);
     const directUrl = new URL(config.directUrl.toString());
@@ -72,6 +86,7 @@ dbDescribe('Tiering & Loyalty Integration (Real PostgreSQL)', { timeout: 60_000,
     });
 
     await pool.query(`CREATE SCHEMA ${schema}`);
+    await pool.query(`GRANT USAGE ON SCHEMA ${schema} TO anon, authenticated`);
     await pool.query(`SET search_path TO ${schema}, public`);
     await pool.query('CREATE TABLE fixture_auth_users (id uuid PRIMARY KEY)');
 
@@ -91,6 +106,7 @@ dbDescribe('Tiering & Loyalty Integration (Real PostgreSQL)', { timeout: 60_000,
       '20260924120000_t3_idempotency_rls_hardening',
       '20261003100000_shop_tiering',
       '20261003110000_buyer_loyalty',
+      '20261003120000_secure_loyalty_ledger',
     ];
 
     for (const migration of migrations) {
@@ -189,6 +205,42 @@ dbDescribe('Tiering & Loyalty Integration (Real PostgreSQL)', { timeout: 60_000,
         [schema],
       );
       expect(indexRes.rows).toHaveLength(1);
+    });
+
+    it('verifies explicit privilege denial: anon and authenticated are blocked, backend default user is permitted', async () => {
+      // 1. Role anon: bị từ chối truy cập SELECT (SQLSTATE 42501)
+      await expect(
+        runTx(async client => {
+          await client.query('SET ROLE anon');
+          await client.query('SELECT count(*) FROM loyalty_point_transactions');
+        }),
+      ).rejects.toThrow(/permission denied/i);
+
+      // 2. Role authenticated: bị từ chối truy cập SELECT (SQLSTATE 42501)
+      await expect(
+        runTx(async client => {
+          await client.query('SET ROLE authenticated');
+          await client.query('SELECT count(*) FROM loyalty_point_transactions');
+        }),
+      ).rejects.toThrow(/permission denied/i);
+
+      // 3. Role anon: bị từ chối truy cập INSERT
+      await expect(
+        runTx(async client => {
+          await client.query('SET ROLE anon');
+          await client.query(
+            "INSERT INTO loyalty_point_transactions (transaction_id, user_id, points_delta, reason) VALUES ($1, $2, 10, 'TEST')",
+            [randomUUID(), buyerId],
+          );
+        }),
+      ).rejects.toThrow(/permission denied/i);
+
+      // 4. Backend (postgres / service role): truy cập đọc và ghi thành công
+      await runTx(async client => {
+        await client.query('RESET ROLE');
+        const res = await client.query('SELECT count(*) FROM loyalty_point_transactions');
+        expect(Number(res.rows[0].count)).toBeGreaterThanOrEqual(0);
+      });
     });
   });
 
@@ -437,6 +489,131 @@ dbDescribe('Tiering & Loyalty Integration (Real PostgreSQL)', { timeout: 60_000,
 
       const count = await getTxCount(order.orderId);
       expect(count).toBe(0);
+    });
+
+    it('proves that a loyalty error during actual PgCheckoutService.confirmReceived rolls back Order, Shipment, ledger and buyer balances together', async () => {
+      // 1. Tạo order ở trạng thái SHIPPING
+      const order = await createOrder({
+        status: 'SHIPPING',
+        subtotal: '200000.00',
+        discountAmount: '0.00',
+        shippingFee: '30000.00',
+        totalAmount: '230000.00',
+      });
+
+      // 2. Tạo shipment ở trạng thái SHIPPING
+      const shipment = await createShipment(order.orderId, 'SHIPPING');
+
+      // 3. Khởi tạo PgCheckoutService với LoyaltyService bị lỗi giả lập
+      const failingLoyaltyService = {
+        recordOrderCompleted: async () => {
+          throw new Error('SIMULATED_LOYALTY_FAILURE: disk or ledger failure');
+        },
+      } as unknown as LoyaltyService;
+
+      const failingCheckoutService = new PgCheckoutService(pool, undefined, failingLoyaltyService);
+
+      const buyerContext: RequestContext = {
+        request_id: randomUUID(),
+        user_id: buyerId,
+        role: 'BUYER',
+      };
+
+      // 4. Thực thi confirmReceived đi qua toàn bộ logic nghiệp vụ thực tế
+      await expect(
+        failingCheckoutService.confirmReceived(buyerContext, order.orderId),
+      ).rejects.toThrow('SIMULATED_LOYALTY_FAILURE: disk or ledger failure');
+
+      // 5. CHỨNG MINH TOÀN BỘ CÙNG ROLLBACK:
+      // a. Order status vẫn giữ nguyên là SHIPPING (không thành COMPLETED)
+      const orderRes = await runTx(async client => {
+        const res = await client.query<{ status: string }>('SELECT status FROM orders WHERE order_id = $1', [order.orderId]);
+        return res.rows[0];
+      });
+      expect(orderRes.status).toBe('SHIPPING');
+
+      // b. Shipment status vẫn giữ nguyên là SHIPPING (không thành DELIVERED)
+      const shipmentRes = await runTx(async client => {
+        const res = await client.query<{ status: string }>('SELECT status FROM shipments WHERE shipment_id = $1', [shipment.shipmentId]);
+        return res.rows[0];
+      });
+      expect(shipmentRes.status).toBe('SHIPPING');
+
+      // c. app_users: total_spent và loyalty_points không bị cộng dồn
+      const userRes = await getUser(buyerId);
+      expect(Number(userRes.total_spent)).toBe(0);
+      expect(userRes.loyalty_points).toBe(0);
+
+      // d. loyalty_point_transactions: không có bản ghi nào
+      const txCount = await getTxCount(order.orderId);
+      expect(txCount).toBe(0);
+
+      // e. order_status_history: không có bản ghi chuyển sang COMPLETED
+      const historyRes = await runTx(async client => {
+        const res = await client.query<{ count: string }>(
+          "SELECT count(*) FROM order_status_history WHERE order_id = $1 AND new_status = 'COMPLETED'",
+          [order.orderId],
+        );
+        return Number(res.rows[0].count);
+      });
+      expect(historyRes).toBe(0);
+    });
+
+    it('verifies successful PgCheckoutService.confirmReceived commits Order, Shipment, ledger and balances atomically', async () => {
+      // 1. Tạo order và shipment ở trạng thái SHIPPING
+      const order = await createOrder({
+        status: 'SHIPPING',
+        subtotal: '250000.00',
+        discountAmount: '0.00',
+        shippingFee: '25000.00',
+        totalAmount: '275000.00',
+      });
+      const shipment = await createShipment(order.orderId, 'SHIPPING');
+
+      // 2. Dùng PgCheckoutService thật với real LoyaltyService
+      const liveCheckoutService = new PgCheckoutService(pool, undefined, loyaltyService);
+      const buyerContext: RequestContext = {
+        request_id: randomUUID(),
+        user_id: buyerId,
+        role: 'BUYER',
+      };
+
+      // 3. Thực thi hoàn tất đơn hàng
+      await liveCheckoutService.confirmReceived(buyerContext, order.orderId);
+
+      // 4. CHỨNG MINH TOÀN BỘ CÙNG ĐƯỢC COMMIT ATOMIC:
+      // a. Order status chuyển thành COMPLETED
+      const orderRes = await runTx(async client => {
+        const res = await client.query<{ status: string }>('SELECT status FROM orders WHERE order_id = $1', [order.orderId]);
+        return res.rows[0];
+      });
+      expect(orderRes.status).toBe('COMPLETED');
+
+      // b. Shipment status chuyển thành DELIVERED
+      const shipmentRes = await runTx(async client => {
+        const res = await client.query<{ status: string }>('SELECT status FROM shipments WHERE shipment_id = $1', [shipment.shipmentId]);
+        return res.rows[0];
+      });
+      expect(shipmentRes.status).toBe('DELIVERED');
+
+      // c. app_users: total_spent cập nhật 250k, loyalty_points nhận 25 điểm
+      const userRes = await getUser(buyerId);
+      expect(Number(userRes.total_spent)).toBe(250000);
+      expect(userRes.loyalty_points).toBe(25);
+
+      // d. loyalty_point_transactions: 1 bản ghi ORDER_COMPLETED
+      const txCount = await getTxCount(order.orderId);
+      expect(txCount).toBe(1);
+
+      // e. order_status_history: có bản ghi COMPLETED
+      const historyRes = await runTx(async client => {
+        const res = await client.query<{ count: string }>(
+          "SELECT count(*) FROM order_status_history WHERE order_id = $1 AND new_status = 'COMPLETED'",
+          [order.orderId],
+        );
+        return Number(res.rows[0].count);
+      });
+      expect(historyRes).toBe(1);
     });
   });
 });

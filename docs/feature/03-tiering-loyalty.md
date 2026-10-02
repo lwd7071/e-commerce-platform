@@ -75,45 +75,72 @@
 
 | Kiểm tra | Môi trường | Lệnh / File kiểm thử | Kết quả | Bằng chứng / ghi chú |
 |---|---|---|---|---|
-| Prisma Schema Validation | Dev/Local | `npm --prefix backend exec prisma validate` | PASS | `The schema at prisma\schema.prisma is valid 🚀` |
+| Prisma Schema & Migration Validation | Dev/Local | `cmd /c npx prisma validate` | PASS | `The schema at prisma\schema.prisma is valid 🚀` |
+| Prisma Migration Status Check | Supabase Database | `cmd /c npx prisma migrate status` | Ghi nhận | `20261003100000_shop_tiering` và `20261003110000_buyer_loyalty` chưa áp dụng trên `public`. Bổ sung bảo mật RLS được chuyển sang migration forward-only mới `20261003120000_secure_loyalty_ledger`. |
+| Real PostgreSQL Tiering & Loyalty Integration | PostgreSQL Thật (Isolated Schema) | `cmd /c npx vitest run tests/db/tiering-loyalty.integration.test.ts` | PASS | 11/11 tests pass (130.9s). Bao gồm: Schema verification, RLS enabled, Role anon & authenticated bị từ chối truy cập (SQLSTATE 42501), backend service role được phép, ON CONFLICT idempotency, đơn < 10k 0-pts, Concurrency SELECT FOR UPDATE (4.9M & 4.8M), Rollback toàn bộ Order + Shipment + Ledger + Balances khi lỗi loyalty qua `PgCheckoutService.confirmReceived`, và Atomic commit khi thành công. |
+| Full Backend Vitest Suite | Remote Supabase Pooler | `cmd /c npm run test:vitest` | CHƯA ĐẠT (7/60 files fail) | 53/60 files passed, 334/344 tests passed (1340.9s - 22.3 phút). Ghi rõ blocker thực tế: 3 files catalog fail do query trực tiếp schema `public` thiếu cột `shops.tier` (chưa chạy migration trên public); 2 files regression fail do database dùng chung có 27 bảng thay vì 24 bảng. Riêng suite `tiering-loyalty` đã pass 100%. |
+| Frontend Component Integration Test | Vitest + jsdom (Mock Repositories) | `npm --prefix frontend test -- test/e2e-tiering-loyalty-lifecycle.spec.tsx` | PASS | 7/7 tests pass (4.5s): Runner là Vitest + jsdom + Testing Library, mock qua `features.domains` (`useMock: true`), `next/navigation`, `buyerApi.getLoyaltySummary`. Kiểm chứng Admin đổi hạng -> ProductCard & ProductDetail hiện badge; CatalogListScreen lọc hạng; Buyer nhận hàng -> Profile cập nhật DinoPoint/VIP/history. |
+| Frontend Live Browser E2E | Playwright Browser (Live Environment) | `cmd /c npx playwright test e2e/tiering-loyalty-live.spec.ts` | ĐÃ TẠO SPEC (2 skipped khi thiếu live env) | Runner là Playwright (`@playwright/test`). Kiểm thử 2 hành trình thực tế qua browser: Admin đổi hạng trên `/admin/shops` -> Catalog hiển thị badge trên `/products` và `/products/[id]`; Buyer nhận hàng -> `/profile` hiển thị DinoPoint, VIP và ledger. Đã cấu hình fallback kênh `msedge` tránh phụ thuộc download Chromium từ CDN. |
 | Backend Node Test Suite | In-memory Mock | `npm --prefix backend run test:node` | PASS | 720/720 tests pass (199 test suites, 17.7s). |
-| Real PostgreSQL Tiering & Loyalty Integration | PostgreSQL Thật (Isolated Schema) | `npx vitest run tests/db/tiering-loyalty.integration.test.ts` | PASS | 8/8 tests pass (Schema verification, RLS enabled, ON CONFLICT idempotency, sub-10k 0-pts, 4.9M & 4.8M Concurrency SELECT FOR UPDATE, Rollback integrity). |
-| E2E Tiering & Loyalty Lifecycle | Frontend Unit/E2E | `npm --prefix frontend test test/e2e-tiering-loyalty-lifecycle.spec.tsx` | PASS | 7/7 tests pass: Admin đổi hạng -> ProductCard & ProductDetail hiện badge; CatalogListScreen lọc hạng; Buyer nhận hàng -> Profile cập nhật DinoPoint/VIP/history. |
 | Runtime Wiring & P0-9 Shipment Integration | Mock Runtime | `npx tsx --test test/platform/order-confirm-received.spec.ts` | PASS | 8/8 tests pass (Buyer/Admin/Shipment/Role). |
 | Admin Shop Tiering Integration | Mock Runtime | `npx tsx --test test/platform/admin-shop-tier.spec.ts` | PASS | 10/10 tests pass (Admin/Audit/RBAC/Filter/Seller protection). |
 | Buyer Loyalty & Concurrency Unit | Mock Runtime | `npx tsx --test test/platform/buyer-loyalty.spec.ts` | PASS | 10/10 tests pass (P0-1..3, Concurrency 4.9M/4.8M logic, 0-pts, Duplicate check, RBAC). |
-| Backend Typecheck | TypeScript | `npm --prefix backend run typecheck` | PASS | `tsc --noEmit` 0 errors. |
-| Backend Lint | ESLint | `npm --prefix backend run lint` | PASS | ESLint 0 errors, 0 warnings. |
+| Backend Typecheck & Lint | TypeScript / ESLint | `npm --prefix backend run typecheck && npm --prefix backend run lint` | PASS | `tsc --noEmit` 0 errors, ESLint 0 errors, 0 warnings. |
 | Backend Build | esbuild | `npm --prefix backend run build` | PASS | esbuild bundle 469.2KB thành công. |
-| Frontend Typecheck | TypeScript | `npm --prefix frontend run typecheck` | PASS | `tsc --noEmit` 0 errors. |
-| Frontend Lint | ESLint | `npm --prefix frontend run lint` | PASS | ESLint 0 errors, 0 warnings. |
+| Frontend Typecheck & Lint | TypeScript / ESLint | `npm --prefix frontend run typecheck && npm --prefix frontend run lint` | PASS | `tsc --noEmit` 0 errors, ESLint 0 errors, 0 warnings. |
 | Frontend Contract Check | OpenAPI Spec | `npm --prefix frontend run api:types:check` | PASS | Generated API types match backend OpenAPI. |
 | Frontend Production Build | Next.js 16 | `npm --prefix frontend run build` | PASS | Next.js 16 optimized build thành công (31 routes). |
 
 ## An toàn và tình huống lỗi
 
-- Phân quyền / dữ liệu nhạy cảm: Áp dụng RBAC nghiêm ngặt (`requireRole`). Seller tuyệt đối không thể tự nâng tier của shop mình qua `PATCH /seller/shop`. Buyer chỉ xem được điểm và lịch sử của chính mình qua `context.user_id`. Bảng ledger `loyalty_point_transactions` đã bật RLS và thu hồi quyền trực tiếp từ `PUBLIC`, `anon`, `authenticated`.
-- Retry, request trùng, race condition: Unique Index `uq_loyalty_transactions__order_earned` và cơ chế `FOR UPDATE` khóa dòng Buyer đảm bảo không mất cập nhật hoặc nhân đôi điểm khi 2 đơn hoàn tất đồng thời, đã kiểm chứng trên PostgreSQL thật.
-- Hủy, hoàn tiền, rollback: Mọi thao tác cập nhật trạng thái đơn, cập nhật shipment, ghi nhận ledger, tăng chi tiêu và ghi audit log (`admin_logs`) chạy trong một transaction duy nhất. Đã kiểm chứng rollback hoàn toàn trên PostgreSQL thật nếu có lỗi xảy ra.
+- Phân quyền / dữ liệu nhạy cảm: Áp dụng RBAC nghiêm ngặt (`requireRole`). Seller tuyệt đối không thể tự nâng tier của shop mình qua `PATCH /seller/shop`. Buyer chỉ xem được điểm và lịch sử của chính mình qua `context.user_id`.
+- Bảo mật Ledger (Row Level Security & Quyền truy cập): Bảng ledger `loyalty_point_transactions` được bảo vệ bằng migration forward-only `20261003120000_secure_loyalty_ledger`. Đã kiểm chứng thực tế trên PostgreSQL thật:
+  - Role `anon` bị từ chối truy cập SELECT và INSERT với SQLSTATE `42501` (`permission denied for table loyalty_point_transactions`).
+  - Role `authenticated` bị từ chối truy cập SELECT với SQLSTATE `42501`.
+  - Backend mặc định (`postgres` / service role) đọc và ghi thành công.
+- Retry, request trùng, race condition: Unique Index `uq_loyalty_transactions__order_earned` và cơ chế `FOR UPDATE` khóa dòng Buyer đảm bảo không mất cập nhật hoặc nhân đôi điểm khi 2 đơn hoàn tất đồng thời, đã kiểm chứng trên PostgreSQL thật (11/11 tests pass).
+- Hủy, hoàn tiền, rollback toàn diện luồng Order: Đã kiểm chứng qua `PgCheckoutService.confirmReceived` trên PostgreSQL thật: khi phát sinh lỗi trong quá trình ghi nhận loyalty (mô phỏng sự cố ledger/database), toàn bộ transaction bị hủy (`ROLLBACK`). Trạng thái Order vẫn giữ nguyên `SHIPPING`, Shipment vẫn giữ nguyên `SHIPPING`, không có bản ghi lịch sử COMPLETED, số dư `total_spent` và `loyalty_points` của Buyer không thay đổi, và bảng ledger có 0 bản ghi.
 
 ## Việc còn lại, phần chưa kiểm chứng và blocker
 
 - Việc đã hoàn thành:
   - [x] Bước 0: Sửa lỗi nền wiring `confirmReceived` và kiểm tra quyền hoàn tất đơn (P0-9).
   - [x] Đợt A: Triển khai migration `shops.tier` & override metadata, Admin tier API, catalog filter và `TierBadge` UI (ở cả `ProductCard` và `ProductDetailScreen`).
-  - [x] Đợt B: Triển khai migration `app_users` + `loyalty_point_transactions`, core hook tích điểm, bảo mật RLS ledger, Buyer loyalty API, Profile UI `BuyerLoyaltyCard` và kiểm thử PostgreSQL thật độc lập + E2E lifecycle.
-- Phần chưa kiểm chứng / ngoài phạm vi:
-  - [ ] Chưa kiểm chứng trên production: Toàn bộ kiểm thử mới chỉ thực hiện trên môi trường phát triển / test độc lập với test schema riêng biệt; chưa áp dụng migration lên database production.
-  - [ ] Đợt C: Đánh giá tự động PREFERRED và composite cursor search boost — Chưa triển khai theo quyết định phạm vi được duyệt.
-  - [ ] Đổi điểm DinoPoint khi thanh toán (P0-5: chỉ tích lũy, chưa đổi thưởng).
-  - [ ] Thu hồi điểm khi hoàn tiền / trả hàng sau khi hoàn tất (P0-7).
-- Blocker / Lưu ý môi trường:
-  - Không có blocker kỹ thuật chặn luồng nghiệp vụ.
-  - Lưu ý về chạy toàn bộ test suite `npm run test:vitest` ở backend: Toàn bộ suite gồm 51 file integration test remote database chạy tuần tự (`maxWorkers: 1`) sẽ tốn hơn 45-60 phút và dễ bị ảnh hưởng bởi giới hạn session pooler của Supabase. Các kiểm thử database thật cho tính năng Tiering & Loyalty đã được cô lập hoàn chỉnh và chạy riêng thành công tại `tests/db/tiering-loyalty.integration.test.ts` (8/8 tests pass).
+  - [x] Đợt B: Triển khai migration `app_users` + `loyalty_point_transactions`, migration forward-only `20261003120000_secure_loyalty_ledger`, core hook tích điểm, bảo mật RLS ledger, Buyer loyalty API, Profile UI `BuyerLoyaltyCard`.
+  - [x] Kiểm thử PostgreSQL thật: Bộ kiểm thử `tests/db/tiering-loyalty.integration.test.ts` đạt 11/11 tests PASS trên remote PostgreSQL thật, kiểm chứng cả rollback Order + Shipment và từ chối quyền anon/authenticated.
+  - [x] Kiểm thử tích hợp component frontend `frontend/test/e2e-tiering-loyalty-lifecycle.spec.tsx` đạt 7/7 tests PASS (Vitest jsdom + Testing Library).
+  - [x] Tạo kịch bản Playwright Browser E2E `frontend/e2e/tiering-loyalty-live.spec.ts` cho 2 hành trình thực tế.
+- Phần chưa kiểm chứng / Blocker thực tế:
+  - [ ] **Chưa có database test độc lập chuyên biệt**: Database Supabase hiện tại (`putywqmxtjttfdezlswf`) là môi trường dùng chung giữa dev, demo seed accounts và các nhánh tính năng khác. Các kiểm thử PostgreSQL được chạy trên schema cô lập tạm thời (`p5_loyalty_<uuid>`), **chưa đáp ứng tiêu chí một database/project test độc lập hoàn toàn với production**. Tuyệt đối không tiết lộ credentials trong báo cáo và giữ trạng thái nghiệm thu từng phần.
+  - [ ] **Full backend test:vitest chưa chạy pass đầy đủ**: Khi chạy toàn bộ 60 test suites, có 7 suites không đạt (53 passed, 7 failed, 10 tests failed). Blocker cụ thể:
+    1. Các test catalog (`catalog-db`, `catalog-benchmark`, `catalog-hardening`) query trực tiếp schema `public` mà chưa có cột `shops.tier` vì migration chưa được áp dụng lên schema chung.
+    2. Các test kiểm tra số lượng bảng (`schema-smoke`, `t3-migration-rebuild`) fail vì schema chung đang có 27 bảng do các nhánh khác đã thêm bảng flash sale, khác với mốc 24 bảng của T2.
+  - [ ] **Chưa áp dụng migration lên môi trường production**: Các migration `20261003100000_shop_tiering`, `20261003110000_buyer_loyalty`, `20261003120000_secure_loyalty_ledger` chưa được deploy lên production hay schema `public`.
+  - [ ] **Đợt C (Ngoài phạm vi)**: Đánh giá tự động PREFERRED và composite cursor search boost — Chưa triển khai theo quyết định phạm vi được duyệt.
+  - [ ] **Đổi điểm DinoPoint khi thanh toán** (P0-5: chỉ tích lũy, chưa đổi thưởng).
+  - [ ] **Thu hồi điểm khi hoàn tiền / trả hàng** (P0-7).
 
 ## Nhật ký cập nhật
 
-### 2026-10-02 (Bổ sung kiểm thử PostgreSQL thật, E2E Lifecycle, RLS Ledger & Catalog Filter UI)
+### 2026-10-02 (Làm rõ đánh giá nghiệm thu, bổ sung Playwright E2E, Rollback Order thực tế & Forward-only Migration)
+
+- **Làm rõ phân loại runner frontend**:
+  - `frontend/test/e2e-tiering-loyalty-lifecycle.spec.tsx` được xác định chính xác là **Kiểm thử tích hợp Component Frontend (React Testing Library + Vitest jsdom)**. Runner: Vitest jsdom; Lệnh chạy: `npm --prefix frontend test -- test/e2e-tiering-loyalty-lifecycle.spec.tsx`; Cách mock: mock feature flags `useMock: () => true`, mock Next.js router/images, mock auth context và mock response `buyerApi.getLoyaltySummary`.
+  - Bổ sung kịch bản **Playwright Browser E2E thực tế** tại `frontend/e2e/tiering-loyalty-live.spec.ts` cho 2 hành trình: Admin đổi hạng Shop -> Catalog & ProductDetail hiển thị badge; Buyer nhận hàng -> Profile cập nhật DinoPoint, hạng VIP và lịch sử giao dịch. Hỗ trợ chạy trực tiếp trên browser local (`--channel=msedge`).
+- **Báo cáo trung thực kết quả Full Backend test:vitest & Blocker thực tế**:
+  - Đã thực thi toàn bộ `npm run test:vitest` qua remote Supabase pooler (thời gian chạy thực tế 1340.9s ~ 22.3 phút).
+  - Kết quả: 53 test files PASS, 7 test files FAIL (334 passed, 10 failed).
+  - Ghi nhận nguyên nhân gốc rễ (blocker thực tế): Schema `public` trên database dùng chung chưa chạy migration `20261003100000_shop_tiering` khiến các query catalog không tìm thấy cột `s.tier`, và các bảng flash sale từ nhánh khác làm lệch số lượng bảng kiểm tra freeze của T2.
+- **Xác minh môi trường Supabase & Tính độc lập**:
+  - Database được cấu hình qua project `putywqmxtjttfdezlswf`.
+  - Xác nhận rõ trong báo cáo: Việc chạy trên schema cô lập tạm thời (`p5_loyalty_*`) trong cùng một database dùng chung **chưa đáp ứng tiêu chí một project/database test độc lập**. Đánh dấu chưa đạt tiêu chí database test độc lập và giữ nguyên trạng thái nghiệm thu từng phần.
+- **Tách Migration Forward-Only & Kiểm chứng bảo mật 2 chiều**:
+  - Khôi phục `20261003110000_buyer_loyalty/migration.sql` về trạng thái ban đầu để tránh sai lệch checksum.
+  - Tạo migration forward-only mới `backend/prisma/migrations/20261003120000_secure_loyalty_ledger/migration.sql` chứa lệnh bật RLS và thu hồi quyền `REVOKE ALL ON TABLE loyalty_point_transactions FROM PUBLIC, anon, authenticated;`.
+  - Bổ sung test kiểm chứng quyền truy cập trên PostgreSQL thật: Role `anon` và `authenticated` bị từ chối (SQLSTATE 42501), trong khi backend service role vẫn truy cập thành công.
+- **Chứng minh Rollback nguyên tử luồng Order hoàn chỉnh**:
+  - Mở rộng `backend/tests/db/tiering-loyalty.integration.test.ts` (11/11 tests PASS) đi qua trực tiếp `PgCheckoutService.confirmReceived`.
+  - Chứng minh khi phát sinh lỗi loyalty: Order (`SHIPPING`), Shipment (`SHIPPING`), số dư chi tiêu/điểm Buyer và bảng ledger cùng rollback đồng thời, không có trạng thái mồ côi nào được lưu vào database.
 
 - Đã làm:
   - **Prisma Validate**: Chạy `npm --prefix backend exec prisma validate` thành công (`The schema at prisma\schema.prisma is valid 🚀`).
