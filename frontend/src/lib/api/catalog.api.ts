@@ -25,6 +25,7 @@ export interface WireCatalogProductItem {
   image_url: string | null;
   created_at: string;
   status?: "ACTIVE" | "INACTIVE" | "HIDDEN";
+  shop_tier?: "STANDARD" | "PREFERRED" | "MALL";
 }
 
 export type VariantStatus = "ACTIVE" | "INACTIVE";
@@ -50,6 +51,7 @@ export interface WireCatalogProductDetail {
   product_name: string;
   description: string | null;
   status: "ACTIVE" | "INACTIVE" | "HIDDEN";
+  shop_tier?: "STANDARD" | "PREFERRED" | "MALL";
   variants: WireProductVariant[];
   images?: Array<{ image_id?: string; image_url: string; sort_order?: number }>;
   image_url?: string | null;
@@ -67,6 +69,7 @@ export interface GetProductsParams {
   sort?: "price_asc" | "price_desc" | "created_at_desc";
   limit?: number;
   cursor?: string;
+  shop_tier?: "STANDARD" | "PREFERRED" | "MALL";
 }
 
 /**

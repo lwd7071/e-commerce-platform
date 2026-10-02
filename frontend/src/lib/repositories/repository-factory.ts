@@ -79,6 +79,7 @@ const apiAdminRepository: IAdminRepository = {
   approveShop: (shopId, reason) => adminApi.approveShop(shopId, reason),
   lockShop: (payload) => adminApi.lockShop(payload),
   unlockShop: (shopId, reason) => adminApi.unlockShop(shopId, reason),
+  updateShopTier: (shopId, tier, reason) => adminApi.updateShopTier(shopId, tier, reason),
 };
 
 const apiMediaRepository: IMediaRepository = {
@@ -292,7 +293,7 @@ const mockCatalogRepository: ICatalogRepository = {
     return updated;
   },
   createProduct: async (data) => {
-    const newId = `00000000-0000-0000-0000-000000000${Math.floor(200 + Math.random() * 700)}`;
+    const newId = crypto.randomUUID();
     const prices = data.variants.map((v) => Number(v.price) || 0);
     const minP = Math.min(...prices).toFixed(2);
     const maxP = Math.max(...prices).toFixed(2);
@@ -306,8 +307,8 @@ const mockCatalogRepository: ICatalogRepository = {
       product_name: data.product_name,
       description: data.description ?? null,
       status: "ACTIVE",
-      variants: data.variants.map((v, i) => ({
-        variant_id: `00000000-0000-0000-0000-000000000${Math.floor(300 + Math.random() * 600)}${i}`,
+      variants: data.variants.map((v) => ({
+        variant_id: crypto.randomUUID(),
         variant_name: v.variant_name,
         variant_value: v.variant_value ?? null,
         sku: v.sku,
@@ -857,6 +858,7 @@ const mockAdminShopsStore: AdminShopItem[] = Array.from({ length: 20 }, (_, i) =
     pickup_address: "123 Đường Điện Biên Phủ, Phường 25, Quận Bình Thạnh, TP.HCM",
     contact_phone: "0901234567",
     status: "PENDING",
+    tier: "STANDARD",
     product_count: i < 5 ? 3 : 0,
     owner_email: `seller${num}@dino-demo.test`,
     owner_name: `Demo Seller ${num}`,
@@ -931,6 +933,15 @@ export const mockAdminRepository: IAdminRepository = {
     const shop = mockAdminShopsStore.find((s) => s.shop_id === shopId);
     if (!shop) throw new Error("Gian hàng không tồn tại");
     shop.status = "ACTIVE";
+    shop.updated_at = new Date().toISOString();
+  },
+  updateShopTier: async (shopId, tier, reason) => {
+    if (!reason || !reason.trim()) {
+      throw new Error("Vui lòng nhập lý do thay đổi hạng gian hàng");
+    }
+    const shop = mockAdminShopsStore.find((s) => s.shop_id === shopId);
+    if (!shop) throw new Error("Gian hàng không tồn tại");
+    shop.tier = tier;
     shop.updated_at = new Date().toISOString();
   },
 };

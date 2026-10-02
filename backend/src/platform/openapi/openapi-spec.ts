@@ -1198,11 +1198,20 @@ export function generateOpenApiSpec(): OpenApiSpec {
           summary: 'List shops for moderation', security: [{ BearerAuth: [] }],
           parameters: [
             { name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['PENDING', 'ACTIVE', 'LOCKED', 'SUSPENDED'] } },
+            { name: 'tier', in: 'query', required: false, schema: { type: 'string', enum: ['STANDARD', 'PREFERRED', 'MALL'] } },
             { name: 'search', in: 'query', required: false, schema: { type: 'string' } },
             { name: 'limit', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 100 } },
             { name: 'cursor', in: 'query', required: false, schema: { type: 'string' } },
           ],
           responses: { '200': successResponse('Shops list retrieved'), '403': errorResponse('Admin role required') },
+        },
+      },
+      '/admin/shops/{id}/tier': {
+        patch: {
+          summary: 'Update shop tier', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: jsonRequest({ type: 'object', required: ['tier', 'reason'], additionalProperties: false, properties: { tier: { type: 'string', enum: ['STANDARD', 'PREFERRED', 'MALL'] }, reason: { type: 'string', minLength: 1 } } }),
+          responses: { '200': successResponse('Shop tier updated'), '403': errorResponse('Admin role required'), '404': errorResponse('Shop not found'), '422': errorResponse('Reason required or invalid tier') },
         },
       },
       '/admin/shops/{id}': {

@@ -19,7 +19,14 @@ export function AdminShopsScreen() {
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [tierFilter, setTierFilter] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Tier update dialog
+  const [tierTarget, setTierTarget] = useState<AdminShopItem | null>(null);
+  const [newTier, setNewTier] = useState<"STANDARD" | "PREFERRED" | "MALL">("STANDARD");
+  const [tierReason, setTierReason] = useState("");
+  const [isUpdatingTier, setIsUpdatingTier] = useState(false);
 
   // Pagination
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -47,6 +54,7 @@ export function AdminShopsScreen() {
       if (adminRepo.getShopsPage) {
         const page = await adminRepo.getShopsPage({
           status: statusFilter !== "ALL" ? statusFilter : undefined,
+          tier: tierFilter !== "ALL" ? tierFilter : undefined,
           search: searchQuery.trim() || undefined,
           limit: 20,
         });
@@ -72,6 +80,7 @@ export function AdminShopsScreen() {
       if (adminRepo.getShopsPage) {
         const page = await adminRepo.getShopsPage({
           status: statusFilter !== "ALL" ? statusFilter : undefined,
+          tier: tierFilter !== "ALL" ? tierFilter : undefined,
           search: searchQuery.trim() || undefined,
           cursor: nextCursor,
           limit: 20,
@@ -185,6 +194,29 @@ export function AdminShopsScreen() {
     }
   };
 
+  const handleConfirmUpdateTier = async () => {
+    if (!tierTarget) return;
+    if (!tierReason.trim()) {
+      showToast("Vui lòng nhập lý do thay đổi phân hạng", "error");
+      return;
+    }
+    setIsUpdatingTier(true);
+    try {
+      const adminRepo = repositories.admin();
+      if (adminRepo.updateShopTier) {
+        await adminRepo.updateShopTier(tierTarget.shop_id, newTier, tierReason.trim());
+      }
+      showToast(`Đã cập nhật phân hạng ${tierTarget.shop_name} thành ${newTier}`, "success");
+      setTierTarget(null);
+      setTierReason("");
+      await fetchShops();
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Cập nhật phân hạng thất bại", "error");
+    } finally {
+      setIsUpdatingTier(false);
+    }
+  };
+
   // KPI counters
   const pendingCount = shops.filter((s) => s.status === "PENDING").length;
   const activeCount = shops.filter((s) => s.status === "ACTIVE").length;
@@ -192,6 +224,7 @@ export function AdminShopsScreen() {
 
   const filteredShops = shops.filter((s) => {
     if (statusFilter !== "ALL" && s.status !== statusFilter) return false;
+    if (tierFilter !== "ALL" && (s.tier ?? "STANDARD") !== tierFilter) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       return (
@@ -203,6 +236,17 @@ export function AdminShopsScreen() {
     }
     return true;
   });
+
+  const renderTierBadge = (tier?: string) => {
+    const t = tier ?? "STANDARD";
+    if (t === "MALL") {
+      return <span className="tier-badge tier-badge--mall">Mall</span>;
+    }
+    if (t === "PREFERRED") {
+      return <span className="tier-badge tier-badge--preferred">Yêu thích</span>;
+    }
+    return <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold text-[var(--subtext)] bg-[var(--card-muted)]">Standard</span>;
+  };
 
   const renderStatusBadge = (status: ShopStatus) => {
     switch (status) {
@@ -377,6 +421,23 @@ export function AdminShopsScreen() {
               <option value="LOCKED">Bị khóa (LOCKED - {lockedCount})</option>
             </select>
           </div>
+
+          <div className="flex items-center gap-2 text-xs">
+            <label htmlFor="shop-tier-filter" className="font-semibold text-[var(--subtext)]">
+              Phân hạng:
+            </label>
+            <select
+              id="shop-tier-filter"
+              value={tierFilter}
+              onChange={(e) => setTierFilter(e.target.value)}
+              className="rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-xs text-[var(--foreground)]"
+            >
+              <option value="ALL">Tất cả phân hạng</option>
+              <option value="STANDARD">STANDARD (Tiêu chuẩn)</option>
+              <option value="PREFERRED">PREFERRED (Yêu thích)</option>
+              <option value="MALL">MALL (Shopee Mall)</option>
+            </select>
+          </div>
         </div>
 
         <div className="text-xs text-[var(--subtext)]">
@@ -413,6 +474,7 @@ export function AdminShopsScreen() {
                   <th className="py-3.5 px-4">Gian hàng</th>
                   <th className="py-3.5 px-4">Chủ sở hữu</th>
                   <th className="py-3.5 px-4">Liên hệ & Địa chỉ</th>
+                  <th className="py-3.5 px-4 text-center">Phân hạng</th>
                   <th className="py-3.5 px-4 text-center">Sản phẩm</th>
                   <th className="py-3.5 px-4 text-center">Trạng thái</th>
                   <th className="py-3.5 px-4 text-right">Thao tác</th>
@@ -446,6 +508,9 @@ export function AdminShopsScreen() {
                         <div className="line-clamp-1 max-w-xs">{shop.pickup_address || "Chưa cập nhật địa chỉ"}</div>
                       </td>
                       <td className="py-3.5 px-4 text-center">
+                        {renderTierBadge(shop.tier)}
+                      </td>
+                      <td className="py-3.5 px-4 text-center">
                         <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[var(--card-muted)] text-[var(--foreground)]">
                           {shop.product_count} SP
                         </span>
@@ -461,6 +526,17 @@ export function AdminShopsScreen() {
                             className="h-8 px-2.5 text-xs"
                           >
                             Chi tiết
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            onClick={() => {
+                              setTierTarget(shop);
+                              setNewTier(shop.tier ?? "STANDARD");
+                              setTierReason("");
+                            }}
+                            className="h-8 px-2.5 text-xs"
+                          >
+                            Đổi hạng
                           </Button>
                           {isPending && (
                             <Button
@@ -592,6 +668,62 @@ export function AdminShopsScreen() {
               disabled={isLocking || !lockReason.trim()}
             >
               {isLocking ? "Đang khóa..." : "Khóa gian hàng"}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Modal: Đổi hạng gian hàng */}
+      <Dialog
+        open={Boolean(tierTarget)}
+        onOpenChange={(isOpen) => !isUpdatingTier && !isOpen && setTierTarget(null)}
+        title={`Đổi phân hạng gian hàng: ${tierTarget?.shop_name || ""}`}
+      >
+        <div className="space-y-4 text-sm">
+          <p className="text-[var(--subtext)]">
+            Phân hạng gian hàng ảnh hưởng đến huy hiệu hiển thị trên sản phẩm (Mall, Shop Yêu thích).
+          </p>
+          <div>
+            <label htmlFor="admin-change-tier-select" className="block text-xs font-semibold text-[var(--subtext)] mb-1">
+              Phân hạng mới <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="admin-change-tier-select"
+              value={newTier}
+              onChange={(e) => setNewTier(e.target.value as "STANDARD" | "PREFERRED" | "MALL")}
+              className="w-full rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm text-[var(--foreground)]"
+            >
+              <option value="STANDARD">STANDARD - Tiêu chuẩn (Không huy hiệu)</option>
+              <option value="PREFERRED">PREFERRED - Shop Yêu thích</option>
+              <option value="MALL">MALL - Shopee / Dino Mall chính hãng</option>
+            </select>
+          </div>
+          <div>
+            <label htmlFor="admin-change-tier-reason" className="block text-xs font-semibold text-[var(--subtext)] mb-1">
+              Lý do thay đổi hạng <span className="text-red-500">*</span>
+            </label>
+            <TextArea
+              id="admin-change-tier-reason"
+              placeholder="Nhập lý do cụ thể (Bắt buộc theo quy định kiểm toán)"
+              value={tierReason}
+              onChange={(e) => setTierReason(e.target.value)}
+              rows={3}
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-3">
+            <Button
+              variant="secondary"
+              onClick={() => setTierTarget(null)}
+              disabled={isUpdatingTier}
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleConfirmUpdateTier}
+              disabled={isUpdatingTier || !tierReason.trim()}
+            >
+              {isUpdatingTier ? "Đang lưu..." : "Lưu thay đổi"}
             </Button>
           </div>
         </div>

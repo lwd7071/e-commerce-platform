@@ -237,6 +237,79 @@ export class ModerationService {
     };
   }
 
+  public async updateShopTier(
+    adminId: string,
+    shopId: string,
+    tier: import('../domain/moderation.types.ts').ShopTier,
+    reason: string
+  ): Promise<import('../domain/moderation.types.ts').ShopTierUpdateResult> {
+    if (!adminId || typeof adminId !== 'string' || !UUID_REGEX.test(adminId.trim())) {
+      throw new ValidationFailedError(`Invalid adminId '${adminId}'. Admin ID must be a valid UUID.`);
+    }
+    if (!shopId || typeof shopId !== 'string' || !UUID_REGEX.test(shopId.trim())) {
+      throw new ValidationFailedError(`Invalid shopId '${shopId}'. Shop ID must be a valid UUID.`);
+    }
+    const cleanReason = reason?.trim();
+    if (!cleanReason) {
+      throw new ReasonRequiredError('Reason is required when updating shop tier');
+    }
+    const allowedTiers: import('../domain/moderation.types.ts').ShopTier[] = ['STANDARD', 'PREFERRED', 'MALL'];
+    if (!allowedTiers.includes(tier)) {
+      throw new ValidationFailedError(`Invalid shop tier '${tier}'. Allowed tiers: ${allowedTiers.join(', ')}`);
+    }
+    const cleanShopId = shopId.trim();
+
+    return await this.txManager.withTransaction(async (trx) => {
+      const exists = await this.targetRepo.shopExists(cleanShopId);
+      if (!exists) {
+        throw new NotFoundError(`Shop with id '${cleanShopId}' was not found`);
+      }
+
+      let currentTier = 'STANDARD';
+      if (this.targetRepo.getShopDetail) {
+        const detail = await this.targetRepo.getShopDetail(cleanShopId);
+        if (detail?.tier) currentTier = detail.tier;
+      }
+
+      if (!this.targetRepo.updateShopTier) {
+        throw new Error('updateShopTier is not supported by target repository');
+      }
+
+      const updateRes = await this.targetRepo.updateShopTier(
+        trx,
+        cleanShopId,
+        tier,
+        cleanReason,
+        adminId
+      );
+
+      // Record in moderation_records
+      await this.targetRepo.insertModerationRecord(trx, {
+        moderation_id: randomUUID(),
+        target_type: 'SHOP',
+        target_id: cleanShopId,
+        reason: cleanReason,
+        action: 'UPDATE_TIER',
+        admin_id: adminId,
+      });
+
+      // Strict QD20: Audit log via IAuditPort
+      try {
+        await this.auditPort.logAdminAction(trx, {
+          admin_id: adminId,
+          action: 'SHOP_TIER_UPDATE',
+          target_type: 'SHOP',
+          target_id: cleanShopId,
+          reason: `[TIER: ${currentTier} -> ${tier}] ${cleanReason}`,
+        });
+      } catch (auditError) {
+        throw new AuditWriteFailedError('Failed to commit admin audit log', { cause: auditError });
+      }
+
+      return updateRes;
+    });
+  }
+
   public async listShops(params?: { status?: string; search?: string }): Promise<AdminShopItem[]> {
     if (this.targetRepo.listShops) {
       return this.targetRepo.listShops(params);

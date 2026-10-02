@@ -100,13 +100,53 @@ export class PgModerationTargetRepository implements ITargetLookupRepository {
     };
   }
 
-  async listShops(params?: { status?: string; search?: string }): Promise<AdminShopItem[]> {
+  async updateShopTier(
+    trx: unknown,
+    shopId: string,
+    tier: import('../domain/moderation.types.ts').ShopTier,
+    reason: string,
+    adminId: string
+  ): Promise<import('../domain/moderation.types.ts').ShopTierUpdateResult> {
+    const executor = this.getExecutor(trx);
+    const res = await executor.query(
+      `UPDATE shops
+       SET tier = $1,
+           tier_override = TRUE,
+           tier_override_reason = $2,
+           tier_overridden_at = NOW(),
+           tier_override_by = $3,
+           updated_at = NOW()
+       WHERE shop_id = $4
+       RETURNING shop_id, tier, tier_override, tier_override_reason, tier_overridden_at, tier_override_by, updated_at`,
+      [tier, reason, adminId, shopId]
+    );
+    if (!res.rows || res.rows.length === 0) {
+      throw new NotFoundError(`Shop with id '${shopId}' not found for tier update`);
+    }
+    const row = res.rows[0];
+    return {
+      shop_id: row.shop_id,
+      tier: row.tier,
+      tier_override: Boolean(row.tier_override),
+      tier_override_reason: row.tier_override_reason ?? null,
+      tier_overridden_at: row.tier_overridden_at ? new Date(row.tier_overridden_at).toISOString() : null,
+      tier_override_by: row.tier_override_by ?? null,
+      updated_at: new Date(row.updated_at).toISOString(),
+    };
+  }
+
+  async listShops(params?: { status?: string; search?: string; tier?: string }): Promise<AdminShopItem[]> {
     const conditions: string[] = [];
     const values: unknown[] = [];
 
     if (params?.status && params.status !== 'ALL') {
       values.push(params.status);
       conditions.push(`s.status = $${values.length}`);
+    }
+
+    if (params?.tier && params.tier !== 'ALL') {
+      values.push(params.tier);
+      conditions.push(`s.tier = $${values.length}`);
     }
 
     if (params?.search && params.search.trim()) {
@@ -127,6 +167,11 @@ export class PgModerationTargetRepository implements ITargetLookupRepository {
         s.pickup_address,
         s.contact_phone,
         s.status,
+        COALESCE(s.tier, 'STANDARD') AS tier,
+        s.tier_override,
+        s.tier_override_reason,
+        s.tier_overridden_at,
+        s.tier_override_by,
         s.created_at,
         s.updated_at,
         u.email AS owner_email,
@@ -151,6 +196,11 @@ export class PgModerationTargetRepository implements ITargetLookupRepository {
       pickup_address: row.pickup_address ?? null,
       contact_phone: row.contact_phone ?? null,
       status: row.status as ShopStatus,
+      tier: (row.tier ?? 'STANDARD') as import('../domain/moderation.types.ts').ShopTier,
+      tier_override: Boolean(row.tier_override),
+      tier_override_reason: row.tier_override_reason ?? null,
+      tier_overridden_at: row.tier_overridden_at ? new Date(row.tier_overridden_at).toISOString() : null,
+      tier_override_by: row.tier_override_by ?? null,
       product_count: Number(row.product_count || 0),
       owner_email: row.owner_email ?? undefined,
       owner_name: row.owner_name ?? undefined,
@@ -233,7 +283,10 @@ export class PgModerationTargetRepository implements ITargetLookupRepository {
   async getShopDetail(shopId: string): Promise<AdminShopItem | null> {
     const res = await this.pool.query(
       `SELECT s.shop_id, s.owner_id, s.shop_name, s.description, s.logo_url,
-              s.pickup_address, s.contact_phone, s.status, s.created_at, s.updated_at,
+              s.pickup_address, s.contact_phone, s.status,
+              COALESCE(s.tier, 'STANDARD') AS tier,
+              s.tier_override, s.tier_override_reason, s.tier_overridden_at, s.tier_override_by,
+              s.created_at, s.updated_at,
               u.email as owner_email,
               COALESCE(p.full_name, split_part(u.email, '@', 1)) as owner_name,
               COUNT(pr.product_id)::int as product_count
@@ -256,6 +309,11 @@ export class PgModerationTargetRepository implements ITargetLookupRepository {
       pickup_address: row.pickup_address,
       contact_phone: row.contact_phone,
       status: row.status as ShopStatus,
+      tier: (row.tier ?? 'STANDARD') as import('../domain/moderation.types.ts').ShopTier,
+      tier_override: Boolean(row.tier_override),
+      tier_override_reason: row.tier_override_reason ?? null,
+      tier_overridden_at: row.tier_overridden_at ? new Date(row.tier_overridden_at).toISOString() : null,
+      tier_override_by: row.tier_override_by ?? null,
       product_count: Number(row.product_count),
       owner_email: row.owner_email,
       owner_name: row.owner_name,

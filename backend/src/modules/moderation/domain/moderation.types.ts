@@ -38,9 +38,21 @@ export interface UserStatusUpdateResult {
   review_id?: string;
 }
 
+export type ShopTier = 'STANDARD' | 'PREFERRED' | 'MALL';
+
 export interface ShopStatusUpdateResult {
   shop_id: string;
   status: ShopStatus;
+  updated_at: string;
+}
+
+export interface ShopTierUpdateResult {
+  shop_id: string;
+  tier: ShopTier;
+  tier_override: boolean;
+  tier_override_reason: string | null;
+  tier_overridden_at: string | null;
+  tier_override_by: string | null;
   updated_at: string;
 }
 
@@ -53,6 +65,11 @@ export interface AdminShopItem {
   pickup_address: string | null;
   contact_phone: string | null;
   status: ShopStatus;
+  tier?: ShopTier;
+  tier_override?: boolean;
+  tier_override_reason?: string | null;
+  tier_overridden_at?: string | null;
+  tier_override_by?: string | null;
   product_count: number;
   owner_email?: string;
   owner_name?: string;
@@ -99,6 +116,7 @@ export interface ITargetLookupRepository {
   getShopStatus?(shopId: string): Promise<ShopStatus | null>;
   hasRequiredShopProfile(trx: unknown, shopId: string): Promise<boolean>;
   updateShopStatus(trx: unknown, shopId: string, status: ShopStatus): Promise<ShopStatusUpdateResult>;
+  updateShopTier?(trx: unknown, shopId: string, tier: ShopTier, reason: string, adminId: string): Promise<ShopTierUpdateResult>;
   productExists(productId: string): Promise<boolean>;
   reviewExists(reviewId: string): Promise<boolean>;
   getProductStatus?(productId: string): Promise<ModeratedContentStatus | null>;
@@ -106,7 +124,7 @@ export interface ITargetLookupRepository {
   getReviewStatus?(reviewId: string): Promise<ModeratedContentStatus | null>;
   updateReviewStatus?(trx: unknown, reviewId: string, status: 'VISIBLE' | 'HIDDEN'): Promise<{ review_id: string; status: 'VISIBLE' | 'HIDDEN'; updated_at: string }>;
   insertModerationRecord(trx: unknown, record: ModerationRecord): Promise<void>;
-  listShops?(params?: { status?: string; search?: string }): Promise<AdminShopItem[]>;
+  listShops?(params?: { status?: string; search?: string; tier?: string }): Promise<AdminShopItem[]>;
   listUsers?(params?: { role?: string; status?: string; search?: string }): Promise<AdminUserItem[]>;
   listModerationProducts?(params?: { status?: string; search?: string }): Promise<AdminModerationProduct[]>;
   listModerationReviews?(params?: { status?: string; search?: string }): Promise<AdminModerationReview[]>;
@@ -125,7 +143,8 @@ export interface IModerationService {
   approveShop?(adminId: string, shopId: string, reason?: string): Promise<ShopStatusUpdateResult>;
   lockShop?(adminId: string, shopId: string, reason: string): Promise<ShopStatusUpdateResult>;
   unlockShop?(adminId: string, shopId: string, reason?: string): Promise<ShopStatusUpdateResult>;
-  listShops?(params?: { status?: string; search?: string }): Promise<AdminShopItem[]>;
+  updateShopTier?(adminId: string, shopId: string, tier: ShopTier, reason: string): Promise<ShopTierUpdateResult>;
+  listShops?(params?: { status?: string; search?: string; tier?: string }): Promise<AdminShopItem[]>;
   listUsers?(params?: { role?: string; status?: string; search?: string }): Promise<AdminUserItem[]>;
   listModerationProducts?(params?: { status?: string; search?: string }): Promise<AdminModerationProduct[]>;
   listModerationReviews?(params?: { status?: string; search?: string }): Promise<AdminModerationReview[]>;

@@ -48,9 +48,15 @@ export class PgCatalogHttpService {
       }
       return Number(value);
     };
+    if (input.shop_tier !== undefined) {
+      if (typeof input.shop_tier !== 'string' || !['STANDARD', 'PREFERRED', 'MALL'].includes(input.shop_tier)) {
+        throw new ValidationError('shop_tier must be STANDARD, PREFERRED, or MALL');
+      }
+    }
     const result = await this.products.queryPublic({
       categoryId: input.category_id as string | undefined,
       search: input.search as string | undefined,
+      shopTier: input.shop_tier as string | undefined,
       minPrice: parseMoney(input.min_price),
       maxPrice: parseMoney(input.max_price),
       sortBy:
@@ -71,6 +77,7 @@ export class PgCatalogHttpService {
         total_stock: item.totalStock,
         image_url: item.imageUrl,
         created_at: item.createdAt,
+        shop_tier: item.shopTier ?? 'STANDARD',
       })),
       next_cursor: result.nextCursor ?? null,
       has_more: result.nextCursor != null,
@@ -83,6 +90,7 @@ export class PgCatalogHttpService {
       `SELECT 
          p.product_id, p.shop_id, p.category_id, p.product_name, p.description, p.status,
          s.status AS shop_status,
+         COALESCE(s.tier, 'STANDARD') AS shop_tier,
          c.status AS category_status
        FROM products p
        JOIN shops s ON p.shop_id = s.shop_id
@@ -118,6 +126,7 @@ export class PgCatalogHttpService {
       product_name: row.product_name,
       description: row.description,
       status: row.status,
+      shop_tier: row.shop_tier ?? 'STANDARD',
       variants: activeVariants.map((v) => ({
         variant_id: v.variantId,
         variant_name: v.variantName,

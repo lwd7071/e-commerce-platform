@@ -115,7 +115,7 @@ export class AdminReadService {
     };
   }
 
-  async listShopsPage(input: { status?: string; search?: string; limit?: number; cursor?: string } = {}) {
+  async listShopsPage(input: { status?: string; tier?: string; search?: string; limit?: number; cursor?: string } = {}) {
     const limit = input.limit ?? 20;
     if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new ValidationFailedError('limit must be from 1 to 100');
     const validTimestamp = (value: string) => !Number.isNaN(Date.parse(value));
@@ -132,6 +132,7 @@ export class AdminReadService {
     const values: unknown[] = [];
     const where: string[] = [];
     if (input.status && input.status !== 'ALL') { values.push(input.status); where.push(`s.status = $${values.length}`); }
+    if (input.tier && input.tier !== 'ALL') { values.push(input.tier); where.push(`s.tier = $${values.length}`); }
     if (input.search?.trim()) { values.push(`%${input.search.trim()}%`); where.push(`s.shop_name ILIKE $${values.length}`); }
     if (cursor) {
       values.push(cursor.created_at); const createdAt = values.length;
@@ -140,7 +141,7 @@ export class AdminReadService {
     }
     values.push(limit + 1);
     const result = await this.pool.query<Record<string, unknown>>(
-      `SELECT s.shop_id, s.shop_name, s.status, s.owner_id, u.email AS owner_email,
+      `SELECT s.shop_id, s.shop_name, s.status, COALESCE(s.tier, 'STANDARD') AS tier, s.owner_id, u.email AS owner_email,
               s.contact_phone, s.pickup_address, s.description, s.logo_url, s.created_at, s.updated_at,
               COUNT(pr.product_id)::int AS product_count
          FROM shops s
@@ -168,6 +169,7 @@ export class AdminReadService {
         pickupAddress: row.pickup_address ? String(row.pickup_address) : null,
         description: row.description ? String(row.description) : null,
         status: row.status as 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'LOCKED',
+        tier: (row.tier ?? 'STANDARD') as 'STANDARD' | 'PREFERRED' | 'MALL',
         createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
         created_at: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
         updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),

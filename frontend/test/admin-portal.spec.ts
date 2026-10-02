@@ -83,6 +83,29 @@ describe("Admin Moderation Portal (Người 5 - TDD)", () => {
       const unlocked = shops.find((s) => s.shop_id === targetShopId);
       expect(unlocked?.status).toBe("ACTIVE");
     });
+
+    it("chặn đổi phân hạng shop khi lý do (reason) bị để trống", async () => {
+      const targetShopId = "00000000-0000-0000-0000-000000000001";
+      await expect(
+        adminRepo.updateShopTier!(targetShopId, "PREFERRED", "   ")
+      ).rejects.toThrow("lý do");
+    });
+
+    it("đổi phân hạng shop thành PREFERRED thành công khi có lý do", async () => {
+      const targetShopId = "00000000-0000-0000-0000-000000000001";
+      await adminRepo.updateShopTier!(targetShopId, "PREFERRED", "Đủ tiêu chuẩn shop yêu thích tháng này");
+      const shops = await adminRepo.getShops();
+      const updated = shops.find((s) => s.shop_id === targetShopId);
+      expect(updated?.tier).toBe("PREFERRED");
+    });
+
+    it("đổi phân hạng shop thành MALL thành công khi có lý do", async () => {
+      const targetShopId = "00000000-0000-0000-0000-000000000002";
+      await adminRepo.updateShopTier!(targetShopId, "MALL", "Đối tác thương hiệu chính hãng có giấy phép");
+      const shops = await adminRepo.getShops();
+      const updated = shops.find((s) => s.shop_id === targetShopId);
+      expect(updated?.tier).toBe("MALL");
+    });
   });
 });
 

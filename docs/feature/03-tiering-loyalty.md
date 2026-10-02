@@ -29,6 +29,15 @@
   - Mở rộng `OrderServices` interface và ủy thác handler trong `backend/src/platform/http/routes/order-routes.ts`.
   - Thực hiện kiểm tra quyền và điều kiện Shipment P0-9 trong `PgCheckoutService.confirmReceived` (`backend/src/modules/checkout/services/pg-checkout.service.ts`).
   - Viết bộ kiểm thử tích hợp 8/8 tests pass qua `createRuntimeApp` tại `backend/test/platform/order-confirm-received.spec.ts`.
+- Đợt A: Phân hạng Shop, huy hiệu và lịch sử duyệt của Admin:
+  - Tạo migration `20261003100000_shop_tiering` thêm `tier`, `tier_override`, `tier_override_reason`, `tier_overridden_at`, `tier_override_by` vào bảng `shops`.
+  - Triển khai endpoint `PATCH /admin/shops/:id/tier` với kiểm tra UUID, validate tier (`STANDARD`, `PREFERRED`, `MALL`), bắt buộc `reason` không rỗng và ghi audit log `SHOP_TIER_UPDATE` nguyên tử.
+  - Cập nhật `GET /admin/shops` hỗ trợ query param `tier`, trả về thông tin `tier` của shop.
+  - Cập nhật catalog repository & HTTP service: hỗ trợ lọc sản phẩm theo `shop_tier`, trả về `shop_tier` trong danh sách và chi tiết sản phẩm.
+  - Cập nhật OpenAPI spec và đồng bộ mã nguồn generated API types frontend (`frontend/src/lib/api/generated/openapi.ts`).
+  - Frontend: Xây dựng component `TierBadge` hiển thị nhãn MALL và Yêu thích (PREFERRED), tích hợp vào `ProductCard` và màn hình `AdminShopsScreen` kèm dialog "Đổi hạng" và bộ lọc tier.
+  - Viết kiểm thử tích hợp 10/10 tests pass tại `backend/test/platform/admin-shop-tier.spec.ts` (Admin tier update, audit log, reason requirement, role authorization, seller protection, catalog filtering).
+  - Viết kiểm thử frontend 3/3 tests pass tại `frontend/test/admin-portal.spec.ts` (hiển thị badge, đổi hạng shop, lọc theo hạng).
 
 ## Thiết kế / quyết định kỹ thuật
 
@@ -49,11 +58,16 @@
 | Kiểm tra | Lệnh / CI job | Kết quả | Bằng chứng / ghi chú |
 |---|---|---|---|
 | Runtime Wiring & P0-9 Shipment Integration | `npx tsx --test test/platform/order-confirm-received.spec.ts` | PASS | 8/8 tests pass (Buyer/Admin/Shipment/Role). |
-| Backend Node Test Suite | `npm --prefix backend run test:node` | PASS | 700/700 tests pass (197 test suites). |
+| Admin Shop Tiering Integration | `npx tsx --test test/platform/admin-shop-tier.spec.ts` | PASS | 10/10 tests pass (Admin/Audit/RBAC/Filter/Seller protection). |
+| Backend Node Test Suite | `npm --prefix backend run test:node` | PASS | 710/710 tests pass (198 test suites). |
 | Backend Typecheck | `npm --prefix backend run typecheck` | PASS | `tsc --noEmit` 0 errors. |
 | Backend Lint | `npm --prefix backend run lint` | PASS | ESLint 0 errors, 0 warnings. |
-| Frontend Test Suites | `npm --prefix frontend test` | PASS | 321/321 tests PASS (66 test files). |
+| Backend Build | `npm --prefix backend run build` | PASS | esbuild bundle 461KB thành công. |
+| Frontend Test Suites | `npm --prefix frontend test` | PASS | 324/324 tests PASS (66 test files). |
 | Frontend Typecheck | `npm --prefix frontend run typecheck` | PASS | `tsc --noEmit` 0 errors. |
+| Frontend Lint | `npm --prefix frontend run lint` | PASS | ESLint 0 errors, 0 warnings. |
+| Frontend Contract Check | `npm --prefix frontend run api:types:check` | PASS | Generated API types match backend OpenAPI. |
+| Frontend Production Build | `npm --prefix frontend run build` | PASS | Next.js 16 optimized build thành công (31 routes). |
 
 ## An toàn và tình huống lỗi
 
@@ -64,12 +78,26 @@
 ## Việc còn lại và blocker
 
 - [x] Bước 0: Sửa lỗi nền wiring `confirmReceived` và kiểm tra quyền hoàn tất đơn — Owner: Chưa xác định — Trạng thái: Đã triển khai
-- [ ] Đợt A: Triển khai migration `shops.tier` & override metadata, Admin tier API, catalog filter và `TierBadge` UI — Owner: Chưa xác định — Trạng thái: Đang làm
+- [x] Đợt A: Triển khai migration `shops.tier` & override metadata, Admin tier API, catalog filter và `TierBadge` UI — Owner: Chưa xác định — Trạng thái: Đã hoàn thành
 - [ ] Đợt B: Triển khai migration `app_users` + `loyalty_point_transactions`, core hook tích điểm, Buyer loyalty API và Profile UI — Owner: Chưa xác định — Trạng thái: Đang làm
 - [ ] Đợt C: Đánh giá tự động PREFERRED và composite cursor search boost — Trạng thái: Ngoài phạm vi đợt này
 - Blocker: Không có.
 
 ## Nhật ký cập nhật
+
+### 2026-10-02 (Đợt A - Hoàn tất Phân hạng Shop & Quản lý Admin)
+
+- Đã làm:
+  - Tạo migration `20261003100000_shop_tiering` bổ sung `tier`, `tier_override`, `tier_override_reason`, `tier_overridden_at`, `tier_override_by`.
+  - Triển khai endpoint `PATCH /admin/shops/:id/tier` (RBAC ADMIN, ghi audit log `SHOP_TIER_UPDATE`).
+  - Hỗ trợ lọc shop theo `tier` tại `GET /admin/shops`.
+  - Hỗ trợ lọc sản phẩm theo `shop_tier` và trả về `shop_tier` tại public catalog endpoints (`GET /products`, `GET /products/:id`).
+  - Cập nhật OpenAPI spec và sinh mã types cho frontend (`npm run api:types`).
+  - Tạo component `TierBadge` hiển thị nhãn MALL và Yêu thích (PREFERRED), tích hợp vào `ProductCard` và `AdminShopsScreen`.
+  - Thêm cột Hạng, bộ lọc và dialog "Đổi hạng" trên màn hình Admin Quản lý Shop (`AdminShopsScreen`).
+  - Viết bộ test tích hợp backend `admin-shop-tier.spec.ts` (10/10 tests pass) và frontend test `admin-portal.spec.ts` (324/324 tests pass).
+  - Kiểm tra lint, typecheck, api:types:check, backend build và frontend build đều 100% PASS.
+- Tiếp theo: Triển khai Đợt B (Buyer loyalty VIP, DinoPoint ledger, atomic completion hook và Profile UI).
 
 ### 2026-10-02 (Bước 0 - Hoàn tất sửa wiring confirmReceived & P0-9)
 

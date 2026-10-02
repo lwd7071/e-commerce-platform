@@ -103,7 +103,7 @@ export function createCatalogRouter(application?: CatalogHttpApplication, auth?:
     res.json(buildSuccessEnvelope(await application.listCategories(), requestId(req)));
   }));
   router.get('/products', asyncRoute(async (req, res) => {
-    const allowed = ['category_id', 'search', 'min_price', 'max_price', 'sort', 'limit', 'cursor'];
+    const allowed = ['category_id', 'search', 'min_price', 'max_price', 'sort', 'limit', 'cursor', 'shop_tier'];
     const input = req.query as Record<string, unknown>;
     rejectUnknown(input, allowed);
     const result = await implementation(application?.listProducts, application)(input);

@@ -37,6 +37,7 @@ export const mapShopRow = (row: DatabaseRow): Shop => ({
   pickupAddress: String(row.pickup_address),
   contactPhone: String(row.contact_phone),
   status: row.status as ShopStatus,
+  tier: (row.tier ?? 'STANDARD') as 'STANDARD' | 'PREFERRED' | 'MALL',
   createdAt: isoString(row.created_at),
   updatedAt: isoString(row.updated_at),
 });
@@ -401,6 +402,11 @@ export class PgProductRepository implements IProductRepository {
       whereConditions.push(`p.product_name ILIKE $${params.length}`);
     }
 
+    if (filter.shopTier) {
+      params.push(filter.shopTier);
+      whereConditions.push(`s.tier = $${params.length}`);
+    }
+
     const havingConditions: string[] = [];
     if (filter.minPrice !== undefined) {
       params.push(filter.minPrice);
@@ -452,6 +458,7 @@ export class PgProductRepository implements IProductRepository {
         p.product_name,
         p.description,
         p.created_at,
+        COALESCE(s.tier, 'STANDARD') as shop_tier,
         MIN(v.price) as min_price,
         MAX(v.price) as max_price,
         SUM(v.stock_quantity)::int as total_stock,
@@ -465,7 +472,7 @@ export class PgProductRepository implements IProductRepository {
       JOIN categories c ON p.category_id = c.category_id
       JOIN product_variants v ON p.product_id = v.product_id
       WHERE ${whereConditions.join(' AND ')}
-      GROUP BY p.product_id, p.shop_id, p.category_id, p.product_name, p.description, p.created_at
+      GROUP BY p.product_id, p.shop_id, p.category_id, p.product_name, p.description, p.created_at, s.tier
       ${havingClause}
       ${orderClause}
       LIMIT $${limitParam} OFFSET $${offsetParam}
@@ -483,6 +490,7 @@ export class PgProductRepository implements IProductRepository {
       totalStock: Number(row.total_stock),
       imageUrl: nullableString(row.image_url),
       createdAt: isoString(row.created_at),
+      shopTier: (row.shop_tier ?? 'STANDARD') as string,
     }));
 
     return { items, total, nextCursor: items.length === limit && offset + items.length < total ? encodeCursor(offset + items.length) : null };

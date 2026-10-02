@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
 import type { WireCatalogProductItem } from "@/lib/api/catalog.api";
+import { TierBadge } from "@/components/ui/tier-badge";
 
 type ProductCardProps = {
   product: WireCatalogProductItem;
@@ -51,6 +52,11 @@ export function ProductCard({ product, categoryName }: ProductCardProps) {
 
       <div className="flex flex-1 flex-col justify-between p-4">
         <div>
+          {product.shop_tier && product.shop_tier !== 'STANDARD' && (
+            <div className="mb-1.5 flex items-center">
+              <TierBadge tier={product.shop_tier} />
+            </div>
+          )}
           <h3 className="line-clamp-2 text-sm font-semibold text-[var(--foreground)] transition-colors group-hover:text-[var(--primary-active)]">
             <Link href={`/products/${product.product_id}`}>
               {product.product_name}
