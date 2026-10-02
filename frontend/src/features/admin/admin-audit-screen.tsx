@@ -7,6 +7,7 @@ import type { PaginatedEnvelope } from "@/lib/api/types";
 import { Button } from "@/components/ui/button";
 import { ErrorState, Skeleton } from "@/components/ui/data-states";
 import { FormField, SelectInput, TextInput } from "@/components/ui/form-controls";
+import { AdminHeaderNav } from "./admin-header-nav";
 
 type AuditLog = { id: string; action: string; targetType: string | null; targetId: string | null; reason: string; actor: string; createdAt: string };
 const targets = ["USER", "SHOP", "PRODUCT", "REVIEW", "ORDER", "CATEGORY", "VOUCHER", "CAMPAIGN"];
@@ -46,8 +47,14 @@ export function AdminAuditScreen() {
     setCursor(null);
   };
 
-  return <main className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:px-6 lg:px-8">
-    <header><Link href="/admin" className="text-sm text-[var(--primary)]">← Quản trị</Link><h1 className="mt-2 text-2xl font-bold">Nhật ký quản trị</h1><p className="mt-1 text-sm text-[var(--subtext)]">Tra cứu người thực hiện, thao tác, đối tượng và thời gian.</p></header>
+  return <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+    <header className="page-heading flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <AdminHeaderNav currentModule="Nhật ký quản trị" />
+        <h1 className="page-title">Nhật ký quản trị</h1>
+        <p className="page-description">Tra cứu người thực hiện, thao tác, đối tượng và thời gian.</p>
+      </div>
+    </header>
     <form onSubmit={submit} className="surface-card grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-5 lg:items-end">
       <FormField id="audit-action" label="Hành động"><TextInput id="audit-action" value={action} onChange={(event) => setAction(event.target.value)} /></FormField>
       <FormField id="audit-target" label="Loại đối tượng"><SelectInput id="audit-target" value={targetType} onChange={(event) => setTargetType(event.target.value)}><option value="">Tất cả</option>{targets.map((target) => <option key={target} value={target}>{target}</option>)}</SelectInput></FormField>

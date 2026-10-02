@@ -10,6 +10,7 @@ export interface AdminUserParams extends Record<string, string | number | boolea
 export interface AdminShopParams extends Record<string, string | number | boolean | null | undefined> {
   status?: string;
   search?: string;
+  tier?: string;
 }
 
 export const adminApi = {
@@ -65,5 +66,9 @@ export const adminApi = {
 
   async unlockShop(shopId: string, reason?: string): Promise<void> {
     await apiClient.post(`/admin/shops/${shopId}/unlock`, { reason: reason || "Shop unlocked by admin" });
+  },
+
+  async updateShopTier(shopId: string, tier: "STANDARD" | "PREFERRED" | "MALL", reason: string): Promise<void> {
+    await apiClient.patch(`/admin/shops/${shopId}/tier`, { tier, reason });
   },
 };

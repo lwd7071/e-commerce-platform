@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resetMockAdminStore } from "@/features/admin/admin.repository";
 import { repositories } from "@/lib/repositories/repository-factory";
+import { features } from "@/lib/config/features";
 
 describe("Admin repository in live mode", () => {
   beforeEach(() => {
     resetMockAdminStore();
+    vi.spyOn(features.domains, "adminMock").mockReturnValue(false);
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("backend unavailable")));
   });
 

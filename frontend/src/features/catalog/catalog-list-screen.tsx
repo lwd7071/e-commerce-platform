@@ -22,6 +22,7 @@ type Props = {
   initialSort?: SortOption;
   initialMinPrice?: string;
   initialMaxPrice?: string;
+  initialShopTier?: string;
 };
 
 export function CatalogListScreen({
@@ -30,6 +31,7 @@ export function CatalogListScreen({
   initialSort = "created_at_desc",
   initialMinPrice = "",
   initialMaxPrice = "",
+  initialShopTier = "",
 }: Props) {
   const pathname = usePathname();
 
@@ -44,6 +46,7 @@ export function CatalogListScreen({
 
   // Filters state
   const [selectedCategory, setSelectedCategory] = useState(initialCategoryId);
+  const [selectedTier, setSelectedTier] = useState<string>(initialShopTier);
   const [sort, setSort] = useState<SortOption>(initialSort);
   const [minPrice, setMinPrice] = useState(initialMinPrice);
   const [maxPrice, setMaxPrice] = useState(initialMaxPrice);
@@ -121,6 +124,9 @@ export function CatalogListScreen({
     };
     if (debouncedSearch) params.search = debouncedSearch;
     if (selectedCategory) params.category_id = selectedCategory;
+    if (selectedTier === "STANDARD" || selectedTier === "PREFERRED" || selectedTier === "MALL") {
+      params.shop_tier = selectedTier;
+    }
     if (minPrice.trim() && !isNaN(Number(minPrice))) params.min_price = minPrice.trim();
     if (maxPrice.trim() && !isNaN(Number(maxPrice))) params.max_price = maxPrice.trim();
 
@@ -132,6 +138,7 @@ export function CatalogListScreen({
         sort,
         minPrice,
         maxPrice,
+        shopTier: selectedTier,
       });
       const queryStr = urlParams.toString();
       const nextUrl = queryStr ? `${pathname}?${queryStr}` : pathname;
@@ -141,7 +148,7 @@ export function CatalogListScreen({
     startTransition(() => {
       fetchProducts(params, false);
     });
-  }, [debouncedSearch, selectedCategory, sort, minPrice, maxPrice, pathname]);
+  }, [debouncedSearch, selectedCategory, selectedTier, sort, minPrice, maxPrice, pathname]);
 
   const handleSearchSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -152,6 +159,7 @@ export function CatalogListScreen({
     setSearchInput("");
     setDebouncedSearch("");
     setSelectedCategory("");
+    setSelectedTier("");
     setSort("created_at_desc");
     setMinPrice("");
     setMaxPrice("");
@@ -170,6 +178,9 @@ export function CatalogListScreen({
     };
     if (debouncedSearch) params.search = debouncedSearch;
     if (selectedCategory) params.category_id = selectedCategory;
+    if (selectedTier === "STANDARD" || selectedTier === "PREFERRED" || selectedTier === "MALL") {
+      params.shop_tier = selectedTier;
+    }
     if (minPrice.trim()) params.min_price = minPrice.trim();
     if (maxPrice.trim()) params.max_price = maxPrice.trim();
 
@@ -188,17 +199,18 @@ export function CatalogListScreen({
         </div>
 
         <form onSubmit={handleSearchSubmit} className="relative flex-1 max-w-md">
+          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--subtext)] flex items-center justify-center">
+            <Icon name="search" className="w-4 h-4" />
+          </span>
           <input
             name="q"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            className="form-control pl-10 pr-4"
+            className="form-control pr-4"
+            style={{ paddingLeft: "42px" }}
             placeholder="Tìm theo tên sản phẩm..."
             aria-label="Tìm theo tên sản phẩm"
           />
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--subtext)]">
-            <Icon name="search" />
-          </span>
         </form>
       </div>
 
@@ -234,6 +246,43 @@ export function CatalogListScreen({
             ))}
           </div>
         )}
+
+        {/* Shop Tier Filter Chips */}
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Lọc theo hạng shop">
+          <button
+            type="button"
+            onClick={() => setSelectedTier("")}
+            className={`min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg px-3.5 py-2.5 text-xs font-semibold transition-colors ${
+              selectedTier === ""
+                ? "bg-[var(--primary-active)] text-white"
+                : "bg-[var(--card-muted)] text-[var(--subtext)] hover:text-[var(--foreground)]"
+            }`}
+          >
+            Tất cả shop
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedTier("MALL")}
+            className={`min-h-[44px] inline-flex items-center gap-1.5 justify-center rounded-lg px-3.5 py-2.5 text-xs font-semibold transition-colors ${
+              selectedTier === "MALL"
+                ? "bg-[var(--danger)] text-white"
+                : "bg-[var(--card-muted)] text-[var(--subtext)] hover:text-[var(--foreground)]"
+            }`}
+          >
+            Dino Mall
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedTier("PREFERRED")}
+            className={`min-h-[44px] inline-flex items-center gap-1.5 justify-center rounded-lg px-3.5 py-2.5 text-xs font-semibold transition-colors ${
+              selectedTier === "PREFERRED"
+                ? "bg-amber-600 text-white"
+                : "bg-[var(--card-muted)] text-[var(--subtext)] hover:text-[var(--foreground)]"
+            }`}
+          >
+            Shop Yêu thích
+          </button>
+        </div>
 
         <div className="flex flex-wrap items-center gap-3 ml-auto">
           {/* Price Range Filter Inputs */}

@@ -4,7 +4,9 @@ export type AppRole = "BUYER" | "SELLER" | "ADMIN" | null;
 export type NavItem = { href: string; label: string; icon: IconName; roles: AppRole[] };
 
 const items: NavItem[] = [
-  { href: "/", label: "Khám phá", icon: "home", roles: [null, "BUYER", "SELLER", "ADMIN"] },
+  { href: "/", label: "Khám phá", icon: "home", roles: [null, "BUYER", "SELLER"] },
+  { href: "/", label: "Trang chủ", icon: "home", roles: ["ADMIN"] },
+  { href: "/admin", label: "Quản trị", icon: "grid", roles: ["ADMIN"] },
   { href: "/cart", label: "Giỏ hàng", icon: "bag", roles: ["BUYER"] },
   { href: "/orders", label: "Đơn hàng", icon: "bag", roles: ["BUYER"] },
   { href: "/notifications", label: "Thông báo", icon: "bell", roles: ["BUYER", "SELLER"] },
@@ -16,8 +18,6 @@ const items: NavItem[] = [
   { href: "/seller/products", label: "Sản phẩm", icon: "bag", roles: ["SELLER"] },
   { href: "/seller/vouchers", label: "Mã giảm giá", icon: "grid", roles: ["SELLER"] },
   { href: "/seller/reports", label: "Báo cáo doanh thu", icon: "grid", roles: ["SELLER"] },
-  { href: "/admin", label: "Quản trị", icon: "grid", roles: ["ADMIN"] },
-  { href: "/admin/categories", label: "Danh mục", icon: "grid", roles: ["ADMIN"] },
 ];
 
 export function getNavigationItems(role: AppRole): NavItem[] {

@@ -81,6 +81,7 @@ const apiAdminRepository: IAdminRepository = {
   approveShop: (shopId, reason) => adminApi.approveShop(shopId, reason),
   lockShop: (payload) => adminApi.lockShop(payload),
   unlockShop: (shopId, reason) => adminApi.unlockShop(shopId, reason),
+  updateShopTier: (shopId, tier, reason) => adminApi.updateShopTier(shopId, tier, reason),
 };
 
 const apiMediaRepository: IMediaRepository = {
@@ -294,7 +295,7 @@ const mockCatalogRepository: ICatalogRepository = {
     return updated;
   },
   createProduct: async (data) => {
-    const newId = `00000000-0000-0000-0000-000000000${Math.floor(200 + Math.random() * 700)}`;
+    const newId = crypto.randomUUID();
     const prices = data.variants.map((v) => Number(v.price) || 0);
     const minP = Math.min(...prices).toFixed(2);
     const maxP = Math.max(...prices).toFixed(2);
@@ -308,8 +309,8 @@ const mockCatalogRepository: ICatalogRepository = {
       product_name: data.product_name,
       description: data.description ?? null,
       status: "ACTIVE",
-      variants: data.variants.map((v, i) => ({
-        variant_id: `00000000-0000-0000-0000-000000000${Math.floor(300 + Math.random() * 600)}${i}`,
+      variants: data.variants.map((v) => ({
+        variant_id: crypto.randomUUID(),
         variant_name: v.variant_name,
         variant_value: v.variant_value ?? null,
         sku: v.sku,
@@ -758,6 +759,15 @@ const mockVoucherRepository: IVoucherRepository = {
   },
 };
 
+import {
+  mockAdminUsersStore,
+  mockAdminShopsStore,
+  mockAdminReviewsStore,
+  recordAdminAuditLog,
+} from "./admin-mock-store";
+
+export { mockAdminUsersStore, mockAdminShopsStore, mockAdminReviewsStore };
+
 const mockReviewsStore: WireReview[] = [
   {
     review_id: "rev_01",
@@ -780,9 +790,24 @@ const mockReviewRepository: IReviewRepository = {
       created_at: new Date().toISOString(),
     };
     mockReviewsStore.push(review);
+    mockAdminReviewsStore.unshift({
+      id: review.review_id,
+      productId: payload.product_id || "prod_mod_01",
+      productName: "Sản phẩm vừa đánh giá",
+      buyerId: "usr_001",
+      rating: payload.rating,
+      content: payload.comment,
+      status: "VISIBLE",
+      createdAt: review.created_at,
+    });
     return review;
   },
-  getReviewsByProduct: async () => mockReviewsStore,
+  getReviewsByProduct: async () => {
+    const hiddenIds = new Set(
+      mockAdminReviewsStore.filter((r) => r.status === "HIDDEN").map((r) => r.id)
+    );
+    return mockReviewsStore.filter((r) => !hiddenIds.has(r.review_id));
+  },
 };
 
 const apiReviewRepository: IReviewRepository = {
@@ -813,60 +838,6 @@ const apiReviewRepository: IReviewRepository = {
   },
 };
 
-const mockAdminUsersStore: AdminUserItem[] = [
-  {
-    id: "usr_001",
-    email: "buyer@dino.vn",
-    full_name: "Nguyễn Văn Mua",
-    role: "BUYER",
-    status: "ACTIVE",
-    created_at: "2026-09-01T08:00:00Z",
-  },
-  {
-    id: "usr_002",
-    email: "seller@dino.vn",
-    full_name: "Trần Thị Bán",
-    role: "SELLER",
-    status: "ACTIVE",
-    created_at: "2026-09-05T09:30:00Z",
-  },
-  {
-    id: "usr_003",
-    email: "spammer@dino.vn",
-    full_name: "Lê Văn Vi Phạm",
-    role: "BUYER",
-    status: "LOCKED",
-    created_at: "2026-09-10T14:15:00Z",
-  },
-  {
-    id: "usr_004",
-    email: "admin@dino.vn",
-    full_name: "Hệ Thống Dino Admin",
-    role: "ADMIN",
-    status: "ACTIVE",
-    created_at: "2026-08-01T00:00:00Z",
-  },
-];
-
-const mockAdminShopsStore: AdminShopItem[] = Array.from({ length: 20 }, (_, i) => {
-  const num = String(i + 1).padStart(2, "0");
-  return {
-    shop_id: `00000000-0000-0000-0000-0000000000${num}`,
-    owner_id: `usr_seller_${num}`,
-    shop_name: `Dino Demo Shop ${num}`,
-    description: `Gian hàng thời trang và phong cách sống demo ${num}`,
-    logo_url: "https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=400",
-    pickup_address: "123 Đường Điện Biên Phủ, Phường 25, Quận Bình Thạnh, TP.HCM",
-    contact_phone: "0901234567",
-    status: "PENDING",
-    product_count: i < 5 ? 3 : 0,
-    owner_email: `seller${num}@dino-demo.test`,
-    owner_name: `Demo Seller ${num}`,
-    created_at: new Date(Date.now() - (20 - i) * 3600000 * 4).toISOString(),
-    updated_at: new Date(Date.now() - (20 - i) * 3600000 * 4).toISOString(),
-  };
-});
-
 export const mockAdminRepository: IAdminRepository = {
   getUsers: async (params) => {
     let list = [...mockAdminUsersStore];
@@ -882,6 +853,26 @@ export const mockAdminRepository: IAdminRepository = {
     }
     return list;
   },
+  getUserDetail: async (userId) => {
+    const user = mockAdminUsersStore.find((u) => u.id === userId);
+    if (!user) throw new Error("Không tìm thấy người dùng.");
+    return { ...user };
+  },
+  getUsersPage: async (params) => {
+    let list = [...mockAdminUsersStore];
+    if (params?.role) list = list.filter((u) => u.role === params.role);
+    if (params?.status) list = list.filter((u) => u.status === params.status);
+    if (params?.search && params.search.trim()) {
+      const q = params.search.toLowerCase();
+      list = list.filter((u) => u.email.toLowerCase().includes(q) || u.full_name.toLowerCase().includes(q));
+    }
+    const limit = params?.limit ?? 20;
+    return {
+      items: list.slice(0, limit),
+      next_cursor: list.length > limit ? "mock_next_cursor" : null,
+      has_more: list.length > limit,
+    };
+  },
   lockUser: async (payload) => {
     if (!payload.reason || !payload.reason.trim()) {
       throw new Error("Vui lòng nhập lý do khóa tài khoản");
@@ -889,12 +880,30 @@ export const mockAdminRepository: IAdminRepository = {
     const user = mockAdminUsersStore.find((u) => u.id === payload.user_id);
     if (user) {
       user.status = "LOCKED";
+      user.lock_reason = payload.reason.trim();
+      recordAdminAuditLog({
+        action: "LOCK_USER",
+        targetType: "USER",
+        targetId: user.id,
+        targetName: user.full_name || user.email,
+        reason: payload.reason.trim(),
+        actor: "admin@dino.vn",
+      });
     }
   },
   unlockUser: async (userId) => {
     const user = mockAdminUsersStore.find((u) => u.id === userId);
     if (user) {
       user.status = "ACTIVE";
+      user.lock_reason = null;
+      recordAdminAuditLog({
+        action: "UNLOCK_USER",
+        targetType: "USER",
+        targetId: user.id,
+        targetName: user.full_name || user.email,
+        reason: "Mở khóa tài khoản người dùng sau kiểm tra",
+        actor: "admin@dino.vn",
+      });
     }
   },
   getShops: async (params) => {
@@ -913,12 +922,49 @@ export const mockAdminRepository: IAdminRepository = {
     }
     return list;
   },
-  approveShop: async (shopId) => {
+  getShopDetail: async (shopId) => {
+    const shop = mockAdminShopsStore.find((s) => s.shop_id === shopId);
+    if (!shop) throw new Error("Không tìm thấy gian hàng.");
+    return { ...shop };
+  },
+  getShopsPage: async (params) => {
+    let list = [...mockAdminShopsStore];
+    if (params?.status && params.status !== "ALL") {
+      list = list.filter((s) => s.status === params.status);
+    }
+    if (params?.tier && params.tier !== "ALL") {
+      list = list.filter((s) => (s.tier ?? "STANDARD") === params.tier);
+    }
+    if (params?.search && params.search.trim()) {
+      const q = params.search.toLowerCase();
+      list = list.filter(
+        (s) =>
+          s.shop_name.toLowerCase().includes(q) ||
+          (s.owner_email && s.owner_email.toLowerCase().includes(q)) ||
+          (s.owner_name && s.owner_name.toLowerCase().includes(q))
+      );
+    }
+    const limit = params?.limit ?? 20;
+    return {
+      items: list.slice(0, limit),
+      next_cursor: list.length > limit ? "mock_next_shop_cursor" : null,
+      has_more: list.length > limit,
+    };
+  },
+  approveShop: async (shopId, reason) => {
     const shop = mockAdminShopsStore.find((s) => s.shop_id === shopId);
     if (!shop) throw new Error("Gian hàng không tồn tại");
     if (shop.status === "ACTIVE") throw new Error("Gian hàng đã ở trạng thái hoạt động");
     shop.status = "ACTIVE";
     shop.updated_at = new Date().toISOString();
+    recordAdminAuditLog({
+      action: "APPROVE_SHOP",
+      targetType: "SHOP",
+      targetId: shop.shop_id,
+      targetName: shop.shop_name,
+      reason: reason || "Shop verified and approved by admin",
+      actor: "admin@dino.vn",
+    });
   },
   lockShop: async (payload) => {
     if (!payload.reason || !payload.reason.trim()) {
@@ -927,12 +973,39 @@ export const mockAdminRepository: IAdminRepository = {
     const shop = mockAdminShopsStore.find((s) => s.shop_id === payload.shop_id);
     if (!shop) throw new Error("Gian hàng không tồn tại");
     shop.status = "LOCKED";
+    shop.lock_reason = payload.reason.trim();
     shop.updated_at = new Date().toISOString();
+    recordAdminAuditLog({
+      action: "LOCK_SHOP",
+      targetType: "SHOP",
+      targetId: shop.shop_id,
+      targetName: shop.shop_name,
+      reason: payload.reason.trim(),
+      actor: "admin@dino.vn",
+    });
   },
-  unlockShop: async (shopId) => {
+  unlockShop: async (shopId, reason) => {
     const shop = mockAdminShopsStore.find((s) => s.shop_id === shopId);
     if (!shop) throw new Error("Gian hàng không tồn tại");
     shop.status = "ACTIVE";
+    shop.lock_reason = null;
+    shop.updated_at = new Date().toISOString();
+    recordAdminAuditLog({
+      action: "UNLOCK_SHOP",
+      targetType: "SHOP",
+      targetId: shop.shop_id,
+      targetName: shop.shop_name,
+      reason: reason || "Mở khóa gian hàng sau khi hoàn tất xác minh",
+      actor: "admin@dino.vn",
+    });
+  },
+  updateShopTier: async (shopId, tier, reason) => {
+    if (!reason || !reason.trim()) {
+      throw new Error("Vui lòng nhập lý do thay đổi hạng gian hàng");
+    }
+    const shop = mockAdminShopsStore.find((s) => s.shop_id === shopId);
+    if (!shop) throw new Error("Gian hàng không tồn tại");
+    shop.tier = tier;
     shop.updated_at = new Date().toISOString();
   },
 };

@@ -17,6 +17,7 @@ import { PgAuditRepository } from '../../../platform/audit/pg-audit.repository.t
 import { ReasonRequiredError } from '../../../platform/errors/app-error.ts';
 import { AppError } from '../../../platform/errors/app-error.ts';
 import { GhtkFeeProvider, MockFeeProvider, type ShippingFeeProvider } from '../../shipping/providers.ts';
+import { LoyaltyService } from '../../loyalty/services/loyalty.service.ts';
 
 type CheckoutRow = {
   cart_item_id: string; variant_id: string; quantity: number; price: string; stock_quantity: number; weight_grams: number;
@@ -28,13 +29,16 @@ class ShippingQuoteInputsChangedError extends Error {}
 
 export class PgCheckoutService implements OrderHttpApplication {
   private readonly auditRepository: PgAuditRepository;
+  private readonly loyaltyService: LoyaltyService;
 
   constructor(
     private readonly pool: Pool,
     private readonly sleep: (ms: number) => Promise<void> = (ms) => new Promise(resolve => setTimeout(resolve, ms)),
     private readonly shippingProvider: ShippingFeeProvider = new MockFeeProvider(),
+    loyaltyService?: LoyaltyService,
   ) {
     this.auditRepository = new PgAuditRepository();
+    this.loyaltyService = loyaltyService ?? new LoyaltyService(pool);
   }
 
   async quoteShipping(context: RequestContext, input: Record<string, unknown>): Promise<unknown> {
@@ -240,8 +244,22 @@ export class PgCheckoutService implements OrderHttpApplication {
       if (current.rows[0].status !== 'SHIPPING') {
         throw new ConflictError('ORDER_INVALID_TRANSITION', 'Only SHIPPING orders can be confirmed as received.');
       }
-      const shipment = await client.query('UPDATE shipments SET status=\'DELIVERED\',updated_at=now() WHERE order_id=$1 AND status IN (\'HANDED_OVER\',\'SHIPPING\') RETURNING shipment_id', [orderId]);
-      if (shipment.rowCount !== 1) throw new ConflictError('ORDER_INVALID_TRANSITION', 'Only a handed-over simulated shipment can be confirmed as received.');
+      const shipmentRes = await client.query<{ shipment_id: string; status: string }>(
+        'SELECT shipment_id, status FROM shipments WHERE order_id=$1 FOR UPDATE',
+        [orderId]
+      );
+      const shipment = shipmentRes.rows[0];
+      if (!shipment) {
+        throw new ConflictError('SHIPMENT_REQUIRED', 'Shipment record is required to confirm receipt.');
+      }
+      if (shipment.status === 'HANDED_OVER' || shipment.status === 'SHIPPING') {
+        await client.query(
+          "UPDATE shipments SET status='DELIVERED',updated_at=now() WHERE shipment_id=$1",
+          [shipment.shipment_id]
+        );
+      } else {
+        throw new ConflictError('SHIPMENT_INVALID_STATE', `Shipment status ${shipment.status} cannot transition to DELIVERED.`);
+      }
       return this.persistTransition(client, context, orderId, { from: 'SHIPPING', to: 'COMPLETED', reason: effectiveReason });
     });
   }
@@ -296,6 +314,14 @@ export class PgCheckoutService implements OrderHttpApplication {
     const result = await client.query('UPDATE orders SET status=$1,updated_at=now(),cancel_reason=$2 WHERE order_id=$3 AND status=$4 RETURNING *', [decision.to, decision.to === 'CANCELLED' ? decision.reason : null, orderId, decision.from]);
     if (!result.rows[0]) throw new ConflictError('ORDER_INVALID_TRANSITION', 'Order state changed.');
     await client.query('INSERT INTO order_status_history (history_id,order_id,old_status,new_status,changed_by,reason) VALUES ($1,$2,$3,$4,$5,$6)', [crypto.randomUUID(), orderId, decision.from, decision.to, context.user_id, decision.reason ?? null]);
+    if (decision.to === 'COMPLETED') {
+      await this.loyaltyService.recordOrderCompleted(client, {
+        order_id: result.rows[0].order_id,
+        buyer_id: result.rows[0].buyer_id,
+        subtotal: result.rows[0].subtotal,
+        discount_amount: result.rows[0].discount_amount,
+      });
+    }
     if (context.role === 'ADMIN') {
       await this.auditRepository.logAdminAction(client, {
         admin_id: context.user_id,
@@ -311,6 +337,10 @@ export class PgCheckoutService implements OrderHttpApplication {
     const recipients = new Set<string>();
     if (context.role === 'SELLER' && parties.rows[0]) recipients.add(parties.rows[0].buyer_id);
     if ((decision.to === 'CANCELLED' || decision.to === 'COMPLETED') && context.role === 'BUYER' && parties.rows[0]) recipients.add(parties.rows[0].owner_id);
+    if (context.role === 'ADMIN' && parties.rows[0]) {
+      recipients.add(parties.rows[0].buyer_id);
+      recipients.add(parties.rows[0].owner_id);
+    }
     for (const recipientId of recipients) {
       await client.query(
         "INSERT INTO notifications (notification_id,recipient_id,type,title,content) VALUES ($1,$2,'ORDER',$3,$4)",

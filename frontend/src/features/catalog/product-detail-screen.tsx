@@ -16,6 +16,8 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { ChatWidget } from "@/components/chat/chat-widget";
 
+import { TierBadge } from "@/components/ui/tier-badge";
+
 type Props = {
   productId: string;
 };
@@ -279,9 +281,14 @@ export function ProductDetailScreen({ productId }: Props) {
           <div className="flex flex-col justify-between space-y-6">
             <div className="space-y-4">
               <div>
-                <span className="inline-block rounded-md bg-[var(--primary-surface)] px-2.5 py-1 text-xs font-semibold text-[var(--primary-active)]">
-                  Chính hãng Dino
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="inline-block rounded-md bg-[var(--primary-surface)] px-2.5 py-1 text-xs font-semibold text-[var(--primary-active)]">
+                    Chính hãng Dino
+                  </span>
+                  {product.shop_tier && product.shop_tier !== "STANDARD" && (
+                    <TierBadge tier={product.shop_tier} />
+                  )}
+                </div>
                 <h1 className="mt-2 text-2xl md:text-3xl font-bold tracking-tight text-[var(--foreground)]">
                   {product.product_name}
                 </h1>

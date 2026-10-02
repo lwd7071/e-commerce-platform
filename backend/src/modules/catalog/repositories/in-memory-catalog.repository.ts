@@ -169,6 +169,10 @@ export class InMemoryProductRepository implements IProductRepository {
       const shop = await this.shopRepo.findById(p.shopId);
       if (!shop || shop.status !== 'ACTIVE') continue;
 
+      // Filter: shopTier
+      const shopTier = shop.tier ?? 'STANDARD';
+      if (filter.shopTier && shopTier !== filter.shopTier) continue;
+
       // Visibility Rule 3: Category must be ACTIVE
       const category = await this.categoryRepo.findById(p.categoryId);
       if (!category || category.status !== 'ACTIVE') continue;
@@ -209,6 +213,7 @@ export class InMemoryProductRepository implements IProductRepository {
         totalStock,
         imageUrl: primaryImage,
         createdAt: p.createdAt,
+        shopTier,
       });
     }
 

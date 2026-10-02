@@ -123,7 +123,7 @@ describe("Admin Portal: Accessibility, Keyboard Navigation & Responsive Contract
     expect(searchInput).toBeTruthy();
     expect(searchInput.tagName).toBe("INPUT");
 
-    const statusFilter = screen.getByRole("combobox");
+    const statusFilter = screen.getByLabelText("Trạng thái:");
     expect(statusFilter).toBeTruthy();
 
     // Đợi tải xong và kiểm tra data table

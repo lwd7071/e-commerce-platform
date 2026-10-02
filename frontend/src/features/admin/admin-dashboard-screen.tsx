@@ -9,6 +9,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { FormField, TextArea, TextInput } from "@/components/ui/form-controls";
 import { Skeleton, ErrorState } from "@/components/ui/data-states";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
+import { walletApi, type FinanceOverview } from "@/lib/api/wallet.api";
 import { adminRepository } from "./admin.repository";
 import type {
   UserAccount,
@@ -23,6 +24,7 @@ type AdminTab = "users" | "shops" | "products" | "logs";
 export function AdminDashboardScreen() {
   const [activeTab, setActiveTab] = useState<AdminTab>("users");
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [financeOverview, setFinanceOverview] = useState<FinanceOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,18 +61,20 @@ export function AdminDashboardScreen() {
     setLoading(true);
     setError(null);
     try {
-      const [statsData, usersData, shopsData, prodsData, logsData] = await Promise.all([
+      const [statsData, usersData, shopsData, prodsData, logsData, financeData] = await Promise.all([
         adminRepository.getDashboardStats(),
         adminRepository.getUsers(),
         adminRepository.getShops(),
         adminRepository.getModerationProducts(),
         adminRepository.getAuditLogs(),
+        walletApi.getFinanceOverview().catch(() => null),
       ]);
       setStats(statsData);
       setUsers(usersData);
       setShops(shopsData);
       setProducts(prodsData);
       setLogs(logsData);
+      setFinanceOverview(financeData);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Không thể tải dữ liệu quản trị sàn.");
     } finally {
@@ -86,14 +90,16 @@ export function AdminDashboardScreen() {
       adminRepository.getShops(),
       adminRepository.getModerationProducts(),
       adminRepository.getAuditLogs(),
+      walletApi.getFinanceOverview().catch(() => null),
     ])
-      .then(([statsData, usersData, shopsData, prodsData, logsData]) => {
+      .then(([statsData, usersData, shopsData, prodsData, logsData, financeData]) => {
         if (!ignore) {
           setStats(statsData);
           setUsers(usersData);
           setShops(shopsData);
           setProducts(prodsData);
           setLogs(logsData);
+          setFinanceOverview(financeData);
           setLoading(false);
         }
       })
@@ -109,6 +115,9 @@ export function AdminDashboardScreen() {
     };
   }, []);
 
+  // Approve Shop State
+  const [approvingShopId, setApprovingShopId] = useState<string | null>(null);
+
   // User Lock/Unlock Actions (A-705)
   const handleConfirmLockUser = async () => {
     if (!lockingUser) return;
@@ -122,8 +131,12 @@ export function AdminDashboardScreen() {
     try {
       const updated = await adminRepository.lockUser(lockingUser.id, lockReason);
       setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
-      const freshLogs = await adminRepository.getAuditLogs();
+      const [freshLogs, freshStats] = await Promise.all([
+        adminRepository.getAuditLogs(),
+        adminRepository.getDashboardStats(),
+      ]);
       setLogs(freshLogs);
+      setStats(freshStats);
       showToast(`Đã khóa tài khoản ${updated.email}`);
       setLockingUser(null);
       setLockReason("");
@@ -138,15 +151,38 @@ export function AdminDashboardScreen() {
     try {
       const updated = await adminRepository.unlockUser(user.id);
       setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
-      const freshLogs = await adminRepository.getAuditLogs();
+      const [freshLogs, freshStats] = await Promise.all([
+        adminRepository.getAuditLogs(),
+        adminRepository.getDashboardStats(),
+      ]);
       setLogs(freshLogs);
+      setStats(freshStats);
       showToast(`Đã mở khóa tài khoản ${updated.email}`);
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Mở khóa thất bại.", "error");
     }
   };
 
-  // Shop Lock/Unlock Actions
+  // Shop Approve/Lock/Unlock Actions
+  const handleApproveShop = async (shop: PlatformShop) => {
+    setApprovingShopId(shop.id);
+    try {
+      const updated = await adminRepository.approveShop(shop.id, "Duyệt gian hàng bởi quản trị viên");
+      setShops((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+      const [freshLogs, freshStats] = await Promise.all([
+        adminRepository.getAuditLogs(),
+        adminRepository.getDashboardStats(),
+      ]);
+      setLogs(freshLogs);
+      setStats(freshStats);
+      showToast(`Đã duyệt gian hàng "${updated.name}" thành công!`);
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Duyệt gian hàng thất bại.", "error");
+    } finally {
+      setApprovingShopId(null);
+    }
+  };
+
   const handleConfirmLockShop = async () => {
     if (!lockingShop) return;
     if (!shopLockReason.trim()) {
@@ -159,8 +195,12 @@ export function AdminDashboardScreen() {
     try {
       const updated = await adminRepository.lockShop(lockingShop.id, shopLockReason);
       setShops((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
-      const freshLogs = await adminRepository.getAuditLogs();
+      const [freshLogs, freshStats] = await Promise.all([
+        adminRepository.getAuditLogs(),
+        adminRepository.getDashboardStats(),
+      ]);
       setLogs(freshLogs);
+      setStats(freshStats);
       showToast(`Đã khóa gian hàng ${updated.name}`);
       setLockingShop(null);
       setShopLockReason("");
@@ -175,8 +215,12 @@ export function AdminDashboardScreen() {
     try {
       const updated = await adminRepository.unlockShop(shop.id);
       setShops((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
-      const freshLogs = await adminRepository.getAuditLogs();
+      const [freshLogs, freshStats] = await Promise.all([
+        adminRepository.getAuditLogs(),
+        adminRepository.getDashboardStats(),
+      ]);
       setLogs(freshLogs);
+      setStats(freshStats);
       showToast(`Đã mở khóa gian hàng ${updated.name}`);
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Mở khóa gian hàng thất bại.", "error");
@@ -194,8 +238,12 @@ export function AdminDashboardScreen() {
         targetStatus === "HIDDEN" ? "Ẩn theo yêu cầu kiểm duyệt" : "Mở lại hiển thị sản phẩm"
       );
       setProducts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-      const freshLogs = await adminRepository.getAuditLogs();
+      const [freshLogs, freshStats] = await Promise.all([
+        adminRepository.getAuditLogs(),
+        adminRepository.getDashboardStats(),
+      ]);
       setLogs(freshLogs);
+      setStats(freshStats);
       showToast(
         targetStatus === "HIDDEN"
           ? `Đã ẩn sản phẩm "${product.name}"`
@@ -243,42 +291,82 @@ export function AdminDashboardScreen() {
         )}
 
         {/* Page Header */}
-        <header className="page-heading flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <p className="eyebrow">Dino Control Center</p>
-            <h1 className="page-title">Bảng điều khiển quản trị sàn (A-704)</h1>
-            <p className="page-description">
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1.5 text-xs font-semibold">
+              <Link
+                href="/"
+                className="text-[var(--subtext)] hover:text-[var(--primary-active)] flex items-center gap-1 transition-colors"
+                title="Quay về trang chủ sàn"
+              >
+                <span>🏠 Quay về Trang chủ sàn</span>
+              </Link>
+              <span className="text-[var(--subtext)]">•</span>
+              <span className="eyebrow m-0 text-[11px] font-bold uppercase tracking-wider text-[var(--primary)]">
+                Dino Control Center (A-704)
+              </span>
+            </div>
+            <h1 className="page-title text-2xl sm:text-3xl font-bold tracking-tight text-[var(--foreground)]">
+              Bảng điều khiển quản trị sàn (A-704)
+            </h1>
+            <p className="page-description text-sm text-[var(--subtext)] mt-1 max-w-2xl">
               Giám sát số liệu kinh doanh, kiểm duyệt tài khoản, gian hàng và quản lý danh mục toàn diện.
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <Link
-              href="/admin/categories"
-              className="button button--secondary text-xs py-2 px-3.5 flex items-center gap-1.5"
+              href="/admin/finance"
+              className="button button--primary text-xs py-2 px-3.5 flex items-center gap-1.5 shadow-sm font-semibold"
             >
-              <Icon name="grid" className="w-4 h-4" />
-              <span>Quản lý danh mục (A-709)</span>
-            </Link>
-            <Link href="/admin/reviews" className="button button--secondary text-xs py-2 px-3.5 flex items-center gap-1.5">
-              Kiểm duyệt đánh giá
-            </Link>
-            <Link href="/admin/vouchers" className="button button--secondary text-xs py-2 px-3.5 flex items-center gap-1.5">
-              Voucher toàn sàn
-            </Link>
-            <Link href="/admin/campaigns" className="button button--secondary text-xs py-2 px-3.5 flex items-center gap-1.5">
-              Chiến dịch thông báo
-            </Link>
-            <Link href="/admin/orders" className="button button--secondary text-xs py-2 px-3.5 flex items-center gap-1.5">
-              Đơn hàng
-            </Link>
-            <Link href="/admin/reports" className="button button--secondary text-xs py-2 px-3.5 flex items-center gap-1.5">
-              Báo cáo
-            </Link>
-            <Link href="/admin/audit-logs" className="button button--secondary text-xs py-2 px-3.5 flex items-center gap-1.5">
-              Nhật ký quản trị
+              <Icon name="bag" className="w-4 h-4" />
+              <span>Tài chính & Ví sàn (A-710)</span>
             </Link>
           </div>
         </header>
+
+        {/* Admin Navigation Hub Toolbar */}
+        <nav aria-label="Phân hệ chức năng quản trị" className="surface-card p-2.5 mb-6 rounded-xl border border-[var(--border)]">
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/admin/categories"
+              className="button button--secondary text-xs py-1.5 px-3 flex items-center gap-1.5"
+            >
+              <Icon name="grid" className="w-3.5 h-3.5" />
+              <span>Quản lý danh mục (A-709)</span>
+            </Link>
+            <Link
+              href="/admin/finance"
+              className="button button--secondary text-xs py-1.5 px-3 flex items-center gap-1.5 font-medium text-[var(--primary-active)]"
+            >
+              <Icon name="bag" className="w-3.5 h-3.5" />
+              <span>Dòng tiền & Ký quỹ</span>
+            </Link>
+            <Link href="/admin/reviews" className="button button--secondary text-xs py-1.5 px-3 flex items-center gap-1.5">
+              <Icon name="star" className="w-3.5 h-3.5" />
+              <span>Kiểm duyệt đánh giá</span>
+            </Link>
+            <Link href="/admin/vouchers" className="button button--secondary text-xs py-1.5 px-3 flex items-center gap-1.5">
+              <Icon name="grid" className="w-3.5 h-3.5" />
+              <span>Voucher toàn sàn</span>
+            </Link>
+            <Link href="/admin/campaigns" className="button button--secondary text-xs py-1.5 px-3 flex items-center gap-1.5">
+              <Icon name="bell" className="w-3.5 h-3.5" />
+              <span>Chiến dịch thông báo</span>
+            </Link>
+            <Link href="/admin/orders" className="button button--secondary text-xs py-1.5 px-3 flex items-center gap-1.5">
+              <Icon name="bag" className="w-3.5 h-3.5" />
+              <span>Đơn hàng</span>
+            </Link>
+            <Link href="/admin/reports" className="button button--secondary text-xs py-1.5 px-3 flex items-center gap-1.5">
+              <Icon name="info" className="w-3.5 h-3.5" />
+              <span>Báo cáo</span>
+            </Link>
+            <Link href="/admin/audit-logs" className="button button--secondary text-xs py-1.5 px-3 flex items-center gap-1.5">
+              <Icon name="info" className="w-3.5 h-3.5" />
+              <span>Nhật ký quản trị</span>
+            </Link>
+          </div>
+        </nav>
 
         {/* Runtime Gated Notice (GAP-08) */}
         <div className="notice notice--info" role="status">
@@ -338,6 +426,66 @@ export function AdminDashboardScreen() {
             </div>
           </div>
         )}
+
+        {/* Marketplace Cashflow & Escrow Section (A-710) */}
+        <section aria-label="Dòng tiền & Ký quỹ sàn" className="surface-card p-5 rounded-2xl border border-[var(--border)] space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[var(--border)] pb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                <h2 className="text-base font-bold text-[var(--foreground)]">Dòng tiền Sàn & Ký quỹ (Escrow Cashflow)</h2>
+              </div>
+              <p className="text-xs text-[var(--subtext)] mt-0.5">
+                Cơ chế ký quỹ tự động: Sàn giữ tiền tạm thời, trừ 5% phí sàn khi hoàn tất và quyết toán vào Ví Shop.
+              </p>
+            </div>
+            <Link
+              href="/admin/finance"
+              className="button button--secondary text-xs py-1.5 px-3 flex items-center gap-1.5 font-medium shrink-0"
+            >
+              <Icon name="bag" className="w-3.5 h-3.5" />
+              <span>Quản lý rút tiền & Chi tiết →</span>
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="rounded-xl bg-[var(--card-muted)] p-4 border border-[var(--border)]">
+              <span className="text-xs text-[var(--subtext)] font-semibold uppercase tracking-wider block">
+                Tiền Ký quỹ đang giữ (Escrow)
+              </span>
+              <strong className="text-2xl font-bold text-amber-600 mt-1 block tabular-nums">
+                {moneyAdapter.formatVND(financeOverview?.total_escrow_holding || "0")}
+              </strong>
+              <span className="text-[11px] text-[var(--subtext)] block mt-0.5">
+                Đơn hàng đã thanh toán, chờ giao thành công
+              </span>
+            </div>
+
+            <div className="rounded-xl bg-[var(--card-muted)] p-4 border border-[var(--border)]">
+              <span className="text-xs text-[var(--subtext)] font-semibold uppercase tracking-wider block">
+                Doanh thu phí sàn đã thu
+              </span>
+              <strong className="text-2xl font-bold text-emerald-600 mt-1 block tabular-nums">
+                {moneyAdapter.formatVND(financeOverview?.total_commission_collected || "0")}
+              </strong>
+              <span className="text-[11px] text-[var(--subtext)] block mt-0.5">
+                5% hoa hồng từ đơn hàng COMPLETED
+              </span>
+            </div>
+
+            <div className="rounded-xl bg-[var(--card-muted)] p-4 border border-[var(--border)]">
+              <span className="text-xs text-[var(--subtext)] font-semibold uppercase tracking-wider block">
+                Tổng số dư ví các Shop
+              </span>
+              <strong className="text-2xl font-bold text-blue-600 mt-1 block tabular-nums">
+                {moneyAdapter.formatVND(financeOverview?.total_wallets_balance || "0")}
+              </strong>
+              <span className="text-[11px] text-[var(--subtext)] block mt-0.5">
+                Khả dụng cho các người bán tạo lệnh rút tiền
+              </span>
+            </div>
+          </div>
+        </section>
 
         {/* Admin Navigation Tabs */}
         <nav aria-label="Bộ lọc quản trị sàn" className="overflow-x-auto pb-1 -mx-2 px-2">
@@ -559,7 +707,23 @@ export function AdminDashboardScreen() {
                               </td>
                               <td className="py-3 px-4 text-right">
                                 {isPending ? (
-                                  <Link className="text-xs font-semibold text-[var(--primary)]" href="/admin/shops">Mở duyệt hồ sơ</Link>
+                                  <div className="flex items-center justify-end gap-2">
+                                    <Button
+                                      variant="primary"
+                                      className="text-xs py-1 px-2.5 font-semibold"
+                                      disabled={approvingShopId === s.id}
+                                      onClick={() => handleApproveShop(s)}
+                                    >
+                                      {approvingShopId === s.id ? "Đang duyệt..." : "Duyệt shop"}
+                                    </Button>
+                                    <Link
+                                      className="text-xs font-semibold text-[var(--primary)] hover:underline whitespace-nowrap"
+                                      href="/admin/shops"
+                                      title="Mở hồ sơ chi tiết tại Quản lý Gian hàng"
+                                    >
+                                      Mở duyệt hồ sơ
+                                    </Link>
+                                  </div>
                                 ) : isLocked ? (
                                   <Button
                                     variant="secondary"

@@ -10,6 +10,7 @@ export interface CatalogFilterState {
   sort: string;
   minPrice: string;
   maxPrice: string;
+  shopTier?: string;
 }
 
 /**
@@ -41,6 +42,10 @@ export function buildCatalogUrlSearchParams(state: CatalogFilterState): URLSearc
   const trimmedMax = state.maxPrice.trim();
   if (trimmedMax && !isNaN(Number(trimmedMax))) {
     params.set("max_price", trimmedMax);
+  }
+
+  if (state.shopTier && state.shopTier.trim()) {
+    params.set("shop_tier", state.shopTier.trim());
   }
 
   return params;
