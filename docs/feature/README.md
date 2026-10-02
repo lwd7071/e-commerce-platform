@@ -90,7 +90,7 @@ Báo cáo vòng đời tiền từ thanh toán, giữ tiền, điều kiện và
 
 ### 2. GHN/GHTK
 
-Báo cáo nhà vận chuyển và môi trường tích hợp, chuẩn hóa địa chỉ, cách tính phí, tạo vận đơn, lưu mã vận đơn, xác minh chữ ký webhook, ánh xạ trạng thái, retry và xử lý webhook trùng/thứ tự sai. Không đưa API key vào tài liệu.
+Báo cáo nhà vận chuyển và môi trường tích hợp, chuẩn hóa địa chỉ, cách tính phí, tạo vận đơn, lưu mã vận đơn, xác minh chữ ký webhook, ánh xạ trạng thái, retry và xử lý webhook trùng/thứ tự sai. Không đưa API key vào tài liệu. **Phạm vi hiện tại của dự án:** chỉ gọi GHTK để lấy báo phí; không tạo vận đơn, không cấu hình webhook và trạng thái giao hàng do Shop/Buyer cập nhật theo luồng mô phỏng. Nếu nhóm mở rộng sang giao hàng thật, cần ghi quyết định và phạm vi được duyệt trước khi cập nhật trạng thái.
 
 ### 3. Tiering & Loyalty
 
