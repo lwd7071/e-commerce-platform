@@ -1,5 +1,6 @@
 import type { UUID, DecimalString, ISOTimestamp } from '../domain/types';
 import { ValidationError } from '../domain/errors';
+import { resolveAdministrativeAddress } from '../../shipping/locations.ts';
 
 // Helper kiểm tra UUID v4 canonical
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -80,8 +81,10 @@ export interface CreateAddressDTO {
   recipientName: string;
   phone: string;
   province: string;
-  district: string;
+  provinceCode?: string;
+  district?: string;
   ward: string;
+  wardCode?: string;
   detailAddress: string;
   isDefault?: boolean;
 }
@@ -89,7 +92,7 @@ export interface CreateAddressDTO {
 export function validateCreateAddressDTO(rawDto: unknown): CreateAddressDTO {
   const dto = assertNonNullObject(rawDto, 'CreateAddress');
   const allowedKeys = [
-    'recipientName', 'phone', 'province', 'district', 'ward', 'detailAddress', 'isDefault',
+    'recipientName', 'phone', 'province', 'province_code', 'district', 'ward', 'ward_code', 'detailAddress', 'isDefault',
     'recipient_name', 'detail_address', 'is_default'
   ];
   for (const k of Object.keys(dto)) {
@@ -100,17 +103,25 @@ export function validateCreateAddressDTO(rawDto: unknown): CreateAddressDTO {
 
   const recipientName = dto.recipientName ?? dto.recipient_name;
   const phone = dto.phone;
-  const province = dto.province;
+  let province = dto.province;
   const district = dto.district;
-  const ward = dto.ward;
+  let ward = dto.ward;
+  const provinceCode = dto.province_code;
+  const wardCode = dto.ward_code;
   const detailAddress = dto.detailAddress ?? dto.detail_address;
   const rawIsDefault = dto.isDefault ?? dto.is_default;
 
+  if ((provinceCode === undefined) !== (wardCode === undefined)) throw new ValidationError('province_code and ward_code must be provided together.');
+  if (provinceCode !== undefined || wardCode !== undefined) {
+    if (typeof provinceCode !== 'string' || typeof wardCode !== 'string') throw new ValidationError('province_code and ward_code must be strings.');
+    const labels = resolveAdministrativeAddress(provinceCode, wardCode);
+    province = labels.province;
+    ward = labels.ward;
+  }
   const requiredFields: Record<string, unknown> = {
     recipient_name: recipientName,
     phone,
     province,
-    district,
     ward,
     detail_address: detailAddress,
   };
@@ -134,23 +145,28 @@ export function validateCreateAddressDTO(rawDto: unknown): CreateAddressDTO {
     throw new ValidationError('Số điện thoại không hợp lệ (phải bắt đầu bằng 0 hoặc +84 và có 10-11 chữ số).', { field: 'phone' });
   }
 
-  return {
+  const result: CreateAddressDTO = {
     recipientName: String(recipientName).trim(),
     phone: cleanedPhone,
     province: String(province).trim(),
-    district: String(district).trim(),
     ward: String(ward).trim(),
     detailAddress: String(detailAddress).trim(),
-    isDefault,
   };
+  if (typeof provinceCode === 'string') result.provinceCode = provinceCode;
+  if (typeof wardCode === 'string') result.wardCode = wardCode;
+  if (typeof district === 'string' && district.trim()) result.district = district.trim();
+  if (isDefault !== undefined) result.isDefault = isDefault;
+  return result;
 }
 
 export interface UpdateAddressDTO {
   recipientName?: string;
   phone?: string;
   province?: string;
+  provinceCode?: string;
   district?: string;
   ward?: string;
+  wardCode?: string;
   detailAddress?: string;
   isDefault?: boolean;
 }
@@ -158,7 +174,7 @@ export interface UpdateAddressDTO {
 export function validateUpdateAddressDTO(rawDto: unknown): UpdateAddressDTO {
   const dto = assertNonNullObject(rawDto, 'UpdateAddress');
   const allowedKeys = [
-    'recipientName', 'phone', 'province', 'district', 'ward', 'detailAddress', 'isDefault',
+    'recipientName', 'phone', 'province', 'province_code', 'district', 'ward', 'ward_code', 'detailAddress', 'isDefault',
     'recipient_name', 'detail_address', 'is_default'
   ];
   for (const k of Object.keys(dto)) {
@@ -166,6 +182,13 @@ export function validateUpdateAddressDTO(rawDto: unknown): UpdateAddressDTO {
       throw new ValidationError(`Trường '${k}' không được phép tồn tại (Unknown field).`, { field: k });
     }
   }
+  const rawProvinceCode = dto.province_code;
+  const rawWardCode = dto.ward_code;
+  if ((rawProvinceCode === undefined) !== (rawWardCode === undefined)) throw new ValidationError('province_code and ward_code must be provided together.');
+  const canonicalLabels = rawProvinceCode === undefined ? undefined : (() => {
+    if (typeof rawProvinceCode !== 'string' || typeof rawWardCode !== 'string') throw new ValidationError('province_code and ward_code must be strings.');
+    return resolveAdministrativeAddress(rawProvinceCode, rawWardCode);
+  })();
 
   const rawRecipientName = dto.recipientName ?? dto.recipient_name;
   let recipientName: string | undefined;
@@ -188,7 +211,7 @@ export function validateUpdateAddressDTO(rawDto: unknown): UpdateAddressDTO {
     }
   }
 
-  const rawProvince = dto.province;
+  const rawProvince = canonicalLabels?.province ?? dto.province;
   let province: string | undefined;
   if (rawProvince !== undefined) {
     if (typeof rawProvince !== 'string' || rawProvince.trim() === '') {
@@ -206,7 +229,7 @@ export function validateUpdateAddressDTO(rawDto: unknown): UpdateAddressDTO {
     district = rawDistrict.trim();
   }
 
-  const rawWard = dto.ward;
+  const rawWard = canonicalLabels?.ward ?? dto.ward;
   let ward: string | undefined;
   if (rawWard !== undefined) {
     if (typeof rawWard !== 'string' || rawWard.trim() === '') {
@@ -237,8 +260,10 @@ export function validateUpdateAddressDTO(rawDto: unknown): UpdateAddressDTO {
   if (recipientName !== undefined) result.recipientName = recipientName;
   if (phone !== undefined) result.phone = phone;
   if (province !== undefined) result.province = province;
+  if (typeof rawProvinceCode === 'string') result.provinceCode = rawProvinceCode;
   if (district !== undefined) result.district = district;
   if (ward !== undefined) result.ward = ward;
+  if (typeof rawWardCode === 'string') result.wardCode = rawWardCode;
   if (detailAddress !== undefined) result.detailAddress = detailAddress;
   if (isDefault !== undefined) result.isDefault = isDefault;
 

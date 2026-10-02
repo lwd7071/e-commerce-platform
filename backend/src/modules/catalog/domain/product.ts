@@ -7,6 +7,7 @@ export class ProductEntity implements Product {
   public categoryId: UUID;
   public productName: string;
   public description: string | null;
+  public weightGrams: number;
   public status: ProductStatus;
   public readonly createdAt: string;
   public updatedAt: string;
@@ -17,6 +18,7 @@ export class ProductEntity implements Product {
     categoryId: UUID;
     productName: string;
     description: string | null;
+    weightGrams?: number;
     status: ProductStatus;
     createdAt: string;
     updatedAt: string;
@@ -26,6 +28,7 @@ export class ProductEntity implements Product {
     this.categoryId = params.categoryId;
     this.productName = params.productName;
     this.description = params.description;
+    this.weightGrams = params.weightGrams ?? 200;
     this.status = params.status;
     this.createdAt = params.createdAt;
     this.updatedAt = params.updatedAt;

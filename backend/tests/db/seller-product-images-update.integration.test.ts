@@ -11,6 +11,7 @@ import {
   createFixtureCategory,
   createFixtureProduct,
   createFixtureVariant,
+  applyShippingMigration,
 } from './fixtures/database-fixtures.ts';
 
 describe('Seller Product Images Update (real PostgreSQL)', () => {
@@ -47,6 +48,7 @@ describe('Seller Product Images Update (real PostgreSQL)', () => {
     // 3. Shop logo migration
     const shopLogoMigration = await readFile(new URL('../../prisma/migrations/20261001150000_shop_logo_media/migration.sql', import.meta.url), 'utf8');
     await pool.query(shopLogoMigration);
+    await applyShippingMigration(pool);
 
     catalogService = new PgCatalogHttpService(pool);
 

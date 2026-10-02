@@ -29,6 +29,7 @@ export function SellerProductEditScreen() {
   const [product, setProduct] = useState<WireCatalogProductDetail | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [weightGrams, setWeightGrams] = useState("200");
   const [categoryId, setCategoryId] = useState("");
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [variants, setVariants] = useState<EditableVariant[]>([]);
@@ -45,6 +46,7 @@ export function SellerProductEditScreen() {
       setProduct(detail);
       setName(detail.product_name);
       setDescription(detail.description ?? "");
+      setWeightGrams(String(detail.weight_grams ?? 200));
       setCategoryId(detail.category_id);
       setCategories(activeCategories);
       setVariants(detail.variants.map(({ variant_id, variant_name, variant_value, sku, price }) => ({ key: variant_id, variant_id, variant_name, variant_value: variant_value ?? "", sku, price })));
@@ -109,6 +111,7 @@ export function SellerProductEditScreen() {
       await repositories.catalog().updateSellerProduct!(product.product_id, {
         product_name: name.trim(),
         description: description.trim() || null,
+        weight_grams: Number(weightGrams),
         ...(categoryId !== product.category_id ? { category_id: categoryId } : {}),
         variants: variants.map((variant) => ({
           ...(variant.variant_id ? { variant_id: variant.variant_id } : {}),
@@ -149,6 +152,9 @@ export function SellerProductEditScreen() {
         </FormField>
         <FormField id="seller-product-description" label="Mô tả">
           <textarea id="seller-product-description" value={description} onChange={(event) => setDescription(event.target.value)} rows={5} className="form-textarea w-full" />
+        </FormField>
+        <FormField id="seller-product-weight-grams" label="Khối lượng đóng gói (gram)" helpText="Dùng để ước tính phí vận chuyển.">
+          <TextInput id="seller-product-weight-grams" type="number" min={1} step={1} required value={weightGrams} onChange={(event) => setWeightGrams(event.target.value)} />
         </FormField>
 
         {/* Section: Hình ảnh sản phẩm */}

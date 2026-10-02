@@ -32,6 +32,7 @@
 | `IDEMPOTENCY_KEY_REUSED` | 409 | Cùng key nhưng khác payload |
 | `REQUEST_IN_PROGRESS` | 409 | Request cùng key đang xử lý |
 | `RESOURCE_DELETE_NOT_ALLOWED` | 409 | Dữ liệu lịch sử chỉ được đổi trạng thái |
+| `SHIPPING_QUOTE_CHANGED` | 409 | Phí vận chuyển backend vừa tính khác quote buyer xác nhận |
 | `RATE_LIMIT_EXCEEDED` | 429 | Vượt rate limit |
 
 ### Identity, Shop, Cart và catalog

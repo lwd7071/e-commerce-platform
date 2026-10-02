@@ -7,6 +7,7 @@ import { uploadMediaAsset } from '@/lib/api/media.api';
 import { Button } from '@/components/ui/button';
 import { FormField, TextArea, TextInput } from '@/components/ui/form-controls';
 import { ErrorState, Skeleton } from '@/components/ui/data-states';
+import { AdministrativeAddressFields } from '@/components/forms/administrative-address-fields';
 
 export function SellerShopScreen() {
   const [shop, setShop] = useState<SellerShopProfile | null>(null);
@@ -24,7 +25,7 @@ export function SellerShopScreen() {
     try {
       const profile = await sellerShopApi.get();
       setShop(profile);
-      setForm({ shop_name: profile.shop_name, description: profile.description ?? '', pickup_address: profile.pickup_address ?? '', contact_phone: profile.contact_phone ?? '' });
+      setForm({ shop_name: profile.shop_name, description: profile.description ?? '', pickup_address: profile.pickup_address ?? '', pickup_province: profile.pickup_province ?? '', pickup_province_code: profile.pickup_province_code ?? '', pickup_ward: profile.pickup_ward ?? '', pickup_ward_code: profile.pickup_ward_code ?? '', contact_phone: profile.contact_phone ?? '' });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Không thể tải hồ sơ gian hàng.');
     } finally {
@@ -70,7 +71,7 @@ export function SellerShopScreen() {
     try {
       const updated = await sellerShopApi.update(form);
       setShop(updated);
-      setForm({ shop_name: updated.shop_name, description: updated.description ?? '', pickup_address: updated.pickup_address ?? '', contact_phone: updated.contact_phone ?? '' });
+      setForm({ shop_name: updated.shop_name, description: updated.description ?? '', pickup_address: updated.pickup_address ?? '', pickup_province: updated.pickup_province ?? '', pickup_province_code: updated.pickup_province_code ?? '', pickup_ward: updated.pickup_ward ?? '', pickup_ward_code: updated.pickup_ward_code ?? '', contact_phone: updated.contact_phone ?? '' });
       setNotice('Đã lưu hồ sơ gian hàng.');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Không thể lưu hồ sơ gian hàng.');
@@ -143,6 +144,7 @@ export function SellerShopScreen() {
         <FormField id="shop-name" label="Tên gian hàng" required><TextInput id="shop-name" required minLength={2} maxLength={150} value={form.shop_name ?? ''} onChange={(event) => setForm({ ...form, shop_name: event.target.value })} disabled={!canEdit || saving} /></FormField>
         <FormField id="shop-description" label="Mô tả"><TextArea id="shop-description" rows={4} value={form.description ?? ''} onChange={(event) => setForm({ ...form, description: event.target.value })} disabled={!canEdit || saving} /></FormField>
         <FormField id="pickup-address" label="Địa chỉ nhận hàng" required helpText="Dùng làm địa chỉ lấy hàng cho các đơn thuộc gian hàng này."><TextInput id="pickup-address" required maxLength={255} autoComplete="street-address" value={form.pickup_address ?? ''} onChange={(event) => setForm({ ...form, pickup_address: event.target.value })} disabled={!canEdit || saving} /></FormField>
+        <AdministrativeAddressFields provinceCode={form.pickup_province_code ?? ''} wardCode={form.pickup_ward_code ?? ''} onProvinceChange={(code, name) => setForm({ ...form, pickup_province_code: code, pickup_province: name, pickup_ward_code: '', pickup_ward: '' })} onWardChange={(code, name) => setForm({ ...form, pickup_ward_code: code, pickup_ward: name })} />
         <FormField id="contact-phone" label="Số điện thoại liên hệ" required><TextInput id="contact-phone" required maxLength={20} type="tel" autoComplete="tel" value={form.contact_phone ?? ''} onChange={(event) => setForm({ ...form, contact_phone: event.target.value })} disabled={!canEdit || saving} /></FormField>
         {canEdit && <div className="flex justify-end"><Button type="submit" disabled={saving}>{saving ? 'Đang lưu…' : 'Lưu hồ sơ'}</Button></div>}
       </form>

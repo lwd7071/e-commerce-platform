@@ -36,6 +36,7 @@ export interface Product {
   categoryId: UUID;
   productName: string;
   description: string | null;
+  weightGrams?: number;
   status: ProductStatus;
   createdAt: string;
   updatedAt: string;

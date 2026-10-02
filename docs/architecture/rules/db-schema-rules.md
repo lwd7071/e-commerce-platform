@@ -46,6 +46,8 @@ Các bảng phục vụ vận hành có thể được thêm mà không biến t
 - Boolean có default tường minh: `is_default`, `is_selected`, `is_read` mặc định `FALSE`.
 - Status lưu `VARCHAR` kèm CHECK theo miền trong Schema Freeze v1; không dùng PostgreSQL enum trong MVP để migration trạng thái dễ kiểm soát.
 - Chuỗi rỗng không thay thế `NULL`. Field optional dùng `NULL`; field bắt buộc có `NOT NULL` và validation độ dài.
+- Theo CR-SHIPPING-01, `products.weight_grams` là số nguyên dương, `NOT NULL`, mặc định `200` để tương thích sản phẩm cũ. Đây là trọng lượng fallback; Seller cần cập nhật số cân thực tế.
+- Địa chỉ mới dùng cặp mã và tên tỉnh/thành + phường/xã từ danh mục hành chính 2026. `district` có thể NULL cho địa chỉ mới; không sửa snapshot địa chỉ đơn hàng cũ.
 
 ## 4. Quy ước constraint
 

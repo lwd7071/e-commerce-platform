@@ -18,11 +18,22 @@ vi.mock('@/lib/api/media.api', () => ({
   uploadMediaAsset: vi.fn(),
 }));
 
+vi.mock('@/lib/api/locations.api', () => ({
+  locationsApi: {
+    provinces: vi.fn().mockResolvedValue([{ code: '79', name: 'Hồ Chí Minh' }]),
+    wards: vi.fn().mockResolvedValue([{ code: '25747', name: 'Thủ Dầu Một', province_code: '79' }]),
+  },
+}));
+
 const mockShop: SellerShopProfile = {
   shop_id: '00000000-0000-0000-0000-000000000001',
   shop_name: 'Dino Official Store',
   description: 'Gian hàng chính hãng',
   pickup_address: '123 Đường Công Nghệ, Q.1, TP.HCM',
+  pickup_province: 'Hồ Chí Minh',
+  pickup_province_code: '79',
+  pickup_ward: 'Thủ Dầu Một',
+  pickup_ward_code: '25747',
   contact_phone: '0901234567',
   logo_url: null,
   status: 'PENDING',
@@ -68,6 +79,8 @@ describe('SellerShopScreen UI', () => {
       expect(sellerShopApi.update).toHaveBeenCalledWith(
         expect.objectContaining({
           shop_name: 'Dino Premium Store',
+          pickup_province_code: '79',
+          pickup_ward_code: '25747',
         }),
       );
     });

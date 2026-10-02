@@ -13,7 +13,7 @@ export type WireNotification = components["schemas"]["NotificationDTO"];
  * Address DTO matching runtime PgAddressRepository (camelCase).
  */
 export type WireAddress = Omit<components["schemas"]["AddressDTO"], "userId" | "createdAt" | "updatedAt"> &
-  Partial<Pick<components["schemas"]["AddressDTO"], "userId" | "createdAt" | "updatedAt">>;
+  Partial<Pick<components["schemas"]["AddressDTO"], "userId" | "createdAt" | "updatedAt">> & { provinceCode?: string | null; wardCode?: string | null };
 
 export type UpdateAddressPayload = Partial<Omit<CreateAddressPayload, "isDefault">> & { isDefault?: boolean };
 
@@ -24,8 +24,10 @@ export interface CreateAddressPayload {
   recipientName: string;
   phone: string;
   province: string;
-  district: string;
+  district?: string;
   ward: string;
+  province_code?: string;
+  ward_code?: string;
   detailAddress: string;
   isDefault?: boolean;
 }

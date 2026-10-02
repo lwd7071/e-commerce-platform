@@ -18,7 +18,7 @@ export class PgBuyerHttpService {
     return new PgAddressRepository(this.pool).create({
       addressId: crypto.randomUUID(), userId: context.user_id,
       recipientName: validated.recipientName, phone: validated.phone.trim(), province: validated.province.trim(),
-      district: validated.district.trim(), ward: validated.ward.trim(), detailAddress: validated.detailAddress.trim(),
+      provinceCode: validated.provinceCode ?? null, district: validated.district ?? null, ward: validated.ward.trim(), wardCode: validated.wardCode ?? null, detailAddress: validated.detailAddress.trim(),
       isDefault: validated.isDefault === true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
     });
   }

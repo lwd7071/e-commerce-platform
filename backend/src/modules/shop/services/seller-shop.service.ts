@@ -1,8 +1,9 @@
 import type { RequestContext } from '../../../platform/context/request-context.ts';
 import { ForbiddenError, NotFoundError, ValidationFailedError } from '../../../platform/errors/app-error.ts';
 import type { ISellerShopRepository, SellerShop, SellerShopUpdate } from '../domain/shop.types.ts';
+import { resolveAdministrativeAddress } from '../../shipping/locations.ts';
 
-const editableFields = ['shop_name', 'description', 'pickup_address', 'contact_phone'] as const;
+const editableFields = ['shop_name', 'description', 'pickup_address', 'pickup_province', 'pickup_province_code', 'pickup_ward', 'pickup_ward_code', 'pickup_detail_address', 'contact_phone'] as const;
 
 export class SellerShopService {
   constructor(private readonly repository: ISellerShopRepository) {}
@@ -47,14 +48,29 @@ export class SellerShopService {
       } else if (key === 'description') {
         if (value !== null && typeof value !== 'string') throw new ValidationFailedError('Description must be a string or null', { field: key });
         update.description = typeof value === 'string' ? value.trim() : null;
+      } else if (key === 'pickup_province_code' || key === 'pickup_ward_code') {
+        if (typeof value !== 'string' || !value.trim() || value.length > 10) throw new ValidationFailedError(`${key} must be a valid administrative code`, { field: key });
+        if (key === 'pickup_province_code') update.pickup_province_code = value.trim();
+        else update.pickup_ward_code = value.trim();
       } else {
         if (value !== null && typeof value !== 'string') throw new ValidationFailedError(`${key} must be a string or null`, { field: key });
         const text = typeof value === 'string' ? value.trim() : null;
-        const maxLength = key === 'pickup_address' ? 255 : 20;
+        const maxLength = key.startsWith('pickup_') ? 255 : 20;
         if (text !== null && text.length > maxLength) throw new ValidationFailedError(`${key} exceeds ${maxLength} characters`, { field: key });
         if (key === 'pickup_address') update.pickup_address = text;
+        else if (key === 'pickup_province') update.pickup_province = text;
+        else if (key === 'pickup_ward') update.pickup_ward = text;
+        else if (key === 'pickup_detail_address') update.pickup_detail_address = text;
         else update.contact_phone = text;
       }
+    }
+    const provinceCode = update.pickup_province_code;
+    const wardCode = update.pickup_ward_code;
+    if ((provinceCode === undefined) !== (wardCode === undefined)) throw new ValidationFailedError('pickup_province_code and pickup_ward_code must be provided together.');
+    if (provinceCode && wardCode) {
+      const labels = resolveAdministrativeAddress(provinceCode, wardCode);
+      update.pickup_province = labels.province;
+      update.pickup_ward = labels.ward;
     }
     return update;
   }

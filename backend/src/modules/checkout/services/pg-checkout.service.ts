@@ -15,26 +15,98 @@ import { createPaymentRetry } from '../../payment/domain/payment-state-machine.t
 import type { PaymentAttempt } from '../../payment/domain/types.ts';
 import { PgAuditRepository } from '../../../platform/audit/pg-audit.repository.ts';
 import { ReasonRequiredError } from '../../../platform/errors/app-error.ts';
+import { AppError } from '../../../platform/errors/app-error.ts';
+import { GhtkFeeProvider, MockFeeProvider, type ShippingFeeProvider } from '../../shipping/providers.ts';
 
 type CheckoutRow = {
-  cart_item_id: string; variant_id: string; quantity: number; price: string; stock_quantity: number;
+  cart_item_id: string; variant_id: string; quantity: number; price: string; stock_quantity: number; weight_grams: number;
   variant_status: string; product_id: string; product_name: string; variant_name: string; variant_value: string | null;
   shop_id: string; shop_owner_id: string;
 };
 
+class ShippingQuoteInputsChangedError extends Error {}
+
 export class PgCheckoutService implements OrderHttpApplication {
   private readonly auditRepository: PgAuditRepository;
 
-  constructor(private readonly pool: Pool, private readonly sleep: (ms: number) => Promise<void> = (ms) => new Promise(resolve => setTimeout(resolve, ms))) {
+  constructor(
+    private readonly pool: Pool,
+    private readonly sleep: (ms: number) => Promise<void> = (ms) => new Promise(resolve => setTimeout(resolve, ms)),
+    private readonly shippingProvider: ShippingFeeProvider = new MockFeeProvider(),
+  ) {
     this.auditRepository = new PgAuditRepository();
+  }
+
+  async quoteShipping(context: RequestContext, input: Record<string, unknown>): Promise<unknown> {
+    const unknownField = Object.keys(input).find(key => key !== 'address_id');
+    if (unknownField) throw new ValidationFailedError(`Unknown field: ${unknownField}`, { field: unknownField });
+    if (typeof input.address_id !== 'string') throw new ValidationFailedError('address_id is required.');
+    const addressResult = await this.pool.query(
+      'SELECT province,ward,detail_address FROM addresses WHERE address_id=$1 AND user_id=$2',
+      [input.address_id, context.user_id],
+    );
+    const address = addressResult.rows[0];
+    if (!address) throw new NotFoundError('Address was not found for this buyer.');
+    const cart = await this.pool.query(
+      `SELECT p.shop_id,s.pickup_address,s.pickup_detail_address,s.pickup_province,s.pickup_ward,
+              SUM(p.weight_grams*ci.quantity)::integer AS weight_grams
+         FROM cart_items ci JOIN carts c ON c.cart_id=ci.cart_id AND c.buyer_id=$1
+         JOIN product_variants v ON v.variant_id=ci.variant_id
+         JOIN products p ON p.product_id=v.product_id JOIN shops s ON s.shop_id=p.shop_id
+        WHERE ci.is_selected=true AND v.status='ACTIVE' AND p.status='ACTIVE' AND s.status='ACTIVE'
+        GROUP BY p.shop_id,s.pickup_address,s.pickup_detail_address,s.pickup_province,s.pickup_ward
+        ORDER BY p.shop_id`,
+      [context.user_id],
+    );
+    if (cart.rows.length === 0) throw new ValidationFailedError('No selected items in cart.');
+    const quotes = [];
+    for (const shop of cart.rows) {
+      const pickupProvince = String(shop.pickup_province ?? '');
+      const pickupWard = String(shop.pickup_ward ?? '');
+      if (this.shippingProvider instanceof GhtkFeeProvider && (!pickupProvince || !pickupWard)) {
+        throw new AppError(422, 'SHOP_PICKUP_ADDRESS_REQUIRED', `Shop ${shop.shop_id} needs a structured pickup province and ward for GHTK quotes.`);
+      }
+      const quote = await this.shippingProvider.quote({
+        pickupAddress: String(shop.pickup_detail_address ?? shop.pickup_address ?? ''),
+        pickupProvince: pickupProvince || String(address.province),
+        pickupWard: pickupWard || String(address.ward),
+        deliveryAddress: String(address.detail_address),
+        deliveryProvince: String(address.province),
+        deliveryWard: String(address.ward),
+        weightGrams: Number(shop.weight_grams),
+      });
+      quotes.push({ shop_id: shop.shop_id, fee: quote.fee, weight_grams: Number(shop.weight_grams), provider: quote.provider });
+    }
+    return { quotes };
   }
 
   async createOrder(context: RequestContext, command: CheckoutCommand): Promise<CheckoutResult> {
     const fingerprint = canonicalCheckoutFingerprint(command);
+    const scope = checkoutIdempotencyScope(context.user_id, command.idempotency_key);
+    const replay = await this.pool.query<{ fingerprint: string; result: CheckoutResult }>(
+      `SELECT fingerprint, result FROM api_idempotency_records
+        WHERE user_id=$1 AND endpoint=$2 AND idempotency_key=$3 AND expires_at > now()`,
+      [scope.user_id, scope.endpoint, scope.key],
+    );
+    if (replay.rows[0]) {
+      if (replay.rows[0].fingerprint !== fingerprint) throw new ConflictError('IDEMPOTENCY_KEY_REUSED', 'Idempotency key was reused with a different payload.');
+      return replay.rows[0].result;
+    }
+    const freshQuotes = await this.quoteShipping(context, { address_id: command.address_id }) as { quotes: Array<{ shop_id: string; fee: string; weight_grams: number }> };
+    const currentFees = new Map(freshQuotes.quotes.map(quote => [quote.shop_id, quote.fee]));
+    const expectedFees = new Map((command.expected_shipping_fees ?? []).map(quote => [quote.shop_id, quote.fee]));
+    if (expectedFees.size !== currentFees.size || [...currentFees].some(([shopId, fee]) => expectedFees.get(shopId) !== fee)) {
+      throw new ConflictError('SHIPPING_QUOTE_CHANGED', 'Shipping fees have changed. Review the updated quote before placing your order.', { quotes: freshQuotes.quotes });
+    }
+    const quoteWeights = new Map(freshQuotes.quotes.map(quote => [quote.shop_id, quote.weight_grams]));
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
-        return await withTransaction(this.pool, (client) => this.persistCheckout(client, context, command, fingerprint), { isolationLevel: 'READ COMMITTED' });
+        return await withTransaction(this.pool, (client) => this.persistCheckout(client, context, command, fingerprint, currentFees, quoteWeights), { isolationLevel: 'READ COMMITTED' });
       } catch (error: unknown) {
+        if (error instanceof ShippingQuoteInputsChangedError) {
+          const refreshed = await this.quoteShipping(context, { address_id: command.address_id });
+          throw new ConflictError('SHIPPING_QUOTE_CHANGED', 'The selected cart changed after its shipping quote was calculated. Review the refreshed quote.', refreshed);
+        }
         if (!isSerializationError(error) || attempt === 3) throw error;
         await this.sleep(attempt === 1 ? 25 : 50);
       }
@@ -42,7 +114,7 @@ export class PgCheckoutService implements OrderHttpApplication {
     throw new Error('unreachable');
   }
 
-  private async persistCheckout(client: PoolClient, context: RequestContext, command: CheckoutCommand, fingerprint: string): Promise<CheckoutResult> {
+  private async persistCheckout(client: PoolClient, context: RequestContext, command: CheckoutCommand, fingerprint: string, shippingFees: ReadonlyMap<string, string>, quoteWeights: ReadonlyMap<string, number>): Promise<CheckoutResult> {
     const idempotency = new PgIdempotencyRepository(client);
     const scope = checkoutIdempotencyScope(context.user_id, command.idempotency_key);
     const claim = await idempotency.claim<CheckoutResult>(scope, fingerprint);
@@ -53,7 +125,7 @@ export class PgCheckoutService implements OrderHttpApplication {
     const address = await client.query(`SELECT recipient_name, phone, province, district, ward, detail_address FROM addresses WHERE address_id=$1 AND user_id=$2 FOR SHARE`, [command.address_id, context.user_id]);
     if (!address.rows[0]) throw new NotFoundError('Address was not found for this buyer.');
     const cart = await client.query<CheckoutRow>(
-      `SELECT ci.cart_item_id, ci.variant_id, ci.quantity, v.price::text, v.stock_quantity,
+      `SELECT ci.cart_item_id, ci.variant_id, ci.quantity, v.price::text, v.stock_quantity, p.weight_grams,
               v.status AS variant_status, v.product_id, p.product_name, v.variant_name, v.variant_value,
               p.shop_id, s.owner_id AS shop_owner_id
          FROM cart_items ci
@@ -74,6 +146,9 @@ export class PgCheckoutService implements OrderHttpApplication {
     const voucherService = new VoucherPortService(new PgVoucherRepository(client));
     const groups = new Map<string, CheckoutRow[]>();
     for (const row of cart.rows) groups.set(row.shop_id, [...(groups.get(row.shop_id) ?? []), row]);
+    if (groups.size !== quoteWeights.size || [...groups].some(([shopId, rows]) => rows.reduce((sum, row) => sum + row.weight_grams * row.quantity, 0) !== quoteWeights.get(shopId))) {
+      throw new ShippingQuoteInputsChangedError('The selected cart changed after its shipping quote was calculated.');
+    }
     const orders: CheckoutResult['orders'][number][] = [];
     for (const [shopId, rows] of groups) {
       const initial = calculateOrderTotals({ lines: rows.map(row => ({ unit_price: row.price, quantity: row.quantity })), discount_amount: '0.00', shipping_fee: '0.00' });
@@ -84,12 +159,14 @@ export class PgCheckoutService implements OrderHttpApplication {
         if (!evaluation.isValid) throw new ValidationFailedError(evaluation.errorMessage, { code: evaluation.errorCode });
         discount = evaluation.discountAmount; voucherId = evaluation.voucherId;
       }
-      const totals = calculateOrderTotals({ lines: rows.map(row => ({ unit_price: row.price, quantity: row.quantity })), discount_amount: discount, shipping_fee: '0.00' });
+      const shippingFee = shippingFees.get(shopId);
+      if (shippingFee === undefined) throw new ValidationFailedError(`No shipping quote is available for Shop ${shopId}.`);
+      const totals = calculateOrderTotals({ lines: rows.map(row => ({ unit_price: row.price, quantity: row.quantity })), discount_amount: discount, shipping_fee: shippingFee });
       const orderId = crypto.randomUUID(); const paymentId = crypto.randomUUID();
       await client.query(
         `INSERT INTO orders (order_id,buyer_id,shop_id,recipient_name,recipient_phone,province,district,ward,delivery_address,subtotal,discount_amount,shipping_fee,total_amount,status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'0.00',$12,'PENDING_CONFIRMATION')`,
-        [orderId, context.user_id, shopId, address.rows[0].recipient_name, address.rows[0].phone, address.rows[0].province, address.rows[0].district, address.rows[0].ward, address.rows[0].detail_address, totals.subtotal, totals.discount_amount, totals.total_amount]);
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'PENDING_CONFIRMATION')`,
+        [orderId, context.user_id, shopId, address.rows[0].recipient_name, address.rows[0].phone, address.rows[0].province, address.rows[0].district, address.rows[0].ward, address.rows[0].detail_address, totals.subtotal, totals.discount_amount, totals.shipping_fee, totals.total_amount]);
       for (const row of rows) {
         const inventory = await client.query('UPDATE product_variants SET stock_quantity=stock_quantity-$1,updated_at=now() WHERE variant_id=$2 AND stock_quantity >= $1', [row.quantity, row.variant_id]);
         if (inventory.rowCount !== 1) throw new ConflictError('INVENTORY_INSUFFICIENT', `Insufficient stock for variant ${row.variant_id}.`);
@@ -163,6 +240,8 @@ export class PgCheckoutService implements OrderHttpApplication {
       if (current.rows[0].status !== 'SHIPPING') {
         throw new ConflictError('ORDER_INVALID_TRANSITION', 'Only SHIPPING orders can be confirmed as received.');
       }
+      const shipment = await client.query('UPDATE shipments SET status=\'DELIVERED\',updated_at=now() WHERE order_id=$1 AND status IN (\'HANDED_OVER\',\'SHIPPING\') RETURNING shipment_id', [orderId]);
+      if (shipment.rowCount !== 1) throw new ConflictError('ORDER_INVALID_TRANSITION', 'Only a handed-over simulated shipment can be confirmed as received.');
       return this.persistTransition(client, context, orderId, { from: 'SHIPPING', to: 'COMPLETED', reason: effectiveReason });
     });
   }
@@ -196,6 +275,14 @@ export class PgCheckoutService implements OrderHttpApplication {
 
   /** Caller holds the Order lock; stock, status and history commit together. */
   private async persistTransition(client: PoolClient, context: RequestContext, orderId: string, decision: OrderTransition): Promise<unknown> {
+    if (decision.to === 'SHIPPING') {
+      await client.query(
+        `INSERT INTO shipments (shipment_id,order_id,carrier_name,status)
+         VALUES ($1,$2,'Simulated delivery','HANDED_OVER')
+         ON CONFLICT (order_id) DO UPDATE SET status='HANDED_OVER',updated_at=now()`,
+        [crypto.randomUUID(), orderId],
+      );
+    }
     if (decision.to === 'CANCELLED') {
       const items = await client.query<{ variant_id: string; quantity: number }>(
         'SELECT variant_id,quantity FROM order_items WHERE order_id=$1 ORDER BY variant_id,order_item_id FOR UPDATE', [orderId]);

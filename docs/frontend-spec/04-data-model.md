@@ -87,6 +87,7 @@ export interface CreateProductDTO {
   category_id: UUID;
   product_name: string;
   description?: string | null;
+  weight_grams?: number; // positive integer; backend defaults legacy/new omitted values to 200g
   images?: Array<{ image_url: string; sort_order?: number }>;
   variants: Array<{
     variant_name: string;
@@ -214,8 +215,10 @@ export interface AddressResponseDTO {
   recipientName: string;
   phone: string;
   province: string;
-  district: string;
+  provinceCode?: string | null;
+  district: string | null;
   ward: string;
+  wardCode?: string | null;
   detailAddress: string;
   isDefault: boolean;
   createdAt: ISODateTime;
@@ -226,9 +229,8 @@ export interface AddressResponseDTO {
 export interface CreateAddressRequestDTO {
   recipient_name: string;
   phone: string;
-  province: string;
-  district: string;
-  ward: string;
+  province_code: string;
+  ward_code: string;
   detail_address: string;
   is_default?: boolean;
 }

@@ -11,7 +11,7 @@ import { createRequestContext } from '../../src/platform/context/request-context
 import type { RequestContext } from '../../src/contracts/request-context.contract.ts';
 import {
   createFixtureUser, createFixtureShop, createFixtureCategory, createFixtureProduct,
-  createFixtureVariant, createFixtureAddress, createFixtureCart, createFixtureCartItem,
+  createFixtureVariant, createFixtureAddress, createFixtureCart, createFixtureCartItem, applyShippingMigration,
 } from './fixtures/database-fixtures.ts';
 
 const dbDescribe = parseRunRemoteDbTests(process.env) ? describe : describe.skip;
@@ -72,6 +72,7 @@ dbDescribe('Checkout E2E Runtime & Invariants Gate (B-408 / A-206 on real Postgr
     ]) {
       await pool.query(await readFile(new URL(`../../prisma/migrations/${migration}/migration.sql`, import.meta.url), 'utf8'));
     }
+    await applyShippingMigration(pool);
 
     service = new PgCheckoutService(pool);
 
@@ -139,6 +140,13 @@ dbDescribe('Checkout E2E Runtime & Invariants Gate (B-408 / A-206 on real Postgr
     return res.rows[0].stock_quantity;
   }
 
+  async function shippingFees(context: RequestContext, targetAddressId: string) {
+    const quote = await service.quoteShipping(context, { address_id: targetAddressId }) as {
+      quotes: Array<{ shop_id: string; fee: string }>;
+    };
+    return quote.quotes.map(({ shop_id, fee }) => ({ shop_id, fee }));
+  }
+
   // =========================================================================
   // Invariant 1: Multi-shop splitting & Invariant 2: Selective cart cleanup
   // =========================================================================
@@ -160,6 +168,7 @@ dbDescribe('Checkout E2E Runtime & Invariants Gate (B-408 / A-206 on real Postgr
       .send({
         address_id: addressId,
         payment_method: 'COD',
+        expected_shipping_fees: await shippingFees(buyerContext, addressId),
       })
       .expect(201);
 
@@ -211,12 +220,14 @@ dbDescribe('Checkout E2E Runtime & Invariants Gate (B-408 / A-206 on real Postgr
         address_id: addressId,
         payment_method: 'COD',
         vouchers: [],
+        expected_shipping_fees: await shippingFees(buyerContext, addressId),
         idempotency_key: keyA,
       }),
       service.createOrder(buyerBContext, {
         address_id: addressBId,
         payment_method: 'COD',
         vouchers: [],
+        expected_shipping_fees: await shippingFees(buyerBContext, addressBId),
         idempotency_key: keyB,
       }),
     ]);
@@ -251,6 +262,7 @@ dbDescribe('Checkout E2E Runtime & Invariants Gate (B-408 / A-206 on real Postgr
       address_id: addressId,
       payment_method: 'COD',
       vouchers: [],
+      expected_shipping_fees: await shippingFees(buyerContext, addressId),
       idempotency_key: key,
     })).rejects.toMatchObject({
       code: 'INVENTORY_INSUFFICIENT',
@@ -281,6 +293,7 @@ dbDescribe('Checkout E2E Runtime & Invariants Gate (B-408 / A-206 on real Postgr
       address_id: addressId,
       payment_method: 'COD' as const,
       vouchers: [],
+      expected_shipping_fees: await shippingFees(buyerContext, addressId),
       idempotency_key: idempotencyKey,
     };
 

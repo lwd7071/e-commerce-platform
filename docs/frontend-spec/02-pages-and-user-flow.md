@@ -74,11 +74,11 @@ Mỗi route tải dữ liệu phải có:
 
 **Precondition:** Buyer authenticated, có address và cart item `is_selected=true`.
 
-**UI:** address selector, selected items summary, voucher per shop, payment `COD | ONLINE`, phí vận chuyển `0₫` (backend hiện hardcode `shipping_fee=0.00`), total do server xác nhận, submit. Không cộng phí ship mock `25.000₫` hoặc cho client tự truyền phí ship.
+**UI:** address selector dùng danh mục tỉnh/thành + phường/xã 2026, selected items summary, voucher per shop, payment `COD | ONLINE`, phí vận chuyển theo từng shop và total do server báo. Mock estimate phải có nhãn mô phỏng; quote lỗi thì chặn submit và cho thử lại.
 
-**API:** `GET /addresses`, `GET /vouchers/applicable`, `POST /vouchers/evaluate`, `POST /checkout`.
+**API:** `GET /addresses`, `GET /locations/provinces`, `GET /locations/provinces/:province_code/wards`, `POST /shipping/quote`, `GET /vouchers/applicable`, `POST /vouchers/evaluate`, `POST /checkout`.
 
-**Submit:** tạo và giữ một UUID làm `Idempotency-Key` gắn với snapshot request; cùng request retry sau timeout/mất mạng phải dùng lại key. Nếu đổi địa chỉ, phương thức thanh toán hoặc voucher thì tạo key mới. Nếu kết quả lần gửi trước chưa rõ, retry snapshot/key cũ để tránh tạo đơn trùng trước khi cho sửa intent. Body chỉ gồm `address_id`, `payment_method`, `vouchers`.
+**Submit:** tạo và giữ một UUID làm `Idempotency-Key` gắn với snapshot request, gồm quote phí theo shop. Cùng request retry sau timeout/mất mạng phải dùng lại key. Nếu quote trả `SHIPPING_QUOTE_CHANGED`, hiển thị phí mới và yêu cầu buyer xác nhận lại; request xác nhận mới dùng key mới. Nếu đổi địa chỉ, phương thức thanh toán hoặc voucher thì tạo key mới.
 
 **Success:** chuyển `/orders?created=<ids>` hoặc success screen. Không gọi payment retry ngay sau checkout; không hiển thị QR khi backend chưa có provider session.
 
@@ -134,11 +134,11 @@ Mỗi route tải dữ liệu phải có:
 
 **Available:** `PATCH /product-variants/:id/stock`, order confirm/transition khi biết order ID.
 
-**Còn lại:** Seller orders dùng order query thật; Seller product discovery cần `GET /seller/products`; seller stats nằm backlog. Không tự suy luận doanh thu.
+Seller order flow: `CONFIRMED` → `PREPARING` → Seller đánh dấu đã bàn giao (`SHIPPING`). Không có nút seller đánh dấu giao thành công. Buyer xác nhận đã nhận mới hoàn tất đơn.
 
 ### 3.12. Tạo sản phẩm `/seller/products/new`
 
-**UI:** basic info, category, media upload thật và variant rows.
+**UI:** basic info, category, trọng lượng gói hàng (gram), media upload thật và variant rows.
 
 **API:** `POST /products` với `stock_quantity`, `variant_name`, `variant_value`, `sort_order`.
 
@@ -204,9 +204,8 @@ flowchart LR
   A[PENDING_CONFIRMATION] -->|confirm| B[CONFIRMED]
   B -->|transition| C[PREPARING]
   C -->|transition| D[SHIPPING]
-  D -->|Admin / shipment integration; shipment_status=DELIVERED| E[COMPLETED]
+  D -->|Buyer confirms receipt; simulated shipment=DELIVERED| E[COMPLETED]
   A -->|buyer/admin cancel| X[CANCELLED]
-  D -->|Admin / shipment integration; shipment_status=FAILED| F[DELIVERY_FAILED]
 ```
 
 Seller phải gọi `PREPARING` sau `CONFIRMED`, rồi mới gọi `SHIPPING` từ `PREPARING`. Seller không được chuyển sang `COMPLETED` hoặc `DELIVERY_FAILED`; UI Seller không hiển thị nút hoàn tất đơn. Order list runtime phải được wire trước khi flow này có thể chạy end-to-end từ UI.

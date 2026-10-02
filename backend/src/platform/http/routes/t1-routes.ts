@@ -36,6 +36,7 @@ export interface BuyerHttpApplication {
 }
 
 export interface OrderHttpApplication {
+  quoteShipping?(context: RequestContext, input: Record<string, unknown>): Promise<unknown>;
   createOrder(context: RequestContext, command: ReturnType<typeof parseCheckoutCommand>): Promise<unknown>;
   cancelOrder(context: RequestContext, orderId: string, input: Record<string, unknown>): Promise<unknown>;
   confirmOrder(context: RequestContext, orderId: string, reason?: string): Promise<unknown>;
@@ -119,7 +120,7 @@ export function createCatalogRouter(application?: CatalogHttpApplication, auth?:
   }));
   router.post('/products', ...guards(auth, 'SELLER'), asyncRoute(async (req, res) => {
     const input = req.body as Record<string, unknown>;
-    rejectUnknown(input, ['product_id', 'category_id', 'product_name', 'description', 'variants', 'images']);
+    rejectUnknown(input, ['product_id', 'category_id', 'product_name', 'description', 'weight_grams', 'variants', 'images']);
     const result = await implementation(application?.createProduct, application)(context(req), input);
     res.status(201).json(buildSuccessEnvelope(result, requestId(req)));
   }));
@@ -146,7 +147,7 @@ export function createCatalogRouter(application?: CatalogHttpApplication, auth?:
   }));
   router.patch('/seller/products/:id', ...guards(auth, 'SELLER'), asyncRoute(async (req, res) => {
     const input = req.body as Record<string, unknown>;
-    rejectUnknown(input, ['product_name', 'description', 'category_id', 'variants', 'images']);
+    rejectUnknown(input, ['product_name', 'description', 'weight_grams', 'category_id', 'variants', 'images']);
     const result = await implementation(application?.updateSellerProduct, application)(context(req), req.params.id, input);
     res.json(buildSuccessEnvelope(result, requestId(req)));
   }));
@@ -180,7 +181,7 @@ export function createBuyerRouter(application?: BuyerHttpApplication, auth?: Req
   }));
   router.post('/addresses', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
     const input = req.body as Record<string, unknown>;
-    rejectUnknown(input, ['recipient_name', 'phone', 'province', 'district', 'ward', 'detail_address', 'is_default']);
+    rejectUnknown(input, ['recipient_name', 'phone', 'province', 'province_code', 'district', 'ward', 'ward_code', 'detail_address', 'is_default']);
     res.status(201).json(buildSuccessEnvelope(await implementation(application?.createAddress, application)(context(req), input), requestId(req)));
   }));
   router.get('/cart', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
