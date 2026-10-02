@@ -45,7 +45,9 @@
 
 ## Thiết kế / quyết định kỹ thuật
 
-- Hybrid 2 Tầng (Bot Assistant + Seller Live Chat): Giúp giảm 70% khối lượng tin nhắn lặp lại cho Seller (hỏi còn hàng không, giá bao nhiêu, kích thước gì) nhưng vẫn đảm bảo khách hàng luôn nhận được hỗ trợ người thật khi cần.
+- Hybrid 2 Tầng (Bot Assistant + Seller Live Chat): Tự động phân giải và phản hồi các câu hỏi phổ biến về thuộc tính, tồn kho và khoảng giá sản phẩm dựa trên dữ liệu thời gian thực được Seller cấp quyền, giảm thiểu thao tác trả lời thủ công lặp lại cho Người bán, đồng thời hỗ trợ chuyển tiếp liền mạch sang tư vấn viên (Hand-off) khi người mua yêu cầu.
+- Đồng bộ thời gian thực qua Short-Polling: Giao diện Buyer `ChatWidget` và Seller `SellerChatInboxScreen` tích hợp cơ chế Short-Polling tự động kéo tin nhắn mới (chu kỳ 4 giây cho hội thoại đang mở và 10 giây cho danh mục hội thoại) giúp hai bên nhận tin nhắn tức thời qua HTTP mà không cần reload trang.
+- Quản lý trạng thái Hiện diện (Online/Offline Presence): Cho phép Shop chủ động chuyển đổi trạng thái trực tuyến (`Shop Đang Trực Tuyến`) hoặc tạm vắng (`Shop Tạm Vắng (Offline)`). Khi Shop offline, hệ thống kích hoạt thông báo trạng thái rõ ràng trên giao diện và đưa tin nhắn vào hàng đợi để Shop phản hồi sau.
 - Scoped Grounding & Whitelist: Bot chỉ đọc đúng 1 sản phẩm đang hỏi và tuân thủ bộ cờ quyền `allow_stock`, `allow_price`, `allow_variants`, `allow_description`.
 - Schema: Bảng `chat_conversations` và `chat_messages` được thiết kế có foreign key ràng buộc với `app_users`, `shops`, `products` và hỗ trợ cursor pagination.
 - Chống trùng lặp tin nhắn: Client gửi `client_message_id` (UUIDv4) để đảm bảo idempotency khi mạng chập chờn.
@@ -57,7 +59,7 @@
 | Backend Chat Routes & Engine | `npm --prefix backend run test:node -- test/platform/chat-routes.spec.ts` | PASS (14/14 tests) | Kiểm tra trọn vẹn grounding, stock query, out of stock, price range, anti-hallucination, REST API flows |
 | Backend Full Test Suite | `npm --prefix backend run test:node` | PASS (706/706 tests) | 100% test suites vượt qua, không gây bất kỳ regression nào |
 | Backend Lint & Build | `npm --prefix backend run lint && npm --prefix backend run build` | PASS | 0 lỗi ESLint, bundle esbuild thành công sang `dist/app.js` (495.9kb) |
-| Frontend Chat Tests | `npx vitest run test/chat-widget.spec.tsx test/seller-chat-inbox.spec.tsx` | PASS (6/6 tests) | Kiểm thử hiển thị widget, gửi tin bot phản hồi, seller trả lời và cập nhật bot permissions |
+| Frontend Chat Tests | `npx vitest run test/chat-widget.spec.tsx test/seller-chat-inbox.spec.tsx` | PASS (7/7 tests) | Kiểm thử hiển thị widget, short-polling tin nhắn, gửi tin bot phản hồi, seller trả lời, cấu hình bot permissions, và toggle online/offline presence |
 | Frontend Full Vitest Suite | `npm --prefix frontend run test` | PASS | Toàn bộ 68 test files và navigation matrix pass |
 | Frontend Lint & Typecheck | `npm --prefix frontend run lint && npm --prefix frontend run typecheck` | PASS | 0 lỗi ESLint, 0 lỗi TypeScript |
 | Frontend Production Build | `npm --prefix frontend run build` | PASS | Biên dịch Next.js thành công tất cả 32 routes (bao gồm `/seller/chat`) |
@@ -66,7 +68,7 @@
 
 - Phân quyền / dữ liệu nhạy cảm: Chỉ Buyer sở hữu cuộc trò chuyện hoặc Seller sở hữu Shop mới có quyền đọc/ghi vào `chat_conversations` tương ứng (kiểm tra `buyer_id` hoặc `shop.owner_id`). Loại bỏ toàn bộ PII (email, số điện thoại, địa chỉ) khỏi AI prompt payload.
 - Retry, request trùng, race condition: Sử dụng `client_message_id` chống trùng tin nhắn; phân trang theo cursor `created_at` chống lệch thứ tự tin nhắn.
-- Xử lý khi Seller offline: Tự động phản hồi tin nhắn tự động báo Shop hiện đang offline và lưu tin nhắn vào hàng đợi để Seller phản hồi sau.
+- Xử lý khi Seller offline & Đồng bộ tin nhắn: Cung cấp nút chuyển đổi trạng thái Trực tuyến/Tạm vắng trong Seller Inbox. Khi Shop offline, hệ thống kích hoạt banner cảnh báo và thông báo phản hồi chậm khi khách yêu cầu tư vấn viên; tin nhắn được lưu trữ an toàn trong DB PostgreSQL và đồng bộ tự động qua polling 4s.
 - Rủi ro còn lại: Tải đồng thời cao khi nhiều user chat cùng lúc -> Cần pooling kết nối cơ sở dữ liệu tối ưu.
 
 ## Việc còn lại và blocker
