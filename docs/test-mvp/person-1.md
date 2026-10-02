@@ -5,10 +5,13 @@ Phạm vi: luồng Guest, đăng ký/đăng nhập/đăng xuất, điều hướ
 ## Tóm tắt
 
 - Trạng thái: Đã xác minh
-- Cập nhật gần nhất: 2026-10-01
+- Cập nhật gần nhất: 2026-10-02
 - Luồng đã hoàn tất: 10 / 10
 - Lỗi mở: Blocker 0 · Cao 0 · Vừa 0 · Thấp 0
-- Trở ngại/quyết định cần hỗ trợ: Không có. Toàn bộ các luồng Catalog công khai, Đăng ký, Đăng nhập điều hướng returnTo, Đăng xuất, Chặn Private API, Khóa tài khoản LOCKED, Xử lý trùng email (QD01), Chặn token giả mạo (AUTH-02), Đọc Review công khai và Redaction bảo mật (QD02) đều hoạt động chuẩn xác 100%.
+- Lỗi đã khắc phục:
+  1. Thiếu endpoint `POST /admin/finance/escrow/reconcile` trong OpenAPI (OAS-05) làm fail test đối soát route. Đã bổ sung đầy đủ vào `openapi-spec.ts`.
+  2. Các trường trong `openapi-spec.ts` dùng `nullable: true` không chuẩn OpenAPI 3.1. Đã chuyển toàn bộ sang `type: ['string', 'null']` và `type: ['object', 'null']`.
+- Trở ngại/quyết định cần hỗ trợ: Không có. Toàn bộ các luồng Catalog công khai, Đăng ký, Đăng nhập điều hướng returnTo, Đăng xuất, Chặn Private API, Khóa tài khoản LOCKED, Xử lý trùng email (QD01), Chặn token giả mạo (AUTH-02), Đọc Review công khai, Redaction bảo mật (QD02) và hợp đồng OpenAPI 3.1 đều hoạt động chuẩn xác 100%.
 
 ## Nhật ký kiểm thử và lỗi
 

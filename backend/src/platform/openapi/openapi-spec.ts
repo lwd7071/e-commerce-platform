@@ -75,7 +75,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
               properties: {
                 code: { type: 'string', example: 'RESOURCE_NOT_FOUND' },
                 message: { type: 'string', example: 'Resource was not found' },
-                details: { type: 'object', nullable: true },
+                details: { type: ['object', 'null'] },
               },
             },
             request_id: { type: 'string', example: 'req_01J8Y7...' },
@@ -100,7 +100,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
               properties: {
                 has_more: { type: 'boolean' },
                 limit: { type: 'integer' },
-                next_cursor: { type: 'string', nullable: true },
+                next_cursor: { type: ['string', 'null'] },
               },
             },
             request_id: { type: 'string', example: 'req_01J8Y7...' },
@@ -154,9 +154,9 @@ export function generateOpenApiSpec(): OpenApiSpec {
         OrderDetailSuccessEnvelope: { type: 'object', required: ['data', 'request_id'], properties: { data: { $ref: '#/components/schemas/OrderReadDTO' }, request_id: { type: 'string' } } },
         CategoryDTO: { type: 'object', required: ['category_id', 'parent_category_id', 'category_name', 'description'], properties: { category_id: { type: 'string', format: 'uuid' }, parent_category_id: { type: ['string', 'null'], format: 'uuid' }, category_name: { type: 'string' }, description: { type: ['string', 'null'] } } },
         CategoryListSuccessEnvelope: { type: 'object', required: ['data', 'request_id'], properties: { data: { type: 'array', items: { $ref: '#/components/schemas/CategoryDTO' } }, request_id: { type: 'string' } } },
-        ProfileDTO: { type: 'object', required: ['user_id', 'full_name', 'phone', 'avatar_url', 'updated_at'], properties: { user_id: { type: 'string', format: 'uuid' }, full_name: { type: 'string', nullable: true }, phone: { type: ['string', 'null'] }, avatar_url: { type: ['string', 'null'] }, updated_at: { type: 'string', format: 'date-time' } } },
+        ProfileDTO: { type: 'object', required: ['user_id', 'full_name', 'phone', 'avatar_url', 'updated_at'], properties: { user_id: { type: 'string', format: 'uuid' }, full_name: { type: ['string', 'null'] }, phone: { type: ['string', 'null'] }, avatar_url: { type: ['string', 'null'] }, updated_at: { type: 'string', format: 'date-time' } } },
         ProfileSuccessEnvelope: { type: 'object', required: ['data', 'request_id'], properties: { data: { $ref: '#/components/schemas/ProfileDTO' }, request_id: { type: 'string' } } },
-        AddressDTO: { type: 'object', required: ['addressId', 'userId', 'recipientName', 'phone', 'province', 'ward', 'detailAddress', 'isDefault', 'createdAt', 'updatedAt'], properties: { addressId: { type: 'string', format: 'uuid' }, userId: { type: 'string', format: 'uuid' }, recipientName: { type: 'string' }, phone: { type: 'string' }, province: { type: 'string' }, provinceCode: { type: 'string', nullable: true }, district: { type: 'string', nullable: true }, ward: { type: 'string' }, wardCode: { type: 'string', nullable: true }, detailAddress: { type: 'string' }, isDefault: { type: 'boolean' }, createdAt: { type: 'string', format: 'date-time' }, updatedAt: { type: 'string', format: 'date-time' } } },
+        AddressDTO: { type: 'object', required: ['addressId', 'userId', 'recipientName', 'phone', 'province', 'ward', 'detailAddress', 'isDefault', 'createdAt', 'updatedAt'], properties: { addressId: { type: 'string', format: 'uuid' }, userId: { type: 'string', format: 'uuid' }, recipientName: { type: 'string' }, phone: { type: 'string' }, province: { type: 'string' }, provinceCode: { type: ['string', 'null'] }, district: { type: ['string', 'null'] }, ward: { type: 'string' }, wardCode: { type: ['string', 'null'] }, detailAddress: { type: 'string' }, isDefault: { type: 'boolean' }, createdAt: { type: 'string', format: 'date-time' }, updatedAt: { type: 'string', format: 'date-time' } } },
         AddressSuccessEnvelope: { type: 'object', required: ['data', 'request_id'], properties: { data: { $ref: '#/components/schemas/AddressDTO' }, request_id: { type: 'string' } } },
         AddressListSuccessEnvelope: { type: 'object', required: ['data', 'request_id'], properties: { data: { type: 'array', items: { $ref: '#/components/schemas/AddressDTO' } }, request_id: { type: 'string' } } },
         CartItemReadDTO: { type: 'object', required: ['cart_item_id', 'variant_id', 'product_id', 'product_name', 'variant_name', 'price', 'stock_quantity', 'shop_id', 'shop_name', 'image_url', 'product_status', 'variant_status', 'shop_status', 'is_available', 'quantity', 'is_selected'], properties: {
@@ -214,7 +214,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
             additionalProperties: false,
             properties: {
               full_name: { type: 'string', minLength: 2, maxLength: 150 },
-              phone: { type: 'string', nullable: true },
+              phone: { type: ['string', 'null'] },
             },
           }),
           responses: {
@@ -420,7 +420,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
           security: [{ BearerAuth: [] }],
           requestBody: jsonRequest({
             type: 'object', required: ['recipientName', 'phone', 'detailAddress'], additionalProperties: false,
-            properties: { recipientName: { type: 'string', minLength: 1 }, phone: { type: 'string', minLength: 1 }, detailAddress: { type: 'string', minLength: 1 }, province: { type: 'string' }, province_code: { type: 'string', minLength: 1 }, district: { type: 'string', nullable: true }, ward: { type: 'string' }, ward_code: { type: 'string', minLength: 1 }, isDefault: { type: 'boolean' } },
+            properties: { recipientName: { type: 'string', minLength: 1 }, phone: { type: 'string', minLength: 1 }, detailAddress: { type: 'string', minLength: 1 }, province: { type: 'string' }, province_code: { type: 'string', minLength: 1 }, district: { type: ['string', 'null'] }, ward: { type: 'string' }, ward_code: { type: 'string', minLength: 1 }, isDefault: { type: 'boolean' } },
           }),
           responses: {
             '201': {
@@ -460,7 +460,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
               schema: { type: 'string', format: 'uuid' },
             },
           ],
-          requestBody: jsonRequest({ type: 'object', minProperties: 1, additionalProperties: false, properties: { recipientName: { type: 'string', minLength: 2, maxLength: 150 }, phone: { type: 'string' }, province: { type: 'string' }, province_code: { type: 'string' }, district: { type: 'string', nullable: true }, ward: { type: 'string' }, ward_code: { type: 'string' }, detailAddress: { type: 'string' }, isDefault: { type: 'boolean' } } }),
+          requestBody: jsonRequest({ type: 'object', minProperties: 1, additionalProperties: false, properties: { recipientName: { type: 'string', minLength: 2, maxLength: 150 }, phone: { type: 'string' }, province: { type: 'string' }, province_code: { type: 'string' }, district: { type: ['string', 'null'] }, ward: { type: 'string' }, ward_code: { type: 'string' }, detailAddress: { type: 'string' }, isDefault: { type: 'boolean' } } }),
           responses: {
             '200': {
               description: 'Address updated',
@@ -1665,6 +1665,12 @@ export function generateOpenApiSpec(): OpenApiSpec {
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
           requestBody: jsonRequest({ type: 'object', properties: { note: { type: 'string' } } }),
           responses: { '200': successResponse('Withdrawal rejected'), '401': errorResponse('Authentication required'), '403': errorResponse('Admin required') },
+        },
+      },
+      '/admin/finance/escrow/reconcile': {
+        post: {
+          summary: 'Trigger escrow and order status reconciliation', security: [{ BearerAuth: [] }],
+          responses: { '200': successResponse('Escrow reconciliation completed'), '401': errorResponse('Authentication required'), '403': errorResponse('Admin required') },
         },
       },
       '/payments/payos/create-link': {
