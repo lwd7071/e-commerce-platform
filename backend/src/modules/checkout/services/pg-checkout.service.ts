@@ -163,6 +163,24 @@ export class PgCheckoutService implements OrderHttpApplication {
       if (current.rows[0].status !== 'SHIPPING') {
         throw new ConflictError('ORDER_INVALID_TRANSITION', 'Only SHIPPING orders can be confirmed as received.');
       }
+      const shipmentRes = await client.query<{ shipment_id: string; status: string }>(
+        'SELECT shipment_id, status FROM shipments WHERE order_id=$1 FOR UPDATE',
+        [orderId]
+      );
+      const shipment = shipmentRes.rows[0];
+      if (!shipment) {
+        throw new ConflictError('SHIPMENT_REQUIRED', 'Shipment record is required to confirm receipt.');
+      }
+      if (shipment.status === 'DELIVERED') {
+        // Already delivered
+      } else if (shipment.status === 'SHIPPING') {
+        await client.query(
+          "UPDATE shipments SET status='DELIVERED',updated_at=now() WHERE shipment_id=$1",
+          [shipment.shipment_id]
+        );
+      } else {
+        throw new ConflictError('SHIPMENT_INVALID_STATE', `Shipment status ${shipment.status} cannot transition to DELIVERED.`);
+      }
       return this.persistTransition(client, context, orderId, { from: 'SHIPPING', to: 'COMPLETED', reason: effectiveReason });
     });
   }
@@ -224,6 +242,10 @@ export class PgCheckoutService implements OrderHttpApplication {
     const recipients = new Set<string>();
     if (context.role === 'SELLER' && parties.rows[0]) recipients.add(parties.rows[0].buyer_id);
     if ((decision.to === 'CANCELLED' || decision.to === 'COMPLETED') && context.role === 'BUYER' && parties.rows[0]) recipients.add(parties.rows[0].owner_id);
+    if (context.role === 'ADMIN' && parties.rows[0]) {
+      recipients.add(parties.rows[0].buyer_id);
+      recipients.add(parties.rows[0].owner_id);
+    }
     for (const recipientId of recipients) {
       await client.query(
         "INSERT INTO notifications (notification_id,recipient_id,type,title,content) VALUES ($1,$2,'ORDER',$3,$4)",

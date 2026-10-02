@@ -204,6 +204,7 @@ export function createRuntimeApp(
         orderQueryService,
         cancelOrder: (context, orderId, input) => checkoutService.cancelOrder(context, orderId, input),
         confirmOrder: (context, orderId, reason) => checkoutService.confirmOrder(context, orderId, reason),
+        confirmReceived: (context, orderId, reason) => checkoutService.confirmReceived(context, orderId, reason),
         transitionOrder: (context, orderId, input) => checkoutService.transitionOrder(context, orderId, input),
         retryPayment: (context, orderId, input) => checkoutService.retryPayment(context, orderId, input),
       },

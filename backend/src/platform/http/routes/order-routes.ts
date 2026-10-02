@@ -23,6 +23,7 @@ export interface OrderServices {
   orderQueryService?: OrderQueryService;
   paymentService?: PaymentService;
   confirmOrder?(context: RequestContext, orderId: string, reason?: string): Promise<unknown>;
+  confirmReceived?(context: RequestContext, orderId: string, reason?: string): Promise<unknown>;
   transitionOrder?(context: RequestContext, orderId: string, input: Record<string, unknown>): Promise<unknown>;
   retryPayment?(context: RequestContext, orderId: string, input: Record<string, unknown>): Promise<unknown>;
 }
@@ -227,6 +228,12 @@ export function createOrderDomainRouter(
         : { kind: 'BUYER', userId: ctx.user_id };
 
       const result = await orderLifecycleService.confirmReceived(orderId, actor, reason);
+      res.json(buildSuccessEnvelope(result, requestId(req)));
+      return;
+    }
+
+    if (services?.confirmReceived) {
+      const result = await services.confirmReceived(ctx, orderId, reason);
       res.json(buildSuccessEnvelope(result, requestId(req)));
       return;
     }
