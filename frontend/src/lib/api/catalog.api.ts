@@ -49,6 +49,7 @@ export interface WireCatalogProductDetail {
   category_id: string;
   product_name: string;
   description: string | null;
+  weight_grams?: number;
   status: "ACTIVE" | "INACTIVE" | "HIDDEN";
   variants: WireProductVariant[];
   images?: Array<{ image_id?: string; image_url: string; sort_order?: number }>;
@@ -137,7 +138,7 @@ export const catalogApi = {
 
   updateSellerProduct: (
     id: string,
-    input: Partial<Pick<WireCatalogProductDetail, "product_name" | "description" | "category_id">> & {
+    input: Partial<Pick<WireCatalogProductDetail, "product_name" | "description" | "weight_grams" | "category_id">> & {
       variants?: Array<{ variant_id?: string; variant_name: string; variant_value?: string | null; sku: string; price: string }>;
       images?: Array<{ image_id?: string; media_id?: string; image_url: string; sort_order: number }>;
     },

@@ -72,6 +72,28 @@ describe('Buyer DTO & Validation Tests (api-conventions.md §2: reject unknown f
       assert.equal(parsed.recipientName, 'Trần Thị B');
       assert.equal(parsed.isDefault, true);
     });
+
+    it('resolves canonical province and ward labels from a matching 2026 code pair', () => {
+      const parsed = validateCreateAddressDTO({
+        recipient_name: 'Trần Thị B', phone: '0912345678', province_code: '01', ward_code: '00004',
+        detail_address: 'Số 10 Phạm Văn Đồng',
+      });
+      assert.equal(parsed.province, 'Hà Nội');
+      assert.equal(parsed.ward, 'Ba Đình');
+      assert.equal(parsed.provinceCode, '01');
+      assert.equal(parsed.wardCode, '00004');
+      assert.equal('district' in parsed, false);
+    });
+
+    it('rejects a ward code that belongs to a different province', () => {
+      assert.throws(
+        () => validateCreateAddressDTO({
+          recipient_name: 'Trần Thị B', phone: '0912345678', province_code: '79', ward_code: '00004',
+          detail_address: 'Số 10 Nguyễn Huệ',
+        }),
+        (err: unknown) => typeof err === 'object' && err !== null && 'code' in err && err.code === 'VALIDATION_FAILED'
+      );
+    });
   });
 
   describe('AddToCartDTO Validation', () => {

@@ -42,6 +42,7 @@ export function SellerProductCreateScreen() {
   const [productName, setProductName] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [description, setDescription] = useState("");
+  const [weightGrams, setWeightGrams] = useState("200");
 
   const [images, setImages] = useState<ImageFormItem[]>([]);
   const [draftProductId, setDraftProductId] = useState<string | null>(null);
@@ -203,6 +204,7 @@ export function SellerProductCreateScreen() {
         category_id: categoryId,
         product_name: productName.trim(),
         description: description.trim() || null,
+        weight_grams: Number(weightGrams),
         images: images.map((img, idx) => ({
           image_url: img.url.trim(),
           media_id: img.mediaId,
@@ -343,6 +345,9 @@ export function SellerProductCreateScreen() {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
+          </FormField>
+          <FormField id="product-weight-grams" label="Khối lượng đóng gói (gram)" helpText="Dùng để ước tính phí vận chuyển. Mặc định 200g; hãy nhập khối lượng thực tế.">
+            <TextInput id="product-weight-grams" type="number" min={1} step={1} required value={weightGrams} onChange={(event) => setWeightGrams(event.target.value)} />
           </FormField>
         </section>
 

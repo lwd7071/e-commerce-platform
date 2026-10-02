@@ -10,7 +10,7 @@ import type { RequestContext } from '../../src/contracts/request-context.contrac
 import {
   createFixtureUser, createFixtureShop, createFixtureCategory, createFixtureProduct,
   createFixtureVariant, createFixtureAddress, createFixtureCart, createFixtureCartItem,
-  createFixtureOrder, createFixtureOrderItem, createFixturePayment, createFixtureVoucher,
+  createFixtureOrder, createFixtureOrderItem, createFixturePayment, createFixtureVoucher, applyShippingMigration,
 } from './fixtures/database-fixtures.ts';
 
 const dbDescribe = parseRunRemoteDbTests(process.env) ? describe : describe.skip;
@@ -41,6 +41,7 @@ dbDescribe('PgCheckoutService transaction release gate (real PostgreSQL)', { tim
     for (const migration of ['20260918170000_add_api_idempotency_records', '20260922120000_t2_performance_indexes', '20260924120000_t3_idempotency_rls_hardening']) {
       await pool.query(await readFile(new URL(`../../prisma/migrations/${migration}/migration.sql`, import.meta.url), 'utf8'));
     }
+    await applyShippingMigration(pool);
     service = new PgCheckoutService(pool, async ms => { retryDelays.push(ms); });
   }, 60_000);
 
@@ -226,8 +227,15 @@ dbDescribe('PgCheckoutService transaction release gate (real PostgreSQL)', { tim
     await createFixtureCartItem(pool, c.cartId, targetVariant);
   }
 
-  function command(address = addressId) {
-    return { address_id: address, payment_method: 'ONLINE' as const, vouchers: [], idempotency_key: randomUUID() };
+  async function command(address = addressId, context = buyer) {
+    const quote = await service.quoteShipping(context, { address_id: address }) as { quotes: Array<{ shop_id: string; fee: string }> };
+    return {
+      address_id: address,
+      payment_method: 'ONLINE' as const,
+      vouchers: [],
+      expected_shipping_fees: quote.quotes.map(({ shop_id, fee }) => ({ shop_id, fee })),
+      idempotency_key: randomUUID(),
+    };
   }
 
   it('five buyers on independent connections cannot oversell stock=1', async () => {
@@ -236,7 +244,7 @@ dbDescribe('PgCheckoutService transaction release gate (real PostgreSQL)', { tim
       const context = await user('BUYER');
       const address = await createFixtureAddress(pool, context.user_id);
       await cart(context);
-      return { context, input: command(address.addressId) };
+      return { context, input: await command(address.addressId, context) };
     }));
     const results = await Promise.allSettled(buyers.map(b => service.createOrder(b.context, b.input)));
     expect(results.filter(r => r.status === 'fulfilled')).toHaveLength(1);
@@ -248,7 +256,7 @@ dbDescribe('PgCheckoutService transaction release gate (real PostgreSQL)', { tim
 
   it('duplicate idempotency keys yield one checkout, replay and payload conflict', async () => {
     await cart();
-    const input = command();
+    const input = await command();
     const results = await Promise.allSettled(Array.from({ length: 5 }, () => service.createOrder(buyer, input)));
     const successes = results.filter(r => r.status === 'fulfilled');
     expect(successes.length).toBeGreaterThan(0);
@@ -267,7 +275,7 @@ dbDescribe('PgCheckoutService transaction release gate (real PostgreSQL)', { tim
     ['notifications', 'INSERT'], ['api_idempotency_records', 'INSERT'],
   ])('checkout rolls back all writes when %s fails', async (table, operation) => {
     await cart();
-    const input = command();
+    const input = await command();
     const remove = await failWrite(table, operation);
     try {
       await expect(service.createOrder(buyer, input)).rejects.toThrow('intentional write failure');
@@ -285,7 +293,7 @@ dbDescribe('PgCheckoutService transaction release gate (real PostgreSQL)', { tim
 
   it.each([1, 3])('database serialization fault after writes: %s failures exercise retry and exhaustion', async failures => {
     await cart();
-    const input = command();
+    const input = await command();
     await pool.query('CREATE SEQUENCE retry_probe');
     await pool.query(`CREATE FUNCTION serialization_fault() RETURNS trigger LANGUAGE plpgsql AS $$
       BEGIN
@@ -328,7 +336,7 @@ dbDescribe('PgCheckoutService transaction release gate (real PostgreSQL)', { tim
     await cart();
     await cart(buyer, secondVariant.variantId);
     const voucher = await createFixtureVoucher(pool, { code: 'CHECKOUT_TEST', scope: 'SHOP', shopId: secondShop.shopId, quantity: 2 });
-    const input = { ...command(), vouchers: [{ shop_id: secondShop.shopId, code: voucher.code }] };
+    const input = { ...await command(), vouchers: [{ shop_id: secondShop.shopId, code: voucher.code }] };
     const remove = await failWrite(table, table === 'vouchers' ? 'UPDATE' : 'INSERT');
     try {
       await expect(service.createOrder(buyer, input)).rejects.toThrow();
@@ -382,7 +390,7 @@ dbDescribe('PgCheckoutService transaction release gate (real PostgreSQL)', { tim
 
   it('a real PostgreSQL deadlock aborts checkout, then its retry commits exactly once', async () => {
     await cart();
-    const input = command();
+    const input = await command();
     await pool.query('CREATE TABLE deadlock_probe (id int PRIMARY KEY, value int NOT NULL)');
     await pool.query('INSERT INTO deadlock_probe VALUES (1, 0)');
     await pool.query(`CREATE FUNCTION force_deadlock() RETURNS trigger LANGUAGE plpgsql AS $$

@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { buyerApi, type CreateAddressPayload, type WireAddress } from "@/lib/api/buyer.api";
+import { AdministrativeAddressFields } from "@/components/forms/administrative-address-fields";
 
 const emptyAddress: CreateAddressPayload = { recipientName: "", phone: "", province: "", district: "", ward: "", detailAddress: "" };
 
@@ -46,11 +47,12 @@ export function AddressManager() {
 
   const startEdit = (address: WireAddress) => {
     setEditingId(address.addressId);
-    setEditDraft({ recipientName: address.recipientName, phone: address.phone, province: address.province, district: address.district, ward: address.ward, detailAddress: address.detailAddress });
+    setEditDraft({ recipientName: address.recipientName, phone: address.phone, province: address.province, province_code: address.provinceCode ?? undefined, ward_code: address.wardCode ?? undefined, ward: address.ward, district: address.district ?? undefined, detailAddress: address.detailAddress });
   };
 
   const fields = (value: CreateAddressPayload, change: (next: CreateAddressPayload) => void) => <div className="grid gap-3 sm:grid-cols-2">
-    {([['recipientName', 'Người nhận'], ['phone', 'Số điện thoại'], ['province', 'Tỉnh/thành'], ['district', 'Quận/huyện'], ['ward', 'Phường/xã'], ['detailAddress', 'Địa chỉ chi tiết']] as const).map(([key, label]) => <label key={key} className="field-stack"><span className="field-label">{label}</span><input required value={value[key] ?? ""} onChange={event => change({ ...value, [key]: event.target.value })} className="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] p-2.5" /></label>)}
+    {([['recipientName', 'Người nhận'], ['phone', 'Số điện thoại'], ['detailAddress', 'Địa chỉ chi tiết']] as const).map(([key, label]) => <label key={key} className="field-stack"><span className="field-label">{label}</span><input required value={value[key] ?? ""} onChange={event => change({ ...value, [key]: event.target.value })} className="w-full rounded-xl border border-[var(--border)] bg-[var(--background)] p-2.5" /></label>)}
+    <div className="sm:col-span-2"><AdministrativeAddressFields provinceCode={value.province_code ?? ''} wardCode={value.ward_code ?? ''} onProvinceChange={(code, name) => change({ ...value, province_code: code, province: name, ward_code: '', ward: '' })} onWardChange={(code, name) => change({ ...value, ward_code: code, ward: name })} /></div>
   </div>;
 
   return <section className="surface-card mt-6 p-5 sm:p-6 space-y-4" aria-labelledby="address-manager-title">

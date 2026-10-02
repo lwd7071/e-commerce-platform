@@ -21,7 +21,7 @@ export interface ICatalogRepository {
   getProductsPaginated(params?: GetProductsParams): Promise<PaginatedEnvelope<WireCatalogProductItem>>;
   getProductById(id: string): Promise<WireCatalogProductDetail>;
   getSellerProductById?(id: string): Promise<WireCatalogProductDetail>;
-  updateSellerProduct?(id: string, input: Partial<Pick<WireCatalogProductDetail, "product_name" | "description" | "category_id">> & {
+  updateSellerProduct?(id: string, input: Partial<Pick<WireCatalogProductDetail, "product_name" | "description" | "weight_grams" | "category_id">> & {
     variants?: Array<{ variant_id?: string; variant_name: string; variant_value?: string | null; sku: string; price: string }>;
     images?: Array<{ image_id?: string; media_id?: string; image_url: string; sort_order: number }>;
   }): Promise<WireCatalogProductDetail>;

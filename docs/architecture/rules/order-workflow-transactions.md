@@ -21,11 +21,13 @@
 | `CONFIRMED` | `CANCELLED` | Seller/Admin | Có lý do; Buyer không còn quyền mặc định |
 | `PREPARING` | `SHIPPING` | Seller/Admin | Shipment tồn tại và đã bàn giao |
 | `PREPARING` | `CANCELLED` | Seller/Admin | Trường hợp ngoại lệ có lý do; xử lý hoàn tồn nếu chính sách yêu cầu |
-| `SHIPPING` | `COMPLETED` | Shipment integration/Admin | Shipment `DELIVERED` hoặc xác nhận tương đương |
+| `SHIPPING` | `COMPLETED` | Buyer | Buyer của Order xác nhận đã nhận; simulated Shipment chuyển `DELIVERED` |
 | `SHIPPING` | `DELIVERY_FAILED` | Shipment integration/Admin | Shipment `FAILED`; có reason/note |
 
 - `COMPLETED`, `CANCELLED`, `DELIVERY_FAILED` là terminal state trong MVP.
 - Không cho phép quay ngược trạng thái hoặc nhảy qua bước.
+- MVP mô phỏng giao hàng: Seller bàn giao (`PREPARING` → `SHIPPING`) và không được tự đánh dấu giao thành công. Buyer xác nhận nhận hàng mới chuyển Order sang `COMPLETED`; Shipment và history được cập nhật cùng transaction.
+- Không gọi API tạo vận đơn, tracking hay webhook của đơn vị vận chuyển trong luồng này.
 - Admin không được UPDATE status trực tiếp. Can thiệp dùng command riêng, reason bắt buộc, ghi OrderStatusHistory và AdminLog trong cùng transaction.
 - Mọi transition dùng optimistic check `WHERE order_id = ? AND status = <expected>` hoặc row lock; nếu không match trả `409 ORDER_INVALID_TRANSITION`.
 
@@ -46,6 +48,8 @@
 ## 4. Transaction tạo Order
 
 Request tạo Order bắt buộc có `Idempotency-Key`. Backend không nhận giá hoặc tổng tiền do client làm nguồn chuẩn.
+
+Phí vận chuyển được báo trước bằng quote: gọi provider ngoài transaction, sau đó so sánh `expected_shipping_fees` với báo giá mới nhất. Nếu thay đổi, trả `409 SHIPPING_QUOTE_CHANGED` cùng quote mới và chưa mở transaction tạo Order. Khi checkout được chấp nhận, transaction chỉ lưu phí do backend vừa tính; tuyệt đối không gọi provider bên ngoài trong transaction.
 
 Trong một database transaction:
 

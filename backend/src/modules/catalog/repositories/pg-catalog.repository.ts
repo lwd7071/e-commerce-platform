@@ -57,6 +57,7 @@ export const mapProductRow = (row: DatabaseRow): Product => ({
   categoryId: String(row.category_id),
   productName: String(row.product_name),
   description: nullableString(row.description),
+  weightGrams: Number(row.weight_grams ?? 200),
   status: row.status as ProductStatus,
   createdAt: isoString(row.created_at),
   updatedAt: isoString(row.updated_at),
@@ -310,8 +311,8 @@ export class PgProductRepository implements IProductRepository {
       }
 
       const productQuery = `
-        INSERT INTO products (product_id, shop_id, category_id, product_name, description, status, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        INSERT INTO products (product_id, shop_id, category_id, product_name, description, weight_grams, status, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING *
       `;
       const res = await runner.query(productQuery, [
@@ -320,6 +321,7 @@ export class PgProductRepository implements IProductRepository {
         product.categoryId,
         product.productName,
         product.description,
+        product.weightGrams ?? 200,
         product.status,
         product.createdAt,
         product.updatedAt,

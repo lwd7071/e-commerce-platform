@@ -26,6 +26,7 @@ import {
   clearIdempotencySnapshot,
 } from "./idempotency";
 import { classifyCheckoutError } from "./checkout-error-classifier";
+import { AdministrativeAddressFields } from "@/components/forms/administrative-address-fields";
 
 export function CheckoutPageContent() {
   return (
@@ -46,6 +47,9 @@ export function CheckoutScreen() {
   // State: Addresses
   const [addresses, setAddresses] = useState<CheckoutAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string>("");
+  const [shippingQuotes, setShippingQuotes] = useState<Array<{ shop_id: string; fee: string; weight_grams: number; provider: 'mock' | 'ghtk' }>>([]);
+  const [shippingQuoteLoading, setShippingQuoteLoading] = useState(false);
+  const [shippingQuoteError, setShippingQuoteError] = useState<string | null>(null);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [isNewAddressModalOpen, setIsNewAddressModalOpen] = useState(false);
 
@@ -53,8 +57,9 @@ export function CheckoutScreen() {
   const [newAddrName, setNewAddrName] = useState("");
   const [newAddrPhone, setNewAddrPhone] = useState("");
   const [newAddrProvince, setNewAddrProvince] = useState("");
-  const [newAddrDistrict, setNewAddrDistrict] = useState("");
+  const [newAddrProvinceCode, setNewAddrProvinceCode] = useState("");
   const [newAddrWard, setNewAddrWard] = useState("");
+  const [newAddrWardCode, setNewAddrWardCode] = useState("");
   const [newAddrDetail, setNewAddrDetail] = useState("");
   const [newAddrDefault, setNewAddrDefault] = useState(false);
   const [addrFormErrors, setAddrFormErrors] = useState<Record<string, string>>({});
@@ -176,6 +181,24 @@ export function CheckoutScreen() {
     return addresses.find((a) => a.addressId === selectedAddressId) || null;
   }, [addresses, selectedAddressId]);
 
+  useEffect(() => {
+    if (!selectedAddressId || items.length === 0) return;
+    let cancelled = false;
+    void Promise.resolve()
+      .then(() => {
+        if (cancelled) return null;
+        setShippingQuoteLoading(true);
+        setShippingQuoteError(null);
+        return checkoutRepository.quoteShipping(selectedAddressId, [...new Set(items.map(item => item.shopId))]);
+      })
+      .then(quotes => { if (!cancelled && quotes) setShippingQuotes(quotes); })
+      .catch((error: unknown) => {
+        if (!cancelled) { setShippingQuotes([]); setShippingQuoteError(error instanceof Error ? error.message : 'Không thể tính phí vận chuyển.'); }
+      })
+      .finally(() => { if (!cancelled) setShippingQuoteLoading(false); });
+    return () => { cancelled = true; };
+  }, [selectedAddressId, items]);
+
   // Calculations
   const subtotal = useMemo(() => {
     return items.reduce((acc, item) => {
@@ -191,8 +214,9 @@ export function CheckoutScreen() {
     );
   }, [appliedVouchers]);
 
-  // Invariant according to contract: shipping fee is hardcoded to 0.00
-  const shippingFee = 0;
+  const shippingFee = selectedAddressId && items.length > 0
+    ? shippingQuotes.reduce((sum, quote) => sum + moneyAdapter.toInteger(quote.fee), 0)
+    : 0;
 
   const totalAmount = useMemo(() => {
     return Math.max(0, subtotal + shippingFee - totalDiscount);
@@ -262,9 +286,8 @@ export function CheckoutScreen() {
     if (!phoneRegex.test(newAddrPhone.trim())) {
       errors.phone = "Số điện thoại không hợp lệ (ví dụ: 0901234567)";
     }
-    if (!newAddrProvince.trim()) errors.province = "Vui lòng nhập Tỉnh / Thành phố";
-    if (!newAddrDistrict.trim()) errors.district = "Vui lòng nhập Quận / Huyện";
-    if (!newAddrWard.trim()) errors.ward = "Vui lòng nhập Phường / Xã";
+    if (!newAddrProvinceCode) errors.province = "Vui lòng chọn Tỉnh / Thành phố";
+    if (!newAddrWardCode) errors.ward = "Vui lòng chọn Phường / Xã";
     if (!newAddrDetail.trim()) errors.detail = "Vui lòng nhập địa chỉ cụ thể (Số nhà, tên đường)";
 
     if (Object.keys(errors).length > 0) {
@@ -279,8 +302,9 @@ export function CheckoutScreen() {
       recipient_name: newAddrName.trim(),
       phone: newAddrPhone.trim(),
       province: newAddrProvince.trim(),
-      district: newAddrDistrict.trim(),
+      province_code: newAddrProvinceCode,
       ward: newAddrWard.trim(),
+      ward_code: newAddrWardCode,
       detail_address: newAddrDetail.trim(),
       is_default: newAddrDefault,
     };
@@ -294,8 +318,9 @@ export function CheckoutScreen() {
       setNewAddrName("");
       setNewAddrPhone("");
       setNewAddrProvince("");
-      setNewAddrDistrict("");
+      setNewAddrProvinceCode("");
       setNewAddrWard("");
+      setNewAddrWardCode("");
       setNewAddrDetail("");
       setNewAddrDefault(false);
     } catch {
@@ -308,7 +333,7 @@ export function CheckoutScreen() {
   // Submit Checkout with Idempotency Key & Complete Error Handling Policy
   const handlePlaceOrder = async () => {
     // 1. Double-click guard đồng bộ bằng useRef và kiểm tra điều kiện tiên quyết
-    if (submittingRef.current || !selectedAddressId || items.length === 0) return;
+    if (submittingRef.current || !selectedAddressId || items.length === 0 || shippingQuoteLoading || !!shippingQuoteError || shippingQuotes.length === 0) return;
     submittingRef.current = true;
     setIsSubmitting(true);
     setSubmitError(null);
@@ -324,6 +349,7 @@ export function CheckoutScreen() {
       address_id: selectedAddressId,
       payment_method: paymentMethod,
       vouchers: vouchersPayload,
+      expected_shipping_fees: shippingQuotes.map(({ shop_id, fee }) => ({ shop_id, fee })),
     };
 
     // 2. Submit đơn hàng trong khối try/catch RIÊNG BIỆT
@@ -332,6 +358,15 @@ export function CheckoutScreen() {
       const { key: idempotencyKey } = getOrCreateIdempotencyKey(payload);
       checkoutResult = await checkoutRepository.submitCheckout(payload, idempotencyKey);
     } catch (err: unknown) {
+      if (err instanceof AppError && err.code === 'SHIPPING_QUOTE_CHANGED') {
+        const details = err.details as { quotes?: Array<{ shop_id: string; fee: string; weight_grams: number; provider: 'mock' | 'ghtk' }> } | undefined;
+        if (details?.quotes && Array.isArray(details.quotes)) setShippingQuotes(details.quotes);
+        clearIdempotencySnapshot();
+        submittingRef.current = false;
+        setIsSubmitting(false);
+        setSubmitError('Phí vận chuyển vừa thay đổi. Hãy kiểm tra tổng tiền mới rồi đặt hàng lại.');
+        return;
+      }
       const errorType = classifyCheckoutError(err);
       switch (errorType) {
         case "GROUP_A":
@@ -529,7 +564,7 @@ export function CheckoutScreen() {
             <span className="w-6 h-6 rounded-full bg-[var(--primary-surface)] text-[var(--primary-active)] border border-[var(--primary-border)] flex items-center justify-center text-xs font-bold">
               3
             </span>
-            <span>Vận chuyển (0₫)</span>
+            <span>Vận chuyển ({shippingQuoteLoading ? 'Đang tính…' : moneyAdapter.formatVND(shippingFee)})</span>
           </li>
           <li className="flex flex-col sm:flex-row items-center justify-center gap-1.5 text-[var(--primary-active)]">
             <span className="w-6 h-6 rounded-full bg-[var(--primary-active)] text-white flex items-center justify-center text-xs font-bold">
@@ -828,10 +863,16 @@ export function CheckoutScreen() {
 
           <div className="flex justify-between">
             <span className="text-[var(--subtext)]">Phí vận chuyển:</span>
-            <span className="font-semibold text-[var(--success)] tabular-nums">
-              0 ₫ (Miễn phí)
-            </span>
+            <span className="font-semibold tabular-nums">{shippingQuoteLoading ? 'Đang tính…' : moneyAdapter.formatVND(shippingFee)}</span>
           </div>
+          {!shippingQuoteLoading && shippingQuotes.map(quote => {
+            const shopName = groupedCart.find(group => group.shopId === quote.shop_id)?.shopName ?? 'Gian hàng';
+            return <div key={quote.shop_id} className="flex justify-between pl-3 text-xs text-[var(--subtext)]">
+              <span>Giao từ {shopName}</span><span className="tabular-nums">{moneyAdapter.formatVND(moneyAdapter.toInteger(quote.fee))}</span>
+            </div>;
+          })}
+          {shippingQuoteError && <p className="text-sm text-[var(--danger)]" role="alert">{shippingQuoteError}</p>}
+          {shippingQuotes.some(quote => quote.provider === 'mock') && <p className="text-xs text-[var(--subtext)]">Phí vận chuyển mô phỏng.</p>}
 
           <div className="pt-3 border-t border-[var(--border)] flex justify-between items-baseline">
             <span className="font-bold text-base text-[var(--foreground)]">Tổng thanh toán:</span>
@@ -850,7 +891,7 @@ export function CheckoutScreen() {
           <Button
             variant="primary"
             loading={isSubmitting}
-            disabled={isSubmitting || !selectedAddressId || items.length === 0}
+            disabled={isSubmitting || !selectedAddressId || items.length === 0 || shippingQuoteLoading || !!shippingQuoteError || shippingQuotes.length === 0}
             onClick={handlePlaceOrder}
             className="w-full sm:w-auto px-8 py-3 text-base"
           >
@@ -912,7 +953,7 @@ export function CheckoutScreen() {
                   </div>
                   <p className="text-xs text-[var(--foreground)] mt-1">{addr.detailAddress}</p>
                   <p className="text-[11px] text-[var(--subtext)]">
-                    {addr.ward}, {addr.district}, {addr.province}
+                    {[addr.ward, addr.district, addr.province].filter(Boolean).join(', ')}
                   </p>
                 </div>
               </div>
@@ -983,48 +1024,14 @@ export function CheckoutScreen() {
             </FormField>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <FormField
-              id="new-addr-province"
-              label="Tỉnh / Thành phố"
-              required
-              error={addrFormErrors.province}
-            >
-              <TextInput
-                id="new-addr-province"
-                placeholder="Ví dụ: TP. Hồ Chí Minh"
-                value={newAddrProvince}
-                onChange={(e) => setNewAddrProvince(e.target.value)}
-              />
-            </FormField>
-
-            <FormField
-              id="new-addr-district"
-              label="Quận / Huyện"
-              required
-              error={addrFormErrors.district}
-            >
-              <TextInput
-                id="new-addr-district"
-                placeholder="Ví dụ: Quận 1"
-                value={newAddrDistrict}
-                onChange={(e) => setNewAddrDistrict(e.target.value)}
-              />
-            </FormField>
-
-            <FormField
-              id="new-addr-ward"
-              label="Phường / Xã"
-              required
-              error={addrFormErrors.ward}
-            >
-              <TextInput
-                id="new-addr-ward"
-                placeholder="Ví dụ: Phường Bến Nghé"
-                value={newAddrWard}
-                onChange={(e) => setNewAddrWard(e.target.value)}
-              />
-            </FormField>
+          <div className="grid grid-cols-1 gap-3">
+            <AdministrativeAddressFields
+              provinceCode={newAddrProvinceCode}
+              wardCode={newAddrWardCode}
+              onProvinceChange={(code, name) => { setNewAddrProvinceCode(code); setNewAddrProvince(name); setNewAddrWardCode(""); setNewAddrWard(""); }}
+              onWardChange={(code, name) => { setNewAddrWardCode(code); setNewAddrWard(name); }}
+            />
+            {(addrFormErrors.province || addrFormErrors.ward) && <p className="text-sm text-[var(--danger)]" role="alert">{addrFormErrors.province ?? addrFormErrors.ward}</p>}
           </div>
 
           <FormField

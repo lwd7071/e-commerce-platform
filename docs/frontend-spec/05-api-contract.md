@@ -209,19 +209,20 @@ Role `BUYER`. Trả `200` với `data` là danh sách địa chỉ của user hi
 
 ### `POST /addresses`
 
-Role `BUYER`; response `201` envelope với object cùng camelCase shape như trên. Request body dùng snake_case. Sáu trường đầu là bắt buộc, `is_default` tùy chọn và mặc định `false`:
+Role `BUYER`; response `201` envelope với object cùng camelCase shape như trên. Request body dùng snake_case. Khi dùng danh mục địa chỉ mới, gửi `province_code` và `ward_code` cùng nhau; backend lấy tên chuẩn từ mã. `district` vẫn được đọc cho dữ liệu cũ nhưng không cần gửi cho địa chỉ mới. `is_default` tùy chọn:
 
 ```json
 {
   "recipient_name": "Nguyễn An",
   "phone": "0900000000",
-  "province": "TP Hồ Chí Minh",
-  "district": "Quận 1",
-  "ward": "Phường Bến Nghé",
+  "province_code": "79",
+  "ward_code": "...",
   "detail_address": "12 Nguyễn Huệ",
   "is_default": true
 }
 ```
+
+Danh mục công khai: `GET /locations/provinces`, `GET /locations/provinces/{province_code}/wards`. Response chứa `code` và `name`; chỉ mã phường thuộc tỉnh đã chọn được chấp nhận.
 
 Không gửi `address_id`, `user_id`, timestamp hoặc field UI khác trong request. Backend tự gán ID/user/timestamp. Các route detail/update/delete/set-default có handler runtime và được ghi `AVAILABLE` trong readiness matrix; cần test DB/host theo môi trường triển khai trước khi tuyên bố production smoke hoàn tất.
 
@@ -285,7 +286,11 @@ Response `200` tại runtime hiện tại là kết quả union của `VoucherPo
 
 Khi không áp dụng được, service trả `data: { "isValid": false, "errorCode": "VOUCHER_NOT_APPLICABLE", "errorMessage": "..." }`. FE cần xử lý hai nhánh; để render chi tiết ưu đãi, lấy voucher từ list endpoint và ghép theo `voucherId` (hoặc `code` nếu cần), không trông chờ evaluate trả toàn bộ voucher. Các field trong cả hai nhánh là camelCase.
 
-## 7. Checkout
+## 7. Shipping quote and checkout
+
+`POST /shipping/quote`, role `BUYER`, nhận `address_id` và trả một quote cho mỗi shop trong cart được chọn. Quote gồm `shop_id`, `fee` dạng decimal string, `total_weight_grams` và provider (`mock` hoặc `ghtk`). GHTK chỉ dùng API tính phí; lỗi dependency trả `503 DEPENDENCY_UNAVAILABLE`, không fallback sang mock.
+
+## 7.1. Checkout
 
 `POST /checkout`, role `BUYER`.
 
@@ -301,7 +306,8 @@ Body chỉ cho phép:
 {
   "address_id": "uuid",
   "payment_method": "ONLINE",
-  "vouchers": [{ "shop_id": "uuid", "code": "SALE10" }]
+  "vouchers": [{ "shop_id": "uuid", "code": "SALE10" }],
+  "expected_shipping_fees": [{ "shop_id": "uuid", "fee": "25000.00" }]
 }
 ```
 
@@ -310,7 +316,8 @@ Quy tắc:
 - `payment_method`: `COD | ONLINE`.
 - Mỗi shop tối đa một voucher.
 - Backend lấy cart item `is_selected=true`.
-- Backend hiện hardcode `shipping_fee = "0.00"`; client không được truyền phí ship. UI hiển thị phí vận chuyển `0₫`/miễn phí và không cộng phí mock vào tổng. Tổng hiện tại là `subtotal - discount_amount`; tổng cuối cùng phải lấy từ response `total_amount`.
+- `POST /shipping/quote` trả phí theo từng Shop; `expected_shipping_fees` chỉ dùng để phát hiện báo giá đổi. Backend tính lại và chỉ lưu số tiền tự tính. Quote đổi trả `409 SHIPPING_QUOTE_CHANGED` với báo giá mới; chưa tạo Order.
+- Hàng hóa sử dụng `weight_grams`; shop cần thay mặc định tương thích `200g` bằng trọng lượng thực để báo giá chính xác hơn.
 - Cùng idempotency key + cùng payload trả lại kết quả cũ.
 - Cùng key + payload khác trả `IDEMPOTENCY_KEY_REUSED`.
 - Backend giữ kết quả idempotency 24 giờ theo user + endpoint + key; fingerprint hiện gồm `address_id`, `payment_method`, `vouchers`.
@@ -369,11 +376,10 @@ Buyer runtime chỉ hủy được khi order còn `PENDING_CONFIRMATION`.
 | `PENDING_CONFIRMATION` | `CONFIRMED` | Seller qua `/confirm`, hoặc Admin qua transition | Seller dùng `/confirm` để xác nhận |
 | `CONFIRMED` | `PREPARING` | Seller/Admin | Không được nhảy thẳng sang `SHIPPING` |
 | `PREPARING` | `SHIPPING` | Seller/Admin | `shipment_status` là `HANDED_OVER` hoặc `SHIPPING` |
-| `SHIPPING` | `COMPLETED` | **Admin qua HTTP** | `shipment_status: "DELIVERED"`; Seller bị cấm hoàn tất |
-| `SHIPPING` | `DELIVERY_FAILED` | **Admin qua HTTP** | `shipment_status: "FAILED"`, `reason` bắt buộc; Seller bị cấm |
+| `SHIPPING` | `COMPLETED` | Buyer qua `/confirm-received` | Chỉ chủ đơn; simulated Shipment chuyển `DELIVERED` atomically |
 | Trạng thái còn cho phép | `CANCELLED` | Theo quyền và điều kiện state machine | `reason` bắt buộc; hủy ở `PREPARING` cần `exceptional_cancellation: true` |
 
-`SHIPMENT_INTEGRATION` được state machine domain cho phép chuyển giao hàng sang kết quả cuối, nhưng router HTTP hiện chỉ cho role Seller/Admin. FE không thể gọi route với actor integration.
+MVP không nhận tracking callback; không expose thao tác đánh dấu giao thất bại từ carrier.
 
 Các bước Seller phải đi tuần tự. Sau khi `/confirm`, đơn ở `CONFIRMED`; Seller gọi:
 
@@ -391,7 +397,7 @@ Sau khi đóng gói, từ `PREPARING`, Seller mới gọi:
 }
 ```
 
-Seller không được gửi `to: "COMPLETED"` hoặc `to: "DELIVERY_FAILED"`; Backend trả `403 RESOURCE_FORBIDDEN`. UI Seller không được có nút “Đã giao thành công/Hoàn thành đơn”. Admin chỉ được hoàn tất khi shipment status là `DELIVERED`.
+Seller không được gửi `to: "COMPLETED"` hoặc `to: "DELIVERY_FAILED"`; Backend trả `403 RESOURCE_FORBIDDEN`. UI Seller không được có nút “Đã giao thành công/Hoàn thành đơn”. Buyer xác nhận nhận hàng bằng `POST /orders/:order_id/confirm-received`; backend cập nhật shipment giả lập sang `DELIVERED`, Order sang `COMPLETED` và history trong cùng transaction.
 
 Không dùng `to_status` hoặc `note`.
 

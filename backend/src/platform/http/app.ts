@@ -4,6 +4,7 @@ import type { Pool } from 'pg';
 import { requestIdMiddleware } from './middlewares/request-id.ts';
 import { errorHandlerMiddleware } from './middlewares/error-handler.ts';
 import { createHealthRouter } from '../routes/health.ts';
+import { createLocationRouter } from './routes/location-routes.ts';
 import { createCatalogRouter, type T1RouteApplications } from './routes/t1-routes.ts';
 import { createBuyerDomainRouter, type BuyerServices } from './routes/buyer-routes.ts';
 import { createOrderDomainRouter, type OrderServices } from './routes/order-routes.ts';
@@ -15,6 +16,7 @@ import { PgAuthRepository } from '../../modules/identity/repositories/pg-auth.re
 import { SupabaseJwtVerifier } from './middlewares/supabase-jwt.ts';
 import { createAuthMiddleware, type ITokenVerifier } from './middlewares/auth.ts';
 import { PgCheckoutService } from '../../modules/checkout/services/pg-checkout.service.ts';
+import { GhtkFeeProvider, MockFeeProvider } from '../../modules/shipping/providers.ts';
 import { PgCatalogHttpService } from '../../modules/catalog/services/pg-catalog-http.service.ts';
 import { ModerationService } from '../../modules/moderation/services/moderation.service.ts';
 import { PgModerationTargetRepository } from '../../modules/moderation/repositories/pg-target.repository.ts';
@@ -108,6 +110,7 @@ export function createApp(applications: PlatformApplications = {}): Application 
   });
 
   app.use('/api/v1/health', createHealthRouter(applications.pool));
+  app.use('/api/v1', createLocationRouter());
   const auth = applications.auth;
   app.use('/api/v1', createIdentityRouter(applications.authRepository, applications.onboardingService, auth));
   app.use('/api/v1', createCatalogRouter(applications.catalog, auth));
@@ -171,7 +174,10 @@ export function createRuntimeApp(
     : undefined;
   const authRepository = new PgAuthRepository(pool);
   const onboardingService = new PgOnboardingService(pool);
-  const checkoutService = new PgCheckoutService(pool);
+  const shippingFeeProvider = envConfig.shippingProvider === 'ghtk'
+    ? new GhtkFeeProvider({ baseUrl: envConfig.ghtkApiBaseUrl, token: envConfig.ghtkApiToken! })
+    : new MockFeeProvider();
+  const checkoutService = new PgCheckoutService(pool, undefined, shippingFeeProvider);
   const orderQueryService = new OrderQueryService(new PgOrderRepository(pool), pool);
   const sharedEventPort = new InMemoryTransactionEventPort();
   const reviewService = new ReviewService(new PostgresReviewRepository(pool, supabaseUrl), orderQueryService);

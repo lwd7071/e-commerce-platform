@@ -11,8 +11,10 @@ interface AddressRow {
   recipient_name: string;
   phone: string;
   province: string;
-  district: string;
+  province_code?: string | null;
+  district: string | null;
   ward: string;
+  ward_code?: string | null;
   detail_address: string;
   is_default: boolean;
   created_at: unknown;
@@ -65,7 +67,7 @@ interface VoucherUsageRow {
 
 const mapAddress = (row: AddressRow): Address => ({
   addressId: row.address_id, userId: row.user_id, recipientName: row.recipient_name, phone: row.phone,
-  province: row.province, district: row.district, ward: row.ward, detailAddress: row.detail_address,
+  province: row.province, provinceCode: row.province_code ?? null, district: row.district, ward: row.ward, wardCode: row.ward_code ?? null, detailAddress: row.detail_address,
   isDefault: row.is_default, createdAt: iso(row.created_at), updatedAt: iso(row.updated_at),
 });
 
@@ -97,9 +99,9 @@ export class PgAddressRepository implements IAddressRepository {
   }
   async create(address: Address): Promise<Address> {
     const result = await this.db.query<AddressRow>(
-      `INSERT INTO addresses (address_id,user_id,recipient_name,phone,province,district,ward,detail_address,is_default,created_at,updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10) RETURNING *`,
-      [address.addressId, address.userId, address.recipientName, address.phone, address.province, address.district, address.ward, address.detailAddress, address.isDefault, address.createdAt],
+      `INSERT INTO addresses (address_id,user_id,recipient_name,phone,province,province_code,district,ward,ward_code,detail_address,is_default,created_at,updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$12) RETURNING *`,
+      [address.addressId, address.userId, address.recipientName, address.phone, address.province, address.provinceCode ?? null, address.district, address.ward, address.wardCode ?? null, address.detailAddress, address.isDefault, address.createdAt],
     );
     return mapAddress(result.rows[0]);
   }

@@ -32,7 +32,8 @@ remoteDescribe('Address CRUD runtime (real PostgreSQL)', () => {
       CREATE TABLE ${schema}.addresses (
         address_id uuid PRIMARY KEY, user_id uuid NOT NULL REFERENCES ${schema}.app_users(user_id),
         recipient_name varchar(150) NOT NULL, phone varchar(20) NOT NULL, province varchar(100) NOT NULL,
-        district varchar(100) NOT NULL, ward varchar(100) NOT NULL, detail_address varchar(255) NOT NULL,
+        district varchar(100), ward varchar(100) NOT NULL, detail_address varchar(255) NOT NULL,
+        province_code varchar(10), ward_code varchar(10),
         is_default boolean NOT NULL DEFAULT false, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
       );
       CREATE UNIQUE INDEX uq_addresses__one_default_per_user ON ${schema}.addresses(user_id) WHERE is_default;

@@ -156,7 +156,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
         CategoryListSuccessEnvelope: { type: 'object', required: ['data', 'request_id'], properties: { data: { type: 'array', items: { $ref: '#/components/schemas/CategoryDTO' } }, request_id: { type: 'string' } } },
         ProfileDTO: { type: 'object', required: ['user_id', 'full_name', 'phone', 'avatar_url', 'updated_at'], properties: { user_id: { type: 'string', format: 'uuid' }, full_name: { type: 'string', nullable: true }, phone: { type: ['string', 'null'] }, avatar_url: { type: ['string', 'null'] }, updated_at: { type: 'string', format: 'date-time' } } },
         ProfileSuccessEnvelope: { type: 'object', required: ['data', 'request_id'], properties: { data: { $ref: '#/components/schemas/ProfileDTO' }, request_id: { type: 'string' } } },
-        AddressDTO: { type: 'object', required: ['addressId', 'userId', 'recipientName', 'phone', 'province', 'district', 'ward', 'detailAddress', 'isDefault', 'createdAt', 'updatedAt'], properties: { addressId: { type: 'string', format: 'uuid' }, userId: { type: 'string', format: 'uuid' }, recipientName: { type: 'string' }, phone: { type: 'string' }, province: { type: 'string' }, district: { type: 'string' }, ward: { type: 'string' }, detailAddress: { type: 'string' }, isDefault: { type: 'boolean' }, createdAt: { type: 'string', format: 'date-time' }, updatedAt: { type: 'string', format: 'date-time' } } },
+        AddressDTO: { type: 'object', required: ['addressId', 'userId', 'recipientName', 'phone', 'province', 'ward', 'detailAddress', 'isDefault', 'createdAt', 'updatedAt'], properties: { addressId: { type: 'string', format: 'uuid' }, userId: { type: 'string', format: 'uuid' }, recipientName: { type: 'string' }, phone: { type: 'string' }, province: { type: 'string' }, provinceCode: { type: 'string', nullable: true }, district: { type: 'string', nullable: true }, ward: { type: 'string' }, wardCode: { type: 'string', nullable: true }, detailAddress: { type: 'string' }, isDefault: { type: 'boolean' }, createdAt: { type: 'string', format: 'date-time' }, updatedAt: { type: 'string', format: 'date-time' } } },
         AddressSuccessEnvelope: { type: 'object', required: ['data', 'request_id'], properties: { data: { $ref: '#/components/schemas/AddressDTO' }, request_id: { type: 'string' } } },
         AddressListSuccessEnvelope: { type: 'object', required: ['data', 'request_id'], properties: { data: { type: 'array', items: { $ref: '#/components/schemas/AddressDTO' } }, request_id: { type: 'string' } } },
         CartItemReadDTO: { type: 'object', required: ['cart_item_id', 'variant_id', 'product_id', 'product_name', 'variant_name', 'price', 'stock_quantity', 'shop_id', 'shop_name', 'image_url', 'product_status', 'variant_status', 'shop_status', 'is_available', 'quantity', 'is_selected'], properties: {
@@ -348,6 +348,16 @@ export function generateOpenApiSpec(): OpenApiSpec {
           },
         },
       },
+      '/locations/provinces': {
+        get: { summary: 'List the 2026 province and city catalog', responses: { '200': successResponse('Official-code province and city list') } },
+      },
+      '/locations/provinces/{province_code}/wards': {
+        get: {
+          summary: 'List wards and communes for a province',
+          parameters: [{ name: 'province_code', in: 'path', required: true, schema: { type: 'string' } }],
+          responses: { '200': successResponse('Official-code ward and commune list'), '422': errorResponse('Unknown province code') },
+        },
+      },
       '/openapi.json': {
         get: {
           summary: 'Get the OpenAPI contract',
@@ -383,8 +393,8 @@ export function generateOpenApiSpec(): OpenApiSpec {
           description: 'Create a new shipping address for the authenticated buyer.',
           security: [{ BearerAuth: [] }],
           requestBody: jsonRequest({
-            type: 'object', required: ['recipientName', 'phone', 'province', 'district', 'ward', 'detailAddress'], additionalProperties: false,
-            properties: { recipientName: { type: 'string', minLength: 1 }, phone: { type: 'string', minLength: 1 }, detailAddress: { type: 'string', minLength: 1 }, province: { type: 'string', minLength: 1 }, district: { type: 'string', minLength: 1 }, ward: { type: 'string', minLength: 1 }, isDefault: { type: 'boolean' } },
+            type: 'object', required: ['recipientName', 'phone', 'detailAddress'], additionalProperties: false,
+            properties: { recipientName: { type: 'string', minLength: 1 }, phone: { type: 'string', minLength: 1 }, detailAddress: { type: 'string', minLength: 1 }, province: { type: 'string' }, province_code: { type: 'string', minLength: 1 }, district: { type: 'string', nullable: true }, ward: { type: 'string' }, ward_code: { type: 'string', minLength: 1 }, isDefault: { type: 'boolean' } },
           }),
           responses: {
             '201': {
@@ -424,7 +434,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
               schema: { type: 'string', format: 'uuid' },
             },
           ],
-          requestBody: jsonRequest({ type: 'object', minProperties: 1, additionalProperties: false, properties: { recipientName: { type: 'string', minLength: 2, maxLength: 150 }, phone: { type: 'string' }, province: { type: 'string' }, district: { type: 'string' }, ward: { type: 'string' }, detailAddress: { type: 'string' }, isDefault: { type: 'boolean' } } }),
+          requestBody: jsonRequest({ type: 'object', minProperties: 1, additionalProperties: false, properties: { recipientName: { type: 'string', minLength: 2, maxLength: 150 }, phone: { type: 'string' }, province: { type: 'string' }, province_code: { type: 'string' }, district: { type: 'string', nullable: true }, ward: { type: 'string' }, ward_code: { type: 'string' }, detailAddress: { type: 'string' }, isDefault: { type: 'boolean' } } }),
           responses: {
             '200': {
               description: 'Address updated',
@@ -510,13 +520,22 @@ export function generateOpenApiSpec(): OpenApiSpec {
       '/cart/selected': {
         delete: { summary: 'Delete selected cart items', security: [{ BearerAuth: [] }], responses: { '204': { description: 'Selected cart items deleted; no response body' } } },
       },
+      '/shipping/quote': {
+        post: {
+          summary: 'Calculate delivery fee per shop for the selected cart',
+          description: 'Uses the configured mock provider or GHTK fee endpoint only. Does not create a carrier shipment.',
+          security: [{ BearerAuth: [] }],
+          requestBody: jsonRequest({ type: 'object', required: ['address_id'], additionalProperties: false, properties: { address_id: { type: 'string', format: 'uuid' } } }),
+          responses: { '200': successResponse('Shipping quote by shop'), '422': errorResponse('Invalid or unsupported delivery address'), '503': errorResponse('Shipping fee provider unavailable') },
+        },
+      },
       '/checkout': {
         post: {
           summary: 'Execute Checkout',
           description: 'Place an order atomically from selected cart items.',
           security: [{ BearerAuth: [] }],
           parameters: [{ name: 'Idempotency-Key', in: 'header', required: true, schema: { type: 'string', minLength: 16, maxLength: 128 } }],
-          requestBody: jsonRequest({ type: 'object', required: ['address_id', 'payment_method'], additionalProperties: false, properties: { address_id: { type: 'string', format: 'uuid' }, payment_method: { type: 'string', enum: ['COD', 'ONLINE'] }, vouchers: { type: 'array', items: { type: 'object', required: ['shop_id', 'code'], additionalProperties: false, properties: { shop_id: { type: 'string', format: 'uuid' }, code: { type: 'string', maxLength: 50 } } } } } }),
+          requestBody: jsonRequest({ type: 'object', required: ['address_id', 'payment_method', 'expected_shipping_fees'], additionalProperties: false, properties: { address_id: { type: 'string', format: 'uuid' }, payment_method: { type: 'string', enum: ['COD', 'ONLINE'] }, expected_shipping_fees: { type: 'array', items: { type: 'object', required: ['shop_id', 'fee'], additionalProperties: false, properties: { shop_id: { type: 'string', format: 'uuid' }, fee: { type: 'string', pattern: '^\\d+(?:\\.\\d{1,2})?$' } } } }, vouchers: { type: 'array', items: { type: 'object', required: ['shop_id', 'code'], additionalProperties: false, properties: { shop_id: { type: 'string', format: 'uuid' }, code: { type: 'string', maxLength: 50 } } } } } }),
           responses: {
             '201': {
               description: 'Order created successfully',

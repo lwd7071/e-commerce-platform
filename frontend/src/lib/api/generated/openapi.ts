@@ -738,6 +738,89 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/locations/provinces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the 2026 province and city catalog */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Official-code province and city list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SuccessEnvelope"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/locations/provinces/{province_code}/wards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List wards and communes for a province */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    province_code: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Official-code ward and commune list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SuccessEnvelope"];
+                    };
+                };
+                /** @description Unknown province code */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorEnvelope"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/openapi.json": {
         parameters: {
             query?: never;
@@ -832,9 +915,11 @@ export interface paths {
                         recipientName: string;
                         phone: string;
                         detailAddress: string;
-                        province: string;
-                        district: string;
-                        ward: string;
+                        province?: string;
+                        province_code?: string;
+                        district?: string | null;
+                        ward?: string;
+                        ward_code?: string;
                         isDefault?: boolean;
                     };
                 };
@@ -946,8 +1031,10 @@ export interface paths {
                         recipientName?: string;
                         phone?: string;
                         province?: string;
-                        district?: string;
+                        province_code?: string;
+                        district?: string | null;
                         ward?: string;
+                        ward_code?: string;
                         detailAddress?: string;
                         isDefault?: boolean;
                     };
@@ -1229,6 +1316,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/shipping/quote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Calculate delivery fee per shop for the selected cart
+         * @description Uses the configured mock provider or GHTK fee endpoint only. Does not create a carrier shipment.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        address_id: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Shipping quote by shop */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SuccessEnvelope"];
+                    };
+                };
+                /** @description Invalid or unsupported delivery address */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorEnvelope"];
+                    };
+                };
+                /** @description Shipping fee provider unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorEnvelope"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/checkout": {
         parameters: {
             query?: never;
@@ -1258,6 +1409,11 @@ export interface paths {
                         address_id: string;
                         /** @enum {string} */
                         payment_method: "COD" | "ONLINE";
+                        expected_shipping_fees: {
+                            /** Format: uuid */
+                            shop_id: string;
+                            fee: string;
+                        }[];
                         vouchers?: {
                             /** Format: uuid */
                             shop_id: string;
@@ -5908,8 +6064,10 @@ export interface components {
             recipientName: string;
             phone: string;
             province: string;
-            district: string;
+            provinceCode?: string | null;
+            district?: string | null;
             ward: string;
+            wardCode?: string | null;
             detailAddress: string;
             isDefault: boolean;
             /** Format: date-time */

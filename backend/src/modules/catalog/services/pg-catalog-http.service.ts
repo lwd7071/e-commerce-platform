@@ -15,6 +15,11 @@ import { attachFinalizedMedia } from '../../../../db/media-lifecycle.ts';
 const decimal = /^\d+(\.\d{1,2})?$/;
 const objectValue = (value: unknown): Record<string, unknown> =>
   typeof value === 'object' && value !== null ? value as Record<string, unknown> : {};
+function parseWeightGrams(value: unknown): number {
+  const weight = value === undefined ? 200 : Number(value);
+  if (!Number.isSafeInteger(weight) || weight <= 0) throw new ValidationError('weight_grams must be a positive integer');
+  return weight;
+}
 
 export class PgCatalogHttpService {
   private readonly products: PgProductRepository;
@@ -82,6 +87,7 @@ export class PgCatalogHttpService {
     const res = await this.pool.query(
       `SELECT 
          p.product_id, p.shop_id, p.category_id, p.product_name, p.description, p.status,
+         p.weight_grams,
          s.status AS shop_status,
          c.status AS category_status
        FROM products p
@@ -117,6 +123,7 @@ export class PgCatalogHttpService {
       category_id: row.category_id,
       product_name: row.product_name,
       description: row.description,
+      weight_grams: Number(row.weight_grams),
       status: row.status,
       variants: activeVariants.map((v) => ({
         variant_id: v.variantId,
@@ -187,6 +194,7 @@ export class PgCatalogHttpService {
       categoryId: String(input.category_id),
       productName: String(input.product_name),
       description: input.description == null ? null : String(input.description),
+      weightGrams: parseWeightGrams(input.weight_grams),
       status: 'ACTIVE',
       createdAt: now,
       updatedAt: now,
@@ -290,6 +298,7 @@ export class PgCatalogHttpService {
         category_id: product.categoryId,
         product_name: product.productName,
         description: product.description,
+        weight_grams: product.weightGrams,
         status: product.status,
         variants: variants.map((v) => ({
           variant_id: v.variantId,
@@ -438,7 +447,7 @@ export class PgCatalogHttpService {
   async getSellerProduct(context: RequestContext, productId: string): Promise<unknown> {
     if (!context.shop_id) throw new ForbiddenError('Seller shop is required');
     const product = await this.pool.query(
-      `SELECT product_id, shop_id, category_id, product_name, description, status
+      `SELECT product_id, shop_id, category_id, product_name, description, weight_grams, status
        FROM products WHERE product_id = $1`,
       [productId],
     );
@@ -462,6 +471,7 @@ export class PgCatalogHttpService {
       category_id: row.category_id,
       product_name: row.product_name,
       description: row.description,
+      weight_grams: Number(row.weight_grams),
       status: row.status,
       variants: variants.rows.map((variant) => ({ ...variant, stock_quantity: Number(variant.stock_quantity) })),
       images: images.rows.map((image) => ({ ...image, sort_order: Number(image.sort_order) })),
@@ -475,6 +485,7 @@ export class PgCatalogHttpService {
     if (name !== undefined && (name.length < 2 || name.length > 200)) throw new ValidationError('Product name must be between 2 and 200 characters');
     const description = input.description === undefined ? undefined : input.description == null ? null : String(input.description);
     const categoryId = input.category_id === undefined ? undefined : String(input.category_id);
+    const weightGrams = input.weight_grams === undefined ? undefined : parseWeightGrams(input.weight_grams);
     const variantsInput = input.variants;
     if (variantsInput !== undefined && (!Array.isArray(variantsInput) || variantsInput.length === 0)) {
       throw new ValidationError('Variants must be a non-empty array');
@@ -540,9 +551,10 @@ export class PgCatalogHttpService {
       await client.query(
         `UPDATE products SET product_name = COALESCE($1, product_name),
           description = CASE WHEN $2::boolean THEN $3::text ELSE description END,
-          category_id = COALESCE($4::uuid, category_id), updated_at = now()
-         WHERE product_id = $5`,
-        [name ?? null, description !== undefined, description ?? null, categoryId ?? null, productId],
+          category_id = COALESCE($4::uuid, category_id),
+          weight_grams = COALESCE($5::integer, weight_grams), updated_at = now()
+         WHERE product_id = $6`,
+        [name ?? null, description !== undefined, description ?? null, categoryId ?? null, weightGrams ?? null, productId],
       );
       if (normalizedVariants) {
         const existing = await client.query('SELECT variant_id FROM product_variants WHERE product_id = $1 FOR UPDATE', [productId]);

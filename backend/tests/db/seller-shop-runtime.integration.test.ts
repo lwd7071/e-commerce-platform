@@ -5,7 +5,7 @@ import pg from 'pg';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadDatabaseConfig, parseRunRemoteDbTests } from '../../db/config.ts';
-import { createFixtureUser, createFixtureShop } from './fixtures/database-fixtures.ts';
+import { createFixtureUser, createFixtureShop, applyShippingMigration } from './fixtures/database-fixtures.ts';
 import { createApp } from '../../src/platform/http/app.ts';
 import { createRequestContext } from '../../src/platform/context/request-context.ts';
 import { SellerShopService } from '../../src/modules/shop/services/seller-shop.service.ts';
@@ -33,6 +33,7 @@ dbDescribe('Seller Shop profile REST runtime (real PostgreSQL)', () => {
     await pool.query(`CREATE TABLE ${schema}.auth_users (id uuid PRIMARY KEY)`);
     const initial = await readFile(new URL('../../prisma/migrations/20260916110000_initial_schema/migration.sql', import.meta.url), 'utf8');
     await pool.query(initial.replace('CREATE EXTENSION IF NOT EXISTS pgcrypto;', '').replaceAll('auth.users', `${schema}.auth_users`).replaceAll('public.', `${schema}.`));
+    await applyShippingMigration(pool);
     sellerId = randomUUID(); adminId = randomUUID();
     await pool.query(`INSERT INTO ${schema}.auth_users (id) VALUES ($1),($2)`, [sellerId, adminId]);
     await createFixtureUser(pool, { userId: sellerId, role: 'SELLER' });

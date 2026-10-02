@@ -8,6 +8,7 @@ import type {
   VoucherEvaluationResult,
   CheckoutPayload,
   CheckoutResult,
+  CheckoutShippingQuote,
 } from "./checkout.types";
 
 export interface ICheckoutRepository {
@@ -16,6 +17,7 @@ export interface ICheckoutRepository {
   getVouchers(shopId?: string): Promise<CheckoutVoucher[]>;
   evaluateVoucher(code: string, subtotal: string, shopId?: string): Promise<VoucherEvaluationResult>;
   submitCheckout(payload: CheckoutPayload, idempotencyKey: string): Promise<CheckoutResult>;
+  quoteShipping(addressId: string, shopIds: string[]): Promise<CheckoutShippingQuote[]>;
 }
 
 // Initial address fixtures
@@ -72,6 +74,9 @@ const ADDRESS_STORAGE_KEY = "dino_user_addresses_v1";
 const memoryAddressStore = new Map<string, string>();
 
 export class MockCheckoutRepository implements ICheckoutRepository {
+  async quoteShipping(_addressId: string, shopIds: string[]): Promise<CheckoutShippingQuote[]> {
+    return shopIds.map(shop_id => ({ shop_id, fee: '25000.00', weight_grams: 200, provider: 'mock' }));
+  }
   private getStoredAddresses(): CheckoutAddress[] {
     let data: string | null = null;
     if (typeof window !== "undefined" && window.sessionStorage) {
@@ -120,8 +125,10 @@ export class MockCheckoutRepository implements ICheckoutRepository {
       recipientName: input.recipientName || input.recipient_name || "",
       phone: input.phone,
       province: input.province,
-      district: input.district,
+      provinceCode: input.province_code ?? null,
+      district: input.district ?? null,
       ward: input.ward,
+      wardCode: input.ward_code ?? null,
       detailAddress: input.detailAddress || input.detail_address || "",
       isDefault: (input.isDefault ?? input.is_default) || list.length === 0,
     };
@@ -211,6 +218,10 @@ export class MockCheckoutRepository implements ICheckoutRepository {
 }
 
 export class ApiCheckoutRepository implements ICheckoutRepository {
+  async quoteShipping(addressId: string): Promise<CheckoutShippingQuote[]> {
+    const result = await apiClient.post<{ quotes: CheckoutShippingQuote[] }>('/shipping/quote', { address_id: addressId });
+    return result.quotes;
+  }
   async getAddresses(): Promise<CheckoutAddress[]> {
     const res = await apiClient.get<Array<{
       addressId: string;
@@ -218,8 +229,10 @@ export class ApiCheckoutRepository implements ICheckoutRepository {
       recipientName: string;
       phone: string;
       province: string;
-      district: string;
+      provinceCode?: string | null;
+      district: string | null;
       ward: string;
+      wardCode?: string | null;
       detailAddress: string;
       isDefault: boolean;
     }>>("/addresses");
@@ -230,8 +243,10 @@ export class ApiCheckoutRepository implements ICheckoutRepository {
         recipientName: a.recipientName,
         phone: a.phone,
         province: a.province,
-        district: a.district,
+        provinceCode: a.provinceCode ?? null,
+        district: a.district ?? null,
         ward: a.ward,
+        wardCode: a.wardCode ?? null,
         detailAddress: a.detailAddress,
         isDefault: !!a.isDefault,
       }));
@@ -244,8 +259,10 @@ export class ApiCheckoutRepository implements ICheckoutRepository {
       recipientName: (input.recipientName || input.recipient_name || "").trim(),
       phone: (input.phone || "").trim(),
       province: (input.province || "").trim(),
+      province_code: input.province_code,
       district: (input.district || "").trim(),
       ward: (input.ward || "").trim(),
+      ward_code: input.ward_code,
       detailAddress: (input.detailAddress || input.detail_address || "").trim(),
       isDefault: input.isDefault ?? input.is_default,
     };
@@ -254,8 +271,10 @@ export class ApiCheckoutRepository implements ICheckoutRepository {
       recipientName: string;
       phone: string;
       province: string;
-      district: string;
+      provinceCode?: string | null;
+      district: string | null;
       ward: string;
+      wardCode?: string | null;
       detailAddress: string;
       isDefault: boolean;
     }>("/addresses", payload);
@@ -265,8 +284,10 @@ export class ApiCheckoutRepository implements ICheckoutRepository {
       recipientName: res.recipientName,
       phone: res.phone,
       province: res.province,
-      district: res.district,
+      provinceCode: res.provinceCode ?? null,
+      district: res.district ?? null,
       ward: res.ward,
+      wardCode: res.wardCode ?? null,
       detailAddress: res.detailAddress,
       isDefault: !!res.isDefault,
     };

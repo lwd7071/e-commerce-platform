@@ -111,7 +111,8 @@ Parser lỗi phải xác nhận payload là JSON object và `error` là object t
 
 ## 5. Checkout intent and idempotency
 
-- Key gắn với snapshot của `address_id`, `payment_method`, `vouchers`.
+- Key gắn với snapshot của `address_id`, `payment_method`, `vouchers` và quote phí theo shop.
+- Trước checkout gọi `POST /shipping/quote`; khi `SHIPPING_QUOTE_CHANGED`, cập nhật quote hiển thị và chờ buyer xác nhận rồi tạo intent/key mới.
 - Retry cùng snapshot khi response mơ hồ thì giữ nguyên key.
 - Người dùng sửa địa chỉ, payment method hoặc voucher thì sinh key mới.
 - Nếu lần submit trước mơ hồ, resolve bằng retry key cũ trước khi gửi intent mới để tránh đơn trùng.

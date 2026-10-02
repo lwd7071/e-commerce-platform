@@ -34,6 +34,8 @@ QD01-QD20 thuộc Schema Freeze v1. Các rule bổ sung chỉ áp dụng khi đ�
 
 QD21 được bổ sung theo [CR-SELLER-01](../../spec/changes/CR-SELLER-01-full-seller-operations.md) (Approved 2026-10-01).
 
+Theo CR-SHIPPING-01, sản phẩm có trọng lượng nguyên dương theo gram; địa chỉ mới chọn cặp tỉnh/thành và phường/xã theo danh mục 2026. Phí quote tính riêng theo Shop trên tổng `weight_grams × quantity`. GHTK chỉ dùng để tính phí; mock là mặc định, và lỗi GHTK không được thay bằng mock. Checkout tính lại trước transaction; nếu quote đã đổi thì trả `SHIPPING_QUOTE_CHANGED` và chưa tạo Order. Giao hàng MVP mô phỏng: Seller bàn giao, Buyer xác nhận nhận hàng để hoàn tất.
+
 ## 3. Phân bổ RBTV
 
 ### RB-KC
@@ -130,6 +132,7 @@ FK violation do client gây ra được chuyển thành `RESOURCE_NOT_FOUND` ho�
 | RB-LQH08 Revenue từ Order hợp lệ/completed | Chạy report | Reporting service | Không tính trạng thái khác |
 
 ## 4. Nguyên tắc lỗi và test
+
 
 - Validation lặp ở client không thay thế Service/DB validation.
 - Mỗi domain error trong bảng trên phải tồn tại trong [`error-observability.md`](error-observability.md).

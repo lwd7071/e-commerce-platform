@@ -78,10 +78,19 @@ remoteDescribe('PgCheckoutService PostgreSQL concurrency acceptance (T3)', () =>
     await createFixtureCartItem(pool, cartB.cartId, variant.variantId, { quantity: 1, isSelected: true });
 
     const service = new PgCheckoutService(pool, async () => {});
-    const checkout = (buyerId: string, addressId: string) => service.createOrder(
-      { request_id: randomUUID(), user_id: buyerId, role: 'BUYER' },
-      { address_id: addressId, payment_method: 'COD', vouchers: [], idempotency_key: randomUUID() },
-    );
+    const checkout = async (buyerId: string, addressId: string) => {
+      const context = { request_id: randomUUID(), user_id: buyerId, role: 'BUYER' as const };
+      const quote = await service.quoteShipping(context, { address_id: addressId }) as {
+        quotes: Array<{ shop_id: string; fee: string }>;
+      };
+      return service.createOrder(context, {
+        address_id: addressId,
+        payment_method: 'COD',
+        vouchers: [],
+        expected_shipping_fees: quote.quotes.map(({ shop_id, fee }) => ({ shop_id, fee })),
+        idempotency_key: randomUUID(),
+      });
+    };
 
     const results = await Promise.allSettled([
       checkout(buyerA.userId, addressA.addressId),

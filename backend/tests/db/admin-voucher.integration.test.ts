@@ -13,6 +13,7 @@ import {
   createFixtureShop,
   createFixtureUser,
   createFixtureVariant,
+  applyShippingMigration,
 } from './fixtures/database-fixtures.ts';
 import { createApp } from '../../src/platform/http/app.ts';
 import { PgCheckoutService } from '../../src/modules/checkout/services/pg-checkout.service.ts';
@@ -42,6 +43,7 @@ dbDescribe('Admin Platform Voucher & Checkout Restriction (isolated PostgreSQL s
     await pool.query(initial.replace('CREATE EXTENSION IF NOT EXISTS pgcrypto;', '').replaceAll('auth.users', 'fixture_auth_users'));
     const idempotencyMigration = await readFile(new URL('../../prisma/migrations/20260918170000_add_api_idempotency_records/migration.sql', import.meta.url), 'utf8');
     await pool.query(idempotencyMigration);
+    await applyShippingMigration(pool);
 
     adminId = randomUUID();
     buyerId = randomUUID();
@@ -153,6 +155,12 @@ dbDescribe('Admin Platform Voucher & Checkout Restriction (isolated PostgreSQL s
       .expect(200);
     expect(vouchersRes.body.data.some((v: { code: string }) => v.code === 'PLATFORM50K')).toBe(false);
 
+    const shippingQuote = await request(app)
+      .post('/api/v1/shipping/quote')
+      .set('x-test-role', 'BUYER')
+      .send({ address_id: address.addressId })
+      .expect(200);
+
     // Checkout thử với voucher INACTIVE -> Bị từ chối (422)
     const checkoutRes = await request(app)
       .post('/api/v1/checkout')
@@ -161,6 +169,7 @@ dbDescribe('Admin Platform Voucher & Checkout Restriction (isolated PostgreSQL s
       .send({
         address_id: address.addressId,
         payment_method: 'COD',
+        expected_shipping_fees: shippingQuote.body.data.quotes.map(({ shop_id, fee }: { shop_id: string; fee: string }) => ({ shop_id, fee })),
         vouchers: [{ shop_id: shop.shopId, code: 'PLATFORM50K' }],
       })
       .expect(422);

@@ -15,6 +15,7 @@ type Role = 'BUYER' | 'SELLER' | 'ADMIN';
 export interface OrderServices {
   checkoutService?: {
     createOrder(context: RequestContext, command: ReturnType<typeof parseCheckoutCommand>): Promise<unknown>;
+    quoteShipping?(context: RequestContext, input: Record<string, unknown>): Promise<unknown>;
     cancelOrder?(context: RequestContext, orderId: string, input: Record<string, unknown>): Promise<unknown>;
     confirmOrder?(context: RequestContext, orderId: string, reason?: string): Promise<unknown>;
   };
@@ -101,6 +102,12 @@ export function createOrderDomainRouter(
 
   router.post('/checkout', ...guards(auth, 'BUYER'), handleCheckout);
   router.post('/orders', ...guards(auth, 'BUYER'), handleCheckout);
+  router.post('/shipping/quote', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
+    const handler = checkoutService?.quoteShipping ?? legacyApp?.quoteShipping;
+    if (!handler) throw new NotFoundError('Shipping quote handler is not configured');
+    const result = await handler.call(checkoutService ?? legacyApp, context(req), req.body as Record<string, unknown>);
+    res.json(buildSuccessEnvelope(result, requestId(req)));
+  }));
 
   // ==========================================
   // 2. LIST ORDERS
@@ -246,6 +253,9 @@ export function createOrderDomainRouter(
     const rawReason = req.body?.reason;
     const reason = typeof rawReason === 'string' ? rawReason.trim() : undefined;
     if (ctx.role === 'ADMIN' && !reason) throw new ReasonRequiredError('A reason is required for admin order actions.');
+    if (ctx.role === 'SELLER' && req.body?.to === 'SHIPPING' && req.body?.shipment_status !== undefined && req.body.shipment_status !== 'HANDED_OVER') {
+      throw new ValidationFailedError('Seller handover must use shipment_status HANDED_OVER.');
+    }
 
     if (orderLifecycleService) {
       let actor: OrderActor;
@@ -271,7 +281,11 @@ export function createOrderDomainRouter(
       return;
     }
 
-    const input = { ...((req.body ?? {}) as Record<string, unknown>), reason };
+    const input = {
+      ...((req.body ?? {}) as Record<string, unknown>),
+      ...(ctx.role === 'SELLER' && req.body?.to === 'SHIPPING' ? { shipment_status: 'HANDED_OVER' } : {}),
+      reason,
+    };
     if (transitionHandler) {
       const result = await transitionHandler(ctx, orderId, input);
       res.json(buildSuccessEnvelope(result, requestId(req)));

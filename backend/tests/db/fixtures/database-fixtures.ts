@@ -1,5 +1,14 @@
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import type { Pool, PoolClient } from 'pg';
+
+export async function applyShippingMigration(pool: Pool): Promise<void> {
+  const migration = await readFile(
+    new URL('../../../prisma/migrations/20261002120000_shipping_quotes_and_weight/migration.sql', import.meta.url),
+    'utf8',
+  );
+  await pool.query(migration);
+}
 
 type Queryable = Pool | PoolClient;
 

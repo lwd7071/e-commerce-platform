@@ -17,6 +17,7 @@ export function canonicalCheckoutFingerprint(command: {
   address_id: string;
   payment_method: 'COD' | 'ONLINE';
   vouchers: readonly { shop_id: string; code: string }[];
+  expected_shipping_fees?: readonly { shop_id: string; fee: string }[];
 }): string {
   const payload = {
     address_id: command.address_id.toLowerCase(),
@@ -24,6 +25,9 @@ export function canonicalCheckoutFingerprint(command: {
     vouchers: [...command.vouchers]
       .map((voucher) => ({ shop_id: voucher.shop_id.toLowerCase(), code: voucher.code.trim() }))
       .sort((left, right) => left.shop_id.localeCompare(right.shop_id) || left.code.localeCompare(right.code)),
+    expected_shipping_fees: [...(command.expected_shipping_fees ?? [])]
+      .map(({ shop_id, fee }) => ({ shop_id: shop_id.toLowerCase(), fee: Number(fee).toFixed(2) }))
+      .sort((left, right) => left.shop_id.localeCompare(right.shop_id)),
   };
   return createHash('sha256').update(JSON.stringify(payload), 'utf8').digest('hex');
 }

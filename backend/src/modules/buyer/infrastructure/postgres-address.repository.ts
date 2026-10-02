@@ -15,7 +15,7 @@ export class PostgresAddressRepository implements IAddressRepository {
 
   async findById(addressId: UUID): Promise<Address | null> {
     const sql = `
-      SELECT address_id, user_id, recipient_name, phone, province, district, ward,
+      SELECT address_id, user_id, recipient_name, phone, province, province_code, district, ward, ward_code,
              detail_address, is_default, created_at, updated_at
       FROM addresses
       WHERE address_id = $1
@@ -29,7 +29,7 @@ export class PostgresAddressRepository implements IAddressRepository {
 
   async findByUserId(userId: UUID): Promise<Address[]> {
     const sql = `
-      SELECT address_id, user_id, recipient_name, phone, province, district, ward,
+      SELECT address_id, user_id, recipient_name, phone, province, province_code, district, ward, ward_code,
              detail_address, is_default, created_at, updated_at
       FROM addresses
       WHERE user_id = $1
@@ -42,12 +42,12 @@ export class PostgresAddressRepository implements IAddressRepository {
   async create(address: Address): Promise<Address> {
     const sql = `
       INSERT INTO addresses (
-        address_id, user_id, recipient_name, phone, province, district,
-        ward, detail_address, is_default, created_at, updated_at
+        address_id, user_id, recipient_name, phone, province, province_code, district,
+        ward, ward_code, detail_address, is_default, created_at, updated_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10::timestamptz, now()), now())
-      RETURNING address_id, user_id, recipient_name, phone, province, district,
-                ward, detail_address, is_default, created_at, updated_at
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, COALESCE($12::timestamptz, now()), now())
+      RETURNING address_id, user_id, recipient_name, phone, province, province_code, district,
+                ward, ward_code, detail_address, is_default, created_at, updated_at
     `;
     const params = [
       address.addressId,
@@ -55,8 +55,10 @@ export class PostgresAddressRepository implements IAddressRepository {
       address.recipientName,
       address.phone,
       address.province,
+      address.provinceCode ?? null,
       address.district,
       address.ward,
+      address.wardCode ?? null,
       address.detailAddress,
       address.isDefault,
       address.createdAt ?? null,
@@ -71,22 +73,26 @@ export class PostgresAddressRepository implements IAddressRepository {
       SET recipient_name = $2,
           phone = $3,
           province = $4,
-          district = $5,
-          ward = $6,
-          detail_address = $7,
-          is_default = $8,
+          province_code = $5,
+          district = $6,
+          ward = $7,
+          ward_code = $8,
+          detail_address = $9,
+          is_default = $10,
           updated_at = now()
       WHERE address_id = $1
-      RETURNING address_id, user_id, recipient_name, phone, province, district,
-                ward, detail_address, is_default, created_at, updated_at
+      RETURNING address_id, user_id, recipient_name, phone, province, province_code, district,
+                ward, ward_code, detail_address, is_default, created_at, updated_at
     `;
     const params = [
       address.addressId,
       address.recipientName,
       address.phone,
       address.province,
+      address.provinceCode ?? null,
       address.district,
       address.ward,
+      address.wardCode ?? null,
       address.detailAddress,
       address.isDefault,
     ];
