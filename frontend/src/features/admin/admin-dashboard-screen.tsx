@@ -9,6 +9,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { FormField, TextArea, TextInput } from "@/components/ui/form-controls";
 import { Skeleton, ErrorState } from "@/components/ui/data-states";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
+import { walletApi, type FinanceOverview } from "@/lib/api/wallet.api";
 import { adminRepository } from "./admin.repository";
 import type {
   UserAccount,
@@ -23,6 +24,7 @@ type AdminTab = "users" | "shops" | "products" | "logs";
 export function AdminDashboardScreen() {
   const [activeTab, setActiveTab] = useState<AdminTab>("users");
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [financeOverview, setFinanceOverview] = useState<FinanceOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,18 +61,20 @@ export function AdminDashboardScreen() {
     setLoading(true);
     setError(null);
     try {
-      const [statsData, usersData, shopsData, prodsData, logsData] = await Promise.all([
+      const [statsData, usersData, shopsData, prodsData, logsData, financeData] = await Promise.all([
         adminRepository.getDashboardStats(),
         adminRepository.getUsers(),
         adminRepository.getShops(),
         adminRepository.getModerationProducts(),
         adminRepository.getAuditLogs(),
+        walletApi.getFinanceOverview().catch(() => null),
       ]);
       setStats(statsData);
       setUsers(usersData);
       setShops(shopsData);
       setProducts(prodsData);
       setLogs(logsData);
+      setFinanceOverview(financeData);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Không thể tải dữ liệu quản trị sàn.");
     } finally {
@@ -86,14 +90,16 @@ export function AdminDashboardScreen() {
       adminRepository.getShops(),
       adminRepository.getModerationProducts(),
       adminRepository.getAuditLogs(),
+      walletApi.getFinanceOverview().catch(() => null),
     ])
-      .then(([statsData, usersData, shopsData, prodsData, logsData]) => {
+      .then(([statsData, usersData, shopsData, prodsData, logsData, financeData]) => {
         if (!ignore) {
           setStats(statsData);
           setUsers(usersData);
           setShops(shopsData);
           setProducts(prodsData);
           setLogs(logsData);
+          setFinanceOverview(financeData);
           setLoading(false);
         }
       })
@@ -366,6 +372,66 @@ export function AdminDashboardScreen() {
             </div>
           </div>
         )}
+
+        {/* Marketplace Cashflow & Escrow Section (A-710) */}
+        <section aria-label="Dòng tiền & Ký quỹ sàn" className="surface-card p-5 rounded-2xl border border-[var(--border)] space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[var(--border)] pb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                <h2 className="text-base font-bold text-[var(--foreground)]">Dòng tiền Sàn & Ký quỹ (Escrow Cashflow)</h2>
+              </div>
+              <p className="text-xs text-[var(--subtext)] mt-0.5">
+                Cơ chế ký quỹ tự động: Sàn giữ tiền tạm thời, trừ 5% phí sàn khi hoàn tất và quyết toán vào Ví Shop.
+              </p>
+            </div>
+            <Link
+              href="/admin/finance"
+              className="button button--secondary text-xs py-1.5 px-3 flex items-center gap-1.5 font-medium shrink-0"
+            >
+              <Icon name="bag" className="w-3.5 h-3.5" />
+              <span>Quản lý rút tiền & Chi tiết →</span>
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="rounded-xl bg-[var(--card-muted)] p-4 border border-[var(--border)]">
+              <span className="text-xs text-[var(--subtext)] font-semibold uppercase tracking-wider block">
+                Tiền Ký quỹ đang giữ (Escrow)
+              </span>
+              <strong className="text-2xl font-bold text-amber-600 mt-1 block tabular-nums">
+                {moneyAdapter.formatVND(financeOverview?.total_escrow_holding || "0")}
+              </strong>
+              <span className="text-[11px] text-[var(--subtext)] block mt-0.5">
+                Đơn hàng đã thanh toán, chờ giao thành công
+              </span>
+            </div>
+
+            <div className="rounded-xl bg-[var(--card-muted)] p-4 border border-[var(--border)]">
+              <span className="text-xs text-[var(--subtext)] font-semibold uppercase tracking-wider block">
+                Doanh thu phí sàn đã thu
+              </span>
+              <strong className="text-2xl font-bold text-emerald-600 mt-1 block tabular-nums">
+                {moneyAdapter.formatVND(financeOverview?.total_commission_collected || "0")}
+              </strong>
+              <span className="text-[11px] text-[var(--subtext)] block mt-0.5">
+                5% hoa hồng từ đơn hàng COMPLETED
+              </span>
+            </div>
+
+            <div className="rounded-xl bg-[var(--card-muted)] p-4 border border-[var(--border)]">
+              <span className="text-xs text-[var(--subtext)] font-semibold uppercase tracking-wider block">
+                Tổng số dư ví các Shop
+              </span>
+              <strong className="text-2xl font-bold text-blue-600 mt-1 block tabular-nums">
+                {moneyAdapter.formatVND(financeOverview?.total_wallets_balance || "0")}
+              </strong>
+              <span className="text-[11px] text-[var(--subtext)] block mt-0.5">
+                Khả dụng cho các người bán tạo lệnh rút tiền
+              </span>
+            </div>
+          </div>
+        </section>
 
         {/* Admin Navigation Tabs */}
         <nav aria-label="Bộ lọc quản trị sàn" className="overflow-x-auto pb-1 -mx-2 px-2">
