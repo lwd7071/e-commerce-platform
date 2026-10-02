@@ -75,14 +75,8 @@ export function AdminFinanceScreen() {
     <main className="mx-auto max-w-7xl space-y-7 px-4 py-8 sm:px-6">
       {/* Sub-nav tabs */}
       <div className="flex flex-wrap items-center gap-2 border-b border-[var(--border)] pb-4">
-        <Link href="/admin" className="rounded-xl px-4 py-2 text-sm font-semibold text-[var(--subtext)] hover:bg-[var(--card-muted)]">
-          Tổng quan
-        </Link>
-        <Link href="/admin/shops" className="rounded-xl px-4 py-2 text-sm font-semibold text-[var(--subtext)] hover:bg-[var(--card-muted)]">
-          Gian hàng
-        </Link>
-        <Link href="/admin/categories" className="rounded-xl px-4 py-2 text-sm font-semibold text-[var(--subtext)] hover:bg-[var(--card-muted)]">
-          Danh mục
+        <Link href="/admin" className="rounded-xl px-4 py-2 text-sm font-semibold text-[var(--subtext)] hover:bg-[var(--card-muted)] flex items-center gap-1">
+          ← Quay lại Dashboard
         </Link>
         <Link href="/admin/orders" className="rounded-xl px-4 py-2 text-sm font-semibold text-[var(--subtext)] hover:bg-[var(--card-muted)]">
           Đơn hàng

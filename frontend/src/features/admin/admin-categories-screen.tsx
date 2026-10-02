@@ -204,12 +204,6 @@ export function AdminCategoriesScreen() {
         <nav aria-label="Điều hướng quản trị" className="border-b border-[var(--border)]">
           <div className="flex gap-6 text-sm font-semibold">
             <Link
-              href="/admin"
-              className="pb-3 border-b-2 border-transparent text-[var(--subtext)] hover:text-[var(--foreground)]"
-            >
-              Trung tâm quản trị
-            </Link>
-            <Link
               href="/admin/shops"
               className="pb-3 border-b-2 border-transparent text-[var(--subtext)] hover:text-[var(--foreground)]"
             >

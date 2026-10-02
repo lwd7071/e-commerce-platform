@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { FormField, TextInput } from "@/components/ui/form-controls";
@@ -42,7 +43,16 @@ export function AdminReportsScreen() {
   return (
     <section className="space-y-6">
       <header>
-        <p className="eyebrow">Dino Control Center</p>
+        <div className="flex items-center gap-2 mb-1">
+          <Link
+            href="/admin"
+            className="text-xs font-semibold text-[var(--subtext)] hover:text-[var(--primary-active)] flex items-center gap-1 transition-colors"
+          >
+            ← Quay lại Dashboard
+          </Link>
+          <span className="text-xs text-[var(--subtext)]">•</span>
+          <p className="eyebrow m-0">Dino Control Center</p>
+        </div>
         <h1 className="page-title">Báo cáo vận hành</h1>
         <p className="page-description">GMV chỉ tính đơn hoàn tất; ngày báo cáo theo múi giờ Việt Nam.</p>
       </header>
