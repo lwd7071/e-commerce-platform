@@ -4,7 +4,7 @@
 
 - Owner: Chưa xác định (Đội Core Platform)
 - Người phối hợp: Không
-- Trạng thái: Đang triển khai / Nghiệm thu từng phần (Đợt A & Đợt B đã kiểm chứng, Đợt C chưa triển khai)
+- Trạng thái: Đang triển khai / Nghiệm thu từng phần (Đợt A, Đợt B & Đợt C đã kiểm chứng)
 - Cập nhật lần cuối: 2026-10-02
 - Nhánh / PR / commit: `codex/tiering-loyalty` (cập nhật từ `dev` commit `0811358`)
 - Link tạo Pull Request trên GitHub (chưa tạo PR): https://github.com/lwd7071/e-commerce-platform/pull/new/codex/tiering-loyalty
@@ -12,15 +12,16 @@
 ## Mục tiêu và phạm vi
 
 - Mục tiêu: Xây dựng hệ thống phân hạng tinh gọn và minh bạch cho Shop (STANDARD / PREFERRED / MALL) và Buyer (STANDARD / VIP) kèm cơ chế tích lũy điểm DinoPoint an toàn khi đơn hàng hoàn tất.
-- Trong phạm vi được duyệt (P0-1 đến P0-8, Đợt A và Đợt B):
+- Trong phạm vi được duyệt (P0-1 đến P0-8, Đợt A, Đợt B và Đợt C):
   - Bước 0: Sửa lỗi nền runtime wiring `confirmReceived` trên `createRuntimeApp` và hoàn thiện kiểm tra điều kiện Shipment (P0-9).
   - Đợt A: Bổ sung `tier` cho Shop (`STANDARD`, `PREFERRED`, `MALL`) do Admin quản lý duyệt thủ công kèm audit log bắt buộc theo QD20; hỗ trợ bộ lọc catalog theo hạng và hiển thị huy hiệu `TierBadge` ở cả `ProductCard` và `ProductDetailScreen`.
   - Đợt B: Phân hạng Buyer (`STANDARD`, `VIP`) tự động dựa trên tổng chi tiêu tích lũy `total_spent` (>= 5.000.000 VNĐ). Tích lũy điểm DinoPoint (10.000 VNĐ = 1 điểm cho Standard, x2 cho VIP) và ghi nhận vào bảng Ledger `loyalty_point_transactions`. Hiển thị thông tin thành viên VIP, số dư điểm và tiến trình chi tiêu trong trang Profile của Buyer qua `BuyerLoyaltyCard`.
+  - Đợt C: Đánh giá tự động Shop Yêu Thích (PREFERRED) qua `ShopTierEvaluationService` với miễn trừ P0-8 (MALL và `tier_override`). Search Boost MALL → PREFERRED → STANDARD trong catalog mặc định. Endpoint `POST /admin/shops/evaluate-tiers` cho Admin kích hoạt đánh giá theo yêu cầu.
 - Ngoài phạm vi:
   - Không backfill dữ liệu cũ (P0-6).
   - Đổi điểm trừ tiền khi checkout hoặc voucher đổi thưởng (P0-5: chỉ tích lũy và hiển thị điểm).
   - Xử lý hoàn điểm/thu hồi điểm khi hoàn tiền/trả hàng (P0-7).
-  - Đợt C: Không triển khai cron tự động xét PREFERRED hoặc boost MALL trong tìm kiếm (hệ thống sử dụng tìm kiếm PostgreSQL `pg_trgm`/`to_tsvector`, không dùng ElasticSearch).
+  - Cron tự động chạy định kỳ đánh giá PREFERRED (hiện chỉ có endpoint on-demand cho Admin).
   - Trợ lý AI, chat realtime, ví tiền thật.
 
 ## Đã thực hiện
@@ -48,8 +49,13 @@
   - Hiện thực hóa `LoyaltyService` và hook ghi nhận nguyên tử trong `PgCheckoutService.persistTransition`: khóa dòng Buyer `SELECT ... FOR UPDATE`, chèn ledger bằng `INSERT ... ON CONFLICT (reference_order_id) WHERE reason = 'ORDER_COMPLETED' DO NOTHING RETURNING transaction_id`, chỉ cộng chi tiêu/điểm khi chèn ledger thành công (`rowCount === 1`). Đơn dưới 10.000 VNĐ vẫn ghi nhận chi tiêu và tạo ledger với 0 điểm.
   - Triển khai endpoints `GET /api/v1/buyer/loyalty` và `GET /api/v1/buyer/loyalty/history` trong `buyer-routes.ts` và đăng ký trong OpenAPI spec.
   - Frontend: Xây dựng component `BuyerLoyaltyCard` hiển thị huy hiệu VIP/Standard, số dư DinoPoint, thanh tiến trình thăng hạng VIP và bảng lịch sử giao dịch điểm. Tích hợp trực tiếp vào trang `ProfileScreen` cho tài khoản BUYER.
+- Đợt C: Đánh giá tự động Shop Yêu Thích & Search Boost MALL:
+  - Tạo `ShopTierEvaluationService` (`backend/src/modules/shop/services/shop-tier-evaluation.service.ts`) triển khai đánh giá tự động PREFERRED với miễn trừ P0-8: bỏ qua shop MALL (`SKIPPED_MALL`) và shop có `tier_override = TRUE` (`SKIPPED_OVERRIDE`). Điều kiện đạt: >= 20 đơn `COMPLETED`, rating trung bình >= 4.5, >= 5 review `VISIBLE`.
+  - Cập nhật `PgProductRepository.queryPublic` (`backend/src/modules/catalog/repositories/pg-catalog.repository.ts`): Trong chế độ sắp xếp mặc định, boost theo `CASE WHEN s.tier = 'MALL' THEN 2 WHEN s.tier = 'PREFERRED' THEN 1 ELSE 0 END DESC`. Khi sắp xếp cụ thể (`price_asc`, `price_desc`, `created_at_desc`), giữ nguyên ưu tiên sắp xếp không có tier.
+  - Thêm endpoint `POST /api/v1/admin/shops/evaluate-tiers` (RBAC ADMIN) cho Admin kích hoạt đánh giá theo yêu cầu (đánh giá 1 shop hoặc tất cả shop).
+  - Viết bộ kiểm thử mock `backend/test/platform/shop-tier-evaluation.spec.ts` (7/7 tests PASS).
 - Bổ sung kiểm thử PostgreSQL thật độc lập & E2E Lifecycle:
-  - Tạo bộ kiểm thử tích hợp trên PostgreSQL thật: `backend/tests/db/tiering-loyalty.integration.test.ts` (8/8 tests PASS) chạy trên schema độc lập `p5_loyalty_<uuid>`.
+  - Tạo bộ kiểm thử tích hợp trên PostgreSQL thật: `backend/tests/db/tiering-loyalty.integration.test.ts` (17/17 tests PASS) chạy trên schema độc lập `p5_loyalty_<uuid>`, bao gồm 6 tests Đợt C (promote, skip MALL, skip override, demote, HIDDEN reviews, Search Boost default vs price_asc).
   - Tạo bộ kiểm thử E2E Lifecycle hoàn chỉnh: `frontend/test/e2e-tiering-loyalty-lifecycle.spec.tsx` (7/7 tests PASS) kiểm chứng 2 hành trình:
     1. Admin đổi hạng shop thành MALL/PREFERRED -> `ProductCard` và `ProductDetailScreen` hiển thị đúng badge; `CatalogListScreen` có UI bộ lọc theo phân hạng shop.
     2. Buyer bấm nhận hàng -> đơn chuyển COMPLETED -> Profile hiển thị điểm DinoPoint, hạng thành viên, tiến trình VIP và lịch sử giao dịch.
@@ -77,7 +83,8 @@
 |---|---|---|---|---|
 | Prisma Schema & Migration Validation | Dev/Local | `cmd /c npx prisma validate` | PASS | `The schema at prisma\schema.prisma is valid 🚀` |
 | Prisma Migration Status Check | Supabase Database | `cmd /c npx prisma migrate status` | Ghi nhận | `20261003100000_shop_tiering` và `20261003110000_buyer_loyalty` chưa áp dụng trên `public`. Bổ sung bảo mật RLS được chuyển sang migration forward-only mới `20261003120000_secure_loyalty_ledger`. |
-| Real PostgreSQL Tiering & Loyalty Integration | PostgreSQL Thật (Isolated Schema) | `cmd /c npx vitest run tests/db/tiering-loyalty.integration.test.ts` | PASS | 11/11 tests pass (130.9s). Bao gồm: Schema verification, RLS enabled, Role anon & authenticated bị từ chối truy cập (SQLSTATE 42501), backend service role được phép, ON CONFLICT idempotency, đơn < 10k 0-pts, Concurrency SELECT FOR UPDATE (4.9M & 4.8M), Rollback toàn bộ Order + Shipment + Ledger + Balances khi lỗi loyalty qua `PgCheckoutService.confirmReceived`, và Atomic commit khi thành công. |
+| Real PostgreSQL Tiering & Loyalty Integration | PostgreSQL Thật (Isolated Schema) | `cmd /c npx vitest run tests/db/tiering-loyalty.integration.test.ts` | PASS | 17/17 tests pass (247.2s). Bao gồm: Suite 1-4 Đợt A&B (schema, RLS, idempotency, concurrency, rollback, atomic commit) + Suite 5 Đợt C: ShopTierEvaluationService promote STANDARD→PREFERRED trên PostgreSQL thật (≥20 orders, ≥4.5 rating, ≥5 VISIBLE reviews), skip MALL (P0-8), skip tier_override (P0-8), demote PREFERRED→STANDARD, chỉ tính VISIBLE reviews (bỏ qua HIDDEN), và Catalog Search Boost (default sort MALL>PREFERRED>STANDARD, price_asc giữ nguyên ưu tiên giá). |
+| Đợt C: Shop Tier Evaluation Unit Test | Mock Runtime (node:test) | `cmd /c npx tsx --test test/platform/shop-tier-evaluation.spec.ts` | PASS | 7/7 tests pass: TEST-C1 skip MALL, TEST-C2 skip override, TEST-C3 promote, TEST-C4 demote, TEST-C5 VISIBLE-only reviews, TEST-C6 batch evaluation, TEST-C7&C8 catalog ORDER BY clauses. |
 | Full Backend Vitest Suite | Remote Supabase Pooler | `cmd /c npm run test:vitest` | CHƯA ĐẠT (7/60 files fail) | 53/60 files passed, 334/344 tests passed (1340.9s - 22.3 phút). Ghi rõ blocker thực tế: 3 files catalog fail do query trực tiếp schema `public` thiếu cột `shops.tier` (chưa chạy migration trên public); 2 files regression fail do database dùng chung có 27 bảng thay vì 24 bảng. Riêng suite `tiering-loyalty` đã pass 100%. |
 | Frontend Component Integration Test | Vitest + jsdom (Mock Repositories) | `npm --prefix frontend test -- test/e2e-tiering-loyalty-lifecycle.spec.tsx` | PASS | 7/7 tests pass (4.5s): Runner là Vitest + jsdom + Testing Library, mock qua `features.domains` (`useMock: true`), `next/navigation`, `buyerApi.getLoyaltySummary`. Kiểm chứng Admin đổi hạng -> ProductCard & ProductDetail hiện badge; CatalogListScreen lọc hạng; Buyer nhận hàng -> Profile cập nhật DinoPoint/VIP/history. |
 | Frontend Live Browser E2E | Playwright Browser (Live Environment) | `cmd /c npx playwright test e2e/tiering-loyalty-live.spec.ts` | ĐÃ TẠO SPEC (2 skipped khi thiếu live env) | Runner là Playwright (`@playwright/test`). Kiểm thử 2 hành trình thực tế qua browser: Admin đổi hạng trên `/admin/shops` -> Catalog hiển thị badge trên `/products` và `/products/[id]`; Buyer nhận hàng -> `/profile` hiển thị DinoPoint, VIP và ledger. Đã cấu hình fallback kênh `msedge` tránh phụ thuộc download Chromium từ CDN. |
@@ -107,20 +114,32 @@
   - [x] Bước 0: Sửa lỗi nền wiring `confirmReceived` và kiểm tra quyền hoàn tất đơn (P0-9).
   - [x] Đợt A: Triển khai migration `shops.tier` & override metadata, Admin tier API, catalog filter và `TierBadge` UI (ở cả `ProductCard` và `ProductDetailScreen`).
   - [x] Đợt B: Triển khai migration `app_users` + `loyalty_point_transactions`, migration forward-only `20261003120000_secure_loyalty_ledger`, core hook tích điểm, bảo mật RLS ledger, Buyer loyalty API, Profile UI `BuyerLoyaltyCard`.
-  - [x] Kiểm thử PostgreSQL thật: Bộ kiểm thử `tests/db/tiering-loyalty.integration.test.ts` đạt 11/11 tests PASS trên remote PostgreSQL thật, kiểm chứng cả rollback Order + Shipment và từ chối quyền anon/authenticated.
+  - [x] Đợt C: Triển khai `ShopTierEvaluationService` (đánh giá tự động PREFERRED, miễn trừ P0-8), Search Boost MALL→PREFERRED→STANDARD trong catalog, endpoint `POST /admin/shops/evaluate-tiers`.
+  - [x] Kiểm thử PostgreSQL thật: Bộ kiểm thử `tests/db/tiering-loyalty.integration.test.ts` đạt 17/17 tests PASS trên remote PostgreSQL thật (247.2s), bao gồm 6 tests Đợt C.
   - [x] Kiểm thử tích hợp component frontend `frontend/test/e2e-tiering-loyalty-lifecycle.spec.tsx` đạt 7/7 tests PASS (Vitest jsdom + Testing Library).
   - [x] Tạo kịch bản Playwright Browser E2E `frontend/e2e/tiering-loyalty-live.spec.ts` cho 2 hành trình thực tế.
 - Phần chưa kiểm chứng / Blocker thực tế:
-  - [ ] **Chưa có database test độc lập chuyên biệt**: Database Supabase hiện tại (`putywqmxtjttfdezlswf`) là môi trường dùng chung giữa dev, demo seed accounts và các nhánh tính năng khác. Các kiểm thử PostgreSQL được chạy trên schema cô lập tạm thời (`p5_loyalty_<uuid>`), **chưa đáp ứng tiêu chí một database/project test độc lập hoàn toàn với production**. Tuyệt đối không tiết lộ credentials trong báo cáo và giữ trạng thái nghiệm thu từng phần.
+  - [ ] **Chưa có database test độc lập chuyên biệt**: Database Supabase hiện tại là môi trường dùng chung giữa dev, demo seed accounts và các nhánh tính năng khác. Các kiểm thử PostgreSQL được chạy trên schema cô lập tạm thời (`p5_loyalty_<uuid>`), **chưa đáp ứng tiêu chí một database/project test độc lập hoàn toàn với production**. Tuyệt đối không tiết lộ credentials trong báo cáo và giữ trạng thái nghiệm thu từng phần.
   - [ ] **Full backend test:vitest chưa chạy pass đầy đủ**: Khi chạy toàn bộ 60 test suites, có 7 suites không đạt (53 passed, 7 failed, 10 tests failed). Blocker cụ thể:
     1. Các test catalog (`catalog-db`, `catalog-benchmark`, `catalog-hardening`) query trực tiếp schema `public` mà chưa có cột `shops.tier` vì migration chưa được áp dụng lên schema chung.
     2. Các test kiểm tra số lượng bảng (`schema-smoke`, `t3-migration-rebuild`) fail vì schema chung đang có 27 bảng do các nhánh khác đã thêm bảng flash sale, khác với mốc 24 bảng của T2.
   - [ ] **Chưa áp dụng migration lên môi trường production**: Các migration `20261003100000_shop_tiering`, `20261003110000_buyer_loyalty`, `20261003120000_secure_loyalty_ledger` chưa được deploy lên production hay schema `public`.
-  - [ ] **Đợt C (Ngoài phạm vi)**: Đánh giá tự động PREFERRED và composite cursor search boost — Chưa triển khai theo quyết định phạm vi được duyệt.
+  - [ ] **Cron tự động chạy định kỳ đánh giá PREFERRED**: Hiện chỉ có endpoint on-demand `POST /admin/shops/evaluate-tiers` cho Admin kích hoạt thủ công.
   - [ ] **Đổi điểm DinoPoint khi thanh toán** (P0-5: chỉ tích lũy, chưa đổi thưởng).
   - [ ] **Thu hồi điểm khi hoàn tiền / trả hàng** (P0-7).
 
 ## Nhật ký cập nhật
+
+### 2026-10-02 (Đợt C - Đánh giá tự động PREFERRED, Search Boost MALL & Admin evaluate-tiers)
+
+- Đã làm:
+  - Tạo `ShopTierEvaluationService` (`backend/src/modules/shop/services/shop-tier-evaluation.service.ts`): Đánh giá tự động PREFERRED cho shop, miễn trừ P0-8 (MALL exempt, `tier_override` exempt). Điều kiện: >= 20 đơn COMPLETED, rating trung bình >= 4.5 (chỉ tính review `VISIBLE`), >= 5 review VISIBLE. Hỗ trợ đánh giá 1 shop hoặc batch tất cả shop ACTIVE.
+  - Cập nhật `PgProductRepository.queryPublic`: Search Boost trong default sort (`CASE WHEN s.tier = 'MALL' THEN 2 WHEN s.tier = 'PREFERRED' THEN 1 ELSE 0 END DESC`). Khi sắp xếp cụ thể (`price_asc`, `price_desc`, `created_at_desc`), tier không can thiệp vào thứ tự.
+  - Thêm endpoint `POST /api/v1/admin/shops/evaluate-tiers` (RBAC ADMIN) vào `admin-routes.ts` và đấu nối `ShopTierEvaluationService` vào `app.ts`.
+  - Viết bộ kiểm thử mock `backend/test/platform/shop-tier-evaluation.spec.ts` (7/7 tests PASS).
+  - Bổ sung Suite 5 vào `backend/tests/db/tiering-loyalty.integration.test.ts` (6 tests Đợt C trên PostgreSQL thật): promote, skip MALL, skip override, demote, HIDDEN reviews, Search Boost default vs price_asc. Tổng 17/17 tests PASS (247.2s).
+  - Sửa lint warning `@typescript-eslint/no-unused-vars` trong mock pool và cải thiện mock review filtering chính xác theo `product.shop_id`.
+  - Toàn bộ quality gates: Backend typecheck 0 errors, backend lint 0 errors 0 warnings, frontend typecheck 0 errors, frontend lint 0 errors.
 
 ### 2026-10-02 (Làm rõ đánh giá nghiệm thu, bổ sung Playwright E2E, Rollback Order thực tế & Forward-only Migration)
 
