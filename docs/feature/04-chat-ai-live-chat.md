@@ -2,11 +2,15 @@
 
 ## Owner và trạng thái
 
-- Owner: Người 3 (Catalog, Buyer Interaction & Real-time Chat)
-- Người phối hợp: Không
-- Trạng thái: Hoàn thành
+- Owner: thangdanglk-ui / Người 3 (Catalog, Buyer Interaction & Real-time Chat)
+- Người phối hợp:
+  - Người 1 (Auth & User Platform): Xác thực JWT / Supabase Auth (`buyer_id`, `seller_id`), phân quyền RBAC (`BUYER`, `SELLER`).
+  - Người 2 (Shop & Seller Operations): Xác thực quyền sở hữu Shop (`shop.owner_id`) và tích hợp menu điều hướng Seller Dashboard (`/seller/chat`).
+- Trạng thái: Hoàn thành 100% (Đã merge và xác minh sau merge)
 - Cập nhật lần cuối: 2026-10-02
-- Nhánh / PR / commit: feat/fe-nguoi-3-catalog
+- Nhánh / PR / commit: `feat/fe-nguoi-3-catalog` -> Merged vào `origin/dev` (`f264548`)
+- Ngày hoàn thành: 2026-10-02
+- Blocker: Không có (0 blocker)
 
 ## Mục tiêu và phạm vi
 
@@ -45,7 +49,9 @@
 
 ## Thiết kế / quyết định kỹ thuật
 
-- Hybrid 2 Tầng (Bot Assistant + Seller Live Chat): Giúp giảm 70% khối lượng tin nhắn lặp lại cho Seller (hỏi còn hàng không, giá bao nhiêu, kích thước gì) nhưng vẫn đảm bảo khách hàng luôn nhận được hỗ trợ người thật khi cần.
+- Hybrid 2 Tầng (Bot Assistant + Seller Live Chat): Tự động phân giải và phản hồi các câu hỏi phổ biến về thuộc tính, tồn kho và khoảng giá sản phẩm dựa trên dữ liệu thời gian thực được Seller cấp quyền, giảm thiểu thao tác trả lời thủ công lặp lại cho Người bán, đồng thời hỗ trợ chuyển tiếp liền mạch sang tư vấn viên (Hand-off) khi người mua yêu cầu.
+- Đồng bộ thời gian thực qua Short-Polling: Giao diện Buyer `ChatWidget` và Seller `SellerChatInboxScreen` tích hợp cơ chế Short-Polling tự động kéo tin nhắn mới (chu kỳ 4 giây cho hội thoại đang mở và 10 giây cho danh mục hội thoại) giúp hai bên nhận tin nhắn tức thời qua HTTP mà không cần reload trang.
+- Quản lý trạng thái Hiện diện (Online/Offline Presence): Cho phép Shop chủ động chuyển đổi trạng thái trực tuyến (`Shop Đang Trực Tuyến`) hoặc tạm vắng (`Shop Tạm Vắng (Offline)`). Khi Shop offline, hệ thống kích hoạt thông báo trạng thái rõ ràng trên giao diện và đưa tin nhắn vào hàng đợi để Shop phản hồi sau.
 - Scoped Grounding & Whitelist: Bot chỉ đọc đúng 1 sản phẩm đang hỏi và tuân thủ bộ cờ quyền `allow_stock`, `allow_price`, `allow_variants`, `allow_description`.
 - Schema: Bảng `chat_conversations` và `chat_messages` được thiết kế có foreign key ràng buộc với `app_users`, `shops`, `products` và hỗ trợ cursor pagination.
 - Chống trùng lặp tin nhắn: Client gửi `client_message_id` (UUIDv4) để đảm bảo idempotency khi mạng chập chờn.
@@ -57,7 +63,7 @@
 | Backend Chat Routes & Engine | `npm --prefix backend run test:node -- test/platform/chat-routes.spec.ts` | PASS (14/14 tests) | Kiểm tra trọn vẹn grounding, stock query, out of stock, price range, anti-hallucination, REST API flows |
 | Backend Full Test Suite | `npm --prefix backend run test:node` | PASS (706/706 tests) | 100% test suites vượt qua, không gây bất kỳ regression nào |
 | Backend Lint & Build | `npm --prefix backend run lint && npm --prefix backend run build` | PASS | 0 lỗi ESLint, bundle esbuild thành công sang `dist/app.js` (495.9kb) |
-| Frontend Chat Tests | `npx vitest run test/chat-widget.spec.tsx test/seller-chat-inbox.spec.tsx` | PASS (6/6 tests) | Kiểm thử hiển thị widget, gửi tin bot phản hồi, seller trả lời và cập nhật bot permissions |
+| Frontend Chat Tests | `npx vitest run test/chat-widget.spec.tsx test/seller-chat-inbox.spec.tsx` | PASS (7/7 tests) | Kiểm thử hiển thị widget, short-polling tin nhắn, gửi tin bot phản hồi, seller trả lời, cấu hình bot permissions, và toggle online/offline presence |
 | Frontend Full Vitest Suite | `npm --prefix frontend run test` | PASS | Toàn bộ 68 test files và navigation matrix pass |
 | Frontend Lint & Typecheck | `npm --prefix frontend run lint && npm --prefix frontend run typecheck` | PASS | 0 lỗi ESLint, 0 lỗi TypeScript |
 | Frontend Production Build | `npm --prefix frontend run build` | PASS | Biên dịch Next.js thành công tất cả 32 routes (bao gồm `/seller/chat`) |
@@ -66,7 +72,7 @@
 
 - Phân quyền / dữ liệu nhạy cảm: Chỉ Buyer sở hữu cuộc trò chuyện hoặc Seller sở hữu Shop mới có quyền đọc/ghi vào `chat_conversations` tương ứng (kiểm tra `buyer_id` hoặc `shop.owner_id`). Loại bỏ toàn bộ PII (email, số điện thoại, địa chỉ) khỏi AI prompt payload.
 - Retry, request trùng, race condition: Sử dụng `client_message_id` chống trùng tin nhắn; phân trang theo cursor `created_at` chống lệch thứ tự tin nhắn.
-- Xử lý khi Seller offline: Tự động phản hồi tin nhắn tự động báo Shop hiện đang offline và lưu tin nhắn vào hàng đợi để Seller phản hồi sau.
+- Xử lý khi Seller offline & Đồng bộ tin nhắn: Cung cấp nút chuyển đổi trạng thái Trực tuyến/Tạm vắng trong Seller Inbox. Khi Shop offline, hệ thống kích hoạt banner cảnh báo và thông báo phản hồi chậm khi khách yêu cầu tư vấn viên; tin nhắn được lưu trữ an toàn trong DB PostgreSQL và đồng bộ tự động qua polling 4s.
 - Rủi ro còn lại: Tải đồng thời cao khi nhiều user chat cùng lúc -> Cần pooling kết nối cơ sở dữ liệu tối ưu.
 
 ## Việc còn lại và blocker
@@ -81,14 +87,18 @@
 
 ## Nhật ký cập nhật
 
-### 2026-10-02
+### 2026-10-02 (Post-Merge Review & Verification)
 
-- Đã làm:
-  - Khởi tạo tài liệu Feature 4 `docs/feature/04-chat-ai-live-chat.md`.
-  - Thiết kế và tạo migration PostgreSQL `chat_conversations` & `chat_messages`.
-  - Cài đặt `BotGroundedEngine`, `PgChatRepository`, `PgChatService`, các REST API endpoints `/api/v1/chat/*` và OpenAPI spec.
-  - Cài đặt Frontend `ChatWidget`, tích hợp vào `ProductDetailScreen`, xây dựng `SellerChatInboxScreen` và trang `/seller/chat`.
-  - Viết 14 test cases backend và 6 test cases frontend.
-  - Sửa lỗi điều hướng SELLER trong navigation test và tinh chỉnh microtask cho React state update trong `useEffect`.
-- Kiểm tra: Toàn bộ 706/706 tests backend, toàn bộ test suite frontend, ESLint (0 errors, 0 warnings), Next.js production build (32 routes) đều đạt kết quả PASS tuyệt đối.
-- Tiếp theo: Commit mã nguồn và đẩy lên nhánh `feat/fe-nguoi-3-catalog`.
+- **Đã làm theo phản hồi Review của Lead/Team:**
+  - Hoàn thiện cơ chế đồng bộ tin nhắn Realtime: Thêm Short-Polling 4 giây ở Buyer `ChatWidget` và Seller `SellerChatInboxScreen` (kèm polling danh sách 10 giây).
+  - Hoàn thiện tính năng Hiện diện (Presence): Bổ sung nút chuyển đổi `Shop Đang Trực Tuyến` / `Shop Tạm Vắng (Offline)` trên Header Seller Inbox và banner cảnh báo tự động khi offline.
+  - Chuẩn hóa tài liệu: Loại bỏ khẳng định định lượng chưa đo lường (mức giảm 70% tin nhắn), thay thế bằng mô tả kỹ thuật chính xác.
+  - Cập nhật thông tin phối hợp: Xác định rõ Người 1 (Auth/JWT/RBAC) và Người 2 (Shop/Seller Nav).
+  - Viết thêm Unit Test kiểm thử chuyển đổi trạng thái Online/Offline trong `test/seller-chat-inbox.spec.tsx` (tổng 7/7 tests frontend pass).
+- **Kiểm tra sau merge (Post-merge Verification):**
+  - Backend Chat Routes & Grounding: 14/14 tests PASS (`npx tsx --test test/platform/chat-routes.spec.ts`).
+  - Backend Lint: PASS (0 warnings với `--max-warnings=0`).
+  - Frontend Chat Vitest: 7/7 tests PASS (`npx vitest run test/chat-widget.spec.tsx test/seller-chat-inbox.spec.tsx`).
+  - Frontend Lint: PASS (0 errors, 0 warnings).
+  - Frontend Typecheck: PASS (`tsc --noEmit` 0 errors).
+- **Trạng thái:** Toàn bộ tính năng đã hoàn thành 100%, vượt qua tất cả quality gates sau merge, không có blocker. Đã đồng bộ mã nguồn lên nhánh `feat/fe-nguoi-3-catalog` và nhánh `dev`.

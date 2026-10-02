@@ -44,6 +44,7 @@ describe('Migration Rebuild & Clean Replay Safety (T3 Unit)', () => {
     expect(entries).toContain('20260926100000_t3_cross_domain_hardening');
     expect(entries).toContain('20260929120000_auth_user_bootstrap');
     expect(entries).toContain('20260930150000_media_upload_lifecycle');
+    expect(entries).toContain('20261002130000_chat_conversations_and_messages');
   });
 
   it('contains durable notification event idempotency migration', () => {
@@ -128,9 +129,8 @@ remoteDescribe('Migration State & Database Replay Acceptance (T3 Remote)', () =>
       migration_name: string;
       finished_at: Date | null;
       rolled_back_at: Date | null;
-      applied_steps_count: number;
     }>(
-      'SELECT migration_name, finished_at, rolled_back_at, applied_steps_count FROM _prisma_migrations ORDER BY started_at ASC',
+      'SELECT migration_name, finished_at, rolled_back_at FROM _prisma_migrations ORDER BY started_at ASC',
     );
 
     expect(result.rows.length).toBeGreaterThanOrEqual(2);
@@ -139,6 +139,7 @@ remoteDescribe('Migration State & Database Replay Acceptance (T3 Remote)', () =>
       expect(migration.rolled_back_at).toBeNull();
     }
     expect(result.rows.map((migration) => migration.migration_name)).toContain('20261002140000_flash_sale_concurrency');
+    expect(result.rows.map((migration) => migration.migration_name)).toContain('20261002130000_chat_conversations_and_messages');
   }, 15_000);
 
   it('confirms the database schema contains exactly the frozen and approved feature business tables plus 2 operational tables', async () => {

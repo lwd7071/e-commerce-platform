@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { ProtectedPage } from "@/components/navigation/protected-page";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";

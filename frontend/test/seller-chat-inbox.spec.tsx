@@ -161,4 +161,27 @@ describe('SellerChatInboxScreen Component', () => {
       expect(updatePermsMock).toHaveBeenCalled();
     });
   });
+
+  it('allows toggling shop online and offline status with notification banner', async () => {
+    vi.spyOn(repositories, 'chat').mockReturnValue({
+      createOrGetConversation: vi.fn(),
+      getConversations: vi.fn().mockResolvedValue(mockConversations),
+      getConversation: vi.fn(),
+      getMessages: vi.fn().mockResolvedValue(mockMessages),
+      sendMessage: vi.fn(),
+      requestHandoff: vi.fn(),
+      updatePermissions: vi.fn(),
+    });
+
+    const user = userEvent.setup();
+    render(<SellerChatInboxScreen />);
+
+    const onlineToggle = await screen.findByText('Shop Đang Trực Tuyến');
+    expect(onlineToggle).toBeTruthy();
+
+    await user.click(onlineToggle);
+
+    expect(await screen.findByText('Shop Tạm Vắng (Offline)')).toBeTruthy();
+    expect(screen.getByText(/Shop đang vắng mặt \(Offline\)/)).toBeTruthy();
+  });
 });
