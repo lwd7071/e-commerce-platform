@@ -98,6 +98,7 @@ describe('Feature 05: Flash Sale & Concurrency Inventory Engine', () => {
       await redis.del(...keys);
     }
     await pool.end();
+    await closeRedisClient();
   });
 
   it('1. Test Concurrency Kho: 50 requests đồng thời tranh mua 10 sản phẩm (Zero Overselling)', async () => {

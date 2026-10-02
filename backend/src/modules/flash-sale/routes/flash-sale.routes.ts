@@ -12,8 +12,8 @@ export function createFlashSaleRouter(service: FlashSaleService, repo: PgFlashSa
     try {
       const sessions = await repo.listActiveSessions();
       res.json({ data: sessions });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+      res.status(500).json({ error: (err as Error).message });
     }
   });
 
@@ -35,8 +35,8 @@ export function createFlashSaleRouter(service: FlashSaleService, repo: PgFlashSa
       );
 
       res.json({ data: itemsWithStock });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+      res.status(500).json({ error: (err as Error).message });
     }
   });
 
@@ -49,8 +49,8 @@ export function createFlashSaleRouter(service: FlashSaleService, repo: PgFlashSa
         return res.status(400).json(result);
       }
       res.json(result);
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+      res.status(500).json({ error: (err as Error).message });
     }
   });
 
@@ -73,7 +73,8 @@ export function createFlashSaleRouter(service: FlashSaleService, repo: PgFlashSa
       }
 
       // ponytail: Lấy user_id từ auth request context hoặc fallback body/anonymous
-      const userId = (req as any).user?.user_id || req.body.user_id || '00000000-0000-0000-0000-000000000001';
+      const authUser = (req as unknown as { user?: { user_id?: string } }).user;
+      const userId = authUser?.user_id || req.body.user_id || '00000000-0000-0000-0000-000000000001';
 
       const result = await service.purchase({
         idempotency_key: idempKey,
@@ -94,9 +95,9 @@ export function createFlashSaleRouter(service: FlashSaleService, repo: PgFlashSa
       }
 
       return res.status(200).json(result);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[FlashSale Route Error]', err);
-      res.status(500).json({ error: 'INTERNAL_ERROR', message: err.message });
+      res.status(500).json({ error: 'INTERNAL_ERROR', message: (err as Error).message });
     }
   });
 
@@ -106,8 +107,8 @@ export function createFlashSaleRouter(service: FlashSaleService, repo: PgFlashSa
       const { slotId } = req.params;
       const report = await service.reconcileSlot(slotId);
       res.json({ data: report });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+      res.status(500).json({ error: (err as Error).message });
     }
   });
 
@@ -116,8 +117,8 @@ export function createFlashSaleRouter(service: FlashSaleService, repo: PgFlashSa
     try {
       const result = await service.runWatchdogSweep();
       res.json({ data: result });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+      res.status(500).json({ error: (err as Error).message });
     }
   });
 

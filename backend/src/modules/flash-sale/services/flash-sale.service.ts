@@ -257,7 +257,7 @@ export class FlashSaleService {
 
       // COMMIT TRANSACTION TRƯỚC (ĐIỂM CHỐT SỰ THẬT DUY NHẤT)
       await client.query('COMMIT');
-    } catch (err: any) {
+    } catch (err: unknown) {
       await client.query('ROLLBACK');
 
       // TẦNG 3 (ERROR): FAST ROLLBACK & LOG COMPENSATION
@@ -267,7 +267,7 @@ export class FlashSaleService {
         slot_id,
         item_id,
         user_id,
-        reason: `DB_TRANSACTION_FAILED: ${err.message}`,
+        reason: `DB_TRANSACTION_FAILED: ${(err as Error).message}`,
         status: 'PENDING',
       });
 

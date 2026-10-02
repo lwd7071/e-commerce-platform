@@ -1,8 +1,7 @@
-import type { Pool, PoolClient } from 'pg';
+import type { Pool } from 'pg';
 import type {
   FlashSaleSession,
   FlashSaleItem,
-  FlashSaleCompensationLog,
   CompensationStatus,
 } from '../domain/flash-sale.types.ts';
 
@@ -118,26 +117,26 @@ export class PgFlashSaleRepository {
     };
   }
 
-  private mapSession(row: any): FlashSaleSession {
-    const toIso = (d: any) => (d instanceof Date ? d.toISOString() : String(d));
+  private mapSession(row: Record<string, unknown>): FlashSaleSession {
+    const toIso = (d: unknown) => (d instanceof Date ? d.toISOString() : String(d));
     return {
-      slot_id: row.slot_id,
-      slot_name: row.slot_name,
+      slot_id: String(row.slot_id),
+      slot_name: String(row.slot_name),
       start_time: toIso(row.start_time),
       end_time: toIso(row.end_time),
-      status: row.status,
+      status: row.status as FlashSaleSession['status'],
       created_at: toIso(row.created_at),
       updated_at: toIso(row.updated_at),
     };
   }
 
-  private mapItem(row: any): FlashSaleItem {
-    const toIso = (d: any) => (d instanceof Date ? d.toISOString() : String(d));
+  private mapItem(row: Record<string, unknown>): FlashSaleItem {
+    const toIso = (d: unknown) => (d instanceof Date ? d.toISOString() : String(d));
     return {
-      item_id: row.item_id,
-      slot_id: row.slot_id,
-      product_id: row.product_id,
-      variant_id: row.variant_id,
+      item_id: String(row.item_id),
+      slot_id: String(row.slot_id),
+      product_id: String(row.product_id),
+      variant_id: String(row.variant_id),
       original_price: String(row.original_price),
       flash_sale_price: String(row.flash_sale_price),
       allocated_stock: Number(row.allocated_stock),
