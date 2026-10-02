@@ -4,9 +4,9 @@
 
 ## Trạng thái hiện tại
 
-- Phase/ticket: Phase 5 & Phase 6 — Orders, Review, Admin & Buyer Confirm-Received (Hoàn tất 100% Cụm 1, 2, 3, 4, P0-08 / C-103, C-104, E2E Lifecycle Suite và Zero-Silent-Fallback)
-- Cập nhật lần cuối: 2026-09-30
-- Đang làm: Đã hoàn thành triển khai toàn bộ các cụm công việc Frontend của Người 5, tính năng Buyer confirm-received, bài kiểm thử E2E liên chuỗi và chuẩn hóa cơ chế **Zero-Silent-Fallback**:
+- Phase/ticket: Phase 5 & Phase 6 — Orders, Review, Admin & Feature 01: Escrow & Seller Wallet (Hoàn tất 100%)
+- Cập nhật lần cuối: 2026-10-02
+- Đang làm: Đã hoàn thành toàn bộ các cụm công việc Frontend của Người 5, bao gồm cả tính năng mở rộng Ví người bán, Tài chính Admin và Thanh toán PayOS VietQR:
   1. **Cụm 1 & 2 (Buyer Orders `/orders` & Seller Orders `/seller/orders`):**
      - Kênh đọc đơn (`getOrders`, `getOrderById`): Gọi API live khi `useMock=false`, và dùng in-memory mock store (`mockOrderRepository`) khi `useMock=true`.
      - Kênh thao tác đơn (`cancelOrder`, `confirmOrder`, `confirmReceived`, `transitionOrder`): Gọi API Backend live khi `useMock=false` và ném lỗi trung thực (`AppError` / 409 Conflict / 400 / 403), không âm thầm fallback sang mock khi live gặp lỗi; chặn QD11 `to === 'COMPLETED'`.
@@ -20,12 +20,30 @@
      - Backend: Bổ sung route `POST /orders/:order_id/confirm-received` trong `order-routes.ts`, `t1-routes.ts`, `PgCheckoutService.confirmReceived` và `OrderLifecycleService.confirmReceived`, cập nhật `order-state-machine.ts` cho phép Buyer chuyển đơn từ `SHIPPING` $\rightarrow$ `COMPLETED`.
      - Frontend: Bổ sung `confirmReceived` vào `orderApi`, `IOrderRepository`, `hybridOrderRepository`, `mockOrderRepository`; gắn nút **"Đã nhận được hàng"** vào thẻ đơn `SHIPPING` trên trang `/orders`; hiển thị thông báo thành công và mở khóa nút viết đánh giá Review (QD14).
      - E2E Lifecycle Test: Tạo `frontend/test/e2e-order-review-lifecycle.spec.ts` kiểm thử toàn trình Checkout $\rightarrow$ Seller Ship $\rightarrow$ Buyer Confirm-Received $\rightarrow$ Submit Review 5 sao $\rightarrow$ Chặn Duplicate Review 409 (PASS 100%).
-  5. **Quality Gates:** 256/256 Vitest tests PASS (100% trên 45 test suites), typecheck 0 errors (`tsc --noEmit`), lint 0 errors & 0 warnings (`eslint`), Next.js Production Build 100% SUCCESS (22/22 routes), 0 hardcoded hex colors.
-- Nhánh/PR: thanh-vien-5 (đã merge `origin/dev`, 0 conflict, sẵn sàng merge sạch vào `dev`)
-- Bị block bởi: Không (Đã hoàn thành toàn bộ code, Zero-Silent-Fallback, 3 hình thức minh chứng nghiệm thu và bài kiểm thử tích hợp E2E chuỗi Checkout → Seller Ship → Buyer Confirm-Received → Review).
-- Việc tiếp theo: Merge vào `dev` và bàn giao Release Candidate.
+  5. **Cụm 5 — Feature 01: Escrow & Seller Wallet, PayOS VietQR & Admin Finance UI:**
+     - Giao diện Ví người bán `/seller/wallet`: Xem số dư khả dụng và phong tỏa rút tiền, form cập nhật số tài khoản ngân hàng, modal tạo lệnh rút tiền (tối thiểu 50.000 VNĐ) và bảng lịch sử giao dịch.
+     - Giao diện Quản trị tài chính `/admin/finance`: 5 thẻ KPI dòng tiền toàn sàn, danh sách yêu cầu rút tiền với bộ lọc trạng thái, form duyệt/từ chối kèm lý do và nút kích hoạt đối soát Escrow.
+     - Nút thanh toán VietQR PayOS tại `OrderCard` / `PendingConfirmationCard` mở dialog thanh toán kèm mã QR code động.
+     - `walletApi` trong `frontend/src/lib/api/wallet.api.ts` hỗ trợ đầy đủ các hàm gọi API, bao gồm `reconcileEscrow()`.
+  6. **Quality Gates:** 351/351 Vitest tests PASS (100% trên 74 test files), typecheck 0 errors (`tsc --noEmit`), lint 0 errors & 0 warnings (`eslint`), Next.js Production Build 100% SUCCESS.
+- Nhánh/PR: thanh-vien-5 (đồng bộ từ `dev` commit `e2896bc`)
+- Bị block bởi: Không
+- Việc tiếp theo: Hoàn thiện nghiệm thu và bàn giao.
 
 ## Nhật ký theo ngày
+
+### 2026-10-02 (Hoàn thiện Frontend Wallet, Admin Finance, PayOS VietQR & API Reconcile)
+
+- **Đã làm:**
+  - **1. Đồng bộ Client API `walletApi` (`frontend/src/lib/api/wallet.api.ts`):**
+    - Thêm interface `EscrowReconciliationResult` và phương thức `reconcileEscrow()` gọi endpoint `POST /admin/finance/escrow/reconcile`.
+    - Bảo đảm các kiểu dữ liệu `ShopWallet`, `WalletTransaction`, `WithdrawalRequest`, `FinanceOverview`, `PayosLinkResult` chuẩn xác và khớp hoàn toàn backend.
+  - **2. Kiểm thử hồi quy Frontend Wallet & Finance:**
+    - Chạy `vitest run test/seller-wallet-screen.spec.tsx test/admin-finance-screen.spec.tsx test/payos-vietqr.spec.tsx`: **9/9 tests PASS** (3 test files).
+  - **3. Chạy toàn bộ Test Suite Frontend:**
+    - Toàn bộ Vitest: **351/351 tests PASS** (74 test files).
+    - Typecheck (`tsc --noEmit`): **0 errors**.
+    - ESLint (`npm run lint`): **0 errors, 0 warnings**.
 
 ### 2026-09-30 (Hoàn thành Zero-Silent-Fallback, E2E Lifecycle Suite và Bàn giao Minh chứng Nghiệm thu)
 

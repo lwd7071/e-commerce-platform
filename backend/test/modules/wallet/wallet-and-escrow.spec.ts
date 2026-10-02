@@ -8,6 +8,7 @@ import type {
   WithdrawalRequest,
   UpdateBankInfoInput,
   FinanceOverview,
+  EscrowReconciliationResult,
 } from '../../../src/modules/wallet/domain/wallet.types.ts';
 import {
   InsufficientBalanceError,
@@ -27,6 +28,7 @@ class InMemoryWalletRepository implements IWalletRepository {
   public escrows = new Map<string, EscrowRecord>();
   public transactions: WalletTransaction[] = [];
   public withdrawals = new Map<string, WithdrawalRequest>();
+  public orderStatuses = new Map<string, string>();
 
   async getOrCreateWallet(shopId: string): Promise<ShopWallet> {
     let wallet = this.wallets.get(shopId);
@@ -142,6 +144,48 @@ class InMemoryWalletRepository implements IWalletRepository {
     escrow.status = 'REFUNDED';
     this.escrows.set(orderId, escrow);
     return { ...escrow };
+  }
+
+  async reconcilePendingEscrows(): Promise<EscrowReconciliationResult> {
+    const result: EscrowReconciliationResult = {
+      settled_count: 0,
+      settled_order_ids: [],
+      refunded_count: 0,
+      refunded_order_ids: [],
+      errors: [],
+    };
+
+    for (const [orderId, escrow] of this.escrows.entries()) {
+      if (escrow.status === 'HOLDING') {
+        const orderStatus = this.orderStatuses.get(orderId);
+        if (orderStatus === 'COMPLETED') {
+          try {
+            await this.settleEscrow(orderId);
+            result.settled_count++;
+            result.settled_order_ids.push(orderId);
+          } catch (err) {
+            result.errors.push({
+              order_id: orderId,
+              action: 'SETTLE',
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+        } else if (orderStatus === 'CANCELLED') {
+          try {
+            await this.refundEscrow(orderId);
+            result.refunded_count++;
+            result.refunded_order_ids.push(orderId);
+          } catch (err) {
+            result.errors.push({
+              order_id: orderId,
+              action: 'REFUND',
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
+      }
+    }
+    return result;
   }
 
   async requestWithdrawal(shopId: string, amountStr: string): Promise<{ request: WithdrawalRequest; wallet: ShopWallet; transaction: WalletTransaction }> {
@@ -567,6 +611,64 @@ describe('Wallet, Escrow, and PayOS Integration Core Tests', () => {
       });
 
       assert.equal(isValid, false);
+    });
+  });
+
+  describe('5. Escrow Reconciliation & Failure Recovery', () => {
+    it('reconciles completed orders stuck in HOLDING and credits shop wallet', async () => {
+      // Create escrow stuck in HOLDING
+      await escrowService.createEscrow({ order_id: 'stuck-ord-1', shop_id: 'shop-reconcile', gross_amount: '100000.00' });
+      // Record order status as COMPLETED
+      repo.orderStatuses.set('stuck-ord-1', 'COMPLETED');
+
+      const result = await escrowService.reconcilePendingEscrows();
+      assert.equal(result.settled_count, 1);
+      assert.deepEqual(result.settled_order_ids, ['stuck-ord-1']);
+      assert.equal(result.refunded_count, 0);
+
+      const escrow = await escrowService.getEscrowByOrderId('stuck-ord-1');
+      assert.equal(escrow?.status, 'RELEASED');
+
+      const wallet = await repo.findWalletByShopId('shop-reconcile');
+      assert.equal(wallet?.balance, '95000.00'); // 100k - 5% fee
+    });
+
+    it('reconciles cancelled orders stuck in HOLDING and marks REFUNDED without crediting shop wallet', async () => {
+      // Create escrow stuck in HOLDING
+      await escrowService.createEscrow({ order_id: 'stuck-ord-2', shop_id: 'shop-reconcile-cancel', gross_amount: '200000.00' });
+      // Record order status as CANCELLED
+      repo.orderStatuses.set('stuck-ord-2', 'CANCELLED');
+
+      const result = await escrowService.reconcilePendingEscrows();
+      assert.equal(result.refunded_count, 1);
+      assert.deepEqual(result.refunded_order_ids, ['stuck-ord-2']);
+
+      const escrow = await escrowService.getEscrowByOrderId('stuck-ord-2');
+      assert.equal(escrow?.status, 'REFUNDED');
+
+      const wallet = await repo.findWalletByShopId('shop-reconcile-cancel');
+      assert.equal(wallet, null); // Shop wallet not even created for cancelled order
+    });
+
+    it('allows Admin to trigger reconciliation via AdminFinanceService and rejects non-admin', async () => {
+      await escrowService.createEscrow({ order_id: 'stuck-ord-3', shop_id: 'shop-admin-reconcile', gross_amount: '150000.00' });
+      repo.orderStatuses.set('stuck-ord-3', 'COMPLETED');
+
+      // Admin trigger
+      const result = await adminFinanceService.reconcileEscrows(adminContext);
+      assert.equal(result.settled_count, 1);
+      assert.deepEqual(result.settled_order_ids, ['stuck-ord-3']);
+
+      // Non-admin trigger rejects
+      const buyerContext = createRequestContext({
+        request_id: 'req-buyer-1',
+        user_id: 'buyer-user',
+        role: 'BUYER',
+      });
+      await assert.rejects(
+        () => adminFinanceService.reconcileEscrows(buyerContext),
+        { name: 'ForbiddenError' }
+      );
     });
   });
 });

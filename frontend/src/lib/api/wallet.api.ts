@@ -47,6 +47,14 @@ export interface FinanceOverview {
   pending_withdrawals_count: number;
 }
 
+export interface EscrowReconciliationResult {
+  settled_count: number;
+  settled_order_ids: string[];
+  refunded_count: number;
+  refunded_order_ids: string[];
+  errors: Array<{ order_id: string; action: 'SETTLE' | 'REFUND'; error: string }>;
+}
+
 export interface PayosLinkResult {
   order_id: string;
   order_code: number;
@@ -99,6 +107,10 @@ export const walletApi = {
 
   async rejectWithdrawal(id: string, note?: string): Promise<{ request: WithdrawalRequest; wallet: ShopWallet; transaction: WalletTransaction }> {
     return apiClient.post<{ request: WithdrawalRequest; wallet: ShopWallet; transaction: WalletTransaction }>(`/admin/finance/withdrawals/${id}/reject`, { note });
+  },
+
+  async reconcileEscrow(): Promise<EscrowReconciliationResult> {
+    return apiClient.post<EscrowReconciliationResult>('/admin/finance/escrow/reconcile', {});
   },
 
   // PayOS

@@ -9,6 +9,7 @@ import type {
   UpdateBankInfoInput,
   FinanceOverview,
   WithdrawalStatus,
+  EscrowReconciliationResult,
 } from '../domain/wallet.types.ts';
 import {
   InsufficientBalanceError,
@@ -209,6 +210,64 @@ export class PgWalletRepository implements IWalletRepository {
       [orderId],
     );
     return result.rows[0] ? this.mapEscrow(result.rows[0]) : null;
+  }
+
+  async reconcilePendingEscrows(): Promise<EscrowReconciliationResult> {
+    const result: EscrowReconciliationResult = {
+      settled_count: 0,
+      settled_order_ids: [],
+      refunded_count: 0,
+      refunded_order_ids: [],
+      errors: [],
+    };
+
+    // Find escrows stuck in HOLDING where order is COMPLETED
+    const completedRes = await this.pool.query(
+      `SELECT e.order_id 
+       FROM escrow_records e
+       JOIN orders o ON e.order_id = o.order_id
+       WHERE e.status = 'HOLDING' AND o.status = 'COMPLETED'`
+    );
+
+    for (const row of completedRes.rows) {
+      const orderId = row.order_id;
+      try {
+        await this.settleEscrow(orderId);
+        result.settled_count++;
+        result.settled_order_ids.push(orderId);
+      } catch (err) {
+        result.errors.push({
+          order_id: orderId,
+          action: 'SETTLE',
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    // Find escrows stuck in HOLDING where order is CANCELLED
+    const cancelledRes = await this.pool.query(
+      `SELECT e.order_id 
+       FROM escrow_records e
+       JOIN orders o ON e.order_id = o.order_id
+       WHERE e.status = 'HOLDING' AND o.status = 'CANCELLED'`
+    );
+
+    for (const row of cancelledRes.rows) {
+      const orderId = row.order_id;
+      try {
+        await this.refundEscrow(orderId);
+        result.refunded_count++;
+        result.refunded_order_ids.push(orderId);
+      } catch (err) {
+        result.errors.push({
+          order_id: orderId,
+          action: 'REFUND',
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    return result;
   }
 
   async requestWithdrawal(shopId: string, amount: string): Promise<{ request: WithdrawalRequest; wallet: ShopWallet; transaction: WalletTransaction }> {
