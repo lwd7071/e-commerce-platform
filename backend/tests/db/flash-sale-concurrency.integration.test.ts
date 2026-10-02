@@ -97,6 +97,7 @@ describe('Feature 05: Flash Sale & Concurrency Inventory Engine', () => {
     if (keys.length > 0) {
       await redis.del(...keys);
     }
+    await closeRedisClient();
     await pool.end();
   });
 

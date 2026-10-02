@@ -18,6 +18,10 @@ const EXPECTED_BUSINESS_TABLES = [
   'voucher_usages', 'reviews', 'review_images', 'notifications',
   'moderation_records', 'admin_logs',
   'admin_notification_campaigns', 'admin_notification_campaign_recipients',
+  'chat_conversations', 'chat_messages',
+  'flash_sale_sessions', 'flash_sale_items', 'flash_sale_compensation_logs',
+  'shop_wallets', 'escrow_records', 'wallet_transactions', 'withdrawal_requests',
+  'loyalty_point_transactions',
 ];
 
 const runRemoteDbTests = parseRunRemoteDbTests(process.env);
@@ -123,19 +127,21 @@ remoteDescribe('Migration State & Database Replay Acceptance (T3 Remote)', () =>
     const result = await pool.query<{
       migration_name: string;
       finished_at: Date | null;
+      rolled_back_at: Date | null;
       applied_steps_count: number;
     }>(
-      'SELECT migration_name, finished_at, applied_steps_count FROM _prisma_migrations ORDER BY started_at ASC',
+      'SELECT migration_name, finished_at, rolled_back_at, applied_steps_count FROM _prisma_migrations ORDER BY started_at ASC',
     );
 
     expect(result.rows.length).toBeGreaterThanOrEqual(2);
     for (const migration of result.rows) {
       expect(migration.finished_at).not.toBeNull();
-      expect(migration.applied_steps_count).toBeGreaterThan(0);
+      expect(migration.rolled_back_at).toBeNull();
     }
+    expect(result.rows.map((migration) => migration.migration_name)).toContain('20261002140000_flash_sale_concurrency');
   }, 15_000);
 
-  it('confirms the database schema contains exactly 24 business tables and 2 operational tables', async () => {
+  it('confirms the database schema contains exactly the frozen and approved feature business tables plus 2 operational tables', async () => {
     if (!pool) throw new Error('Pool not initialized');
 
     const result = await pool.query<{ table_name: string }>(

@@ -2,9 +2,9 @@
 
 ## Owner và trạng thái
 
-- Owner: Chưa xác định
+- Owner: lwd7071
 - Người phối hợp: Chưa xác định
-- Trạng thái: Đang review
+- Trạng thái: Đang xác minh full backend remote Vitest trên CI
 - Cập nhật lần cuối: 2026-10-02
 - Nhánh / PR / commit: Nhánh `dev`, commit triển khai `f5a5384`; chưa có PR
 
@@ -23,6 +23,8 @@
 - Cập nhật form địa chỉ buyer và điểm lấy hàng của shop dùng tỉnh/phường có mã; dữ liệu đơn hàng/địa chỉ lịch sử được giữ nguyên — Bằng chứng: [administrative-address-fields.tsx](../../frontend/src/components/forms/administrative-address-fields.tsx), [address-manager.tsx](../../frontend/src/features/profile/address-manager.tsx), [seller-shop-screen.tsx](../../frontend/src/features/seller/seller-shop-screen.tsx).
 - Cập nhật checkout hiển thị phí theo shop. Luồng giao mô phỏng: Shop đánh dấu đã bàn giao (`SHIPPING`), Buyer xác nhận đã nhận (`COMPLETED`); không có thao tác Shop tự đánh dấu giao thành công — Bằng chứng: [checkout-screen.tsx](../../frontend/src/features/checkout/checkout-screen.tsx), [business-rules.md](../architecture/rules/business-rules.md).
 - Migration đã áp dụng lên Supabase test project `putywqmxtjttfdezlswf` ngày 2026-10-02 qua script Prisma Migrate; kiểm tra lại báo `No pending migrations to apply`.
+- Đối soát database ngày 2026-10-02: ba bảng Flash Sale đã tồn tại với dữ liệu (16 sessions, 16 items, 6 compensation logs), cấu trúc khớp migration `20261002140000_flash_sale_concurrency`; migration được ghi nhận bằng Prisma `migrate resolve` sau khi đối chiếu. Các migration `chat`, `escrow/wallet`, `shop_tiering` và `buyer_loyalty` còn thiếu trên test đã được áp dụng; Prisma báo 19/19 migration hoàn tất, không còn pending.
+- Thêm migration `20261003120000_flash_sale_read_only_grants`: chỉ cấp `SELECT` cho `anon`/`authenticated` trên session/item; bảng compensation không cấp quyền trực tiếp. RLS và hai policy public-read được giữ nguyên.
 
 ## Thiết kế / quyết định kỹ thuật
 
@@ -42,7 +44,9 @@
 | Backend build | `npm run build` trong `backend` | PASS | Build thành công; không có thay đổi backend runtime sau lượt build |
 | Frontend test / lint / typecheck / production build | `npm test -- --maxWorkers=2 --minWorkers=2 --testTimeout=15000`, `npx eslint src test --max-warnings=0`, `npm run typecheck`, `npm run build` trong `frontend` | PASS | 323/323 test; production build thành công |
 | API type consistency | `npm run api:types:check` trong `frontend` | PASS | Generated API types match backend OpenAPI contract |
-| Toàn bộ backend remote Vitest | `npm run test:vitest` trong `backend` | FAIL ở lượt đầy đủ gần nhất; chưa chạy lại sau khi sửa fixtures | Lượt trước có 302/336 test pass và 34 fail: 31 lỗi từ integration fixtures/payload checkout cũ (các suite liên quan đã được chạy lại riêng và pass); 3 schema assertions thấy bảng Flash Sale ngoài danh sách migration của workspace |
+| Schema acceptance, schema smoke và migration ledger trên Supabase test | `npx vitest run tests/db/schema-acceptance.test.ts tests/db/schema-smoke.test.ts tests/db/t3-migration-rebuild.test.ts` | PASS | 19/19 test; xác nhận danh sách bảng đã duyệt, RLS, grant/policy Flash Sale và migration ledger |
+| Backend lint / typecheck sau cập nhật schema test và Flash Sale | `npm run lint`, `npm run typecheck` trong `backend` | PASS | Không còn warning lint; TypeScript kiểm tra thành công |
+| Toàn bộ backend remote Vitest | `npm run test:vitest` trong `backend` | Đang chờ CI | Máy local không có Redis và Windows từ chối khởi động Docker Desktop Service; test Flash Sale cần Redis thật để chạy Lua. CI đã cấu hình Redis service cho cả backend-quality và remote-db để chạy đủ suite sau push. Lượt thử local đầu tiên phát hiện dependency `ioredis` thiếu trong `node_modules`; đã khôi phục theo `package-lock.json`. |
 
 ## An toàn và tình huống lỗi
 
@@ -53,14 +57,12 @@
 
 ## Việc còn lại và blocker
 
-- [ ] Chạy lại full backend remote Vitest sau khi đã cập nhật các test fixture liên quan — Owner: Chưa xác định — Dự kiến: Chưa xác định.
-- [ ] Xử lý riêng schema drift trên Supabase test: đang có `flash_sale_sessions`, `flash_sale_items`, `flash_sale_compensation_logs` nhưng workspace hiện không có migration tạo các bảng này. Không xóa hoặc đưa vào migration shipping khi chưa xác định owner và nguồn schema — Owner: Chưa xác định — Dự kiến: Chưa xác định.
-- Blocker: Ba bảng Flash Sale làm các kiểm tra schema “đúng chính xác danh sách bảng” thất bại; đây là các bảng ngoài phạm vi shipping và chưa có migration trong workspace.
+- [ ] Xác nhận full backend remote Vitest không lỗi/không pending trên CI sau push — Owner: lwd7071.
 
 ## Nhật ký cập nhật
 
 ### 2026-10-02
 
 - Đã làm: Hoàn thiện báo phí GHTK/mock, danh mục địa chỉ 2026, trọng lượng sản phẩm và luồng bàn giao/Buyer xác nhận nhận hàng mô phỏng; cập nhật test fixture theo migration mới.
-- Kiểm tra: Migration áp dụng thành công trên Supabase test; frontend 323/323; backend unit 698/698; 48 ca integration liên quan đều pass sau khi sửa fixtures/payload. Backend lint/typecheck/build và frontend lint/typecheck/build/API types pass. Full backend remote suite lần gần nhất có 34 lỗi; 31 lỗi đã xử lý và kiểm tra riêng, còn 3 schema assertions về các bảng Flash Sale; full suite chưa chạy lại sau các sửa đổi.
-- Tiếp theo / blocker: Chạy lại full backend remote Vitest và xác định owner/migration cho ba bảng Flash Sale ngoài workspace.
+- Kiểm tra bổ sung: Đã khớp và ghi nhận migration Flash Sale có sẵn; áp dụng đủ migration `dev` còn thiếu cùng migration giới hạn quyền Flash Sale. Prisma xác nhận 19/19 migration đã áp dụng và không còn pending. Schema/migration remote tests đạt 19/19; backend lint và typecheck pass.
+- Tiếp theo: Chờ CI chạy toàn bộ backend Vitest với Redis service thật; cập nhật trạng thái và số liệu sau khi workflow hoàn tất.

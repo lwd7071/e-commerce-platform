@@ -1,16 +1,31 @@
-import type { Pool, PoolClient } from 'pg';
+import type { Pool, QueryResultRow } from 'pg';
 import type {
   FlashSaleSession,
   FlashSaleItem,
-  FlashSaleCompensationLog,
   CompensationStatus,
 } from '../domain/flash-sale.types.ts';
+
+type FlashSaleSessionRow = QueryResultRow & Pick<FlashSaleSession, 'slot_id' | 'slot_name' | 'status'> & {
+  start_time: Date | string;
+  end_time: Date | string;
+  created_at: Date | string;
+  updated_at: Date | string;
+};
+
+type FlashSaleItemRow = QueryResultRow & Pick<FlashSaleItem,
+  'item_id' | 'slot_id' | 'product_id' | 'variant_id' | 'allocated_stock'
+> & {
+  original_price: string | number;
+  flash_sale_price: string | number;
+  created_at: Date | string;
+  updated_at: Date | string;
+};
 
 export class PgFlashSaleRepository {
   constructor(private readonly pool: Pool) {}
 
   async listActiveSessions(): Promise<FlashSaleSession[]> {
-    const res = await this.pool.query(
+    const res = await this.pool.query<FlashSaleSessionRow>(
       `SELECT slot_id, slot_name, start_time, end_time, status, created_at, updated_at
        FROM flash_sale_sessions
        WHERE status IN ('UPCOMING', 'ACTIVE')
@@ -20,7 +35,7 @@ export class PgFlashSaleRepository {
   }
 
   async findSessionById(slotId: string): Promise<FlashSaleSession | null> {
-    const res = await this.pool.query(
+    const res = await this.pool.query<FlashSaleSessionRow>(
       `SELECT slot_id, slot_name, start_time, end_time, status, created_at, updated_at
        FROM flash_sale_sessions
        WHERE slot_id = $1`,
@@ -30,7 +45,7 @@ export class PgFlashSaleRepository {
   }
 
   async listItemsBySlotId(slotId: string): Promise<FlashSaleItem[]> {
-    const res = await this.pool.query(
+    const res = await this.pool.query<FlashSaleItemRow>(
       `SELECT item_id, slot_id, product_id, variant_id, original_price::text, flash_sale_price::text, allocated_stock, created_at, updated_at
        FROM flash_sale_items
        WHERE slot_id = $1
@@ -41,7 +56,7 @@ export class PgFlashSaleRepository {
   }
 
   async findItemById(itemId: string): Promise<FlashSaleItem | null> {
-    const res = await this.pool.query(
+    const res = await this.pool.query<FlashSaleItemRow>(
       `SELECT item_id, slot_id, product_id, variant_id, original_price::text, flash_sale_price::text, allocated_stock, created_at, updated_at
        FROM flash_sale_items
        WHERE item_id = $1`,
@@ -118,8 +133,8 @@ export class PgFlashSaleRepository {
     };
   }
 
-  private mapSession(row: any): FlashSaleSession {
-    const toIso = (d: any) => (d instanceof Date ? d.toISOString() : String(d));
+  private mapSession(row: FlashSaleSessionRow): FlashSaleSession {
+    const toIso = (value: Date | string) => value instanceof Date ? value.toISOString() : value;
     return {
       slot_id: row.slot_id,
       slot_name: row.slot_name,
@@ -131,8 +146,8 @@ export class PgFlashSaleRepository {
     };
   }
 
-  private mapItem(row: any): FlashSaleItem {
-    const toIso = (d: any) => (d instanceof Date ? d.toISOString() : String(d));
+  private mapItem(row: FlashSaleItemRow): FlashSaleItem {
+    const toIso = (value: Date | string) => value instanceof Date ? value.toISOString() : value;
     return {
       item_id: row.item_id,
       slot_id: row.slot_id,
