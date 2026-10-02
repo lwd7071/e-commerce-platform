@@ -32,3 +32,6 @@ CREATE INDEX IF NOT EXISTS idx_loyalty_transactions__user_created
 CREATE UNIQUE INDEX IF NOT EXISTS uq_loyalty_transactions__order_earned
   ON loyalty_point_transactions(reference_order_id)
   WHERE reason = 'ORDER_COMPLETED';
+
+ALTER TABLE loyalty_point_transactions ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE loyalty_point_transactions FROM PUBLIC, anon, authenticated;

@@ -5,7 +5,7 @@ import type { Pool, PoolClient } from 'pg';
 import { createRuntimeApp } from '../../src/platform/http/app.ts';
 import { StubTokenVerifier } from '../../src/platform/http/middlewares/auth.ts';
 import { LoyaltyService } from '../../src/modules/loyalty/services/loyalty.service.ts';
-import { calculateLoyaltyAccrual, formatCents, parseCents } from '../../src/modules/loyalty/domain/loyalty.types.ts';
+import { calculateLoyaltyAccrual, parseCents } from '../../src/modules/loyalty/domain/loyalty.types.ts';
 
 const BUYER_ID = '11111111-1111-4111-8111-111111111111';
 const SELLER_ID = '22222222-2222-4222-8222-222222222222';
@@ -65,7 +65,7 @@ interface MockLedgerEntry {
 }
 
 function createLoyaltyTestPool(initialSpent = '0.00', initialPoints = 0, initialTier = 'STANDARD') {
-  let buyerUser: MockUser = {
+  const buyerUser: MockUser = {
     user_id: BUYER_ID,
     email: 'buyer@dino.vn',
     role: 'BUYER',
