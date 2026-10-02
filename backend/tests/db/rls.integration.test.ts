@@ -10,6 +10,7 @@ const expectedTables = [
   'order_items', 'order_status_history', 'payments', 'shipments', 'vouchers',
   'voucher_usages', 'reviews', 'review_images', 'notifications',
   'moderation_records', 'admin_logs',
+  'admin_notification_campaigns', 'admin_notification_campaign_recipients',
 ];
 
 const runRemoteDbTests = parseRunRemoteDbTests(process.env);
@@ -27,7 +28,7 @@ remoteDescribe('RLS Default-Deny Security Integration (T2)', () => {
     if (pool) await closeDatabasePool(pool);
   }, 20_000);
 
-  it('confirms 100% of the 22 business tables have row-level security enabled', async () => {
+  it('confirms 100% of the 24 business tables have row-level security enabled', async () => {
     if (!pool) throw new Error('Pool not initialized');
 
     const res = await pool.query<{ relname: string; relrowsecurity: boolean }>(

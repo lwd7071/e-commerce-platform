@@ -10,6 +10,7 @@ const expectedTables = [
   'order_items', 'order_status_history', 'payments', 'shipments', 'vouchers',
   'voucher_usages', 'reviews', 'review_images', 'notifications',
   'moderation_records', 'admin_logs', 'media_uploads',
+  'admin_notification_campaigns', 'admin_notification_campaign_recipients',
 ];
 const supportTables = ['_prisma_migrations'];
 const remoteDescribe = parseRunRemoteDbTests(process.env) ? describe : describe.skip;

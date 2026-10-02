@@ -49,21 +49,23 @@ describe('Media Upload Lifecycle (Slice 1: Presign & Finalize B-102)', () => {
     expect(res.body.data.upload_url).toContain(STORAGE_BUCKETS.PRODUCT_MEDIA);
   });
 
-  it('generates presigned review media path in review-media bucket under users/{userId}/reviews/temp', async () => {
+  it('generates presigned review media path in review-media bucket under users/{userId}/reviews/{reviewId}', async () => {
     currentRole = 'BUYER';
+    const reviewId = '00000000-0000-4000-8000-000000000002';
     const res = await request(app)
       .post('/api/v1/media/uploads/presign')
       .send({
         filename: 'feedback.jpg',
         content_type: 'image/jpeg',
         purpose: 'review_image',
+        review_id: reviewId,
       });
 
     expect(res.status).toBe(201);
     expect(res.body.data).toBeDefined();
     expect(res.body.data.expires_in_seconds).toBe(600);
     expect(res.body.data.storage_path).toMatch(
-      new RegExp(`^users/${testUserId}/reviews/temp/[0-9a-f-]{36}\\.jpg$`)
+      new RegExp(`^users/${testUserId}/reviews/${reviewId}/[0-9a-f-]{36}\\.jpg$`)
     );
     expect(res.body.data.upload_url).toContain(STORAGE_BUCKETS.REVIEW_MEDIA);
   });

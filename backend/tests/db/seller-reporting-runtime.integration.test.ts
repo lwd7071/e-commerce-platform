@@ -37,9 +37,14 @@ dbDescribe('Seller revenue report REST runtime (real PostgreSQL)', () => {
     shopA = (await createFixtureShop(pool, sellerA, { shopName: 'Report A', status: 'ACTIVE' })).shopId;
     shopB = (await createFixtureShop(pool, sellerB, { shopName: 'Report B', status: 'ACTIVE' })).shopId;
     const completedA = await createFixtureOrder(pool, buyer, shopA, { status: 'COMPLETED', subtotal: '100000.00', shippingFee: '20000.00', totalAmount: '120000.00' });
-    await createFixtureOrder(pool, buyer, shopA, { status: 'PENDING_CONFIRMATION' });
+    const pendingA = await createFixtureOrder(pool, buyer, shopA, { status: 'PENDING_CONFIRMATION' });
     await createFixtureOrder(pool, buyer, shopB, { status: 'COMPLETED', subtotal: '900000.00', shippingFee: '0.00', totalAmount: '900000.00' });
-    await pool.query('UPDATE orders SET created_at = $1 WHERE order_id = $2', ['2026-10-01T12:00:00.000Z', completedA.orderId]);
+    await pool.query('UPDATE orders SET created_at = $1 WHERE order_id = $2', [
+      '2026-10-01T12:00:00.000Z', completedA.orderId,
+    ]);
+    await pool.query('UPDATE orders SET created_at = $1 WHERE order_id = $2', [
+      '2026-10-01T13:00:00.000Z', pendingA.orderId,
+    ]);
     const context = createRequestContext({ request_id: 'req_report_seller', user_id: sellerA, role: 'SELLER', shop_id: shopA, shop_status: 'ACTIVE' });
     const revenue = new SellerRevenueService(new ReportingService({ orderRepo: new PgOrderRepository(pool) }));
     appA = createApp({ rateLimiter: false, auth: (req, _res, next) => { req.context = context; next(); }, sellerRevenue: revenue });
