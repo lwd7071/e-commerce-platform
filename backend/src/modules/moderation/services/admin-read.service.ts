@@ -209,7 +209,7 @@ export class AdminReadService {
       total_users: string; total_shops: string; total_products: string; platform_gmv: string;
     }>(`SELECT
       (SELECT COUNT(*) FROM app_users)::text AS total_users,
-      (SELECT COUNT(*) FROM shops)::text AS total_shops,
+      (SELECT COUNT(*) FROM shops WHERE status='ACTIVE')::text AS total_shops,
       (SELECT COUNT(*) FROM products)::text AS total_products,
       COALESCE((SELECT SUM(total_amount) FROM orders WHERE status='COMPLETED'), 0)::text AS platform_gmv`);
     const row = result.rows[0];

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { repositories } from "../../lib/repositories/repository-factory";
 import { type AdminUserItem } from "../../lib/repositories/types";
@@ -36,23 +36,27 @@ export function AdminScreen() {
   const [detailUser, setDetailUser] = useState<AdminUserItem | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async (currentRole = roleFilter, currentStatus = statusFilter, currentSearch = searchQuery) => {
     setIsLoading(true);
     setError(null);
     try {
       const adminRepo = repositories.admin();
       if (adminRepo.getUsersPage) {
         const page = await adminRepo.getUsersPage({
-          role: roleFilter !== "ALL" ? roleFilter : undefined,
-          status: statusFilter !== "ALL" ? statusFilter : undefined,
-          search: searchQuery.trim() || undefined,
+          role: currentRole !== "ALL" ? currentRole : undefined,
+          status: currentStatus !== "ALL" ? currentStatus : undefined,
+          search: currentSearch.trim() || undefined,
           limit: 20,
         });
         setUsers(page.items);
         setNextCursor(page.next_cursor);
         setHasMore(page.has_more);
       } else {
-        const data = await adminRepo.getUsers();
+        const data = await adminRepo.getUsers({
+          role: currentRole !== "ALL" ? currentRole : undefined,
+          status: currentStatus !== "ALL" ? currentStatus : undefined,
+          search: currentSearch.trim() || undefined,
+        });
         setUsers(data);
       }
     } catch (err: unknown) {
@@ -60,7 +64,7 @@ export function AdminScreen() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [roleFilter, statusFilter, searchQuery]);
 
   const handleLoadMore = async () => {
     if (!nextCursor || isLoadingMore) return;
@@ -103,37 +107,8 @@ export function AdminScreen() {
   };
 
   useEffect(() => {
-    let ignore = false;
-    const loadInitial = async () => {
-      try {
-        const adminRepo = repositories.admin();
-        if (adminRepo.getUsersPage) {
-          const page = await adminRepo.getUsersPage({ limit: 20 });
-          if (!ignore) {
-            setUsers(page.items);
-            setNextCursor(page.next_cursor);
-            setHasMore(page.has_more);
-            setIsLoading(false);
-          }
-        } else {
-          const data = await adminRepo.getUsers();
-          if (!ignore) {
-            setUsers(data);
-            setIsLoading(false);
-          }
-        }
-      } catch (err: unknown) {
-        if (!ignore) {
-          setError(err instanceof Error ? err.message : "Tải danh sách người dùng thất bại");
-          setIsLoading(false);
-        }
-      }
-    };
-    loadInitial();
-    return () => {
-      ignore = true;
-    };
-  }, []);
+    fetchUsers(roleFilter, statusFilter, searchQuery);
+  }, [roleFilter, statusFilter, searchQuery, fetchUsers]);
 
   const handleOpenLockDialog = (user: AdminUserItem) => {
     setTargetUser(user);
@@ -155,7 +130,7 @@ export function AdminScreen() {
       });
       showToast(`Đã khóa tài khoản ${targetUser.email}`, "success");
       setTargetUser(null);
-      fetchUsers();
+      await fetchUsers(roleFilter, statusFilter, searchQuery);
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Khóa tài khoản thất bại", "error");
     } finally {
@@ -167,25 +142,13 @@ export function AdminScreen() {
     try {
       await repositories.admin().unlockUser(user.id);
       showToast(`Đã mở khóa tài khoản ${user.email}`, "success");
-      fetchUsers();
+      await fetchUsers(roleFilter, statusFilter, searchQuery);
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Mở khóa tài khoản thất bại", "error");
     }
   };
 
-  const filteredUsers = users.filter((u) => {
-    if (roleFilter !== "ALL" && u.role !== roleFilter) return false;
-    if (statusFilter !== "ALL" && u.status !== statusFilter) return false;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      return (
-        u.email.toLowerCase().includes(q) ||
-        u.full_name.toLowerCase().includes(q) ||
-        u.id.toLowerCase().includes(q)
-      );
-    }
-    return true;
-  });
+  const filteredUsers = users;
 
   return (
     <div className="space-y-6">

@@ -5,6 +5,16 @@ import {
   mockOrderRepository,
 } from "@/lib/repositories/repository-factory";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
+import {
+  mockAdminUsersStore,
+  mockAdminShopsStore,
+  mockAdminAuditLogsStore,
+  mockAdminReviewsStore,
+  resetAdminMockStores,
+  recordAdminAuditLog,
+  toPlatformShop,
+  toUserAccount,
+} from "@/lib/repositories/admin-mock-store";
 import type {
   UserAccount,
   PlatformShop,
@@ -24,6 +34,7 @@ export interface IAdminRepository {
   getShops(): Promise<PlatformShop[]>;
   getShopDetail(shopId: string): Promise<PlatformShop & { contactPhone?: string | null; pickupAddress?: string | null; description?: string | null }>;
   getShopsPage(params?: { status?: string; search?: string; cursor?: string; limit?: number }): Promise<{ items: PlatformShop[]; next_cursor: string | null; has_more: boolean }>;
+  approveShop(shopId: string, reason?: string, actor?: string): Promise<PlatformShop>;
   lockShop(shopId: string, reason: string, actor?: string): Promise<PlatformShop>;
   unlockShop(shopId: string, actor?: string): Promise<PlatformShop>;
   getModerationProducts(): Promise<ModerationProduct[]>;
@@ -49,79 +60,7 @@ export interface IAdminRepository {
   toggleCategoryStatus(id: string): Promise<CategoryItem>;
 }
 
-// Initial mock data store
-const initialUsers: UserAccount[] = [
-  {
-    id: "usr_001",
-    email: "buyer1@example.com",
-    fullName: "Nguyễn Văn A",
-    role: "BUYER",
-    status: "ACTIVE",
-    createdAt: "2026-01-10T08:00:00Z",
-  },
-  {
-    id: "usr_002",
-    email: "seller1@dino.vn",
-    fullName: "Dino Beauty Store",
-    role: "SELLER",
-    status: "ACTIVE",
-    createdAt: "2026-01-15T09:30:00Z",
-  },
-  {
-    id: "usr_003",
-    email: "spambot99@fake.net",
-    fullName: "Spam Bot Account",
-    role: "BUYER",
-    status: "LOCKED",
-    lockReason: "Spam bình luận và đặt đơn hàng ảo liên tục",
-    createdAt: "2026-02-12T14:20:00Z",
-  },
-  {
-    id: "usr_004",
-    email: "seller2@dino.vn",
-    fullName: "Dino Tech Official",
-    role: "SELLER",
-    status: "ACTIVE",
-    createdAt: "2026-02-20T10:00:00Z",
-  },
-  {
-    id: "usr_005",
-    email: "admin@dino.vn",
-    fullName: "Quản trị viên Hệ thống",
-    role: "ADMIN",
-    status: "ACTIVE",
-    createdAt: "2026-01-01T00:00:00Z",
-  },
-];
-
-const initialShops: PlatformShop[] = [
-  {
-    id: "00000000-0000-0000-0000-000000000001",
-    name: "Dino Beauty Official",
-    ownerEmail: "seller1@dino.vn",
-    productCount: 18,
-    status: "ACTIVE",
-    createdAt: "2026-01-15T09:30:00Z",
-  },
-  {
-    id: "00000000-0000-0000-0000-000000000002",
-    name: "Dino Tech Store",
-    ownerEmail: "seller2@dino.vn",
-    productCount: 24,
-    status: "ACTIVE",
-    createdAt: "2026-02-20T10:00:00Z",
-  },
-  {
-    id: "00000000-0000-0000-0000-000000000003",
-    name: "Cửa Hàng Hàng Giả Kém Chất Lượng",
-    ownerEmail: "fakevendor@bad.com",
-    productCount: 3,
-    status: "LOCKED",
-    lockReason: "Bán hàng nhái, vi phạm quyền sở hữu trí tuệ",
-    createdAt: "2026-03-01T11:00:00Z",
-  },
-];
-
+// Initial moderation products
 const initialModerationProducts: ModerationProduct[] = [
   {
     id: "prod_mod_01",
@@ -146,53 +85,12 @@ const initialModerationProducts: ModerationProduct[] = [
   },
 ];
 
-const initialAuditLogs: AdminAuditLog[] = [
-  {
-    id: "log_001",
-    action: "LOCK_USER",
-    targetType: "USER",
-    targetId: "usr_003",
-    targetName: "Spam Bot Account",
-    reason: "Spam bình luận và đặt đơn hàng ảo liên tục",
-    actor: "admin@dino.vn",
-    createdAt: "2026-03-12T15:00:00Z",
-  },
-  {
-    id: "log_002",
-    action: "LOCK_SHOP",
-    targetType: "SHOP",
-    targetId: "00000000-0000-0000-0000-000000000003",
-    targetName: "Cửa Hàng Hàng Giả Kém Chất Lượng",
-    reason: "Bán hàng nhái, vi phạm quyền sở hữu trí tuệ",
-    actor: "admin@dino.vn",
-    createdAt: "2026-03-02T10:30:00Z",
-  },
-  {
-    id: "log_003",
-    action: "HIDE_PRODUCT",
-    targetType: "PRODUCT",
-    targetId: "prod_mod_03",
-    targetName: "Nước hoa nhái thương hiệu cao cấp",
-    reason: "Hàng giả nhái thương hiệu quốc tế",
-    actor: "admin@dino.vn",
-    createdAt: "2026-03-02T10:35:00Z",
-  },
-];
-
-// In-memory persistent stores
-let mockUsers = [...initialUsers];
-let mockShops = [...initialShops];
 let mockProducts = [...initialModerationProducts];
-let mockAuditLogs = [...initialAuditLogs];
-
-// Local categories store for admin CRUD (A-709)
 let localCategories: CategoryItem[] = DEV_CATEGORY_FIXTURES.map((c) => ({ ...c }));
 
 export function resetMockAdminStore() {
-  mockUsers = [...initialUsers];
-  mockShops = [...initialShops];
+  resetAdminMockStores();
   mockProducts = [...initialModerationProducts];
-  mockAuditLogs = [...initialAuditLogs];
   localCategories = DEV_CATEGORY_FIXTURES.map((c) => ({ ...c }));
 }
 
@@ -205,26 +103,28 @@ export class MockAdminRepository implements IAdminRepository {
       return sum + moneyAdapter.toInteger(o.total_amount);
     }, 0);
 
+    const activeShops = mockAdminShopsStore.filter((s) => s.status === "ACTIVE").length;
+
     return {
-      totalUsers: mockUsers.length,
-      totalShops: mockShops.length,
+      totalUsers: mockAdminUsersStore.length,
+      totalShops: activeShops,
       totalProducts: mockProducts.length,
       platformGMV: totalGMV.toString(),
     };
   }
 
   async getUsers(): Promise<UserAccount[]> {
-    return [...mockUsers];
+    return mockAdminUsersStore.map(toUserAccount);
   }
 
   async getUserDetail(userId: string): Promise<UserAccount> {
-    const found = mockUsers.find((u) => u.id === userId);
+    const found = mockAdminUsersStore.find((u) => u.id === userId);
     if (!found) throw new Error("Không tìm thấy người dùng.");
-    return { ...found };
+    return toUserAccount(found);
   }
 
   async getUsersPage(params?: { status?: string; role?: string; search?: string; cursor?: string; limit?: number }): Promise<{ items: UserAccount[]; next_cursor: string | null; has_more: boolean }> {
-    let list = [...mockUsers];
+    let list = mockAdminUsersStore.map(toUserAccount);
     if (params?.role && params.role !== "ALL") list = list.filter((u) => u.role === params.role);
     if (params?.status && params.status !== "ALL") list = list.filter((u) => u.status === params.status);
     if (params?.search?.trim()) {
@@ -239,23 +139,68 @@ export class MockAdminRepository implements IAdminRepository {
     };
   }
 
+  async lockUser(userId: string, reason: string, actor = "admin@dino.vn"): Promise<UserAccount> {
+    if (!reason || reason.trim().length === 0) {
+      throw new Error("Lý do khóa tài khoản là bắt buộc.");
+    }
+    const found = mockAdminUsersStore.find((u) => u.id === userId);
+    if (!found) throw new Error("Không tìm thấy người dùng.");
+
+    if (found.role === "ADMIN") {
+      throw new Error("Không thể khóa tài khoản quản trị viên tối cao.");
+    }
+
+    found.status = "LOCKED";
+    found.lock_reason = reason.trim();
+
+    recordAdminAuditLog({
+      action: "LOCK_USER",
+      targetType: "USER",
+      targetId: found.id,
+      targetName: found.full_name || found.email,
+      reason: reason.trim(),
+      actor,
+    });
+
+    return toUserAccount(found);
+  }
+
+  async unlockUser(userId: string, actor = "admin@dino.vn"): Promise<UserAccount> {
+    const found = mockAdminUsersStore.find((u) => u.id === userId);
+    if (!found) throw new Error("Không tìm thấy người dùng.");
+
+    found.status = "ACTIVE";
+    found.lock_reason = null;
+
+    recordAdminAuditLog({
+      action: "UNLOCK_USER",
+      targetType: "USER",
+      targetId: found.id,
+      targetName: found.full_name || found.email,
+      reason: "Mở khóa tài khoản người dùng sau kiểm tra",
+      actor,
+    });
+
+    return toUserAccount(found);
+  }
+
   async getShops(): Promise<PlatformShop[]> {
-    return [...mockShops];
+    return mockAdminShopsStore.map(toPlatformShop);
   }
 
   async getShopDetail(shopId: string): Promise<PlatformShop & { contactPhone?: string | null; pickupAddress?: string | null; description?: string | null }> {
-    const found = mockShops.find((s) => s.id === shopId);
+    const found = mockAdminShopsStore.find((s) => s.shop_id === shopId);
     if (!found) throw new Error("Không tìm thấy gian hàng.");
     return {
-      ...found,
-      contactPhone: "0901234567",
-      pickupAddress: "123 Đường Điện Biên Phủ, Phường 25, Quận Bình Thạnh, TP.HCM",
-      description: "Gian hàng chính thức trên sàn Dino E-Commerce",
+      ...toPlatformShop(found),
+      contactPhone: found.contact_phone || "0901234567",
+      pickupAddress: found.pickup_address || "123 Đường Điện Biên Phủ, Phường 25, Quận Bình Thạnh, TP.HCM",
+      description: found.description || "Gian hàng chính thức trên sàn Dino E-Commerce",
     };
   }
 
   async getShopsPage(params?: { status?: string; search?: string; cursor?: string; limit?: number }): Promise<{ items: PlatformShop[]; next_cursor: string | null; has_more: boolean }> {
-    let list = [...mockShops];
+    let list = mockAdminShopsStore.map(toPlatformShop);
     if (params?.status && params.status !== "ALL") list = list.filter((s) => s.status === params.status);
     if (params?.search?.trim()) {
       const q = params.search.toLowerCase();
@@ -269,109 +214,93 @@ export class MockAdminRepository implements IAdminRepository {
     };
   }
 
-  async lockUser(userId: string, reason: string, actor = "admin@dino.vn"): Promise<UserAccount> {
-    if (!reason || reason.trim().length === 0) {
-      throw new Error("Lý do khóa tài khoản là bắt buộc.");
-    }
-    const found = mockUsers.find((u) => u.id === userId);
-    if (!found) throw new Error("Không tìm thấy người dùng.");
-
-    if (found.role === "ADMIN") {
-      throw new Error("Không thể khóa tài khoản quản trị viên tối cao.");
-    }
-
-    found.status = "LOCKED";
-    found.lockReason = reason.trim();
-
-    mockAuditLogs.unshift({
-      id: `log_${Date.now()}`,
-      action: "LOCK_USER",
-      targetType: "USER",
-      targetId: found.id,
-      targetName: found.fullName || found.email,
-      reason: reason.trim(),
-      actor,
-      createdAt: new Date().toISOString(),
-    });
-
-    return { ...found };
-  }
-
-  async unlockUser(userId: string, actor = "admin@dino.vn"): Promise<UserAccount> {
-    const found = mockUsers.find((u) => u.id === userId);
-    if (!found) throw new Error("Không tìm thấy người dùng.");
+  async approveShop(shopId: string, reason = "Shop verified and approved by admin", actor = "admin@dino.vn"): Promise<PlatformShop> {
+    const found = mockAdminShopsStore.find((s) => s.shop_id === shopId);
+    if (!found) throw new Error("Không tìm thấy gian hàng.");
+    if (found.status === "ACTIVE") throw new Error("Gian hàng đã ở trạng thái hoạt động");
 
     found.status = "ACTIVE";
-    found.lockReason = null;
+    found.updated_at = new Date().toISOString();
 
-    mockAuditLogs.unshift({
-      id: `log_${Date.now()}`,
-      action: "UNLOCK_USER",
-      targetType: "USER",
-      targetId: found.id,
-      targetName: found.fullName || found.email,
-      reason: "Mở khóa tài khoản người dùng sau kiểm tra",
+    recordAdminAuditLog({
+      action: "APPROVE_SHOP",
+      targetType: "SHOP",
+      targetId: found.shop_id,
+      targetName: found.shop_name,
+      reason: reason.trim() || "Shop verified and approved by admin",
       actor,
-      createdAt: new Date().toISOString(),
     });
 
-    return { ...found };
+    return toPlatformShop(found);
   }
 
   async lockShop(shopId: string, reason: string, actor = "admin@dino.vn"): Promise<PlatformShop> {
     if (!reason || reason.trim().length === 0) {
       throw new Error("Lý do khóa gian hàng là bắt buộc.");
     }
-    const found = mockShops.find((s) => s.id === shopId);
+    const found = mockAdminShopsStore.find((s) => s.shop_id === shopId);
     if (!found) throw new Error("Không tìm thấy gian hàng.");
 
     found.status = "LOCKED";
-    found.lockReason = reason.trim();
+    found.lock_reason = reason.trim();
+    found.updated_at = new Date().toISOString();
 
-    mockAuditLogs.unshift({
-      id: `log_${Date.now()}`,
+    recordAdminAuditLog({
       action: "LOCK_SHOP",
       targetType: "SHOP",
-      targetId: found.id,
-      targetName: found.name,
+      targetId: found.shop_id,
+      targetName: found.shop_name,
       reason: reason.trim(),
       actor,
-      createdAt: new Date().toISOString(),
     });
 
-    return { ...found };
+    return toPlatformShop(found);
   }
 
   async unlockShop(shopId: string, actor = "admin@dino.vn"): Promise<PlatformShop> {
-    const found = mockShops.find((s) => s.id === shopId);
+    const found = mockAdminShopsStore.find((s) => s.shop_id === shopId);
     if (!found) throw new Error("Không tìm thấy gian hàng.");
 
     found.status = "ACTIVE";
-    found.lockReason = null;
+    found.lock_reason = null;
+    found.updated_at = new Date().toISOString();
 
-    mockAuditLogs.unshift({
-      id: `log_${Date.now()}`,
+    recordAdminAuditLog({
       action: "UNLOCK_SHOP",
       targetType: "SHOP",
-      targetId: found.id,
-      targetName: found.name,
+      targetId: found.shop_id,
+      targetName: found.shop_name,
       reason: "Mở khóa gian hàng sau khi hoàn tất xác minh",
       actor,
-      createdAt: new Date().toISOString(),
     });
 
-    return { ...found };
+    return toPlatformShop(found);
   }
 
   async getModerationProducts(): Promise<ModerationProduct[]> {
     return [...mockProducts];
   }
 
-  async getModerationReviews(): Promise<ModerationReview[]> { return []; }
+  async getModerationReviews(): Promise<ModerationReview[]> {
+    return [...mockAdminReviewsStore];
+  }
 
   async moderateReview(reviewId: string, status: "VISIBLE" | "HIDDEN", reason: string): Promise<ModerationReview> {
-    void reviewId; void status; void reason;
-    throw new Error("Review moderation is unavailable in fixture mode.");
+    const found = mockAdminReviewsStore.find((r) => r.id === reviewId);
+    if (!found) throw new Error("Không tìm thấy đánh giá.");
+
+    found.status = status;
+
+    recordAdminAuditLog({
+      action: status === "HIDDEN" ? "HIDE_REVIEW" : "RESTORE_REVIEW",
+      targetType: "REVIEW",
+      targetId: found.id,
+      targetName: `Đánh giá cho sản phẩm ${found.productName}`,
+      reason: reason.trim(),
+      actor: "admin@dino.vn",
+    });
+
+    return { ...found };
   }
 
   async moderateProduct(
@@ -384,22 +313,21 @@ export class MockAdminRepository implements IAdminRepository {
     if (!found) throw new Error("Không tìm thấy sản phẩm.");
 
     found.status = status;
-    mockAuditLogs.unshift({
-      id: `log_${Date.now()}`,
+
+    recordAdminAuditLog({
       action: status === "HIDDEN" ? "HIDE_PRODUCT" : "RESTORE_PRODUCT",
       targetType: "PRODUCT",
       targetId: found.id,
       targetName: found.name,
       reason: reason || (status === "HIDDEN" ? "Ẩn sản phẩm do vi phạm" : "Khôi phục hiển thị sản phẩm"),
       actor,
-      createdAt: new Date().toISOString(),
     });
 
     return { ...found };
   }
 
   async getAuditLogs(): Promise<AdminAuditLog[]> {
-    return [...mockAuditLogs];
+    return [...mockAdminAuditLogsStore];
   }
 
   // Categories CRUD (A-709 consuming A-700 adapter)
@@ -450,15 +378,13 @@ export class MockAdminRepository implements IAdminRepository {
 
     localCategories.push(newCat);
 
-    mockAuditLogs.unshift({
-      id: `log_${Date.now()}`,
+    recordAdminAuditLog({
       action: "CREATE_CATEGORY",
       targetType: "CATEGORY",
       targetId: newCat.id,
       targetName: newCat.name,
       reason: "Thêm danh mục mới vào hệ sinh thái sàn",
       actor: "admin@dino.vn",
-      createdAt: new Date().toISOString(),
     });
 
     return newCat;
@@ -471,15 +397,13 @@ export class MockAdminRepository implements IAdminRepository {
 
     found.status = found.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
 
-    mockAuditLogs.unshift({
-      id: `log_${Date.now()}`,
+    recordAdminAuditLog({
       action: "UPDATE_CATEGORY",
       targetType: "CATEGORY",
       targetId: found.id,
       targetName: found.name,
       reason: `Đổi trạng thái danh mục sang ${found.status}`,
       actor: "admin@dino.vn",
-      createdAt: new Date().toISOString(),
     });
 
     return { ...found };
@@ -495,15 +419,13 @@ export class MockAdminRepository implements IAdminRepository {
       ...(input.description !== undefined ? { description: input.description } : {}),
     });
 
-    mockAuditLogs.unshift({
-      id: `log_${Date.now()}`,
+    recordAdminAuditLog({
       action: "UPDATE_CATEGORY",
       targetType: "CATEGORY",
       targetId: found.id,
       targetName: found.name,
       reason: "Cập nhật danh mục",
       actor: "admin@dino.vn",
-      createdAt: new Date().toISOString(),
     });
 
     return { ...found };
@@ -610,6 +532,11 @@ export class ApiAdminRepository implements IAdminRepository {
       next_cursor: envelope.meta?.next_cursor ?? null,
       has_more: envelope.meta?.has_more ?? false,
     };
+  }
+
+  async approveShop(shopId: string, reason = "Shop approved by admin", actor?: string): Promise<PlatformShop> {
+    await apiClient.post(`/admin/shops/${shopId}/approve`, { reason, actor });
+    return this.getShopDetail(shopId);
   }
 
   async lockShop(shopId: string, reason: string, actor?: string): Promise<PlatformShop> {
@@ -736,6 +663,10 @@ export const adminRepository: IAdminRepository = {
     features.domains.adminMock() ? mockAdminRepository.getShopDetail(shopId) : apiAdminRepository.getShopDetail(shopId),
   getShopsPage: (params) =>
     features.domains.adminMock() ? mockAdminRepository.getShopsPage(params) : apiAdminRepository.getShopsPage(params),
+  approveShop: (shopId, reason, actor) =>
+    features.domains.adminMock()
+      ? mockAdminRepository.approveShop(shopId, reason, actor)
+      : apiAdminRepository.approveShop(shopId, reason, actor),
   lockShop: (shopId, reason, actor) =>
     features.domains.adminMock()
       ? mockAdminRepository.lockShop(shopId, reason, actor)

@@ -115,6 +115,9 @@ export function AdminDashboardScreen() {
     };
   }, []);
 
+  // Approve Shop State
+  const [approvingShopId, setApprovingShopId] = useState<string | null>(null);
+
   // User Lock/Unlock Actions (A-705)
   const handleConfirmLockUser = async () => {
     if (!lockingUser) return;
@@ -128,8 +131,12 @@ export function AdminDashboardScreen() {
     try {
       const updated = await adminRepository.lockUser(lockingUser.id, lockReason);
       setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
-      const freshLogs = await adminRepository.getAuditLogs();
+      const [freshLogs, freshStats] = await Promise.all([
+        adminRepository.getAuditLogs(),
+        adminRepository.getDashboardStats(),
+      ]);
       setLogs(freshLogs);
+      setStats(freshStats);
       showToast(`Đã khóa tài khoản ${updated.email}`);
       setLockingUser(null);
       setLockReason("");
@@ -144,15 +151,38 @@ export function AdminDashboardScreen() {
     try {
       const updated = await adminRepository.unlockUser(user.id);
       setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
-      const freshLogs = await adminRepository.getAuditLogs();
+      const [freshLogs, freshStats] = await Promise.all([
+        adminRepository.getAuditLogs(),
+        adminRepository.getDashboardStats(),
+      ]);
       setLogs(freshLogs);
+      setStats(freshStats);
       showToast(`Đã mở khóa tài khoản ${updated.email}`);
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Mở khóa thất bại.", "error");
     }
   };
 
-  // Shop Lock/Unlock Actions
+  // Shop Approve/Lock/Unlock Actions
+  const handleApproveShop = async (shop: PlatformShop) => {
+    setApprovingShopId(shop.id);
+    try {
+      const updated = await adminRepository.approveShop(shop.id, "Duyệt gian hàng bởi quản trị viên");
+      setShops((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+      const [freshLogs, freshStats] = await Promise.all([
+        adminRepository.getAuditLogs(),
+        adminRepository.getDashboardStats(),
+      ]);
+      setLogs(freshLogs);
+      setStats(freshStats);
+      showToast(`Đã duyệt gian hàng "${updated.name}" thành công!`);
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Duyệt gian hàng thất bại.", "error");
+    } finally {
+      setApprovingShopId(null);
+    }
+  };
+
   const handleConfirmLockShop = async () => {
     if (!lockingShop) return;
     if (!shopLockReason.trim()) {
@@ -165,8 +195,12 @@ export function AdminDashboardScreen() {
     try {
       const updated = await adminRepository.lockShop(lockingShop.id, shopLockReason);
       setShops((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
-      const freshLogs = await adminRepository.getAuditLogs();
+      const [freshLogs, freshStats] = await Promise.all([
+        adminRepository.getAuditLogs(),
+        adminRepository.getDashboardStats(),
+      ]);
       setLogs(freshLogs);
+      setStats(freshStats);
       showToast(`Đã khóa gian hàng ${updated.name}`);
       setLockingShop(null);
       setShopLockReason("");
@@ -181,8 +215,12 @@ export function AdminDashboardScreen() {
     try {
       const updated = await adminRepository.unlockShop(shop.id);
       setShops((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
-      const freshLogs = await adminRepository.getAuditLogs();
+      const [freshLogs, freshStats] = await Promise.all([
+        adminRepository.getAuditLogs(),
+        adminRepository.getDashboardStats(),
+      ]);
       setLogs(freshLogs);
+      setStats(freshStats);
       showToast(`Đã mở khóa gian hàng ${updated.name}`);
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Mở khóa gian hàng thất bại.", "error");
@@ -200,8 +238,12 @@ export function AdminDashboardScreen() {
         targetStatus === "HIDDEN" ? "Ẩn theo yêu cầu kiểm duyệt" : "Mở lại hiển thị sản phẩm"
       );
       setProducts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-      const freshLogs = await adminRepository.getAuditLogs();
+      const [freshLogs, freshStats] = await Promise.all([
+        adminRepository.getAuditLogs(),
+        adminRepository.getDashboardStats(),
+      ]);
       setLogs(freshLogs);
+      setStats(freshStats);
       showToast(
         targetStatus === "HIDDEN"
           ? `Đã ẩn sản phẩm "${product.name}"`
@@ -665,7 +707,23 @@ export function AdminDashboardScreen() {
                               </td>
                               <td className="py-3 px-4 text-right">
                                 {isPending ? (
-                                  <Link className="text-xs font-semibold text-[var(--primary)]" href="/admin/shops">Mở duyệt hồ sơ</Link>
+                                  <div className="flex items-center justify-end gap-2">
+                                    <Button
+                                      variant="primary"
+                                      className="text-xs py-1 px-2.5 font-semibold"
+                                      disabled={approvingShopId === s.id}
+                                      onClick={() => handleApproveShop(s)}
+                                    >
+                                      {approvingShopId === s.id ? "Đang duyệt..." : "Duyệt shop"}
+                                    </Button>
+                                    <Link
+                                      className="text-xs font-semibold text-[var(--primary)] hover:underline whitespace-nowrap"
+                                      href="/admin/shops"
+                                      title="Mở hồ sơ chi tiết tại Quản lý Gian hàng"
+                                    >
+                                      Mở duyệt hồ sơ
+                                    </Link>
+                                  </div>
                                 ) : isLocked ? (
                                   <Button
                                     variant="secondary"
