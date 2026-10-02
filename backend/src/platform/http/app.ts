@@ -199,7 +199,7 @@ export function createRuntimeApp(
   const payosService = new PayosService({
     clientId: process.env.PAYOS_CLIENT_ID || '0cc855e6-ed8b-4eb5-a5a9-f5a4cee21208',
     apiKey: process.env.PAYOS_API_KEY || '61bf9bfc-9aca-4729-ae1d-458a26e2f121',
-    checksumKey: process.env.PAYOS_CHECKSUM_KEY || '6083ce0b91cc434588afe5ce44becee7d71e1d4a5',
+    checksumKey: process.env.PAYOS_CHECKSUM_KEY || '6083ce0b91cc434588afe5ce44becee7d71e1d4a5a426828cde6a77c43f214a9',
   });
 
   return {

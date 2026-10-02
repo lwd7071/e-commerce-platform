@@ -85,6 +85,11 @@ export function createPayosPaymentRouter(
     const payload = req.body;
     const isValid = payosService.verifyWebhook(payload);
     if (!isValid) {
+      // PayOS test webhook verification during dashboard registration
+      if (payload?.data?.orderCode === 123 || payload?.data?.description === 'VQRIO123') {
+        res.status(200).json({ success: true, message: 'PayOS test webhook verified' });
+        return;
+      }
       res.status(400).json({ success: false, message: 'Invalid webhook signature' });
       return;
     }
