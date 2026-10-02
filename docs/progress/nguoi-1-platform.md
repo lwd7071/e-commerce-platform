@@ -2,34 +2,18 @@
 
 ## Trạng thái hiện tại
 
-- Mốc: Dino MVP & OpenAPI 3.1 Contract Hardening (Hoàn tất 100%)
-- Cập nhật lần cuối: 2026-10-02
-- Đang làm: Đã hoàn tất 100% các hạng mục phụ trách theo `docs/frontend-spec/08-implementation-plan.md` và giải quyết dứt điểm các lỗi hợp đồng API phát hiện qua CI audit:
+- Mốc: Dino MVP 30/09 — Block 0, Workstream A & Workstream C (Hoàn tất 100%)
+- Cập nhật lần cuối: 2026-09-30
+- Đang làm: Đã hoàn tất 100% các hạng mục phụ trách theo `docs/frontend-spec/08-implementation-plan.md`:
   1. `GET /api/v1/health/readiness` (và `/health/readiness`): trả commit/version, DB/Auth/Storage và 12 capabilities `LIVE` khớp manifest FE.
-  2. OpenAPI 3.1 & Contract Drift: Khóa ma trận canonical backend paths, bảo vệ khỏi drift; bổ sung `POST /admin/finance/escrow/reconcile` đảm bảo khớp 1:1 với Express.
-  3. Chuẩn hóa Schema OpenAPI 3.1: Loại bỏ toàn bộ cú pháp cũ `nullable: true`, chuyển sang chuẩn JSON Schema 2020-12 `type: ['string', 'null']` và `type: ['object', 'null']`.
-  4. Capability Readiness Registry (`capabilities.ts`) & build guard fail-fast trong `next.config.ts`.
-  5. Workstream A: Seller onboarding, AuthContext `reloadUser()`, Gating seller screens/stock khi Shop `PENDING`, củng cố `sanitizeReturnTo`.
-  6. Workstream C: Admin API hardening & bảo vệ tài khoản ADMIN với 403 `ADMIN_TARGET_PROTECTED`.
-  Toàn bộ Quality Gates đạt 100%: 759/759 tests backend PASS (209 suites), openapi-spec test 6/6 PASS, 351/351 tests frontend PASS, typecheck 0 lỗi, lint 0 lỗi.
+  2. OpenAPI 3.1 & Contract Drift: Khóa ma trận canonical backend paths, bảo vệ khỏi drift.
+  3. Capability Readiness Registry (`capabilities.ts`) & build guard fail-fast trong `next.config.ts`.
+  4. Workstream A: Seller onboarding, AuthContext `reloadUser()`, Gating seller screens/stock khi Shop `PENDING`, củng cố `sanitizeReturnTo`.
+  5. Workstream C: Admin API hardening & bảo vệ tài khoản ADMIN với 403 `ADMIN_TARGET_PROTECTED`.
+  Toàn bộ Quality Gates đạt 100%: 619/619 tests backend PASS (173 suites) + DB integration tests pass, 253/253 tests frontend PASS, typecheck 0 lỗi, lint 0 lỗi.
 - Bị block bởi: Không
 
 ## Nhật ký theo ngày
-
-### 2026-10-02 (Khắc phục Lỗi Hợp Đồng OpenAPI & Chuẩn Hóa Schema OpenAPI 3.1)
-
-- **Đã làm:**
-  - **1. Khắc phục lỗi thiếu endpoint trong OpenAPI (OAS-05):**
-    - Bổ sung định nghĩa `POST /admin/finance/escrow/reconcile` vào `openapi-spec.ts`.
-    - Xác nhận khớp 1:1 với route Express được mount trong `admin-finance-routes.ts`.
-  - **2. Chuẩn hóa Schema OpenAPI 3.1:**
-    - Loại bỏ toàn bộ thuộc tính `nullable: true` (cú pháp cũ của OpenAPI 3.0) tại `AddressDTO` (`provinceCode`, `district`, `wardCode`), `ProfileDTO` (`full_name`), `ErrorEnvelope` (`details`), `PaginatedEnvelope` (`next_cursor`), `POST /addresses` và `PATCH /addresses/{id}`.
-    - Chuyển sang cú pháp chuẩn OpenAPI 3.1: `type: ['string', 'null']` và `type: ['object', 'null']`, bảo đảm tương thích 100% với các công cụ sinh client và validator hiện đại.
-  - **3. Quality Gates:**
-    - `backend/test/platform/openapi-spec.spec.ts`: **6/6 tests PASS (100%)**, vượt qua kiểm tra đối soát route `[OAS-05]` và probe HTTP `[OAS-06]`.
-    - Toàn bộ Backend Node tests: **759/759 tests PASS (209 suites)**, 0 fail, 0 skipped.
-    - Typecheck (`tsc --noEmit`): 0 errors.
-    - ESLint: 0 warnings, 0 errors.
 
 ### 2026-09-30 (Dino MVP 30/09 — /health/readiness, Capability Registry, Seller Gating, Admin Target Protection)
 

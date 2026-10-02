@@ -31,14 +31,14 @@
   - **2. Bổ sung cơ chế Retry & Đối soát (Reconciliation) cho Escrow:**
     - Thêm helper `retryEscrowOperation` (thử lại tối đa 3 lần với exponential backoff) bọc quanh `settleEscrow` và `refundEscrow` trong hook đơn hàng `confirmReceived`, `transitionOrder`, `cancelOrder`.
     - Triển khai phương thức `reconcilePendingEscrows()` trong `PgWalletRepository`, `EscrowService`, `AdminFinanceService` tự động phát hiện và bù trừ các đơn hàng `COMPLETED`/`CANCELLED` có escrow bị treo ở `HOLDING`.
-    - Mở endpoint quản trị: `POST /api/v1/admin/finance/escrow/reconcile` và client frontend `walletApi.reconcileEscrow()`.
+    - Mở endpoint quản trị: `POST /api/v1/admin/finance/escrow/reconcile` và client frontend `walletApi.reconcileEscrow()`; đồng bộ khai báo endpoint vào OpenAPI 3.1 spec để bảo đảm kiểm tra hợp đồng `[OAS-05]` đạt 100%.
   - **3. Bổ sung bộ kiểm thử tự động:**
     - Mở rộng `backend/test/modules/wallet/wallet-and-escrow.spec.ts` với suite `5. Escrow Reconciliation & Failure Recovery` (3 ca test mới), đạt 17/17 tests PASS.
   - **4. Soạn thảo Báo cáo Tính năng Chuẩn hoá:**
     - Tạo file `docs/feature/01-escrow-seller-wallet.md` theo mẫu chuẩn của dự án (Owner: Tri Nguyen).
   - **5. Quality Gates:**
     - Backend Wallet Spec: 17/17 tests PASS.
-    - Backend Unit toàn sàn: 756/756 tests PASS (208 suites).
+    - Backend Unit toàn sàn: 759/759 tests PASS (209 suites).
     - Frontend Wallet Vitest: 9/9 tests PASS.
     - Frontend Vitest toàn sàn: 351/351 tests PASS (74 test files).
     - Typecheck (`tsc --noEmit`) cả Backend & Frontend: 0 errors.
