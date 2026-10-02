@@ -19,8 +19,6 @@ import type {
   IChatRepository,
   CreateReviewPayload,
   WireReview,
-  AdminUserItem,
-  AdminShopItem,
   ISellerRepository,
 } from "./types";
 

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Dialog } from "@/components/ui/dialog";
 import { FormField, TextInput } from "@/components/ui/form-controls";
-import { Skeleton, ErrorState, EmptyState } from "@/components/ui/data-states";
+import { Skeleton, EmptyState } from "@/components/ui/data-states";
 
 export function SellerWalletScreen() {
   const [wallet, setWallet] = useState<ShopWallet | null>(null);

@@ -98,11 +98,15 @@ export function AdminShopsScreen() {
   }, [statusFilter, tierFilter, searchQuery]);
 
   useEffect(() => {
-    fetchShops(statusFilter, searchQuery);
+    Promise.resolve().then(() => {
+      fetchShops(statusFilter, searchQuery);
+    });
   }, [statusFilter, searchQuery, fetchShops]);
 
   useEffect(() => {
-    fetchCounts();
+    Promise.resolve().then(() => {
+      fetchCounts();
+    });
   }, [fetchCounts]);
 
   const handleLoadMore = async () => {

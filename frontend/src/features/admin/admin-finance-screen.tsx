@@ -7,7 +7,7 @@ import { moneyAdapter } from "@/lib/adapters/money.adapter";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { FormField, TextInput } from "@/components/ui/form-controls";
-import { Skeleton, ErrorState, EmptyState } from "@/components/ui/data-states";
+import { Skeleton, EmptyState } from "@/components/ui/data-states";
 import { AdminHeaderNav } from "./admin-header-nav";
 
 export function AdminFinanceScreen() {

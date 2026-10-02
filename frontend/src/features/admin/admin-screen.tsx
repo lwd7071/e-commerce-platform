@@ -107,7 +107,9 @@ export function AdminScreen() {
   };
 
   useEffect(() => {
-    fetchUsers(roleFilter, statusFilter, searchQuery);
+    Promise.resolve().then(() => {
+      fetchUsers(roleFilter, statusFilter, searchQuery);
+    });
   }, [roleFilter, statusFilter, searchQuery, fetchUsers]);
 
   const handleOpenLockDialog = (user: AdminUserItem) => {
