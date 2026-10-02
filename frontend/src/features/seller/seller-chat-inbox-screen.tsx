@@ -17,6 +17,7 @@ export function SellerChatInboxScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
+  const [isShopOnline, setIsShopOnline] = useState(true);
   const [permissions, setPermissions] = useState<ProductBotPermissions>({
     allow_stock: true,
     allow_price: true,
@@ -80,6 +81,48 @@ export function SellerChatInboxScreen() {
     loadConversations();
   }, [loadConversations]);
 
+  // Real-time synchronization: định kỳ polling 4s để cập nhật tin nhắn mới từ Người mua trong hội thoại hiện tại
+  useEffect(() => {
+    if (!selectedConv?.conversation_id) return;
+
+    const interval = setInterval(() => {
+      repositories
+        .chat()
+        .getMessages(selectedConv.conversation_id)
+        .then((latest) => {
+          if (latest && latest.length > 0) {
+            setMessages((prev) => {
+              if (
+                latest.length !== prev.length ||
+                latest[latest.length - 1]?.message_id !== prev[prev.length - 1]?.message_id
+              ) {
+                return latest;
+              }
+              return prev;
+            });
+          }
+        })
+        .catch(() => undefined);
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [selectedConv?.conversation_id]);
+
+  // Real-time synchronization: định kỳ polling 10s để cập nhật danh sách hội thoại mới
+  useEffect(() => {
+    const interval = setInterval(() => {
+      repositories
+        .chat()
+        .getConversations()
+        .then((data) => {
+          setConversations(data);
+        })
+        .catch(() => undefined);
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
@@ -141,14 +184,43 @@ export function SellerChatInboxScreen() {
             Quản lý hội thoại trực tiếp với khách mua và giám sát câu trả lời tự động của Trợ lý AI
           </p>
         </div>
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={loadConversations}
-          className="self-start sm:self-auto text-xs"
-        >
-          Làm mới
-        </Button>
+        <div className="flex items-center gap-3">
+          {/* Shop Online / Offline Toggle */}
+          <button
+            type="button"
+            onClick={() => {
+              const nextState = !isShopOnline;
+              setIsShopOnline(nextState);
+              showToast(
+                nextState
+                  ? "Shop đã chuyển sang trạng thái Trực Tuyến."
+                  : "Shop đã chuyển sang trạng thái Tạm Vắng (Offline). Hệ thống sẽ thông báo khách hàng khi cần hỗ trợ.",
+                "info"
+              );
+            }}
+            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+              isShopOnline
+                ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30 hover:bg-emerald-500/20"
+                : "bg-amber-500/10 text-amber-600 border-amber-500/30 hover:bg-amber-500/20"
+            }`}
+          >
+            <span
+              className={`h-2 w-2 rounded-full ${
+                isShopOnline ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
+              }`}
+            />
+            <span>{isShopOnline ? "Shop Đang Trực Tuyến" : "Shop Tạm Vắng (Offline)"}</span>
+          </button>
+
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={loadConversations}
+            className="self-start sm:self-auto text-xs"
+          >
+            Làm mới
+          </Button>
+        </div>
       </div>
 
       {/* Main Container */}
@@ -287,6 +359,16 @@ export function SellerChatInboxScreen() {
                   <span className="font-semibold text-[var(--subtext)]">Khách đang hỏi về:</span>
                   <span className="font-bold text-[var(--foreground)] truncate">
                     {selectedConv.product_name}
+                  </span>
+                </div>
+              )}
+
+              {/* Shop Offline Status Alert Banner */}
+              {!isShopOnline && (
+                <div className="flex items-center gap-2 border-b border-amber-500/20 bg-amber-500/10 px-4 py-2 text-xs text-amber-700 dark:text-amber-300">
+                  <Icon name="bell" className="h-4 w-4 shrink-0 text-amber-500" />
+                  <span>
+                    <strong>Shop đang vắng mặt (Offline):</strong> Khi người mua yêu cầu hỗ trợ người thật, hệ thống sẽ lưu tin nhắn vào hàng đợi và phản hồi thông báo Shop hiện đang ngoại tuyến.
                   </span>
                 </div>
               )}

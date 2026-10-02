@@ -75,6 +75,33 @@ export function ChatWidget({ productContext, isOpen, onClose }: ChatWidgetProps)
     scrollToBottom();
   }, [messages]);
 
+  // Real-time synchronization: định kỳ polling 4s để cập nhật tin nhắn mới từ Người bán
+  useEffect(() => {
+    if (!isOpen || !conversation?.conversation_id) return;
+
+    const interval = setInterval(() => {
+      repositories
+        .chat()
+        .getMessages(conversation.conversation_id)
+        .then((latest) => {
+          if (latest && latest.length > 0) {
+            setMessages((prev) => {
+              if (
+                latest.length !== prev.length ||
+                latest[latest.length - 1]?.message_id !== prev[prev.length - 1]?.message_id
+              ) {
+                return latest;
+              }
+              return prev;
+            });
+          }
+        })
+        .catch(() => undefined);
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [isOpen, conversation?.conversation_id]);
+
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend || inputText).trim();
     if (!text || !conversation || isSending) return;
@@ -148,7 +175,9 @@ export function ChatWidget({ productContext, isOpen, onClose }: ChatWidgetProps)
                   conversation?.mode === "LIVE_AGENT" ? "bg-emerald-400" : "bg-sky-300 animate-pulse"
                 }`}
               />
-              <span>{conversation?.mode === "LIVE_AGENT" ? "Đang chat với Người Bán" : "Trợ lý AI Sản Phẩm"}</span>
+              <span>
+                {conversation?.mode === "LIVE_AGENT" ? "Đang chat với Người Bán" : "Trợ lý AI Sản Phẩm"}
+              </span>
             </div>
           </div>
         </div>

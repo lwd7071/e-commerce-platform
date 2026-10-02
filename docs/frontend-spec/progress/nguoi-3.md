@@ -2,19 +2,38 @@
 
 ## Trạng thái hiện tại
 
-- Phase/ticket: Phase 3 (B-301 [x], B-302 [x], B-305 [x]), Phase 4 (B-401 [x]), Phase 5 (O-508 [x], O-509 [x], Product Create [x]), Phase 7 (A-700 [x], A-702 [x]), Core (B-102 [x], B-103 [x], B-105 [x], B-201–B-205 [x], C-205 [x], C-403 [x])
-- Cập nhật lần cuối: 2026-09-30
-- Đang làm: Các implementation B-102/B-103, B-105, B-201–B-205, C-205 và C-403 được ghi nhận trong source/progress; chưa đủ bằng chứng để kết luận toàn bộ acceptance Người 3 hoàn tất:
-  - **Backend Seller Products**: Triển khai `GET /seller/products` (strictly scoped theo `context.shop_id`) và `PATCH /seller/products/:id/status` (bật/tắt ACTIVE ↔ INACTIVE kèm kiểm tra quyền sở hữu Shop).
-  - **Backend Media Verification API**: `POST /media/uploads/presign`, `POST /media/uploads/:id/finalize` (kiểm tra magic bytes JPEG/PNG/WebP, từ chối file giả mạo với ValidationFailedError), và `DELETE /media/uploads/:id`.
-  - **Backend Admin Category CRUD & Status API**: `GET /admin/categories`, `POST /admin/categories`, `PATCH /admin/categories/:id`, `PATCH /admin/categories/:id/status` với RB-KN04 cây danh mục tối đa 2 cấp và chống vòng lặp cha-con.
-  - **OpenAPI 3.1.0**: Bổ sung đầy đủ 10 endpoint mới trong `openapi-spec.ts`, pass 100% test contract `[OAS-05]`.
-  - **Frontend Repositories & UI**: Triển khai `IMediaRepository`, `mediaApi`, kết nối `apiCatalogRepository.getSellerProducts` và `updateProductStatus`. Nâng cấp `ProductDetailScreen` hiển thị đánh giá và aggregate rating thật từ `reviewRepository` (loại bỏ fallback 5 sao giả), hỗ trợ gallery ảnh và `next/image` alt text. Nâng cấp `SellerProductsScreen` bổ sung cột "Trạng thái" và nút toggle "Ẩn/Hiện" trực tiếp.
-- Nhánh/PR: `feat/fe-nguoi-3-catalog`
-- Bị block bởi: Không có blocker implementation code đã xác nhận.
-- Việc tiếp theo: Phối hợp chạy Playwright E2E trên môi trường có backend/seeded database; hỗ trợ tích hợp/nghiệm thu media và luồng Seller products E2E; xử lý defect nếu các bài chạy thật phát hiện.
+- Phase/ticket: Feature 4 (Buyer-Seller Chat, AI Bot Assistant & Seller Live Chat) [x], Core & Acceptance [x]
+- Owner: thangdanglk-ui (Người 3)
+- Cập nhật lần cuối: 2026-10-02
+- Trạng thái: Hoàn thành 100% (Đã merge vào `origin/dev` tại commit `defd00f` và xác minh sau merge)
+- Nhánh/PR: `feat/fe-nguoi-3-catalog` -> Merged vào `origin/dev`
+- Bị block bởi: Không (0 blocker)
+- Người phối hợp:
+  - Người 1 (Auth & User Platform): Xác thực JWT / Supabase Auth (`buyer_id`, `seller_id`), phân quyền RBAC (`BUYER`, `SELLER`).
+  - Người 2 (Shop & Seller Operations): Xác thực quyền sở hữu Shop (`shop.owner_id`) và tích hợp menu điều hướng Seller Dashboard (`/seller/chat`).
 
 ## Nhật ký theo ngày
+
+### 2026-10-02 — Hoàn tất Feature 4 (Chat AI Assistant & Live Chat), Polling Realtime, Presence & Quality Gates
+
+- **Đã làm**:
+  - **Buyer Chat Widget (`frontend/src/components/chat/chat-widget.tsx`)**:
+    - Ghim ngữ cảnh sản phẩm đang xem, hiển thị nhãn `[Trả lời tự động từ Bot]`, câu hỏi gợi ý nhanh và nút hand-off chuyển sang Người bán.
+    - Cài đặt cơ chế Short-Polling 4 giây định kỳ tự động đồng bộ tin nhắn mới từ Người bán mà không reload trang.
+  - **Seller Chat Inbox Screen (`frontend/src/features/seller/seller-chat-inbox-screen.tsx`) & Route `/seller/chat`**:
+    - Hộp thư quản lý hội thoại khách hàng cho người bán, phân loại hội thoại đang ở chế độ `LIVE_AGENT` hoặc `BOT_ASSISTANT`, đếm tin chưa đọc.
+    - Tích hợp Short-Polling 4 giây cho tin nhắn hội thoại đang chọn và 10 giây cho danh sách cuộc hội thoại.
+    - Bổ sung nút chuyển đổi trạng thái Hiện diện: `Shop Đang Trực Tuyến` / `Shop Tạm Vắng (Offline)` trên header và banner cảnh báo trạng thái ngoại tuyến.
+    - Modal cấu hình quyền bot (`ProductBotPermissions`): cho phép Seller bật/tắt quyền xem tồn kho, giá bán, biến thể và mô tả.
+  - **Hoàn thiện theo phản hồi Review của Lead**:
+    - Loại bỏ con số võ đoán "giảm 70% khối lượng tin nhắn", chuẩn hóa tài liệu kỹ thuật tại `docs/feature/04-chat-ai-live-chat.md`.
+    - Viết thêm Unit Test kiểm tra toggle trạng thái Online/Offline trong `test/seller-chat-inbox.spec.tsx` (tổng 7/7 tests chat pass).
+  - **Quality Gates sau Merge**:
+    - Frontend Lint: PASS (0 errors, 0 warnings).
+    - Frontend Typecheck: PASS (`tsc --noEmit` 0 errors).
+    - Frontend Vitest: 7/7 tests Chat PASS (`test/chat-widget.spec.tsx` & `test/seller-chat-inbox.spec.tsx`).
+    - Next.js Build: 100% SUCCESS (32/32 routes).
+- **Trạng thái**: Hoàn thành và đồng bộ lên `feat/fe-nguoi-3-catalog` và `origin/dev` (commit `defd00f`).
 
 ### 2026-09-30 (Lần 2) — Triển khai Playwright E2E B-206 cho Luồng Seller Product (Upload → Create → List → Stock → Hide/Show)
 

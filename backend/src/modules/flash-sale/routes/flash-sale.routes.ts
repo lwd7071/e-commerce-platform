@@ -1,15 +1,22 @@
 import { Router, type Request, type Response, type NextFunction, type RequestHandler } from 'express';
+import type { Redis } from 'ioredis';
 import type { FlashSaleService } from '../services/flash-sale.service.ts';
 import type { PgFlashSaleRepository } from '../repositories/pg-flash-sale.repository.ts';
 import { getRedisClient } from '../infrastructure/redis.client.ts';
 import { requireRole } from '../../../platform/http/middlewares/rbac.ts';
 import { UnauthorizedError } from '../../../platform/errors/app-error.ts';
 
+export interface FlashSaleRedisClient {
+  get(key: string): Promise<string | null>;
+  set(key: string, value: string | number, ...args: any[]): Promise<any>;
+  del(...keys: string[]): Promise<number>;
+}
+
 export function createFlashSaleRouter(
   service: FlashSaleService,
   repo: PgFlashSaleRepository,
   auth?: RequestHandler,
-  redisClient?: any
+  redisClient?: Redis | FlashSaleRedisClient
 ): Router {
   const router = Router();
   const redis = redisClient || getRedisClient();

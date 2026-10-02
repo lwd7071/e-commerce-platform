@@ -19,7 +19,7 @@ async function main() {
     console.log('✅ Set key DINO_FLASH_SALE_STATUS successfully!');
     console.log('🚀 Redis connection is 100% WORKING and READY!');
   } catch (err: unknown) {
-    console.error('❌ Redis Connection Failed:', (err as Error).message);
+    console.error('❌ Redis Connection Failed:', err instanceof Error ? err.message : String(err));
   } finally {
     await redis.quit();
   }

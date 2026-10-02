@@ -7,6 +7,7 @@ import type {
   ShopWallet,
   WalletTransaction,
   WithdrawalStatus,
+  EscrowReconciliationResult,
 } from '../domain/wallet.types.ts';
 import { WalletDomainError } from '../domain/wallet-errors.ts';
 
@@ -59,5 +60,10 @@ export class AdminFinanceService {
       }
       throw error;
     }
+  }
+
+  async reconcileEscrows(context: RequestContext): Promise<EscrowReconciliationResult> {
+    this.assertAdmin(context);
+    return this.walletRepo.reconcilePendingEscrows();
   }
 }

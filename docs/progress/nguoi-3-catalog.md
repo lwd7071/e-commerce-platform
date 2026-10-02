@@ -2,18 +2,40 @@
 
 ## Trạng thái hiện tại
 
-- Mốc: T3 (Hardening & Nghiệm thu — Release Gate)
-- Cập nhật lần cuối: 2026-09-30
-- Đang làm: Hoàn tất trọn vẹn toàn bộ nhiệm vụ mở rộng theo yêu cầu của Lead và kế hoạch triển khai:
-  1. Backend Seller Products Live Flow: `GET /seller/products` (scoped chặt theo `context.shop_id`) và `PATCH /seller/products/:id/status` (bật/tắt ACTIVE ↔ INACTIVE có xác minh quyền sở hữu shop).
-  2. Media Verification Upload API: `POST /media/uploads/presign`, `POST /media/uploads/:id/finalize` (xác thực magic bytes cho JPEG, PNG, WebP; từ chối file giả mạo), `DELETE /media/uploads/:id`.
-  3. Admin Categories CRUD & Status Backend: `GET /admin/categories`, `POST /admin/categories`, `PATCH /admin/categories/:id`, `PATCH /admin/categories/:id/status` với RB-KN04 cây danh mục tối đa 2 cấp và chống chu trình.
-  4. Khai báo 100% routes mới trong OpenAPI 3.1.0 spec (`[OAS-05]` compliance).
-  5. Frontend: Tích hợp `IMediaRepository`, `mediaApi`, gallery sản phẩm và `next/image` alt text, review & rating aggregate thật cho Product Detail (bỏ 5 sao fake), bổ sung cột Trạng thái và nút toggle Ẩn/Hiện cho Seller Products Screen.
-  6. Quality Gates: Backend 0 lỗi typecheck/lint, 609/609 node tests PASS (100%); Frontend 0 lỗi typecheck/lint, 34/34 vitest files (190/190 tests PASS), Turbopack build 22/22 routes sạch.
-- Bị block bởi: Không (Sẵn sàng 100% để Lead merge vào dev/main).
+- Mốc: Hoàn tất Feature 4 (Buyer-Seller Chat Hybrid AI & Live Chat) & Toàn bộ Quality Gates Sau Merge
+- Owner: thangdanglk-ui (Người 3)
+- Cập nhật lần cuối: 2026-10-02
+- Trạng thái: Hoàn thành 100% (Đã merge vào `origin/dev` tại commit `defd00f` và xác minh sau merge)
+- Bị block bởi: Không (0 blocker)
+- Người phối hợp:
+  - Người 1 (Auth & User Platform): Xác thực JWT / Supabase Auth (`buyer_id`, `seller_id`), phân quyền RBAC (`BUYER`, `SELLER`).
+  - Người 2 (Shop & Seller Operations): Xác thực quyền sở hữu Shop (`shop.owner_id`) và tích hợp menu điều hướng Seller Dashboard (`/seller/chat`).
 
 ## Nhật ký theo ngày
+
+### 2026-10-02 (Hoàn tất Feature 4: Hybrid Buyer-Seller Chat & AI Assistant, Đáp ứng 100% Review của Lead)
+
+- **Đã làm**:
+  - **Kiến trúc Hybrid 2 Tầng (AI Assistant + Seller Live Chat)**:
+    - Xây dựng bảng migration `chat_conversations` và `chat_messages` với ràng buộc khóa ngoại, indexes và RLS.
+    - Cài đặt `BotGroundedEngine` (`backend/src/modules/chat/domain/bot-grounded-engine.ts`) xử lý câu hỏi tự nhiên về tồn kho, biến thể, giá bán, chi tiết sản phẩm dựa trên whitelist quyền do Seller cấu hình (`allow_stock`, `allow_price`, `allow_variants`, `allow_description`).
+    - Cài đặt `PgChatRepository` và `PgChatService` hỗ trợ gửi tin nhắn, lưu trữ lịch sử, cursor pagination, chống trùng lặp bằng `client_message_id`, và chuyển giao tư vấn viên `requestHumanHandoff`.
+    - Mount toàn bộ HTTP REST routes `/api/v1/chat/*` và tích hợp đặc tả OpenAPI 3.1.0.
+  - **Frontend Chat Widget & Seller Inbox**:
+    - Xây dựng `ChatWidget` nổi cho Buyer, tự động ghim sản phẩm đang xem, hỗ trợ câu hỏi gợi ý nhanh và nút hand-off sang Người bán.
+    - Xây dựng `SellerChatInboxScreen` và route `/seller/chat` cho người bán quản lý các hội thoại, phản hồi trực tiếp, và modal cấu hình quyền bot.
+  - **Hoàn thiện theo phản hồi Review của Lead**:
+    - *Real-time Polling*: Bổ sung Short-Polling 4 giây tại `ChatWidget` và `SellerChatInboxScreen` (kèm polling danh sách 10 giây) để cập nhật tin nhắn hai chiều tức thời không cần reload trang.
+    - *Trạng thái Hiện diện (Presence)*: Bổ sung nút toggle `Shop Đang Trực Tuyến` / `Shop Tạm Vắng (Offline)` trên header Seller Inbox, banner cảnh báo khi offline, và thông báo tự động cho khách khi Shop vắng mặt.
+    - *Chuẩn hóa Tài liệu*: Loại bỏ con số võ đoán "giảm 70% khối lượng tin nhắn", thay bằng mô tả kỹ thuật chính xác tại `docs/feature/04-chat-ai-live-chat.md`.
+  - **Kết quả Kiểm tra Sau Merge (Quality Gates)**:
+    - Backend Chat Routes & Engine: 14/14 tests PASS (`npx tsx --test test/platform/chat-routes.spec.ts`).
+    - Backend Lint: PASS 0 warnings (`eslint --max-warnings=0`).
+    - Frontend Chat Tests: 7/7 tests PASS (`npx vitest run test/chat-widget.spec.tsx test/seller-chat-inbox.spec.tsx`).
+    - Frontend Lint: PASS 0 errors, 0 warnings.
+    - Frontend Typecheck: PASS 0 errors (`tsc --noEmit`).
+    - Next.js Production Build: PASS toàn bộ 32 routes.
+- **Trạng thái**: Đã đồng bộ lên `feat/fe-nguoi-3-catalog` và `origin/dev` (commit `defd00f`).
 
 ### 2026-09-30 (Hoàn tất Seller Scoped API, Media Magic Bytes, Admin Categories & Real Review UI)
 

@@ -10,7 +10,12 @@ const expectedTables = [
   'voucher_usages', 'reviews', 'review_images', 'notifications',
   'moderation_records', 'admin_logs',
   'admin_notification_campaigns', 'admin_notification_campaign_recipients',
+];
+const featureTables = [
   'chat_conversations', 'chat_messages',
+  'flash_sale_sessions', 'flash_sale_items', 'flash_sale_compensation_logs',
+  'shop_wallets', 'escrow_records', 'wallet_transactions', 'withdrawal_requests',
+  'loyalty_point_transactions',
 ];
 const operationalTables = ['api_idempotency_records', 'media_uploads'];
 
@@ -45,12 +50,12 @@ remoteDescribe('Schema Freeze v1 Supabase smoke checks', () => {
     if (client) await client.end();
   }, 20_000);
 
-  it('connects and exposes exactly the 26 Schema Freeze business tables', async () => {
+  it('connects and exposes exactly the frozen and approved feature business tables', async () => {
     const result = await requireConnectedClient().query<{ table_name: string }>(
       "select table_name from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE' and table_name <> '_prisma_migrations' and table_name <> all($1::text[]) order by table_name",
       [operationalTables],
     );
-    expect(result.rows.map((row) => row.table_name).sort()).toEqual([...expectedTables].sort());
+    expect(result.rows.map((row) => row.table_name).sort()).toEqual([...expectedTables, ...featureTables].sort());
   }, 15_000);
 
   it('keeps operational tables separate and protected by RLS', async () => {
@@ -64,12 +69,12 @@ remoteDescribe('Schema Freeze v1 Supabase smoke checks', () => {
     })));
   }, 15_000);
 
-  it('enables RLS on every business table', async () => {
+  it('enables RLS on every frozen and approved feature business table', async () => {
     const result = await requireConnectedClient().query<{ count: string }>(
       "select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relname = any($1::text[]) and c.relrowsecurity",
-      [expectedTables],
+      [[...expectedTables, ...featureTables]],
     );
-    expect(Number(result.rows[0].count)).toBe(expectedTables.length);
+    expect(Number(result.rows[0].count)).toBe(expectedTables.length + featureTables.length);
   }, 15_000);
 
   it('has an applied Prisma migration', async () => {

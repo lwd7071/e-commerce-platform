@@ -222,12 +222,34 @@ export function createRuntimeApp(
   const shopWallet = new ShopWalletService(walletRepo);
   const adminFinance = new AdminFinanceService(walletRepo);
   const payosService = new PayosService({
-    clientId: process.env.PAYOS_CLIENT_ID || '0cc855e6-ed8b-4eb5-a5a9-f5a4cee21208',
-    apiKey: process.env.PAYOS_API_KEY || '61bf9bfc-9aca-4729-ae1d-458a26e2f121',
-    checksumKey: process.env.PAYOS_CHECKSUM_KEY || '6083ce0b91cc434588afe5ce44becee7d71e1d4a5a426828cde6a77c43f214a9',
+    clientId: process.env.PAYOS_CLIENT_ID || '',
+    apiKey: process.env.PAYOS_API_KEY || '',
+    checksumKey: process.env.PAYOS_CHECKSUM_KEY || '',
   });
   const flashSaleService = new FlashSaleService(pool, getRedisClient());
   flashSaleService.startWorker();
+
+  const retryEscrowOperation = async <T>(
+    operation: () => Promise<T>,
+    actionTag: string,
+    maxAttempts = 3,
+    delayMs = 150,
+  ): Promise<T | null> => {
+    let attempt = 0;
+    while (attempt < maxAttempts) {
+      try {
+        return await operation();
+      } catch (error) {
+        attempt++;
+        if (attempt >= maxAttempts) {
+          console.error(`[Escrow ${actionTag} Failed after ${attempt} attempts]:`, error);
+          return null;
+        }
+        await new Promise((resolve) => setTimeout(resolve, delayMs * Math.pow(2, attempt - 1)));
+      }
+    }
+    return null;
+  };
 
   return {
     app: createApp({
@@ -263,21 +285,21 @@ export function createRuntimeApp(
         orderQueryService,
         cancelOrder: async (context, orderId, input) => {
           const res = await checkoutService.cancelOrder(context, orderId, input);
-          try { await escrowService.refundEscrow(orderId); } catch { /* ignore if not exists */ }
+          await retryEscrowOperation(() => escrowService.refundEscrow(orderId), `Refund (${orderId})`);
           return res;
         },
         confirmOrder: (context, orderId, reason) => checkoutService.confirmOrder(context, orderId, reason),
         confirmReceived: async (context, orderId, reason) => {
           const result = await checkoutService.confirmReceived(context, orderId, reason);
-          try { await escrowService.settleEscrow(orderId); } catch (e) { console.error('[Escrow Auto-Settle]:', e); }
+          await retryEscrowOperation(() => escrowService.settleEscrow(orderId), `Settle (${orderId})`);
           return result;
         },
         transitionOrder: async (context, orderId, input) => {
           const result = await checkoutService.transitionOrder(context, orderId, input);
           if (input?.to === 'COMPLETED') {
-            try { await escrowService.settleEscrow(orderId); } catch (e) { console.error('[Escrow Auto-Settle]:', e); }
+            await retryEscrowOperation(() => escrowService.settleEscrow(orderId), `Settle (${orderId})`);
           } else if (input?.to === 'CANCELLED') {
-            try { await escrowService.refundEscrow(orderId); } catch (e) { console.error('[Escrow Auto-Refund]:', e); }
+            await retryEscrowOperation(() => escrowService.refundEscrow(orderId), `Refund (${orderId})`);
           }
           return result;
         },
