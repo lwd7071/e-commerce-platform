@@ -50,6 +50,14 @@ import { ReportingService } from '../../modules/reporting/services/reporting.ser
 import { AdminReadService } from '../../modules/moderation/services/admin-read.service.ts';
 import { AdminVoucherService } from '../../modules/voucher/services/admin-voucher.service.ts';
 import { AdminNotificationCampaignService } from '../../modules/moderation/services/admin-notification-campaign.service.ts';
+import { PgWalletRepository } from '../../modules/wallet/repositories/pg-wallet.repository.ts';
+import { EscrowService } from '../../modules/wallet/services/escrow.service.ts';
+import { ShopWalletService } from '../../modules/wallet/services/shop-wallet.service.ts';
+import { AdminFinanceService } from '../../modules/wallet/services/admin-finance.service.ts';
+import { PayosService } from '../../modules/wallet/services/payos.service.ts';
+import { createSellerWalletRouter } from './routes/seller-wallet-routes.ts';
+import { createAdminFinanceRouter } from './routes/admin-finance-routes.ts';
+import { createPayosPaymentRouter } from './routes/payos-payment-routes.ts';
 
 import { createSecurityHeadersMiddleware, createCorsMiddleware, type CorsOptions } from './middlewares/security-headers.ts';
 import { createLayeredRateLimiter } from './middlewares/rate-limiter.ts';
@@ -78,6 +86,10 @@ export interface PlatformApplications extends T1RouteApplications {
   sellerKpi?: Pick<SellerKpiService, 'get'>;
   sellerVouchers?: Pick<SellerVoucherService, 'list' | 'get' | 'create' | 'update' | 'setStatus'>;
   sellerRevenue?: Pick<SellerRevenueService, 'get'>;
+  sellerWallet?: ShopWalletService;
+  adminFinance?: AdminFinanceService;
+  payosService?: PayosService;
+  escrowService?: EscrowService;
   adminCampaigns?: AdminNotificationCampaignService;
   rateLimiter?: RequestHandler | false;
   trustProxy?: boolean | string | number;
@@ -112,6 +124,9 @@ export function createApp(applications: PlatformApplications = {}): Application 
   app.use('/api/v1', createSellerAnalyticsRouter(applications.sellerKpi, auth));
   app.use('/api/v1', createSellerVoucherRouter(applications.sellerVouchers, auth));
   app.use('/api/v1', createSellerReportingRouter(applications.sellerRevenue, auth));
+  app.use('/api/v1', createSellerWalletRouter(applications.sellerWallet, auth));
+  app.use('/api/v1', createAdminFinanceRouter(applications.adminFinance, auth));
+  app.use('/api/v1', createPayosPaymentRouter(applications.pool, applications.payosService, applications.escrowService, auth));
 
   const buyerTarget = applications.buyerServices ?? applications.buyer;
   app.use('/api/v1', createBuyerDomainRouter(buyerTarget, auth));
@@ -177,6 +192,16 @@ export function createRuntimeApp(
     issuer: new URL('/auth/v1', supabaseUrl!).toString().replace(/\/$/, ''),
     audience: envConfig.supabaseJwtAudience ?? 'authenticated',
   });
+  const walletRepo = new PgWalletRepository(pool);
+  const escrowService = new EscrowService(walletRepo);
+  const shopWallet = new ShopWalletService(walletRepo);
+  const adminFinance = new AdminFinanceService(walletRepo);
+  const payosService = new PayosService({
+    clientId: process.env.PAYOS_CLIENT_ID || '0cc855e6-ed8b-4eb5-a5a9-f5a4cee21208',
+    apiKey: process.env.PAYOS_API_KEY || '61bf9bfc-9aca-4729-ae1d-458a26e2f121',
+    checksumKey: process.env.PAYOS_CHECKSUM_KEY || '6083ce0b91cc434588afe5ce44becee7d71e1d4a5',
+  });
+
   return {
     app: createApp({
       pool,
@@ -191,6 +216,10 @@ export function createRuntimeApp(
       sellerKpi: new SellerKpiService(new PgSellerKpiRepository(pool)),
       sellerVouchers: new SellerVoucherService(new PgSellerVoucherRepository(pool)),
       sellerRevenue: new SellerRevenueService(new ReportingService({ orderRepo: new PgOrderRepository(pool) })),
+      sellerWallet: shopWallet,
+      adminFinance,
+      payosService,
+      escrowService,
       catalog: new PgCatalogHttpService(pool),
       buyerServices: {
         legacyHttpApplication: new PgBuyerHttpService(pool),
@@ -202,9 +231,21 @@ export function createRuntimeApp(
       orderServices: {
         checkoutService,
         orderQueryService,
-        cancelOrder: (context, orderId, input) => checkoutService.cancelOrder(context, orderId, input),
+        cancelOrder: async (context, orderId, input) => {
+          const res = await checkoutService.cancelOrder(context, orderId, input);
+          try { await escrowService.refundEscrow(orderId); } catch { /* ignore if not exists */ }
+          return res;
+        },
         confirmOrder: (context, orderId, reason) => checkoutService.confirmOrder(context, orderId, reason),
-        transitionOrder: (context, orderId, input) => checkoutService.transitionOrder(context, orderId, input),
+        transitionOrder: async (context, orderId, input) => {
+          const result = await checkoutService.transitionOrder(context, orderId, input);
+          if (input?.to === 'COMPLETED') {
+            try { await escrowService.settleEscrow(orderId); } catch (e) { console.error('[Escrow Auto-Settle]:', e); }
+          } else if (input?.to === 'CANCELLED') {
+            try { await escrowService.refundEscrow(orderId); } catch (e) { console.error('[Escrow Auto-Refund]:', e); }
+          }
+          return result;
+        },
         retryPayment: (context, orderId, input) => checkoutService.retryPayment(context, orderId, input),
       },
       moderation: new ModerationService(
