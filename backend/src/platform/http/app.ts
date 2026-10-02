@@ -53,6 +53,10 @@ import { ReportingService } from '../../modules/reporting/services/reporting.ser
 import { AdminReadService } from '../../modules/moderation/services/admin-read.service.ts';
 import { AdminVoucherService } from '../../modules/voucher/services/admin-voucher.service.ts';
 import { AdminNotificationCampaignService } from '../../modules/moderation/services/admin-notification-campaign.service.ts';
+import { createFlashSaleRouter } from '../../modules/flash-sale/routes/flash-sale.routes.ts';
+import { FlashSaleService } from '../../modules/flash-sale/services/flash-sale.service.ts';
+import { PgFlashSaleRepository } from '../../modules/flash-sale/repositories/pg-flash-sale.repository.ts';
+import { getRedisClient } from '../../modules/flash-sale/infrastructure/redis.client.ts';
 
 import { createSecurityHeadersMiddleware, createCorsMiddleware, type CorsOptions } from './middlewares/security-headers.ts';
 import { createLayeredRateLimiter } from './middlewares/rate-limiter.ts';
@@ -138,6 +142,12 @@ export function createApp(applications: PlatformApplications = {}): Application 
       ? { pool: applications.pool, storage: applications.mediaStorage }
       : undefined,
   ));
+
+  if (applications.pool) {
+    const flashSaleRepo = new PgFlashSaleRepository(applications.pool);
+    const flashSaleService = new FlashSaleService(applications.pool, getRedisClient());
+    app.use('/api/v1/flash-sales', createFlashSaleRouter(flashSaleService, flashSaleRepo));
+  }
 
   app.use(errorHandlerMiddleware);
 
