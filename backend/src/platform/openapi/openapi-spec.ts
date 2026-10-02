@@ -1602,6 +1602,85 @@ export function generateOpenApiSpec(): OpenApiSpec {
           responses: { '200': successResponse('Bot permissions updated'), '401': errorResponse('Authentication required'), '403': errorResponse('Forbidden'), '404': errorResponse('Conversation not found') },
         },
       },
+      '/seller/wallet': {
+        get: {
+          summary: 'Get shop wallet balance and information', security: [{ BearerAuth: [] }],
+          responses: { '200': successResponse('Shop wallet details'), '401': errorResponse('Authentication required'), '403': errorResponse('Active shop required') },
+        },
+      },
+      '/seller/wallet/bank-info': {
+        put: {
+          summary: 'Update shop payout bank account details', security: [{ BearerAuth: [] }],
+          requestBody: jsonRequest({ type: 'object', required: ['bank_name', 'bank_account_number', 'bank_account_holder'], properties: { bank_name: { type: 'string' }, bank_account_number: { type: 'string' }, bank_account_holder: { type: 'string' } } }),
+          responses: { '200': successResponse('Bank details updated'), '401': errorResponse('Authentication required'), '403': errorResponse('Active shop required') },
+        },
+      },
+      '/seller/wallet/withdraw': {
+        post: {
+          summary: 'Request withdrawal from shop wallet', security: [{ BearerAuth: [] }],
+          requestBody: jsonRequest({ type: 'object', required: ['amount'], properties: { amount: { type: 'string' } } }),
+          responses: { '201': successResponse('Withdrawal requested'), '401': errorResponse('Authentication required'), '422': errorResponse('Insufficient balance or invalid amount') },
+        },
+      },
+      '/seller/wallet/transactions': {
+        get: {
+          summary: 'List shop wallet transaction history', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'limit', in: 'query', schema: { type: 'integer' } }],
+          responses: { '200': successResponse('Wallet transactions'), '401': errorResponse('Authentication required') },
+        },
+      },
+      '/seller/wallet/withdrawals': {
+        get: {
+          summary: 'List shop withdrawal requests', security: [{ BearerAuth: [] }],
+          responses: { '200': successResponse('Shop withdrawal requests'), '401': errorResponse('Authentication required') },
+        },
+      },
+      '/admin/finance/overview': {
+        get: {
+          summary: 'Get platform financial overview and escrow statistics', security: [{ BearerAuth: [] }],
+          responses: { '200': successResponse('Financial overview'), '401': errorResponse('Authentication required'), '403': errorResponse('Admin required') },
+        },
+      },
+      '/admin/finance/withdrawals': {
+        get: {
+          summary: 'List all withdrawal requests for admin review', security: [{ BearerAuth: [] }],
+          parameters: [
+            { name: 'status', in: 'query', schema: { type: 'string', enum: ['PENDING', 'APPROVED', 'REJECTED'] } },
+            { name: 'shop_id', in: 'query', schema: { type: 'string', format: 'uuid' } },
+          ],
+          responses: { '200': successResponse('Withdrawal requests list'), '401': errorResponse('Authentication required'), '403': errorResponse('Admin required') },
+        },
+      },
+      '/admin/finance/withdrawals/{id}/approve': {
+        post: {
+          summary: 'Approve shop withdrawal request', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: jsonRequest({ type: 'object', properties: { note: { type: 'string' } } }),
+          responses: { '200': successResponse('Withdrawal approved'), '401': errorResponse('Authentication required'), '403': errorResponse('Admin required') },
+        },
+      },
+      '/admin/finance/withdrawals/{id}/reject': {
+        post: {
+          summary: 'Reject shop withdrawal request', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: jsonRequest({ type: 'object', properties: { note: { type: 'string' } } }),
+          responses: { '200': successResponse('Withdrawal rejected'), '401': errorResponse('Authentication required'), '403': errorResponse('Admin required') },
+        },
+      },
+      '/payments/payos/create-link': {
+        post: {
+          summary: 'Create PayOS VietQR payment link for order', security: [{ BearerAuth: [] }],
+          requestBody: jsonRequest({ type: 'object', required: ['order_id'], properties: { order_id: { type: 'string', format: 'uuid' } } }),
+          responses: { '200': successResponse('PayOS payment link'), '401': errorResponse('Authentication required') },
+        },
+      },
+      '/payments/payos/webhook': {
+        post: {
+          summary: 'Receive PayOS payment completion webhook',
+          requestBody: jsonRequest({ type: 'object', required: ['data', 'signature'], properties: { data: { type: 'object' }, signature: { type: 'string' } } }),
+          responses: { '200': successResponse('Webhook processed'), '400': errorResponse('Invalid signature') },
+        },
+      },
     },
   };
 }

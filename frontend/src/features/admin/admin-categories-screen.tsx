@@ -10,6 +10,7 @@ import { FormField, TextInput, TextArea, SelectInput } from "@/components/ui/for
 import { Skeleton, ErrorState, EmptyState } from "@/components/ui/data-states";
 import type { CategoryTreeNode, CategoryItem } from "@/lib/adapters/category.adapter";
 import { adminRepository } from "./admin.repository";
+import { AdminHeaderNav } from "./admin-header-nav";
 
 export function AdminCategoriesScreen() {
   const [tree, setTree] = useState<CategoryTreeNode[]>([]);
@@ -150,7 +151,7 @@ export function AdminCategoriesScreen() {
 
   return (
     <ProtectedPage allowedRoles={["ADMIN"]}>
-      <div className="admin-categories-page space-y-6 pb-24 max-w-5xl mx-auto">
+      <main className="admin-categories-page mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8 pb-24">
         {/* Toast Alert */}
         {toast && (
           <div
@@ -168,16 +169,7 @@ export function AdminCategoriesScreen() {
         {/* Page Header */}
         <header className="page-heading flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <Link
-                href="/admin"
-                className="text-xs font-semibold text-[var(--subtext)] hover:text-[var(--primary-active)] flex items-center gap-1 transition-colors"
-              >
-                ← Quay lại Dashboard
-              </Link>
-              <span className="text-xs text-[var(--subtext)]">•</span>
-              <p className="eyebrow m-0">Quản trị danh mục (A-709)</p>
-            </div>
+            <AdminHeaderNav currentModule="Quản trị danh mục (A-709)" />
             <h1 className="page-title">Quản lý danh mục ngành hàng toàn sàn</h1>
             <p className="page-description">
               Cấu trúc cây danh mục 2 tầng (RB-KN04) tiêu thụ Category Adapter A-700 phục vụ phân loại sản phẩm.
@@ -203,12 +195,6 @@ export function AdminCategoriesScreen() {
         {/* Navigation Tabs for Admin Portal */}
         <nav aria-label="Điều hướng quản trị" className="border-b border-[var(--border)]">
           <div className="flex gap-6 text-sm font-semibold">
-            <Link
-              href="/admin"
-              className="pb-3 border-b-2 border-transparent text-[var(--subtext)] hover:text-[var(--foreground)]"
-            >
-              Trung tâm quản trị
-            </Link>
             <Link
               href="/admin/shops"
               className="pb-3 border-b-2 border-transparent text-[var(--subtext)] hover:text-[var(--foreground)]"
@@ -473,8 +459,7 @@ export function AdminCategoriesScreen() {
             </FormField>
           </form>
         </Dialog>
-
-      </div>
+      </main>
     </ProtectedPage>
   );
 }

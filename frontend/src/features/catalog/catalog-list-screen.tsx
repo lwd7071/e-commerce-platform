@@ -199,17 +199,18 @@ export function CatalogListScreen({
         </div>
 
         <form onSubmit={handleSearchSubmit} className="relative flex-1 max-w-md">
+          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--subtext)] flex items-center justify-center">
+            <Icon name="search" className="w-4 h-4" />
+          </span>
           <input
             name="q"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            className="form-control pl-10 pr-4"
+            className="form-control pr-4"
+            style={{ paddingLeft: "42px" }}
             placeholder="Tìm theo tên sản phẩm..."
             aria-label="Tìm theo tên sản phẩm"
           />
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--subtext)]">
-            <Icon name="search" />
-          </span>
         </form>
       </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { repositories } from "../../lib/repositories/repository-factory";
 import { type AdminShopItem, type ShopStatus } from "../../lib/repositories/types";
@@ -9,11 +9,18 @@ import { TextInput, TextArea } from "../../components/ui/form-controls";
 import { Dialog } from "../../components/ui/dialog";
 import { Skeleton, ErrorState, EmptyState } from "../../components/ui/data-states";
 import { useToast } from "../../components/ui/toast";
+import { AdminHeaderNav } from "./admin-header-nav";
 
 export function AdminShopsScreen() {
   const showToast = useToast();
 
   const [shops, setShops] = useState<AdminShopItem[]>([]);
+  const [counts, setCounts] = useState<{ pending: number; active: number; locked: number; total: number }>({
+    pending: 0,
+    active: 0,
+    locked: 0,
+    total: 0,
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,23 +53,41 @@ export function AdminShopsScreen() {
   const [detailShop, setDetailShop] = useState<AdminShopItem | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
 
-  const fetchShops = async () => {
+  const fetchCounts = useCallback(async () => {
+    try {
+      const adminRepo = repositories.admin();
+      const all = await adminRepo.getShops();
+      setCounts({
+        pending: all.filter((s) => s.status === "PENDING").length,
+        active: all.filter((s) => s.status === "ACTIVE").length,
+        locked: all.filter((s) => s.status === "LOCKED").length,
+        total: all.length,
+      });
+    } catch {
+      // fallback
+    }
+  }, []);
+
+  const fetchShops = useCallback(async (currentStatus = statusFilter, currentSearch = searchQuery) => {
     setIsLoading(true);
     setError(null);
     try {
       const adminRepo = repositories.admin();
       if (adminRepo.getShopsPage) {
         const page = await adminRepo.getShopsPage({
-          status: statusFilter !== "ALL" ? statusFilter : undefined,
+          status: currentStatus !== "ALL" ? currentStatus : undefined,
           tier: tierFilter !== "ALL" ? tierFilter : undefined,
-          search: searchQuery.trim() || undefined,
+          search: currentSearch.trim() || undefined,
           limit: 20,
         });
         setShops(page.items);
         setNextCursor(page.next_cursor);
         setHasMore(page.has_more);
       } else {
-        const data = await adminRepo.getShops();
+        const data = await adminRepo.getShops({
+          status: currentStatus !== "ALL" ? currentStatus : undefined,
+          search: currentSearch.trim() || undefined,
+        });
         setShops(data);
       }
     } catch (err: unknown) {
@@ -70,7 +95,15 @@ export function AdminShopsScreen() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [statusFilter, tierFilter, searchQuery]);
+
+  useEffect(() => {
+    fetchShops(statusFilter, searchQuery);
+  }, [statusFilter, searchQuery, fetchShops]);
+
+  useEffect(() => {
+    fetchCounts();
+  }, [fetchCounts]);
 
   const handleLoadMore = async () => {
     if (!nextCursor || isLoadingMore) return;
@@ -112,39 +145,6 @@ export function AdminShopsScreen() {
     }
   };
 
-  useEffect(() => {
-    let ignore = false;
-    const loadInitial = async () => {
-      try {
-        const adminRepo = repositories.admin();
-        if (adminRepo.getShopsPage) {
-          const page = await adminRepo.getShopsPage({ limit: 20 });
-          if (!ignore) {
-            setShops(page.items);
-            setNextCursor(page.next_cursor);
-            setHasMore(page.has_more);
-            setIsLoading(false);
-          }
-        } else {
-          const data = await adminRepo.getShops();
-          if (!ignore) {
-            setShops(data);
-            setIsLoading(false);
-          }
-        }
-      } catch (err: unknown) {
-        if (!ignore) {
-          setError(err instanceof Error ? err.message : "Tải danh sách gian hàng thất bại");
-          setIsLoading(false);
-        }
-      }
-    };
-    loadInitial();
-    return () => {
-      ignore = true;
-    };
-  }, []);
-
   const handleConfirmApprove = async () => {
     if (!approveTarget) return;
     setIsApproving(true);
@@ -152,7 +152,7 @@ export function AdminShopsScreen() {
       await repositories.admin().approveShop(approveTarget.shop_id, "Shop verified and approved by admin");
       showToast(`Đã duyệt gian hàng ${approveTarget.shop_name} thành công!`, "success");
       setApproveTarget(null);
-      await fetchShops();
+      await Promise.all([fetchShops(statusFilter, searchQuery), fetchCounts()]);
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Duyệt gian hàng thất bại", "error");
     } finally {
@@ -176,7 +176,7 @@ export function AdminShopsScreen() {
       showToast(`Đã khóa gian hàng ${lockTarget.shop_name}`, "success");
       setLockTarget(null);
       setLockReason("");
-      await fetchShops();
+      await Promise.all([fetchShops(statusFilter, searchQuery), fetchCounts()]);
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Khóa gian hàng thất bại", "error");
     } finally {
@@ -188,7 +188,7 @@ export function AdminShopsScreen() {
     try {
       await repositories.admin().unlockShop(shop.shop_id, "Shop unlocked after compliance review");
       showToast(`Đã mở khóa gian hàng ${shop.shop_name}`, "success");
-      await fetchShops();
+      await Promise.all([fetchShops(statusFilter, searchQuery), fetchCounts()]);
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Mở khóa gian hàng thất bại", "error");
     }
@@ -217,25 +217,15 @@ export function AdminShopsScreen() {
     }
   };
 
-  // KPI counters
-  const pendingCount = shops.filter((s) => s.status === "PENDING").length;
-  const activeCount = shops.filter((s) => s.status === "ACTIVE").length;
-  const lockedCount = shops.filter((s) => s.status === "LOCKED").length;
+  // KPI counters (system-wide totals)
+  const pendingCount = counts.pending;
+  const activeCount = counts.active;
+  const lockedCount = counts.locked;
 
-  const filteredShops = shops.filter((s) => {
-    if (statusFilter !== "ALL" && s.status !== statusFilter) return false;
-    if (tierFilter !== "ALL" && (s.tier ?? "STANDARD") !== tierFilter) return false;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      return (
-        s.shop_name.toLowerCase().includes(q) ||
-        (s.owner_email && s.owner_email.toLowerCase().includes(q)) ||
-        (s.owner_name && s.owner_name.toLowerCase().includes(q)) ||
-        s.shop_id.toLowerCase().includes(q)
-      );
-    }
-    return true;
-  });
+  const filteredShops = shops.filter((s) =>
+    (statusFilter === "ALL" || s.status === statusFilter) &&
+    (tierFilter === "ALL" || (s.tier ?? "STANDARD") === tierFilter)
+  );
 
   const renderTierBadge = (tier?: string) => {
     const t = tier ?? "STANDARD";
@@ -288,27 +278,21 @@ export function AdminShopsScreen() {
   };
 
   return (
-    <div className="space-y-6">
+    <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <header className="page-heading flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <p className="eyebrow">Hệ thống quản trị</p>
+          <AdminHeaderNav currentModule="Quản lý gian hàng (A-708)" />
           <h1 className="page-title">Quản Lý & Duyệt Gian Hàng</h1>
           <p className="page-description">
             Kiểm duyệt hồ sơ đăng ký kinh doanh, duyệt gian hàng PENDING và giám sát tuân thủ của người bán.
           </p>
         </div>
-      </div>
+      </header>
 
       {/* Tabs */}
       <nav aria-label="Điều hướng quản trị" className="border-b border-[var(--border)]">
         <div className="flex gap-6 text-sm font-semibold">
-          <Link
-            href="/admin"
-            className="pb-3 border-b-2 border-transparent text-[var(--subtext)] hover:text-[var(--foreground)]"
-          >
-            Danh sách người dùng
-          </Link>
           <Link
             href="/admin/shops"
             className="pb-3 border-b-2 border-[var(--primary-active)] text-[var(--primary-active)]"
@@ -415,7 +399,7 @@ export function AdminShopsScreen() {
               onChange={(e) => setStatusFilter(e.target.value)}
               className="rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-xs text-[var(--foreground)]"
             >
-              <option value="ALL">Tất cả trạng thái ({shops.length})</option>
+              <option value="ALL">Tất cả trạng thái ({counts.total})</option>
               <option value="PENDING">Chờ duyệt (PENDING - {pendingCount})</option>
               <option value="ACTIVE">Hoạt động (ACTIVE - {activeCount})</option>
               <option value="LOCKED">Bị khóa (LOCKED - {lockedCount})</option>
@@ -796,6 +780,6 @@ export function AdminShopsScreen() {
           </div>
         </Dialog>
       )}
-    </div>
+    </main>
   );
 }

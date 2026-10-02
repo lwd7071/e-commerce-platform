@@ -6,6 +6,7 @@ import { AdminReviewsScreen } from "@/features/admin/admin-reviews-screen";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { features } from "@/lib/config/features";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/admin/reviews", useRouter: () => ({ replace: vi.fn() }) }));
 
@@ -19,6 +20,7 @@ const authValue = {
 
 describe("Admin Review moderation UI", () => {
   beforeEach(() => {
+    vi.spyOn(features.domains, "adminMock").mockReturnValue(false);
     HTMLDialogElement.prototype.showModal = function () { this.setAttribute("open", ""); };
     HTMLDialogElement.prototype.close = function () { this.removeAttribute("open"); };
   });

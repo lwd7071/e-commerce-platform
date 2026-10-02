@@ -10,9 +10,7 @@ export const metadata: Metadata = {
 export default function AdminCategoriesPage() {
   return (
     <ProtectedPage allowedRoles={["ADMIN"]}>
-      <div className="py-6">
-        <AdminCategoriesScreen />
-      </div>
+      <AdminCategoriesScreen />
     </ProtectedPage>
   );
 }

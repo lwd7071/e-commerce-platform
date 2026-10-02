@@ -5,6 +5,7 @@ import Link from "next/link";
 import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { FormField, SelectInput, TextArea, TextInput } from "@/components/ui/form-controls";
+import { AdminHeaderNav } from "./admin-header-nav";
 
 type Campaign = { campaign_id: string; audience_role: "BUYER" | "SELLER"; title: string; content: string; status: "PENDING" | "PROCESSING" | "COMPLETED"; recipient_count: number; delivered_count: number; created_at: string };
 type Draft = { audience_role: "BUYER" | "SELLER"; title: string; content: string; reason: string };
@@ -47,7 +48,13 @@ export function AdminCampaignsScreen() {
   };
 
   return <main className="mx-auto max-w-4xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
-    <header><Link href="/admin" className="text-sm text-[var(--primary)]">← Quản trị</Link><h1 className="mt-2 text-2xl font-bold">Thông báo theo nhóm</h1><p className="mt-1 text-sm text-[var(--subtext)]">Chọn một nhóm người nhận. Hệ thống lưu danh sách nhận tại thời điểm tạo và gửi lại an toàn khi cần.</p></header>
+    <header className="page-heading flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <AdminHeaderNav currentModule="Chiến dịch thông báo" />
+        <h1 className="page-title">Thông báo theo nhóm</h1>
+        <p className="page-description">Chọn một nhóm người nhận. Hệ thống lưu danh sách nhận tại thời điểm tạo và gửi lại an toàn khi cần.</p>
+      </div>
+    </header>
     <form className="surface-card grid gap-4 p-5" onSubmit={submit}>
       <FormField id="campaign-audience" label="Nhóm nhận" required><SelectInput id="campaign-audience" value={draft.audience_role} onChange={event => setDraft({ ...draft, audience_role: event.target.value as Draft["audience_role"] })}><option value="BUYER">Người mua</option><option value="SELLER">Người bán</option></SelectInput></FormField>
       <FormField id="campaign-title" label="Tiêu đề" required><TextInput id="campaign-title" value={draft.title} onChange={event => setDraft({ ...draft, title: event.target.value })} maxLength={200} required /></FormField>

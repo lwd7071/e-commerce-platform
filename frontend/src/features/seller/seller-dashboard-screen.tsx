@@ -427,6 +427,24 @@ export function SellerDashboardScreen() {
                     </Button>
                   </Link>
                 </div>
+
+                {/* Seller Wallet Quick Action */}
+                <div className="bg-[var(--card-muted)] border border-[var(--border)] rounded-2xl p-4 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-[var(--card)] text-[var(--success)] shadow-sm">
+                      <Icon name="check" className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-[var(--foreground)]">Ví người bán & Rút tiền</h4>
+                      <p className="text-xs text-[var(--subtext)]">Quản lý số dư khả dụng và yêu cầu rút về ngân hàng</p>
+                    </div>
+                  </div>
+                  <Link href="/seller/wallet">
+                    <Button variant="secondary" className="text-xs py-1.5 px-3">
+                      Xem ví
+                    </Button>
+                  </Link>
+                </div>
               </div>
             </div>
           </div>

@@ -35,7 +35,10 @@ describe("role-based navigation matrix", () => {
       "/", "/notifications", "/profile", "/seller", "/seller/shop", "/seller/orders", "/seller/chat", "/seller/products", "/seller/vouchers", "/seller/reports",
     ]);
     expect(getNavigationItems("ADMIN").map((item) => item.href)).toEqual([
-      "/", "/profile", "/admin", "/admin/categories",
+      "/", "/admin", "/profile",
+    ]);
+    expect(getNavigationItems("ADMIN").map((item) => item.label)).toEqual([
+      "Trang chủ", "Quản trị", "Tài khoản",
     ]);
   });
 });

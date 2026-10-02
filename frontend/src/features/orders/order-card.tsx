@@ -1,10 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { Dialog } from "@/components/ui/dialog";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
+import { walletApi, type PayosLinkResult } from "@/lib/api/wallet.api";
 import type { WireOrder } from "./orders.types";
 
 interface OrderCardProps {
@@ -20,6 +23,25 @@ export function OrderCard({
   onConfirmReceived,
   isHighlighted = false,
 }: OrderCardProps) {
+  const [payosLink, setPayosLink] = useState<PayosLinkResult | null>(null);
+  const [payosDialogOpen, setPayosDialogOpen] = useState(false);
+  const [loadingPayos, setLoadingPayos] = useState(false);
+  const [payosError, setPayosError] = useState<string | null>(null);
+
+  const handleOpenPayos = async () => {
+    setLoadingPayos(true);
+    setPayosError(null);
+    try {
+      const res = await walletApi.createPayosLink(order.id);
+      setPayosLink(res);
+      setPayosDialogOpen(true);
+    } catch (err) {
+      setPayosError(err instanceof Error ? err.message : "Không thể tạo liên kết thanh toán PayOS.");
+    } finally {
+      setLoadingPayos(false);
+    }
+  };
+
   const formattedDate = order.created_at
     ? new Date(order.created_at).toLocaleDateString("vi-VN", {
         hour: "2-digit",
@@ -136,6 +158,18 @@ export function OrderCard({
         </div>
 
         <div className="flex items-center gap-2 justify-end">
+          {/* Action: Thanh toán VietQR PayOS nếu đơn đang chờ xác nhận */}
+          {isPending && (
+            <Button
+              variant="primary"
+              className="text-xs py-2 px-3.5 bg-[var(--primary)] text-white hover:opacity-90"
+              onClick={handleOpenPayos}
+              disabled={loadingPayos}
+            >
+              {loadingPayos ? "Đang tạo mã..." : "Thanh toán VietQR"}
+            </Button>
+          )}
+
           {/* Action 1: Hủy đơn nếu đơn đang chờ xác nhận */}
           {isPending && (
             <Button
@@ -177,6 +211,72 @@ export function OrderCard({
           </Link>
         </div>
       </div>
+
+      {payosError && (
+        <div className="text-xs text-[var(--danger)] text-right font-medium">
+          {payosError}
+        </div>
+      )}
+
+      {/* Dialog Thanh toán VietQR PayOS */}
+      <Dialog
+        open={payosDialogOpen}
+        onOpenChange={setPayosDialogOpen}
+        title="Thanh toán đơn hàng qua VietQR (PayOS)"
+        description={`Mã đơn: #${order.id.slice(0, 8)} • Số tiền: ${moneyAdapter.formatVND(order.total_amount)}`}
+      >
+        <div className="space-y-4 text-center">
+          {payosLink && (
+            <>
+              <div className="flex justify-center p-3 bg-white rounded-2xl border border-[var(--border)] max-w-xs mx-auto shadow-sm">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={`https://img.vietqr.io/image/${payosLink.bin}-${payosLink.account_number}-compact.png?amount=${payosLink.amount}&addInfo=DINO%20DH%20${order.id.slice(0, 8)}&accountName=${encodeURIComponent(payosLink.account_name)}`}
+                  alt="Mã VietQR thanh toán PayOS"
+                  className="w-64 h-64 object-contain"
+                />
+              </div>
+
+              <div className="rounded-xl bg-[var(--card-muted)] p-3.5 text-xs text-left space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-[var(--subtext)]">Chủ tài khoản:</span>
+                  <strong className="text-[var(--foreground)] uppercase">{payosLink.account_name}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[var(--subtext)]">Số tài khoản:</span>
+                  <strong className="font-mono text-[var(--foreground)]">{payosLink.account_number}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[var(--subtext)]">Số tiền:</span>
+                  <strong className="text-[var(--primary-active)]">{moneyAdapter.formatVND(payosLink.amount)}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[var(--subtext)]">Nội dung chuyển khoản:</span>
+                  <strong className="font-mono text-[var(--foreground)]">DINO DH {order.id.slice(0, 8).toUpperCase()}</strong>
+                </div>
+              </div>
+
+              <div className="text-xs text-[var(--subtext)] italic">
+                Mở app ngân hàng quét mã QR trên. Sau khi chuyển tiền, hệ thống sàn và PayOS sẽ tự động xác nhận đơn hàng trong 1-3 giây.
+              </div>
+
+              <div className="flex justify-between items-center pt-2">
+                <a
+                  href={payosLink.checkout_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-bold text-[var(--primary)] hover:underline inline-flex items-center gap-1"
+                >
+                  Mở cổng thanh toán PayOS web &rarr;
+                </a>
+                <Button variant="secondary" onClick={() => setPayosDialogOpen(false)}>
+                  Đóng
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      </Dialog>
     </article>
   );
 }
