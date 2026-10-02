@@ -5,11 +5,14 @@ Phạm vi: duyệt/khóa/mở Shop, khóa/mở User, category/kiểm duyệt, ca
 ## Tóm tắt
 
 - Trạng thái: Đã xác minh
-- Cập nhật gần nhất: 2026-10-01
-- Luồng đã hoàn tất: 8 / 8
-- Lỗi mở: Blocker 0 · Cao 0 · Vừa 0 · Thấp 1 (Góp ý nhãn KPI)
-- Lỗi đã khắc phục: 1 lỗi tiềm ẩn (ApiAdminRepository thiếu default reason khi unlockUser/unlockShop gây lỗi 422 trên backend)
-- Trở ngại/quyết định cần hỗ trợ: Không có. Hệ thống Admin đã được xác minh toàn diện qua cả test tự động và kiểm chứng giao diện thực tế.
+- Cập nhật gần nhất: 2026-10-02
+- Luồng đã hoàn tất: 10 / 10 (8 luồng Admin cốt lõi + 2 luồng Escrow, Ví người bán & PayOS VietQR)
+- Lỗi mở: Blocker 0 · Cao 0 · Vừa 0 · Thấp 0
+- Lỗi đã khắc phục:
+  1. ApiAdminRepository thiếu default reason khi unlockUser/unlockShop gây lỗi 422 trên backend.
+  2. Bỏ giá trị credentials PayOS fallback hardcode trong mã nguồn, chuyển sang cấu hình qua biến môi trường.
+  3. Bổ sung cơ chế retry 3 lần và đối soát tự chữa lành (reconciliation) khi quyết toán hoặc hoàn tiền Escrow lỗi.
+- Trở ngại/quyết định cần hỗ trợ: Không có. Hệ thống Admin, Escrow, Ví người bán và PayOS đã được kiểm thử toàn diện qua 17/17 tests backend và 9/9 tests frontend đạt 100% PASS.
 
 ## Nhật ký kiểm thử và lỗi
 
@@ -194,6 +197,51 @@ Phạm vi: duyệt/khóa/mở Shop, khóa/mở User, category/kiểm duyệt, ca
   - Phải ghi nhận đầy đủ người thực hiện và lý do vào `order_status_history`.
 - Kết quả thực tế: Đạt 100% tiêu chí nghiệp vụ.
 - Bằng chứng: `backend/test/modules/buyer/hardening/person-5-diagnose.spec.ts` (4/4 tests passed).
+- Mức độ: Không có lỗi.
+- Kiểm tra lại: Passed 100% tự động.
+
+---
+
+### [TC-WAL-01] Ví người bán, Quyết toán Escrow và Phê duyệt Rút tiền Admin
+- Trạng thái: Đã xác minh
+- Người thực hiện: Thành viên 5 (Tri Nguyen)
+- Ngày cập nhật: 2026-10-02
+- Role và tài khoản/dữ liệu test: SELLER (shop-100), ADMIN (admin@dino.vn)
+- Quy tắc tham chiếu: docs/feature/01-escrow-seller-wallet.md, business-rules.md
+- Điều kiện ban đầu: Shop đã được duyệt ACTIVE, đơn hàng thanh toán thành công và escrow giữ tiền ở trạng thái `HOLDING`.
+- Các bước thực hiện:
+  1. Đơn hàng chuyển sang `COMPLETED` (Buyer xác nhận nhận hàng) $\rightarrow$ Escrow tự động quyết toán (`RELEASED`), trích phí sàn 5% và kết chuyển 95% net amount vào `shop_wallets` của Shop.
+  2. Người bán thực hiện kiểm tra số dư và cập nhật thông tin tài khoản ngân hàng thụ hưởng tại `/seller/wallet`.
+  3. Người bán gửi yêu cầu rút tiền với số tiền nhỏ hơn 50.000 VNĐ $\rightarrow$ Kiểm tra từ chối `422 INVALID_WITHDRAWAL_AMOUNT`.
+  4. Người bán gửi yêu cầu rút tiền hợp lệ $\rightarrow$ Hệ thống phong tỏa 2 bước: chuyển ngay `balance -= amount` và `hold_balance += amount`.
+  5. Admin truy cập `/admin/finance`, kiểm tra tổng quan KPI dòng tiền toàn sàn và danh sách yêu cầu rút tiền.
+  6. Admin duyệt yêu cầu rút tiền $\rightarrow$ Trừ `hold_balance`, chuyển trạng thái `APPROVED` và ghi nhận `WITHDRAWAL_SUCCESS`.
+- Kết quả mong đợi:
+  - Dòng tiền bảo đảm 100% không thất thoát, phí sàn 5% thu chính xác, cơ chế khóa dòng tiền `FOR UPDATE` ngăn chặn hoàn toàn race condition.
+- Kết quả thực tế: Hoạt động chính xác theo thiết kế.
+- Bằng chứng: `backend/test/modules/wallet/wallet-and-escrow.spec.ts` (14/14 tests pass), `frontend/test/seller-wallet-screen.spec.tsx` (3/3 pass), `frontend/test/admin-finance-screen.spec.tsx` (3/3 pass).
+- Mức độ: Không có lỗi.
+- Kiểm tra lại: Passed 100% tự động.
+
+---
+
+### [TC-PAY-01] Thanh toán Cổng PayOS VietQR & Đối soát Tự Chữa Lành Escrow
+- Trạng thái: Đã xác minh
+- Người thực hiện: Thành viên 5 (Tri Nguyen)
+- Ngày cập nhật: 2026-10-02
+- Role và tài khoản/dữ liệu test: BUYER, ADMIN (admin@dino.vn)
+- Quy tắc tham chiếu: docs/feature/01-escrow-seller-wallet.md
+- Điều kiện ban đầu: Đơn hàng ở trạng thái `PENDING_CONFIRMATION` hỗ trợ thanh toán VietQR.
+- Các bước thực hiện:
+  1. Buyer bấm nút "Thanh toán VietQR" trên `OrderCard` $\rightarrow$ Hệ thống gọi `POST /payments/payos/create-link` tạo link thanh toán VietQR và mở modal hiển thị mã QR kèm thông tin chuyển khoản.
+  2. Giả lập webhook thanh toán từ PayOS $\rightarrow$ Backend xác thực chữ ký HMAC-SHA256, chuyển đơn hàng sang trạng thái thanh toán thành công.
+  3. Giả lập tình huống lỗi mạng khi Buyer nhận hàng khiến escrow bị kẹt ở `HOLDING` dù đơn đã `COMPLETED`.
+  4. Hệ thống tự động kích hoạt `retryEscrowOperation` thử lại tối đa 3 lần.
+  5. Admin kích hoạt đối soát qua `POST /api/v1/admin/finance/escrow/reconcile` $\rightarrow$ Hệ thống tự động quét và bù trừ thành công toàn bộ các đơn kẹt.
+- Kết quả mong đợi:
+  - Sinh mã VietQR chuẩn xác, bảo mật webhook HMAC-SHA256, tự chữa lành lệch trạng thái dòng tiền qua retry và đối soát.
+- Kết quả thực tế: Đạt 100% tiêu chí an toàn và nghiệp vụ.
+- Bằng chứng: `backend/test/modules/wallet/wallet-and-escrow.spec.ts` (suite 4 & 5, 17/17 tests pass), `frontend/test/payos-vietqr.spec.tsx` (3/3 pass).
 - Mức độ: Không có lỗi.
 - Kiểm tra lại: Passed 100% tự động.
 

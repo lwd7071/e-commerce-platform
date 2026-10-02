@@ -69,6 +69,14 @@ export interface FinanceOverview {
   pending_withdrawals_count: number;
 }
 
+export interface EscrowReconciliationResult {
+  settled_count: number;
+  settled_order_ids: string[];
+  refunded_count: number;
+  refunded_order_ids: string[];
+  errors: Array<{ order_id: string; action: 'SETTLE' | 'REFUND'; error: string }>;
+}
+
 export interface IWalletRepository {
   getOrCreateWallet(shopId: string): Promise<ShopWallet>;
   findWalletByShopId(shopId: string): Promise<ShopWallet | null>;
@@ -84,6 +92,7 @@ export interface IWalletRepository {
   findEscrowByOrderId(orderId: string): Promise<EscrowRecord | null>;
   settleEscrow(orderId: string): Promise<{ escrow: EscrowRecord; wallet: ShopWallet; transaction: WalletTransaction } | null>;
   refundEscrow(orderId: string): Promise<EscrowRecord | null>;
+  reconcilePendingEscrows(): Promise<EscrowReconciliationResult>;
 
   // Withdrawal
   requestWithdrawal(shopId: string, amount: string): Promise<{ request: WithdrawalRequest; wallet: ShopWallet; transaction: WalletTransaction }>;

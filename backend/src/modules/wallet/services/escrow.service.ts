@@ -1,4 +1,4 @@
-import type { IWalletRepository, EscrowRecord, ShopWallet, WalletTransaction } from '../domain/wallet.types.ts';
+import type { IWalletRepository, EscrowRecord, ShopWallet, WalletTransaction, EscrowReconciliationResult } from '../domain/wallet.types.ts';
 
 export class EscrowService {
   constructor(private readonly walletRepo: IWalletRepository) {}
@@ -22,5 +22,9 @@ export class EscrowService {
 
   async refundEscrow(orderId: string): Promise<EscrowRecord | null> {
     return this.walletRepo.refundEscrow(orderId);
+  }
+
+  async reconcilePendingEscrows(): Promise<EscrowReconciliationResult> {
+    return this.walletRepo.reconcilePendingEscrows();
   }
 }
