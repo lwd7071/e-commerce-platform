@@ -10,6 +10,7 @@ import { FormField, TextInput, TextArea, SelectInput } from "@/components/ui/for
 import { Skeleton, ErrorState, EmptyState } from "@/components/ui/data-states";
 import type { CategoryTreeNode, CategoryItem } from "@/lib/adapters/category.adapter";
 import { adminRepository } from "./admin.repository";
+import { AdminHeaderNav } from "./admin-header-nav";
 
 export function AdminCategoriesScreen() {
   const [tree, setTree] = useState<CategoryTreeNode[]>([]);
@@ -168,16 +169,7 @@ export function AdminCategoriesScreen() {
         {/* Page Header */}
         <header className="page-heading flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <Link
-                href="/admin"
-                className="text-xs font-semibold text-[var(--subtext)] hover:text-[var(--primary-active)] flex items-center gap-1 transition-colors"
-              >
-                ← Quay lại Dashboard
-              </Link>
-              <span className="text-xs text-[var(--subtext)]">•</span>
-              <p className="eyebrow m-0">Quản trị danh mục (A-709)</p>
-            </div>
+            <AdminHeaderNav currentModule="Quản trị danh mục (A-709)" />
             <h1 className="page-title">Quản lý danh mục ngành hàng toàn sàn</h1>
             <p className="page-description">
               Cấu trúc cây danh mục 2 tầng (RB-KN04) tiêu thụ Category Adapter A-700 phục vụ phân loại sản phẩm.

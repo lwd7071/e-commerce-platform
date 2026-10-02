@@ -9,6 +9,7 @@ import { TextInput, TextArea } from "../../components/ui/form-controls";
 import { Dialog } from "../../components/ui/dialog";
 import { Skeleton, ErrorState, EmptyState } from "../../components/ui/data-states";
 import { useToast } from "../../components/ui/toast";
+import { AdminHeaderNav } from "./admin-header-nav";
 
 export function AdminShopsScreen() {
   const showToast = useToast();
@@ -248,16 +249,7 @@ export function AdminShopsScreen() {
       {/* Header */}
       <header className="page-heading flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <Link
-              href="/admin"
-              className="text-xs font-semibold text-[var(--subtext)] hover:text-[var(--primary-active)] flex items-center gap-1 transition-colors"
-            >
-              ← Quay lại Dashboard
-            </Link>
-            <span className="text-xs text-[var(--subtext)]">•</span>
-            <p className="eyebrow m-0">Quản lý gian hàng (A-708)</p>
-          </div>
+          <AdminHeaderNav currentModule="Quản lý gian hàng (A-708)" />
           <h1 className="page-title">Quản Lý & Duyệt Gian Hàng</h1>
           <p className="page-description">
             Kiểm duyệt hồ sơ đăng ký kinh doanh, duyệt gian hàng PENDING và giám sát tuân thủ của người bán.

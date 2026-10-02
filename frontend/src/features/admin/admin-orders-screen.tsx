@@ -8,6 +8,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/data-states";
 import { FormField, SelectInput, TextInput } from "@/components/ui/form-controls";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
+import { AdminHeaderNav } from "./admin-header-nav";
 
 type AdminOrder = {
   order_id: string; buyer_id: string; buyer_email: string; shop_id: string; shop_name: string; status: string;
@@ -67,7 +68,11 @@ export function AdminOrdersScreen() {
   };
 
   return <main className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:px-6 lg:px-8">
-    <header><Link href="/admin" className="text-sm text-[var(--primary)]">← Quản trị</Link><h1 className="mt-2 text-2xl font-bold">Đơn hàng toàn sàn</h1><p className="mt-1 text-sm text-[var(--subtext)]">Tra cứu đơn, sản phẩm, thanh toán, vận chuyển và lịch sử thay đổi.</p></header>
+    <header>
+      <AdminHeaderNav currentModule="Đơn hàng toàn sàn" />
+      <h1 className="mt-1 text-2xl font-bold">Đơn hàng toàn sàn</h1>
+      <p className="mt-1 text-sm text-[var(--subtext)]">Tra cứu đơn, sản phẩm, thanh toán, vận chuyển và lịch sử thay đổi.</p>
+    </header>
     <form className="surface-card grid gap-4 p-4 sm:grid-cols-[minmax(220px,1fr)_220px_auto] sm:items-end" onSubmit={filter}>
       <FormField id="admin-order-search" label="Tìm mã đơn, shop hoặc email người mua"><TextInput id="admin-order-search" value={search} onChange={event => setSearch(event.target.value)} /></FormField>
       <FormField id="admin-order-status" label="Trạng thái"><SelectInput id="admin-order-status" value={status} onChange={event => setStatus(event.target.value)}><option value="">Tất cả</option>{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</SelectInput></FormField>

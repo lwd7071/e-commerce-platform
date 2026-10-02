@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { FormField, TextInput } from "@/components/ui/form-controls";
 import { Skeleton, ErrorState, EmptyState } from "@/components/ui/data-states";
+import { AdminHeaderNav } from "./admin-header-nav";
 
 export function AdminFinanceScreen() {
   const [overview, setOverview] = useState<FinanceOverview | null>(null);
@@ -87,6 +88,7 @@ export function AdminFinanceScreen() {
       </div>
 
       <header className="space-y-1">
+        <AdminHeaderNav currentModule="Dòng tiền & Ký quỹ (A-707)" />
         <h1 className="text-2xl sm:text-3xl font-extrabold text-[var(--foreground)]">Quản lý Tài chính & Ký quỹ sàn (Escrow)</h1>
         <p className="text-sm text-[var(--subtext)]">
           Theo dõi toàn bộ dòng tiền ký quỹ, doanh thu phí sàn (5%), và duyệt lệnh rút tiền của các gian hàng.

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/data-states";
 import { Dialog } from "@/components/ui/dialog";
 import { FormField, SelectInput, TextInput } from "@/components/ui/form-controls";
+import { AdminHeaderNav } from "./admin-header-nav";
 
 type Voucher = { voucher_id: string; code: string; voucher_name: string; scope: "PLATFORM" | "SHOP"; shop_id: string | null; discount_type: "PERCENT" | "FIXED"; discount_value: string; max_discount: string | null; min_order_value: string; quantity: number; start_at: string; end_at: string; status: "ACTIVE" | "INACTIVE" };
 type Draft = { code: string; voucher_name: string; discount_type: "PERCENT" | "FIXED"; discount_value: string; max_discount: string; min_order_value: string; quantity: string; start_at: string; end_at: string; reason: string };
@@ -64,7 +65,11 @@ export function AdminVouchersScreen() {
 
   return <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
       <header className="flex flex-wrap items-end justify-between gap-4">
-        <div><Link href="/admin" className="text-sm text-[var(--primary)]">← Quản trị</Link><h1 className="mt-2 text-2xl font-bold">Voucher toàn sàn</h1><p className="mt-1 text-sm text-[var(--subtext)]">Voucher nền tảng do Admin quản lý; voucher shop chỉ xem.</p></div>
+        <div>
+          <AdminHeaderNav currentModule="Voucher toàn sàn" />
+          <h1 className="mt-1 text-2xl font-bold">Voucher toàn sàn</h1>
+          <p className="mt-1 text-sm text-[var(--subtext)]">Voucher nền tảng do Admin quản lý; voucher shop chỉ xem.</p>
+        </div>
       </header>
       <form className="surface-card grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4" onSubmit={submit}>
         <h2 className="text-base font-semibold sm:col-span-2 lg:col-span-4">{editingId ? "Sửa voucher PLATFORM" : "Tạo voucher PLATFORM"}</h2>
