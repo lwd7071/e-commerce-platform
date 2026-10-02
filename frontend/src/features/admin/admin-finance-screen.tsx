@@ -73,27 +73,38 @@ export function AdminFinanceScreen() {
   }
 
   return (
-    <main className="mx-auto max-w-7xl space-y-7 px-4 py-8 sm:px-6">
-      {/* Sub-nav tabs */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-[var(--border)] pb-4">
-        <Link href="/admin" className="rounded-xl px-4 py-2 text-sm font-semibold text-[var(--subtext)] hover:bg-[var(--card-muted)] flex items-center gap-1">
-          ← Quay lại Dashboard
-        </Link>
-        <Link href="/admin/orders" className="rounded-xl px-4 py-2 text-sm font-semibold text-[var(--subtext)] hover:bg-[var(--card-muted)]">
-          Đơn hàng
-        </Link>
-        <Link href="/admin/finance" className="rounded-xl bg-[var(--primary)] px-4 py-2 text-sm font-semibold text-white shadow-sm">
-          Tài chính & Ví sàn
-        </Link>
-      </div>
-
-      <header className="space-y-1">
-        <AdminHeaderNav currentModule="Dòng tiền & Ký quỹ (A-707)" />
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-[var(--foreground)]">Quản lý Tài chính & Ký quỹ sàn (Escrow)</h1>
-        <p className="text-sm text-[var(--subtext)]">
-          Theo dõi toàn bộ dòng tiền ký quỹ, doanh thu phí sàn (5%), và duyệt lệnh rút tiền của các gian hàng.
-        </p>
+    <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+      {/* Header */}
+      <header className="page-heading flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <AdminHeaderNav currentModule="Dòng tiền & Ký quỹ (A-707)" />
+          <h1 className="page-title text-2xl sm:text-3xl font-extrabold text-[var(--foreground)]">
+            Quản lý Tài chính & Ký quỹ sàn (Escrow)
+          </h1>
+          <p className="page-description text-sm text-[var(--subtext)]">
+            Theo dõi toàn bộ dòng tiền ký quỹ, doanh thu phí sàn (5%), và duyệt lệnh rút tiền của các gian hàng.
+          </p>
+        </div>
       </header>
+
+      {/* Tabs */}
+      <nav aria-label="Điều hướng đơn hàng & tài chính" className="border-b border-[var(--border)]">
+        <div className="flex gap-6 text-sm font-semibold">
+          <Link
+            href="/admin/orders"
+            className="pb-3 border-b-2 border-transparent text-[var(--subtext)] hover:text-[var(--foreground)]"
+          >
+            Đơn hàng toàn sàn
+          </Link>
+          <Link
+            href="/admin/finance"
+            className="pb-3 border-b-2 border-[var(--primary-active)] text-[var(--primary-active)]"
+            aria-current="page"
+          >
+            Tài chính & Ví sàn
+          </Link>
+        </div>
+      </nav>
 
       {notice && (
         <div className="rounded-xl border border-[var(--success-border)] bg-[var(--success-surface)] p-4 text-sm font-medium text-[var(--success)] flex items-center justify-between">
