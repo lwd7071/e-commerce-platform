@@ -80,10 +80,12 @@ export function createFlashSaleRouter(
       const { itemId } = req.params;
       const idempKey = (req.header('Idempotency-Key') || req.body.idempotency_key || '').trim();
 
-      if (!idempKey || idempKey.length < 8) {
+      if (!idempKey || idempKey.length < 16 || idempKey.length > 128) {
         return res.status(400).json({
-          error: 'MISSING_IDEMPOTENCY_KEY',
-          message: 'Yêu cầu đặt mua Flash Sale bắt buộc có Idempotency-Key hợp lệ.',
+          error: {
+            code: 'VALIDATION_FAILED',
+            message: 'Yêu cầu đặt mua Flash Sale bắt buộc có Idempotency-Key từ 16 đến 128 ký tự.',
+          },
         });
       }
 

@@ -179,7 +179,7 @@ describe('Flash Sale Routes Auth & RBAC (Task 1)', () => {
     const res = await request(app)
       .post('/api/v1/flash-sales/items/item-1/purchase')
       .set('Authorization', `Bearer stub-token-${jwtUserId}`)
-      .set('Idempotency-Key', 'idemp-12345678')
+      .set('Idempotency-Key', 'idemp-12345678-test')
       .send({ user_id: fakeBodyUserId });
 
     assert.equal(res.status, 200);
@@ -236,7 +236,7 @@ describe('Flash Sale Routes Auth & RBAC (Task 1)', () => {
     const res = await request(app)
       .post('/api/v1/flash-sales/items/item-1/purchase')
       .set('Authorization', 'Bearer stub-token-locked-user')
-      .set('Idempotency-Key', 'idemp-12345678')
+      .set('Idempotency-Key', 'idemp-12345678-test')
       .send({});
 
     assert.equal(res.status, 403);

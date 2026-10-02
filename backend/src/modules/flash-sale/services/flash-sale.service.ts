@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
 import type { Redis } from 'ioredis';
 import {
@@ -10,6 +11,25 @@ import {
 import { PgFlashSaleRepository } from '../repositories/pg-flash-sale.repository.ts';
 import { FLASH_SALE_DEDUCT_LUA } from '../infrastructure/lua/flash-sale-deduct.lua.ts';
 import { FLASH_SALE_COMPENSATE_LUA } from '../infrastructure/lua/flash-sale-compensate.lua.ts';
+import { FLASH_SALE_PRE_COMMIT_LUA } from '../infrastructure/lua/flash-sale-pre-commit.lua.ts';
+import { ConflictError } from '../../../platform/errors/app-error.ts';
+
+export function computePurchaseFingerprint(cmd: PurchaseFlashSaleCommand): string {
+  const canonical = {
+    delivery_address: (cmd.delivery_address || '').trim(),
+    district: (cmd.district || '').trim(),
+    item_id: cmd.item_id.trim(),
+    province: (cmd.province || '').trim(),
+    recipient_name: (cmd.recipient_name || '').trim(),
+    recipient_phone: (cmd.recipient_phone || '').trim(),
+    slot_id: cmd.slot_id.trim(),
+    user_id: cmd.user_id.trim(),
+    voucher_code: (cmd.voucher_code || '').trim().toUpperCase(),
+    ward: (cmd.ward || '').trim(),
+  };
+  const jsonStr = JSON.stringify(canonical, Object.keys(canonical).sort());
+  return crypto.createHash('sha256').update(jsonStr).digest('hex');
+}
 
 export class FlashSaleService {
   private repo: PgFlashSaleRepository;
@@ -75,16 +95,33 @@ export class FlashSaleService {
     const effectiveVoucher = voucher_code && voucher_code.trim() !== '' ? voucher_code.trim() : 'NONE';
     const idempKey = `flash_sale:idemp:${user_id}:${idempotency_key}`;
     const leaseKey = `flash_sale:lease:${idempotency_key}`;
+    const fingerprint = computePurchaseFingerprint(command);
 
     // ------------------------------------------------------------------------
     // TẦNG 1: REDIS FAST-PATH & IDEMPOTENCY CHECK
     // ------------------------------------------------------------------------
-    const acquired = await this.redis.set(idempKey, 'IN_PROGRESS', 'EX', 600, 'NX');
+    const acquired = await this.redis.set(idempKey, `IN_PROGRESS:${fingerprint}`, 'EX', 600, 'NX');
     if (!acquired) {
       const existingVal = await this.redis.get(idempKey);
-      if (existingVal && existingVal !== 'IN_PROGRESS') {
+      if (existingVal) {
+        if (existingVal.startsWith('IN_PROGRESS')) {
+          if (existingVal.startsWith('IN_PROGRESS:')) {
+            const lockFp = existingVal.slice('IN_PROGRESS:'.length);
+            if (lockFp && lockFp !== fingerprint) {
+              throw new ConflictError('IDEMPOTENCY_KEY_REUSED', 'Idempotency key này đã được sử dụng với payload đặt hàng khác.');
+            }
+          }
+          return {
+            success: false,
+            code: FlashSaleLuaCode.SUCCESS,
+            message: 'Yêu cầu đang được xử lý, vui lòng không bấm liên tục.',
+          };
+        }
         try {
           const parsed = JSON.parse(existingVal);
+          if (parsed.fingerprint && parsed.fingerprint !== fingerprint) {
+            throw new ConflictError('IDEMPOTENCY_KEY_REUSED', 'Idempotency key này đã được sử dụng với payload đặt hàng khác.');
+          }
           return {
             success: true,
             order_id: parsed.order_id,
@@ -92,7 +129,8 @@ export class FlashSaleService {
             message: 'Đơn hàng đã được đặt thành công (Idempotent Replay)',
             is_replay: true,
           };
-        } catch {
+        } catch (err: unknown) {
+          if (err instanceof ConflictError) throw err;
           // ignore parsing error
         }
       }
@@ -140,6 +178,30 @@ export class FlashSaleService {
     if (deductResult !== 1) {
       await this.redis.del(idempKey);
       const code = deductResult as FlashSaleLuaCode;
+      if (code === FlashSaleLuaCode.USER_PURCHASE_LIMIT_EXCEEDED) {
+        // Fallback kiểm tra xem có phải do retry cùng idempotency_key khi Redis cache đã hết hạn
+        const existingRecord = await this.pool.query(
+          `SELECT fingerprint, result FROM api_idempotency_records 
+           WHERE user_id = $1 AND endpoint = '/api/v1/flash-sales/purchase' AND idempotency_key = $2
+           LIMIT 1`,
+          [user_id, idempotency_key]
+        );
+        if (existingRecord.rows.length > 0) {
+          const rec = existingRecord.rows[0];
+          if (rec.fingerprint !== fingerprint) {
+            throw new ConflictError('IDEMPOTENCY_KEY_REUSED', 'Idempotency key này đã được sử dụng với payload đặt hàng khác.');
+          }
+          const resData = typeof rec.result === 'string' ? JSON.parse(rec.result) : rec.result;
+          return {
+            success: true,
+            order_id: resData.order_id,
+            code: FlashSaleLuaCode.SUCCESS,
+            is_replay: true,
+            message: 'Đơn hàng đã được đặt thành công (Idempotent Replay)',
+          };
+        }
+      }
+
       let msg = 'Đặt hàng không thành công.';
       if (code === FlashSaleLuaCode.PRODUCT_OUT_OF_STOCK) msg = 'Sản phẩm Flash Sale đã hết hàng.';
       else if (code === FlashSaleLuaCode.SLOT_NOT_ACTIVE) msg = 'Khung giờ Flash Sale chưa mở hoặc đã kết thúc.';
@@ -156,10 +218,57 @@ export class FlashSaleService {
     // ------------------------------------------------------------------------
     const client: PoolClient = await this.pool.connect();
     let orderId = '';
+    let preCommitDone = false;
+    let clientReleased = false;
 
     try {
       await client.query('BEGIN');
       await client.query("SET LOCAL statement_timeout = '10000'");
+
+      // Kiểm tra api_idempotency_records trong DB bằng chính connection đang mở
+      const existingDbRecord = await client.query(
+        `SELECT fingerprint, result FROM api_idempotency_records 
+         WHERE user_id = $1 AND endpoint = '/api/v1/flash-sales/purchase' AND idempotency_key = $2
+         LIMIT 1`,
+        [user_id, idempotency_key]
+      );
+
+      if (existingDbRecord.rows.length > 0) {
+        const record = existingDbRecord.rows[0];
+        if (record.fingerprint !== fingerprint) {
+          throw new ConflictError('IDEMPOTENCY_KEY_REUSED', 'Idempotency key này đã được sử dụng với payload đặt hàng khác.');
+        }
+        const resData = typeof record.result === 'string' ? JSON.parse(record.result) : record.result;
+        await client.query('ROLLBACK');
+        client.release();
+        clientReleased = true;
+
+        const compKeys = [
+          `flash_sale:stock:${slot_id}:${item_id}`,
+          `flash_sale:buyers:${slot_id}:${item_id}`,
+          `voucher:quota:${slot_id}:${effectiveVoucher}`,
+          `voucher:used_users:${slot_id}:${effectiveVoucher}`,
+          'flash_sale:pending_reservations',
+          leaseKey,
+        ];
+        await this.redis.eval(
+          FLASH_SALE_COMPENSATE_LUA,
+          compKeys.length,
+          ...compKeys,
+          user_id,
+          effectiveVoucher,
+          payloadStr,
+          'FAST_ROLLBACK'
+        );
+
+        return {
+          success: true,
+          order_id: resData.order_id,
+          code: FlashSaleLuaCode.SUCCESS,
+          is_replay: true,
+          message: 'Đơn hàng đã được đặt thành công (Idempotent Replay)',
+        };
+      }
 
       // Lấy thông tin Flash Sale Item & Product Variant
       const itemRes = await client.query(
@@ -178,19 +287,27 @@ export class FlashSaleService {
       const itemData = itemRes.rows[0];
       const unitPrice = Number(itemData.flash_sale_price);
       let discountAmount = 0;
+      let appliedVoucherId: string | null = null;
 
-      // Xử lý Voucher trong Postgres nếu có
+      // Xử lý Voucher trong Postgres nếu có (Kiểm tra đầy đủ tính hợp lệ nghiệp vụ)
       if (effectiveVoucher !== 'NONE') {
         const vRes = await client.query(
           `UPDATE vouchers
            SET quantity = quantity - 1, updated_at = now()
-           WHERE code = $1 AND status = 'ACTIVE' AND quantity > 0
-           RETURNING voucher_id, discount_type, discount_value, max_discount, min_order_value`,
-          [effectiveVoucher]
+           WHERE code = $1 
+             AND status = 'ACTIVE' 
+             AND quantity > 0
+             AND start_at <= now() 
+             AND end_at >= now()
+             AND min_order_value <= $2
+             AND (scope = 'PLATFORM' OR shop_id = $3)
+           RETURNING voucher_id, discount_type, discount_value, max_discount`,
+          [effectiveVoucher, unitPrice, itemData.shop_id]
         );
 
         if (vRes.rows.length > 0) {
           const vData = vRes.rows[0];
+          appliedVoucherId = vData.voucher_id;
           if (vData.discount_type === 'PERCENT') {
             discountAmount = (unitPrice * Number(vData.discount_value)) / 100;
             if (vData.max_discount) {
@@ -199,6 +316,19 @@ export class FlashSaleService {
           } else {
             discountAmount = Math.min(unitPrice, Number(vData.discount_value));
           }
+        } else {
+          // Voucher không đủ điều kiện trong DB -> bồi hoàn quota voucher trên Redis ngay lập tức
+          await this.redis.eval(
+            `if redis.call('EXISTS', KEYS[1]) == 1 then
+               redis.call('INCR', KEYS[1])
+               redis.call('SREM', KEYS[2], ARGV[1])
+             end
+             return 1`,
+            2,
+            `voucher:quota:${slot_id}:${effectiveVoucher}`,
+            `voucher:used_users:${slot_id}:${effectiveVoucher}`,
+            user_id
+          );
         }
       }
 
@@ -207,13 +337,13 @@ export class FlashSaleService {
       const subtotal = unitPrice;
       const totalAmount = Math.max(0, subtotal + shippingFee - discountAmount);
 
-      // Tạo Order
+      // 1. Tạo Order (cancel_reason = NULL chuẩn invariant)
       await client.query(
         `INSERT INTO orders (
           order_id, buyer_id, shop_id, recipient_name, recipient_phone,
           province, district, ward, delivery_address,
           subtotal, discount_amount, shipping_fee, total_amount, status, cancel_reason
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'PENDING_CONFIRMATION', $14)`,
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'PENDING_CONFIRMATION', NULL)`,
         [
           orderId,
           user_id,
@@ -228,11 +358,10 @@ export class FlashSaleService {
           discountAmount,
           shippingFee,
           totalAmount,
-          idempotency_key, // Lưu idempotency_key vào cancel_reason / note để đối soát
         ]
       );
 
-      // Tạo OrderItem
+      // 2. Tạo OrderItem
       await client.query(
         `INSERT INTO order_items (
           order_item_id, order_id, product_id, variant_id,
@@ -249,8 +378,34 @@ export class FlashSaleService {
         ]
       );
 
+      // 3. Tạo Initial OrderStatusHistory (PENDING_CONFIRMATION)
+      await client.query(
+        `INSERT INTO order_status_history (
+          history_id, order_id, old_status, new_status, changed_by, reason, changed_at
+        ) VALUES ($1, $2, NULL, 'PENDING_CONFIRMATION', $3, 'FLASH_SALE_PURCHASE', now())`,
+        [crypto.randomUUID(), orderId, user_id]
+      );
+
+      // 4. Tạo Initial Payment (PENDING, ONLINE, total_amount)
+      const paymentCode = `FS-${orderId.replace(/-/g, '').substring(0, 12).toUpperCase()}-${Date.now()}`;
+      await client.query(
+        `INSERT INTO payments (
+          payment_id, order_id, transaction_code, method, amount, status, created_at
+        ) VALUES ($1, $2, $3, 'ONLINE', $4, 'PENDING', now())`,
+        [crypto.randomUUID(), orderId, paymentCode, totalAmount]
+      );
+
+      // 5. Tạo VoucherUsage (nếu có áp dụng voucher)
+      if (appliedVoucherId && discountAmount > 0) {
+        await client.query(
+          `INSERT INTO voucher_usages (
+            usage_id, voucher_id, order_id, buyer_id, discount_amount, used_at
+          ) VALUES ($1, $2, $3, $4, $5, now())`,
+          [crypto.randomUUID(), appliedVoucherId, orderId, user_id, discountAmount]
+        );
+      }
+
       // Ghi nhận Idempotency Record vào Postgres
-      const fingerprint = '0'.repeat(64);
       await client.query(
         `INSERT INTO api_idempotency_records (user_id, endpoint, idempotency_key, fingerprint, result, expires_at)
          VALUES ($1, '/api/v1/flash-sales/purchase', $2, $3, $4, now() + interval '1 day')
@@ -258,10 +413,66 @@ export class FlashSaleService {
         [user_id, idempotency_key, fingerprint, JSON.stringify({ order_id: orderId, total_amount: totalAmount })]
       );
 
+      // BƯỚC PRE-COMMIT HANDSHAKE (LUA): HOLD -> COMMITTING:<timestamp>
+      const preCommitOk = Number(
+        await this.redis.eval(
+          FLASH_SALE_PRE_COMMIT_LUA,
+          1,
+          leaseKey,
+          Date.now().toString()
+        )
+      );
+
+      if (preCommitOk !== 1) {
+        await client.query('ROLLBACK');
+        client.release();
+        clientReleased = true;
+        throw new ConflictError('TRANSACTION_LEASE_EXPIRED', 'Thời gian giữ chỗ Flash Sale đã hết hạn. Vui lòng thử lại.');
+      }
+
+      preCommitDone = true;
+
       // COMMIT TRANSACTION TRƯỚC (ĐIỂM CHỐT SỰ THẬT DUY NHẤT)
       await client.query('COMMIT');
+      client.release();
+      clientReleased = true;
     } catch (err: unknown) {
-      await client.query('ROLLBACK');
+      if (!clientReleased) {
+        try {
+          await client.query('ROLLBACK');
+        } catch {
+          // ignore rollback error on broken connection
+        } finally {
+          client.release();
+          clientReleased = true;
+        }
+      }
+
+      // BẢO VỆ AMBIGUOUS COMMIT: NẾU PRE-COMMIT ĐÃ CHẠY, BẮT BUỘC VERIFY VỚI POSTGRES
+      if (preCommitDone) {
+        try {
+          const existingOrderId = await this.repo.findOrderIdByIdempotencyKey(idempotency_key);
+          if (existingOrderId) {
+            // Commit thực sự đã thành công trên Postgres trước khi rớt mạng!
+            // HEALING PATH TẠI CHỖ: Chữa lành trạng thái, TUYỆT ĐỐI KHÔNG BỒI HOÀN KHO!
+            const resultObj = {
+              success: true,
+              order_id: existingOrderId,
+              code: FlashSaleLuaCode.SUCCESS,
+              message: 'Đặt hàng Flash Sale thành công! (Tự phục hồi sau sự cố mạng commit)',
+              fingerprint,
+            };
+            await this.redis.set(idempKey, JSON.stringify(resultObj), 'EX', 600);
+            await this.redis.set(leaseKey, 'COMMITTED', 'EX', 86400);
+            await this.redis.zrem('flash_sale:pending_reservations', payloadStr);
+            return resultObj;
+          }
+        } catch (verifyErr) {
+          // Nếu verify DB cũng lỗi: TUYỆT ĐỐI KHÔNG BỒI HOÀN MÙ QUÁNG!
+          // Giữ nguyên COMMITTING:<ts> để Watchdog xử lý sau khi DB sống lại.
+          throw err;
+        }
+      }
 
       // TẦNG 3 (ERROR): FAST ROLLBACK & LOG COMPENSATION
       const compId = crypto.randomUUID();
@@ -283,13 +494,16 @@ export class FlashSaleService {
         leaseKey,
       ];
 
+      const compensateMode = preCommitDone ? 'FORCE' : 'FAST_ROLLBACK';
+
       const compRes = await this.redis.eval(
         FLASH_SALE_COMPENSATE_LUA,
         compKeys.length,
         ...compKeys,
         user_id,
         effectiveVoucher,
-        payloadStr
+        payloadStr,
+        compensateMode
       );
 
       if (compRes === 1) {
@@ -299,7 +513,10 @@ export class FlashSaleService {
       await this.redis.del(idempKey);
       throw err;
     } finally {
-      client.release();
+      if (!clientReleased) {
+        client.release();
+        clientReleased = true;
+      }
     }
 
     // ------------------------------------------------------------------------
@@ -311,6 +528,7 @@ export class FlashSaleService {
       order_id: orderId,
       code: FlashSaleLuaCode.SUCCESS,
       message: 'Đặt hàng Flash Sale thành công!',
+      fingerprint,
     };
     await this.redis.set(idempKey, JSON.stringify(resultObj), 'EX', 600);
 
@@ -364,41 +582,69 @@ export class FlashSaleService {
           await this.redis.zrem('flash_sale:pending_reservations', memberStr);
           selfHealed++;
         } else {
-          // CASE B: Server crash trước khi commit Order -> Hoàn kho an toàn
-          const compId = crypto.randomUUID();
-          await this.repo.insertCompensationLog({
-            compensation_id: compId,
-            slot_id,
-            item_id,
-            user_id,
-            reason: 'CRASH_CONFIRMED_BEFORE_COMMIT',
-            status: 'PENDING',
-          });
+          // CASE B: Server crash trước khi commit Order -> Kiểm tra trạng thái lease trong Redis để quyết định:
+          const lease = await this.redis.get(leaseKey);
 
-          const compKeys = [
-            `flash_sale:stock:${slot_id}:${item_id}`,
-            `flash_sale:buyers:${slot_id}:${item_id}`,
-            `voucher:quota:${slot_id}:${voucher_code}`,
-            `voucher:used_users:${slot_id}:${voucher_code}`,
-            'flash_sale:pending_reservations',
-            leaseKey,
-          ];
-
-          const compRes = await this.redis.eval(
-            FLASH_SALE_COMPENSATE_LUA,
-            compKeys.length,
-            ...compKeys,
-            user_id,
-            voucher_code,
-            memberStr
-          );
-
-          if (compRes === 1) {
-            await this.repo.updateCompensationLogStatus(compId, 'APPLIED');
+          if (!lease || lease === 'COMMITTED' || lease === 'RECLAIMED') {
+            await this.redis.zrem('flash_sale:pending_reservations', memberStr);
+            continue;
           }
 
-          await this.redis.del(idempKey);
-          compensated++;
+          let canReclaim = false;
+          let compensateMode = 'FAST_ROLLBACK';
+
+          if (lease === 'HOLD') {
+            canReclaim = true;
+            compensateMode = 'FAST_ROLLBACK';
+          } else if (lease.startsWith('COMMITTING:')) {
+            const committedAt = Number(lease.split(':')[1]);
+            const nowTs = Date.now();
+            if (committedAt && nowTs - committedAt > 60_000) {
+              canReclaim = true;
+              compensateMode = 'FORCE';
+            } else {
+              // Vẫn đang trong cửa sổ in-flight commit (< 60s) -> bỏ qua chờ vòng quét sau
+              continue;
+            }
+          }
+
+          if (canReclaim) {
+            const compId = crypto.randomUUID();
+            await this.repo.insertCompensationLog({
+              compensation_id: compId,
+              slot_id,
+              item_id,
+              user_id,
+              reason: compensateMode === 'FORCE' ? 'ORPHAN_COMMITTING_TIMEOUT' : 'CRASH_CONFIRMED_BEFORE_COMMIT',
+              status: 'PENDING',
+            });
+
+            const compKeys = [
+              `flash_sale:stock:${slot_id}:${item_id}`,
+              `flash_sale:buyers:${slot_id}:${item_id}`,
+              `voucher:quota:${slot_id}:${voucher_code}`,
+              `voucher:used_users:${slot_id}:${voucher_code}`,
+              'flash_sale:pending_reservations',
+              leaseKey,
+            ];
+
+            const compRes = await this.redis.eval(
+              FLASH_SALE_COMPENSATE_LUA,
+              compKeys.length,
+              ...compKeys,
+              user_id,
+              voucher_code,
+              memberStr,
+              compensateMode
+            );
+
+            if (compRes === 1) {
+              await this.repo.updateCompensationLogStatus(compId, 'APPLIED');
+            }
+
+            await this.redis.del(idempKey);
+            compensated++;
+          }
         }
       }
 
