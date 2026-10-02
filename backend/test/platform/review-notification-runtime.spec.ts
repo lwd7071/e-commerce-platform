@@ -86,6 +86,20 @@ class MockOrderQueryPort implements IOrderQueryPort {
 }
 
 describe('Review and Notification Runtime Wiring (C-201, C-202, C-203, C-301, C-302)', () => {
+  it('lets a pending seller read and mark only their personal notifications', async () => {
+    const sellerId = '00000000-0000-4000-8000-000000000099';
+    const notifRepo = new MockNotificationRepo();
+    notifRepo.notifications.push({ notificationId: 'seller-notif-1', recipientId: sellerId, type: 'ORDER', title: 'Đơn mới', content: 'Có đơn mới', isRead: false, createdAt: new Date().toISOString(), readAt: null });
+    const sellerAuth: RequestHandler = (req, _res, next) => {
+      req.context = createRequestContext({ request_id: 'req_seller', user_id: sellerId, role: 'SELLER', shop_id: '00000000-0000-4000-8000-000000000098', shop_status: 'PENDING' });
+      next();
+    };
+    const app = createApp({ auth: sellerAuth, buyerServices: { notificationService: new NotificationService(notifRepo) } });
+    await request(app).get('/api/v1/notifications').expect(200);
+    const result = await request(app).patch('/api/v1/notifications/seller-notif-1/read').expect(200);
+    assert.strictEqual(result.body.data.isRead, true);
+  });
+
   it('GET /api/v1/notifications: returns 200 and notifications array (eliminates 501)', async () => {
     const notifRepo = new MockNotificationRepo();
     notifRepo.notifications.push({

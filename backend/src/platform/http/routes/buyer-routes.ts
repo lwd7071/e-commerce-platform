@@ -33,6 +33,35 @@ function context(req: Request): RequestContext {
   return req.context;
 }
 
+function profileGuards(auth: RequestHandler | undefined): RequestHandler[] {
+  const handler: RequestHandler = (req, _res, next) => {
+    try {
+      const requestContext = context(req);
+      if (!['BUYER', 'SELLER', 'ADMIN'].includes(requestContext.role as Role)) {
+        throw new ForbiddenError('ROLE_REQUIRED', 'Required role: BUYER or SELLER or ADMIN');
+      }
+      // role-business-rules.md §7: Personal profile operations must not be blocked by Shop PENDING status
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
+  return auth ? [auth, handler] : [handler];
+}
+
+function notificationGuards(auth: RequestHandler | undefined): RequestHandler[] {
+  const handler: RequestHandler = (req, _res, next) => {
+    try {
+      const requestContext = context(req);
+      if (!['BUYER', 'SELLER'].includes(requestContext.role as Role)) {
+        throw new ForbiddenError('ROLE_REQUIRED', 'Required role: BUYER or SELLER');
+      }
+      next();
+    } catch (error) { next(error); }
+  };
+  return auth ? [auth, handler] : [handler];
+}
+
 function requireRole(...roles: Role[]): (req: Request, _res: Response, next: NextFunction) => void {
   return (req, _res, next) => {
     try {
@@ -84,7 +113,7 @@ export function createBuyerDomainRouter(
   const notificationService = services?.notificationService;
   const profileService = services?.profileService;
 
-  router.get('/profile', ...guards(auth, 'BUYER', 'SELLER', 'ADMIN'), asyncRoute(async (req, res) => {
+  router.get('/profile', ...profileGuards(auth), asyncRoute(async (req, res) => {
     if (!profileService) throw new NotImplementedError('Profile is not available in the current runtime');
     const profile = await profileService.getProfile(context(req).user_id);
     res.json(buildSuccessEnvelope({
@@ -96,7 +125,7 @@ export function createBuyerDomainRouter(
     }, requestId(req)));
   }));
 
-  router.patch('/profile', ...guards(auth, 'BUYER', 'SELLER', 'ADMIN'), asyncRoute(async (req, res) => {
+  router.patch('/profile', ...profileGuards(auth), asyncRoute(async (req, res) => {
     if (!profileService) throw new NotImplementedError('Profile is not available in the current runtime');
     const input = req.body as Record<string, unknown>;
     const unknown = Object.keys(input ?? {}).find(key => !['full_name', 'phone'].includes(key));
@@ -318,9 +347,24 @@ export function createBuyerDomainRouter(
     };
     if (content !== undefined) reviewPayload.content = content;
     if (req.body?.images !== undefined) reviewPayload.images = req.body.images;
+    if (req.body?.review_id !== undefined || req.body?.reviewId !== undefined) {
+      reviewPayload.review_id = req.body?.review_id ?? req.body?.reviewId;
+    }
+    if (req.body?.image_media_ids !== undefined || req.body?.imageMediaIds !== undefined) {
+      reviewPayload.image_media_ids = req.body?.image_media_ids ?? req.body?.imageMediaIds;
+    }
 
     const data = await reviewService.createReview(ctx.user_id, orderItemId, productId, reviewPayload);
-    res.status(201).json(buildSuccessEnvelope(data, requestId(req)));
+    const responseData = {
+      ...data,
+      review_id: data.reviewId,
+      order_item_id: data.orderItemId,
+      product_id: data.productId,
+      buyer_id: data.buyerId,
+      created_at: data.createdAt,
+      updated_at: data.updatedAt,
+    };
+    res.status(201).json(buildSuccessEnvelope(responseData, requestId(req)));
   });
 
   router.post('/order-items/:order_item_id/review', ...guards(auth, 'BUYER'), handleCreateReview);
@@ -341,8 +385,21 @@ export function createBuyerDomainRouter(
       average = (sum / count).toFixed(1);
     }
 
+    const mappedReviews = reviews.map((r) => {
+      const rec = r as unknown as Record<string, unknown>;
+      return {
+        ...r,
+        review_id: r.reviewId ?? rec.review_id,
+        order_item_id: r.orderItemId ?? rec.order_item_id,
+        product_id: r.productId ?? rec.product_id,
+        buyer_id: r.buyerId ?? rec.buyer_id,
+        created_at: r.createdAt ?? rec.created_at,
+        updated_at: r.updatedAt ?? rec.updated_at,
+      };
+    });
+
     res.json({
-      data: reviews,
+      data: mappedReviews,
       meta: {
         limit,
         has_more: !!nextCursor,
@@ -359,7 +416,7 @@ export function createBuyerDomainRouter(
   // ==========================================
   // 5. NOTIFICATION ROUTES
   // ==========================================
-  router.get('/notifications', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
+  router.get('/notifications', ...notificationGuards(auth), asyncRoute(async (req, res) => {
     const ctx = context(req);
     if (!notificationService) {
       throw new NotImplementedError('Notifications are not available in the current runtime');
@@ -372,7 +429,7 @@ export function createBuyerDomainRouter(
     res.json(buildSuccessEnvelope(data, requestId(req)));
   }));
 
-  router.get('/notifications/:notification_id', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
+  router.get('/notifications/:notification_id', ...notificationGuards(auth), asyncRoute(async (req, res) => {
     const ctx = context(req);
     if (!notificationService) {
       throw new NotImplementedError('Notification details are not available in the current runtime');
@@ -390,8 +447,8 @@ export function createBuyerDomainRouter(
     res.json(buildSuccessEnvelope(data, requestId(req)));
   });
 
-  router.patch('/notifications/:notification_id/read', ...guards(auth, 'BUYER'), handleMarkNotificationRead);
-  router.patch('/notifications/:notification_id', ...guards(auth, 'BUYER'), handleMarkNotificationRead);
+  router.patch('/notifications/:notification_id/read', ...notificationGuards(auth), handleMarkNotificationRead);
+  router.patch('/notifications/:notification_id', ...notificationGuards(auth), handleMarkNotificationRead);
 
   return router;
 }

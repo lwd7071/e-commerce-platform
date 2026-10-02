@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { repositories } from "@/lib/repositories/repository-factory";
-import { categoryAdapter, DEV_CATEGORY_FIXTURES, type CategoryItem } from "@/lib/adapters/category.adapter";
+import { categoryAdapter, type CategoryItem } from "@/lib/adapters/category.adapter";
 import { uploadMediaAsset } from "@/lib/api/media.api";
 import { validateStockQuantityInput } from "@/features/catalog/catalog-query-engine";
 import { AppError } from "@/lib/api/app-error";
@@ -30,14 +30,6 @@ interface ImageFormItem {
   mediaId?: string;
 }
 
-const VERIFIED_PRESET_IMAGES = [
-  { label: "Serum dưỡng ẩm", url: "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=800" },
-  { label: "Kem chống nắng", url: "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=800" },
-  { label: "Áo sơ mi linen", url: "https://images.unsplash.com/photo-1598033129183-c4f50c736f10?w=800" },
-  { label: "Bàn phím cơ RGB", url: "https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=800" },
-  { label: "Đồng hồ thông minh", url: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800" },
-];
-
 export function SellerProductCreateScreen() {
   const router = useRouter();
   const showToast = useToast();
@@ -45,12 +37,13 @@ export function SellerProductCreateScreen() {
   const isShopPending = user?.role === "SELLER" && user?.shopStatus === "PENDING";
 
   const [categories, setCategories] = useState<CategoryItem[]>([]);
+  const [categoryError, setCategoryError] = useState<string | null>(null);
+  const [isCategoriesLoading, setIsCategoriesLoading] = useState(true);
   const [productName, setProductName] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [description, setDescription] = useState("");
 
   const [images, setImages] = useState<ImageFormItem[]>([]);
-  const [customImageUrl, setCustomImageUrl] = useState("");
   const [draftProductId, setDraftProductId] = useState<string | null>(null);
 
   const [variants, setVariants] = useState<VariantFormItem[]>([
@@ -67,37 +60,31 @@ export function SellerProductCreateScreen() {
   const [errors, setErrors] = useState<Array<{ fieldId: string; message: string }>>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    categoryAdapter.getCategories().then((cats) => {
-      if (cats && cats.length > 0) {
-        setCategories(cats);
+  const loadCategories = useCallback(async () => {
+    setIsCategoriesLoading(true);
+    setCategoryError(null);
+    try {
+      const cats = await categoryAdapter.getCategories();
+      setCategories(cats);
+      if (cats.length > 0) {
         setCategoryId(cats[0].id);
       } else {
-        // Fallback to verified category fixtures (RB-KN04 / GAP-05)
-        setCategories(DEV_CATEGORY_FIXTURES);
-        setCategoryId(DEV_CATEGORY_FIXTURES[0].id);
+        setCategoryId("");
+        setCategoryError("Hiện chưa có danh mục thật khả dụng. Vui lòng thử lại sau.");
       }
-    });
+    } catch {
+      setCategories([]);
+      setCategoryId("");
+      setCategoryError("Không thể tải danh mục thật. Vui lòng kiểm tra kết nối và thử lại.");
+    } finally {
+      setIsCategoriesLoading(false);
+    }
   }, []);
 
-  const handleAddImage = (url: string) => {
-    const trimmed = url.trim();
-    if (!trimmed) return;
-    if (images.length >= 5) {
-      showToast("Sản phẩm chỉ cho phép tải lên tối đa 5 hình ảnh", "error");
-      return;
-    }
-    if (!/^https?:\/\//i.test(trimmed)) {
-      showToast("URL ảnh phải bắt đầu bằng http:// hoặc https://", "error");
-      return;
-    }
-    if (images.some((img) => img.url === trimmed)) {
-      showToast("Hình ảnh này đã được thêm vào danh sách", "info");
-      return;
-    }
-    setImages((prev) => [...prev, { id: `img-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, url: trimmed }]);
-    setCustomImageUrl("");
-  };
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void loadCategories(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadCategories]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -110,6 +97,7 @@ export function SellerProductCreateScreen() {
       const productId = draftProductId ?? crypto.randomUUID();
       setDraftProductId(productId);
       const uploaded = await uploadMediaAsset(file, { purpose: "product_image", productId });
+      if (!uploaded.mediaId) throw new Error("Media service did not return a finalized upload ID.");
       setImages((prev) => [...prev, { id: `img-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, url: uploaded.url, mediaId: uploaded.mediaId }]);
       showToast("Tải ảnh thành công!", "success");
     } catch (err: unknown) {
@@ -202,6 +190,10 @@ export function SellerProductCreateScreen() {
       return;
     }
 
+    if (images.some((image) => !image.mediaId)) {
+      showToast("Ảnh sản phẩm cần được tải lên và xác nhận trước khi lưu", "error");
+      return;
+    }
     setErrors([]);
     setIsSubmitting(true);
 
@@ -213,7 +205,7 @@ export function SellerProductCreateScreen() {
         description: description.trim() || null,
         images: images.map((img, idx) => ({
           image_url: img.url.trim(),
-          ...(img.mediaId ? { media_id: img.mediaId } : {}),
+          media_id: img.mediaId,
           sort_order: idx,
         })),
         variants: variants.map((v) => ({
@@ -309,8 +301,8 @@ export function SellerProductCreateScreen() {
 
           <FormField
             id="product-category"
-            label="Danh mục ngành hàng (Verified Category)"
-            helpText="Chọn danh mục đã được xác minh trên hệ thống."
+            label="Danh mục ngành hàng"
+            helpText="Chọn danh mục đang được mở trên hệ thống."
             required
             error={errors.find((e) => e.fieldId === "product-category")?.message}
           >
@@ -318,8 +310,10 @@ export function SellerProductCreateScreen() {
               id="product-category"
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
+              disabled={isCategoriesLoading || categories.length === 0}
               required
             >
+              {categories.length === 0 && <option value="">{isCategoriesLoading ? "Đang tải danh mục…" : "Chưa có danh mục"}</option>}
               {categories.map((cat) => (
                 <option key={cat.id} value={cat.id}>
                   {cat.parentId ? `└─ ${cat.name}` : cat.name}
@@ -327,6 +321,15 @@ export function SellerProductCreateScreen() {
               ))}
             </SelectInput>
           </FormField>
+
+          {categoryError && (
+            <div className="notice notice--error" role="alert">
+              <p>{categoryError}</p>
+              <Button type="button" variant="secondary" onClick={() => void loadCategories()}>
+                Thử tải lại danh mục
+              </Button>
+            </div>
+          )}
 
           <FormField
             id="product-description"
@@ -359,45 +362,9 @@ export function SellerProductCreateScreen() {
             </span>
           </div>
 
-          {/* Quick presets */}
+          {/* Finalized media upload only */}
           <div className="space-y-2">
-            <span className="text-xs font-semibold text-[var(--subtext)]">
-              Gợi ý ảnh mẫu đã xác minh:
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {VERIFIED_PRESET_IMAGES.map((preset) => (
-                <button
-                  key={preset.url}
-                  type="button"
-                  onClick={() => handleAddImage(preset.url)}
-                  className="rounded-lg border border-[var(--border)] bg-[var(--card-muted)] px-3 py-1.5 text-xs font-medium text-[var(--foreground)] hover:border-[var(--primary-border)] hover:bg-[var(--primary-surface)] transition-all min-h-[36px]"
-                >
-                  + {preset.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Custom URL & File Upload */}
-          <div className="space-y-2">
-            <div className="flex gap-2">
-              <TextInput
-                id="custom-image-url"
-                placeholder="Dán URL hình ảnh HTTPS (https://...)"
-                value={customImageUrl}
-                onChange={(e) => setCustomImageUrl(e.target.value)}
-                className="flex-1"
-              />
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => handleAddImage(customImageUrl)}
-                disabled={!customImageUrl.trim() || images.length >= 5}
-                className="min-h-[44px] px-4 text-xs font-semibold whitespace-nowrap"
-              >
-                Thêm URL
-              </Button>
-            </div>
+            <p className="text-sm text-[var(--subtext)]">Ảnh chỉ được lưu sau khi tải lên và xác nhận thành công. Tối đa 5 ảnh.</p>
             <div>
               <label
                 htmlFor="product-file-upload"
@@ -598,8 +565,8 @@ export function SellerProductCreateScreen() {
           <Button
             type="submit"
             variant="primary"
-            disabled={isSubmitting || isShopPending}
-            title={isShopPending ? "Gian hàng đang chờ duyệt" : undefined}
+            disabled={isSubmitting || isShopPending || isCategoriesLoading || categories.length === 0}
+            title={isShopPending ? "Gian hàng đang chờ duyệt" : categories.length === 0 ? "Cần tải được danh mục thật trước khi tạo sản phẩm" : undefined}
             className="min-h-[44px] px-8 text-xs font-bold shadow-sm"
           >
             {isSubmitting ? "Đang tạo sản phẩm..." : isShopPending ? "Gian hàng chờ duyệt" : "Tạo sản phẩm mới"}

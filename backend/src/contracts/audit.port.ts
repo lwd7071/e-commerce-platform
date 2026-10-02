@@ -1,8 +1,8 @@
 export interface AdminAuditRecord {
   admin_id: string;
   action: string;
-  target_type: string;
-  target_id: string;
+  target_type?: string | null;
+  target_id?: string | null;
   reason: string;
   created_at?: string;
 }

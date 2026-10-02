@@ -6,6 +6,7 @@ import { orderApi, type WireOrder } from "../api/order.api";
 import { voucherApi } from "../api/voucher.api";
 import { adminApi } from "../api/admin.api";
 import { mediaApi, uploadMedia } from "../api/media.api";
+import { sellerReportApi } from "../api/seller-report.api";
 import type {
   ICatalogRepository,
   IBuyerRepository,
@@ -18,6 +19,7 @@ import type {
   WireReview,
   AdminUserItem,
   AdminShopItem,
+  ISellerRepository,
 } from "./types";
 
 // ==========================================
@@ -28,9 +30,12 @@ const apiCatalogRepository: ICatalogRepository = {
   getProducts: (params) => catalogApi.getProducts(params),
   getProductsPaginated: (params) => catalogApi.getProductsPaginated(params),
   getProductById: (id) => catalogApi.getProductById(id),
+  getSellerProductById: (id) => catalogApi.getSellerProductById(id),
+  updateSellerProduct: (id, input) => catalogApi.updateSellerProduct(id, input),
   createProduct: (data) => catalogApi.createProduct(data),
   updateStock: (variantId, quantity) => catalogApi.updateVariantStock(variantId, quantity),
   getSellerProducts: (params) => catalogApi.getSellerProducts(params),
+  getSellerProductsPaginated: (params) => catalogApi.getSellerProductsPaginated(params),
   updateProductStatus: (productId, status) => catalogApi.updateProductStatus(productId, status),
 };
 
@@ -48,6 +53,7 @@ const apiBuyerRepository: IBuyerRepository = {
 
 const apiOrderRepository: IOrderRepository = {
   getOrders: (params) => orderApi.getOrders(params),
+  getOrdersPaginated: (params) => orderApi.getOrdersPaginated(params),
   getOrderById: (id) => orderApi.getOrderById(id),
   cancelOrder: (id, reason) => orderApi.cancelOrder(id, reason),
   confirmOrder: (id, reason) => orderApi.confirmOrder(id, reason),
@@ -62,55 +68,17 @@ const apiVoucherRepository: IVoucherRepository = {
 };
 
 const apiAdminRepository: IAdminRepository = {
-  getUsers: async (params) => {
-    try {
-      return await adminApi.getUsers(params);
-    } catch {
-      return mockAdminRepository.getUsers(params);
-    }
-  },
-  lockUser: async (payload) => {
-    try {
-      await adminApi.lockUser(payload);
-    } catch {
-      await mockAdminRepository.lockUser(payload);
-    }
-  },
-  unlockUser: async (userId) => {
-    try {
-      await adminApi.unlockUser(userId);
-    } catch {
-      await mockAdminRepository.unlockUser(userId);
-    }
-  },
-  getShops: async (params) => {
-    try {
-      return await adminApi.getShops(params);
-    } catch {
-      return mockAdminRepository.getShops(params);
-    }
-  },
-  approveShop: async (shopId, reason) => {
-    try {
-      await adminApi.approveShop(shopId, reason);
-    } catch {
-      await mockAdminRepository.approveShop(shopId, reason);
-    }
-  },
-  lockShop: async (payload) => {
-    try {
-      await adminApi.lockShop(payload);
-    } catch {
-      await mockAdminRepository.lockShop(payload);
-    }
-  },
-  unlockShop: async (shopId, reason) => {
-    try {
-      await adminApi.unlockShop(shopId, reason);
-    } catch {
-      await mockAdminRepository.unlockShop(shopId, reason);
-    }
-  },
+  getUsers: (params) => adminApi.getUsers(params),
+  getUserDetail: (userId) => adminApi.getUserDetail(userId),
+  getUsersPage: (params) => adminApi.getUsersPage(params),
+  lockUser: (payload) => adminApi.lockUser(payload),
+  unlockUser: (userId) => adminApi.unlockUser(userId),
+  getShops: (params) => adminApi.getShops(params),
+  getShopDetail: (shopId) => adminApi.getShopDetail(shopId),
+  getShopsPage: (params) => adminApi.getShopsPage(params),
+  approveShop: (shopId, reason) => adminApi.approveShop(shopId, reason),
+  lockShop: (payload) => adminApi.lockShop(payload),
+  unlockShop: (shopId, reason) => adminApi.unlockShop(shopId, reason),
 };
 
 const apiMediaRepository: IMediaRepository = {
@@ -121,6 +89,11 @@ const apiMediaRepository: IMediaRepository = {
   presign: (filename, contentType, purpose) => mediaApi.presign(filename, contentType, purpose),
   finalize: (mediaId) => mediaApi.finalize(mediaId),
   deleteMedia: (mediaId) => mediaApi.deleteMedia(mediaId),
+};
+
+const apiSellerRepository: ISellerRepository = {
+  getKpi: () => apiClient.get('/seller/kpi'),
+  getRevenueReport: (filter) => sellerReportApi.getRevenue(filter),
 };
 
 // ==========================================
@@ -301,6 +274,23 @@ const mockCatalogRepository: ICatalogRepository = {
       ],
     };
   },
+  getSellerProductById: async (id) => mockCatalogRepository.getProductById(id),
+  updateSellerProduct: async (id, input) => {
+    const current = await mockCatalogRepository.getProductById(id);
+    const updated = {
+      ...current,
+      ...input,
+      images: input.images ? input.images.map((img) => ({ image_id: img.image_id || img.media_id, image_url: img.image_url, sort_order: img.sort_order })) : current.images,
+      variants: input.variants ? input.variants.map((change) => {
+        const existing = change.variant_id && current.variants.find((variant) => variant.variant_id === change.variant_id);
+        return existing
+          ? { ...existing, ...change }
+          : { ...change, variant_id: `mock-${crypto.randomUUID()}`, variant_value: change.variant_value ?? null, stock_quantity: 0, status: "ACTIVE" as const };
+      }) : current.variants,
+    };
+    dynamicMockDetails[id] = updated;
+    return updated;
+  },
   createProduct: async (data) => {
     const newId = `00000000-0000-0000-0000-000000000${Math.floor(200 + Math.random() * 700)}`;
     const prices = data.variants.map((v) => Number(v.price) || 0);
@@ -366,6 +356,17 @@ const mockCatalogRepository: ICatalogRepository = {
       list = list.filter((p) => p.product_name.toLowerCase().includes(q) || p.product_id.toLowerCase().includes(q));
     }
     return list;
+  },
+  getSellerProductsPaginated: async (params?: { limit?: number; cursor?: string; search?: string; status?: string }) => {
+    const list = await mockCatalogRepository.getSellerProducts(params);
+    const limit = params?.limit ?? 20;
+    const offset = params?.cursor ? Number(atob(params.cursor)) || 0 : 0;
+    const data = list.slice(offset, offset + limit);
+    const nextOffset = offset + data.length;
+    return {
+      data,
+      meta: { limit, has_more: nextOffset < list.length, next_cursor: nextOffset < list.length ? btoa(String(nextOffset)) : null },
+    };
   },
   updateProductStatus: async (productId: string, status: "ACTIVE" | "INACTIVE") => {
     const p = dynamicMockProducts.find((item) => item.product_id === productId);
@@ -645,6 +646,15 @@ const hybridOrderRepository: IOrderRepository = {
     }
     return mockOrderRepository.getOrders(params);
   },
+  getOrdersPaginated: async (params) => {
+    if (!features.domains.ordersMock()) return apiOrderRepository.getOrdersPaginated!(params);
+    const data = await mockOrderRepository.getOrders(params);
+    const limit = params?.limit ?? 20;
+    const offset = params?.cursor ? Number(atob(params.cursor)) || 0 : 0;
+    const page = data.slice(offset, offset + limit);
+    const nextOffset = offset + page.length;
+    return { data: page, meta: { limit, has_more: nextOffset < data.length, next_cursor: nextOffset < data.length ? btoa(String(nextOffset)) : null } };
+  },
   getOrderById: async (id) => {
     if (!features.domains.ordersMock()) {
       return apiOrderRepository.getOrderById(id);
@@ -855,7 +865,7 @@ const mockAdminShopsStore: AdminShopItem[] = Array.from({ length: 20 }, (_, i) =
   };
 });
 
-const mockAdminRepository: IAdminRepository = {
+export const mockAdminRepository: IAdminRepository = {
   getUsers: async (params) => {
     let list = [...mockAdminUsersStore];
     if (params?.role) {
@@ -937,6 +947,12 @@ const mockMediaRepository: IMediaRepository = {
 // ==========================================
 
 export const repositories = {
+  seller: (): ISellerRepository => features.useMock()
+    ? {
+      getKpi: async () => ({ shopId: 'mock-shop', shopName: 'Gian hàng mẫu', totalRevenue: '0.00', completedOrdersCount: 0, pendingOrdersCount: 0, activeProductsCount: 0, averageRating: 0 }),
+      getRevenueReport: async () => ({ shopId: 'mock-shop', totalOrders: 0, completedOrders: 0, cancelledOrders: 0, otherOrders: 0, grossRevenue: '0.00', netSubtotal: '0.00', totalDiscount: '0.00', totalShipping: '0.00', averageOrderValue: '0.00', generatedAt: new Date().toISOString() }),
+    }
+    : apiSellerRepository,
   catalog: (): ICatalogRepository =>
     features.domains.catalogLive() ? apiCatalogRepository : mockCatalogRepository,
 

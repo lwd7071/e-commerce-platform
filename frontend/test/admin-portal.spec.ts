@@ -1,8 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { repositories } from "../src/lib/repositories/repository-factory";
+import { mockAdminRepository } from "../src/lib/repositories/repository-factory";
 
 describe("Admin Moderation Portal (Người 5 - TDD)", () => {
-  const adminRepo = repositories.admin();
+  // This suite verifies fixture behavior explicitly; live mode must propagate HTTP failures.
+  const adminRepo = mockAdminRepository;
 
   it("lấy danh sách người dùng đầy đủ với các role BUYER, SELLER, ADMIN", async () => {
     const users = await adminRepo.getUsers();

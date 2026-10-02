@@ -209,13 +209,13 @@ export class PgCatalogHttpService {
     });
 
     const rawImages: unknown[] = Array.isArray(input.images) ? input.images : [];
-    const mediaAttachments = rawImages.flatMap((value) => {
+    const mediaAttachments = rawImages.map((value) => {
       const image = objectValue(value);
-      if (typeof image.media_id !== 'string') return [];
+      if (typeof image.media_id !== 'string') throw new ValidationError('Product images must use finalized seller media uploads');
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(image.media_id)) {
         throw new ValidationError('Image media_id must be a valid UUID');
       }
-      return [{ mediaId: image.media_id, imageUrl: String(image.image_url ?? '') }];
+      return { mediaId: image.media_id, imageUrl: String(image.image_url ?? '') };
     });
     const images: ProductImage[] = rawImages.map((img, index: number) => {
       const image = objectValue(img);
@@ -355,12 +355,28 @@ export class PgCatalogHttpService {
   async listSellerProducts(
     context: RequestContext,
     input: Record<string, unknown> = {},
-  ): Promise<unknown> {
+  ): Promise<{ items: unknown[]; next_cursor: string | null; has_more: boolean; limit: number }> {
     if (!context.shop_id) {
       throw new ForbiddenError('Seller shop is required');
     }
     const conditions: string[] = ['p.shop_id = $1'];
     const params: unknown[] = [context.shop_id];
+
+    const limit = input.limit === undefined ? 20 : Number(input.limit);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new ValidationError('limit must be an integer from 1 to 100');
+    if (input.status && input.status !== 'ACTIVE' && input.status !== 'INACTIVE' && input.status !== 'HIDDEN') {
+      throw new ValidationError('Invalid seller product status filter');
+    }
+    if (input.cursor !== undefined) {
+      try {
+        const parsed = JSON.parse(Buffer.from(String(input.cursor), 'base64url').toString('utf8')) as { created_at?: string; product_id?: string };
+        if (!parsed.created_at || Number.isNaN(Date.parse(parsed.created_at)) || !parsed.product_id || !/^[0-9a-f-]{36}$/i.test(parsed.product_id)) throw new Error();
+        params.push(parsed.created_at, parsed.product_id);
+        conditions.push(`(p.created_at, p.product_id) < ($${params.length - 1}::timestamptz, $${params.length}::uuid)`);
+      } catch {
+        throw new ValidationError('Invalid seller product cursor');
+      }
+    }
 
     if (input.status) {
       params.push(String(input.status));
@@ -371,6 +387,9 @@ export class PgCatalogHttpService {
       params.push(`%${String(input.search)}%`);
       conditions.push(`p.product_name ILIKE $${params.length}`);
     }
+
+    params.push(limit + 1);
+    const limitParam = params.length;
 
     const query = `
       SELECT
@@ -390,11 +409,14 @@ export class PgCatalogHttpService {
       LEFT JOIN product_variants v ON p.product_id = v.product_id
       WHERE ${conditions.join(' AND ')}
       GROUP BY p.product_id
-      ORDER BY p.created_at DESC
+      ORDER BY p.created_at DESC, p.product_id DESC
+      LIMIT $${limitParam}
     `;
 
     const res = await this.pool.query(query, params);
-    return res.rows.map((row) => ({
+    const hasMore = res.rows.length > limit;
+    const rows = res.rows.slice(0, limit);
+    const items = rows.map((row) => ({
       product_id: row.product_id,
       product_name: row.product_name,
       shop_id: row.shop_id,
@@ -406,6 +428,223 @@ export class PgCatalogHttpService {
       status: row.status,
       created_at: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
     }));
+    const last = rows.at(-1);
+    const nextCursor = hasMore && last
+      ? Buffer.from(JSON.stringify({ created_at: last.created_at instanceof Date ? last.created_at.toISOString() : String(last.created_at), product_id: last.product_id }), 'utf8').toString('base64url')
+      : null;
+    return { items, next_cursor: nextCursor, has_more: hasMore, limit };
+  }
+
+  async getSellerProduct(context: RequestContext, productId: string): Promise<unknown> {
+    if (!context.shop_id) throw new ForbiddenError('Seller shop is required');
+    const product = await this.pool.query(
+      `SELECT product_id, shop_id, category_id, product_name, description, status
+       FROM products WHERE product_id = $1`,
+      [productId],
+    );
+    const row = product.rows[0];
+    if (!row) throw new ResourceNotFoundError(`Product ${productId} not found`);
+    if (row.shop_id !== context.shop_id) throw new ForbiddenError('Product belongs to another shop');
+    const [variants, images] = await Promise.all([
+      this.pool.query(
+        `SELECT variant_id, variant_name, variant_value, sku, price::text AS price, stock_quantity, status
+         FROM product_variants WHERE product_id = $1 ORDER BY created_at, variant_id`,
+        [productId],
+      ),
+      this.pool.query(
+        `SELECT image_id, image_url, sort_order FROM product_images WHERE product_id = $1 ORDER BY sort_order, image_id`,
+        [productId],
+      ),
+    ]);
+    return {
+      product_id: row.product_id,
+      shop_id: row.shop_id,
+      category_id: row.category_id,
+      product_name: row.product_name,
+      description: row.description,
+      status: row.status,
+      variants: variants.rows.map((variant) => ({ ...variant, stock_quantity: Number(variant.stock_quantity) })),
+      images: images.rows.map((image) => ({ ...image, sort_order: Number(image.sort_order) })),
+    };
+  }
+
+  async updateSellerProduct(context: RequestContext, productId: string, input: Record<string, unknown>): Promise<unknown> {
+    if (!context.shop_id) throw new ForbiddenError('Seller shop is required');
+    if (Object.keys(input).length === 0) throw new ValidationError('At least one editable field is required');
+    const name = input.product_name === undefined ? undefined : String(input.product_name).trim();
+    if (name !== undefined && (name.length < 2 || name.length > 200)) throw new ValidationError('Product name must be between 2 and 200 characters');
+    const description = input.description === undefined ? undefined : input.description == null ? null : String(input.description);
+    const categoryId = input.category_id === undefined ? undefined : String(input.category_id);
+    const variantsInput = input.variants;
+    if (variantsInput !== undefined && (!Array.isArray(variantsInput) || variantsInput.length === 0)) {
+      throw new ValidationError('Variants must be a non-empty array');
+    }
+    const normalizedVariants = (variantsInput as unknown[] | undefined)?.map((value) => {
+      const variant = objectValue(value);
+      const variantId = variant.variant_id == null || variant.variant_id === '' ? null : String(variant.variant_id);
+      const variantName = String(variant.variant_name ?? '').trim();
+      const variantValue = variant.variant_value == null ? null : String(variant.variant_value).trim() || null;
+      const sku = String(variant.sku ?? '').trim();
+      const price = String(variant.price ?? '');
+      if ((variantId && !/^[0-9a-f-]{36}$/i.test(variantId)) || !variantName || variantName.length > 100 || (variantValue && variantValue.length > 150) || !sku || sku.length > 100 || !decimal.test(price) || Number(price) <= 0) {
+        throw new ValidationError('Each variant needs a valid name, SKU, and positive price');
+      }
+      return { variantId, variantName, variantValue, sku, price };
+    });
+    if (normalizedVariants && new Set(normalizedVariants.flatMap((variant) => variant.variantId ? [variant.variantId] : [])).size !== normalizedVariants.filter((variant) => variant.variantId).length) {
+      throw new ValidationError('Variant IDs must be unique');
+    }
+    if (normalizedVariants && new Set(normalizedVariants.map((variant) => variant.sku)).size !== normalizedVariants.length) {
+      throw new SkuConflictError('Variant SKUs must be unique within this product');
+    }
+
+    const imagesInput = input.images;
+    if (imagesInput !== undefined && !Array.isArray(imagesInput)) {
+      throw new ValidationError('Images must be an array');
+    }
+    const rawImages = imagesInput as unknown[] | undefined;
+    const normalizedImages = rawImages?.map((value, index) => {
+      const img = objectValue(value);
+      const imageId = typeof img.image_id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(img.image_id)
+        ? img.image_id
+        : undefined;
+      const mediaId = typeof img.media_id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(img.media_id)
+        ? img.media_id
+        : undefined;
+      const imageUrl = String(img.image_url ?? '').trim();
+      if (!imageUrl) {
+        throw new ValidationError('Each product image requires a valid image_url');
+      }
+      if (!imageId && !mediaId) {
+        throw new ValidationError('Each product image must specify image_id (for existing images) or media_id (for newly uploaded images)');
+      }
+      const sortOrder = img.sort_order !== undefined ? Number(img.sort_order) : index;
+      if (!Number.isInteger(sortOrder) || sortOrder < 0) {
+        throw new ValidationError('Image sortOrder must be a non-negative integer');
+      }
+      return { imageId, mediaId, imageUrl, sortOrder };
+    });
+
+    await withTransaction(this.pool, async (client) => {
+      const product = await client.query(
+        'SELECT product_id, shop_id, status FROM products WHERE product_id = $1 FOR UPDATE',
+        [productId],
+      );
+      const row = product.rows[0];
+      if (!row) throw new ResourceNotFoundError(`Product ${productId} not found`);
+      if (row.shop_id !== context.shop_id) throw new ForbiddenError('Product belongs to another shop');
+      if (categoryId) {
+        const category = await client.query("SELECT 1 FROM categories WHERE category_id = $1 AND status = 'ACTIVE'", [categoryId]);
+        if (!category.rows[0]) throw new ValidationError('Category is unavailable');
+      }
+      await client.query(
+        `UPDATE products SET product_name = COALESCE($1, product_name),
+          description = CASE WHEN $2::boolean THEN $3::text ELSE description END,
+          category_id = COALESCE($4::uuid, category_id), updated_at = now()
+         WHERE product_id = $5`,
+        [name ?? null, description !== undefined, description ?? null, categoryId ?? null, productId],
+      );
+      if (normalizedVariants) {
+        const existing = await client.query('SELECT variant_id FROM product_variants WHERE product_id = $1 FOR UPDATE', [productId]);
+        const existingIds = new Set(existing.rows.map((variant) => String(variant.variant_id)));
+        if (normalizedVariants.some((variant) => variant.variantId && !existingIds.has(variant.variantId))) throw new ResourceNotFoundError('Variant does not belong to this product');
+        const duplicate = await client.query(
+          `SELECT v.sku FROM product_variants v JOIN products p ON p.product_id = v.product_id
+           WHERE p.shop_id = $1 AND v.sku = ANY($2::text[]) AND NOT (v.variant_id = ANY($3::uuid[]))`,
+          [context.shop_id, normalizedVariants.map((variant) => variant.sku), normalizedVariants.flatMap((variant) => variant.variantId ? [variant.variantId] : [])],
+        );
+        if (duplicate.rows.length) throw new SkuConflictError(`SKU '${duplicate.rows[0].sku}' already exists in this shop`);
+        const retainedIds = normalizedVariants.flatMap((variant) => variant.variantId ? [variant.variantId] : []);
+        for (const existingVariant of existing.rows) {
+          const existingId = String(existingVariant.variant_id);
+          if (retainedIds.includes(existingId)) continue;
+          const referenced = await client.query('SELECT 1 FROM order_items WHERE variant_id = $1 LIMIT 1', [existingId]);
+          if (referenced.rows.length) {
+            await client.query("UPDATE product_variants SET status = 'INACTIVE', updated_at = now() WHERE variant_id = $1", [existingId]);
+          } else {
+            await client.query('DELETE FROM product_variants WHERE variant_id = $1', [existingId]);
+          }
+        }
+        for (const variant of normalizedVariants) {
+          if (variant.variantId) {
+            await client.query(
+              `UPDATE product_variants SET variant_name=$1, variant_value=$2, sku=$3, price=$4, updated_at=now()
+               WHERE variant_id=$5 AND product_id=$6`,
+              [variant.variantName, variant.variantValue, variant.sku, variant.price, variant.variantId, productId],
+            );
+          } else {
+            await client.query(
+              `INSERT INTO product_variants (variant_id, product_id, variant_name, variant_value, sku, price, stock_quantity, status)
+               VALUES ($1,$2,$3,$4,$5,$6,0,'ACTIVE')`,
+              [crypto.randomUUID(), productId, variant.variantName, variant.variantValue, variant.sku, variant.price],
+            );
+          }
+        }
+      }
+
+      if (normalizedImages) {
+        const existingImagesRes = await client.query<{ image_id: string; image_url: string }>(
+          'SELECT image_id, image_url FROM product_images WHERE product_id = $1',
+          [productId],
+        );
+        const existingImageMap = new Map(existingImagesRes.rows.map((r) => [r.image_id, r.image_url]));
+        const storageUrl = process.env.SUPABASE_URL?.replace(/\/$/, '');
+
+        const newMediaToAttach: string[] = [];
+        for (const img of normalizedImages) {
+          // Check if it's an existing image belonging to this product
+          const matchedImageId = img.imageId || (img.mediaId && existingImageMap.has(img.mediaId) ? img.mediaId : undefined);
+          if (matchedImageId && existingImageMap.has(matchedImageId) && existingImageMap.get(matchedImageId) === img.imageUrl) {
+            continue;
+          }
+
+          // Otherwise, it must be a newly finalized media upload
+          const targetMediaId = img.mediaId;
+          if (!targetMediaId) {
+            throw new ValidationError('Existing image reference is invalid or does not belong to this product');
+          }
+
+          const registered = await client.query<{
+            owner_id: string; purpose: string; bucket_id: string; object_path: string; status: string;
+          }>(
+            'SELECT owner_id,purpose,bucket_id,object_path,status FROM media_uploads WHERE media_id=$1 FOR UPDATE',
+            [targetMediaId],
+          );
+          const r = registered.rows[0];
+          const path = r?.object_path;
+          const publicUrl = r && storageUrl
+            ? `${storageUrl}/storage/v1/object/public/${r.bucket_id}/${path}`
+            : '';
+          if (!r || r.owner_id !== context.user_id || r.purpose !== 'PRODUCT'
+            || r.bucket_id !== 'product-media' || (r.status !== 'FINALIZED' && r.status !== 'ATTACHED')
+            || !path?.startsWith(`shops/${context.shop_id}/products/${productId}/${targetMediaId}.`)
+            || (storageUrl && img.imageUrl !== publicUrl)) {
+            throw new ValidationError('Product image must reference a finalized upload owned by this seller and product');
+          }
+          if (r.status === 'FINALIZED') {
+            newMediaToAttach.push(targetMediaId);
+          }
+        }
+
+        await client.query('DELETE FROM product_images WHERE product_id = $1', [productId]);
+        for (const img of normalizedImages) {
+          await client.query(
+            'INSERT INTO product_images (image_id, product_id, image_url, sort_order) VALUES ($1, $2, $3, $4)',
+            [img.imageId || crypto.randomUUID(), productId, img.imageUrl, img.sortOrder],
+          );
+        }
+
+        for (const mediaId of newMediaToAttach) {
+          await attachFinalizedMedia(client, {
+            mediaId,
+            ownerId: context.user_id,
+            purpose: 'PRODUCT',
+            resource: { kind: 'PRODUCT', shopId: context.shop_id!, productId },
+          });
+        }
+      }
+    });
+    return await this.getSellerProduct(context, productId);
   }
 
   async updateProductStatus(
@@ -421,7 +660,7 @@ export class PgCatalogHttpService {
     }
 
     const prodRes = await this.pool.query(
-      'SELECT product_id, shop_id FROM products WHERE product_id = $1',
+      'SELECT product_id, shop_id, status FROM products WHERE product_id = $1',
       [productId],
     );
     if (prodRes.rows.length === 0) {
@@ -429,6 +668,9 @@ export class PgCatalogHttpService {
     }
     if (prodRes.rows[0].shop_id !== context.shop_id) {
       throw new ForbiddenError('Product belongs to another shop');
+    }
+    if (prodRes.rows[0].status === 'HIDDEN' && status === 'ACTIVE') {
+      throw new ForbiddenError('An Admin-hidden product cannot be reactivated by its Seller');
     }
 
     const updated = await this.products.updateStatus(productId, status as 'ACTIVE' | 'INACTIVE');

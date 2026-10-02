@@ -191,9 +191,10 @@ export class PgOrderRepository implements IOrderRepository {
     client?: PoolClient,
   ): Promise<void> {
     const executor = this.getExecutor(client);
+    const cancelReason = newStatus === 'CANCELLED' ? (history.reason || null) : null;
     await executor.query(
-      'UPDATE orders SET status = $1, updated_at = now() WHERE order_id = $2;',
-      [newStatus, orderId],
+      "UPDATE orders SET status = $1, cancel_reason = (CASE WHEN $1 = 'CANCELLED' THEN COALESCE($2, cancel_reason) ELSE cancel_reason END), updated_at = now() WHERE order_id = $3;",
+      [newStatus, cancelReason, orderId],
     );
 
     const historySql = `

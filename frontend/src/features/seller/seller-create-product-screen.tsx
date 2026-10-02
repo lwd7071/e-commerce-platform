@@ -19,6 +19,7 @@ export function SellerCreateProductScreen() {
   const showToast = useToast();
 
   const [categories, setCategories] = useState<CategoryItem[]>([]);
+  const [categoryError, setCategoryError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -31,13 +32,19 @@ export function SellerCreateProductScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
+    let active = true;
     categoryAdapter.getCategories().then((cats) => {
+      if (!active) return;
       setCategories(cats);
-      if (cats.length > 0 && !categoryId) {
-        setCategoryId(cats[0].id);
-      }
+      if (cats.length > 0) setCategoryId(cats[0].id);
+      else setCategoryError("Hiện chưa có danh mục thật khả dụng.");
+    }).catch(() => {
+      if (!active) return;
+      setCategories([]);
+      setCategoryError("Không thể tải danh mục thật. Vui lòng thử lại.");
     });
-  }, [categoryId]);
+    return () => { active = false; };
+  }, []);
 
   const handleAddVariant = () => {
     setVariants([
@@ -173,8 +180,10 @@ export function SellerCreateProductScreen() {
                   id="product-category"
                   value={categoryId}
                   onChange={(e) => setCategoryId(e.target.value)}
+                  disabled={categories.length === 0}
                   className="w-full h-11 min-h-[44px] rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 text-sm text-[var(--foreground)] focus:border-[var(--primary)] focus:outline-none"
                 >
+                  {categories.length === 0 && <option value="">Chưa có danh mục</option>}
                   {categories.map((cat) => (
                     <option key={cat.id} value={cat.id}>
                       {cat.name}
@@ -186,6 +195,7 @@ export function SellerCreateProductScreen() {
                     {errors.category_id}
                   </p>
                 )}
+                {categoryError && <p className="notice notice--error mt-2" role="alert">{categoryError}</p>}
               </div>
 
               <div>
@@ -320,7 +330,7 @@ export function SellerCreateProductScreen() {
               <Button
                 type="submit"
                 variant="primary"
-                disabled={isSubmitting}
+                disabled={isSubmitting || categories.length === 0}
                 className="w-full h-12 min-h-[44px] text-sm font-bold shadow-sm"
               >
                 {isSubmitting ? "Đang xử lý tạo sản phẩm..." : "Xác nhận đăng bán sản phẩm"}

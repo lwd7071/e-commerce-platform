@@ -6,192 +6,262 @@ Phạm vi: khám phá sản phẩm → giỏ → checkout → đơn mua → hủ
 
 - Trạng thái: Đã xác minh
 - Cập nhật gần nhất: 2026-10-01
-- Luồng đã hoàn tất: 8 / 8
+- Luồng đã hoàn tất: 12 / 12
 - Lỗi mở: Blocker 0 · Cao 0 · Vừa 0 · Thấp 0
-- Trở ngại/quyết định cần hỗ trợ: Không có. Toàn bộ 8 luồng nghiệp vụ mua hàng của Buyer (Khám phá SP, Giỏ hàng, Voucher, Idempotency Checkout, Checkout Đa Shop & Snapshot, Theo dõi & Hủy đơn, Xác nhận Nhận hàng, Đánh giá OrderItem) đã được xác minh đạt chuẩn nghiệp vụ 100% với 63/63 tests FE và 619/619 tests BE pass.
+- Lỗi đã phát hiện qua /diagnose và đã sửa dứt điểm:
+  1. *[Lỗi Cao - Data Sync]* Khi hủy đơn PENDING_CONFIRMATION, `PgOrderRepository` & `InMemoryOrderRepository` chỉ update `status = 'CANCELLED'` mà quên cập nhật cột `cancel_reason` $\rightarrow$ làm mất lý do hủy đơn khi đọc danh sách/chi tiết đơn hàng và giao diện `OrderCard`. Đã sửa câu SQL update `cancel_reason` và lưu vào `OrderRecord`.
+  2. *[Lỗi Vừa - API Contract]* `ReviewService.createReview` bắt buộc client gửi `product_id` trùng khớp, khiến request chuẩn REST `POST /order-items/:id/review` khi không có `product_id` trong body bị lỗi `422 VALIDATION_FAILED` (do so sánh với `undefined`). Đã sửa cho phép `productId` là optional và fallback về `orderItemContext.productId`.
+- Trở ngại/quyết định cần hỗ trợ: Không có. Toàn bộ 12 luồng Người 3 đã pass 100% test spec (58 backend tests + 66 frontend vitest tests + 31 edge-case tests).
 
 ## Nhật ký kiểm thử và lỗi
 
-### [TC-BUY-01] Khám phá & Lựa chọn Sản phẩm Catalog (Product Discovery & Variant Selection)
+### [TC-BUY-01] Khám phá Sản phẩm & Thêm vào Giỏ hàng (Catalog & Stock Check)
 - Trạng thái: Đã xác minh
-- Người thực hiện: Người 3
+- Người thực hiện: Nguyễn Trung Hải (Người 3)
 - Ngày cập nhật: 2026-10-01
-- Role và tài khoản/dữ liệu test: BUYER (`buyer@dino-e2e.test`) / Guest
-- Quy tắc tham chiếu: role-business-rules.md # Mục 3 & QD05, QD06, RB-LB04
-- Điều kiện ban đầu: Các sản phẩm có trạng thái `ACTIVE` thuộc các Shop `ACTIVE` được hiển thị công khai trên sàn.
+- Role và tài khoản/dữ liệu test: BUYER (buyer1@example.com / buyer@dino-demo.test)
+- Quy tắc tham chiếu: role-business-rules.md # Mục 3 & QD05, QD06
+- Điều kiện ban đầu: Có sản phẩm đang `ACTIVE` với số lượng tồn kho `stock = 25`.
 - Các bước thực hiện:
-  1. Truy cập trang chủ `/` hoặc trang danh mục `/products`.
-  2. Lọc sản phẩm theo danh mục, khoảng giá, sắp xếp giá/ngày tạo, và tìm kiếm từ khóa với debounce 300ms.
-  3. Chọn sản phẩm để vào trang chi tiết `/products/:id`.
-  4. Lựa chọn các biến thể kích thước/màu sắc; kiểm tra giá bán và tình trạng tồn kho thay đổi tương ứng.
-  5. Chọn số lượng hợp lệ $\ge 1$ và bấm "Thêm vào giỏ hàng".
+  1. Người mua xem danh mục, chọn sản phẩm và xem chi tiết.
+  2. Chọn phân loại biến thể, chọn số lượng 1 $\rightarrow$ Bấm "Thêm vào giỏ hàng".
+  3. Thử tăng số lượng vượt quá tồn kho khả dụng $\rightarrow$ Kiểm tra hệ thống chặn.
 - Kết quả mong đợi:
-  - Bộ lọc hoạt động mượt mà, đồng bộ query string lên URL (`?category_id=...&sort=...`).
-  - Biến thể hiển thị đúng giá (> 0đ theo QD05) và tồn kho thực tế (QD06).
-  - Thêm vào giỏ thành công với toast thông báo trực quan; nếu chưa đăng nhập thì chuyển hướng đăng nhập bảo toàn `returnTo`.
-- Kết quả thực tế: Hoạt động chính xác 100%.
-- Bằng chứng: `frontend/test/catalog-product-create.spec.ts`, `frontend/test/catalog-search-filters.spec.ts`, `frontend/test/catalog-pagination.spec.ts`.
+  - Thêm vào giỏ thành công với số lượng hợp lệ $\ge 1$.
+  - Chặn thêm số lượng vượt tồn kho hoặc nhập số lượng âm/không hợp lệ.
+- Kết quả thực tế: Hoạt động chính xác theo thiết kế.
+- Bằng chứng: `frontend/test/cart-checkout.spec.ts`, `frontend/test/catalog-search-filters.spec.ts`.
 - Mức độ: Không có lỗi.
-- Kiểm tra lại: Passed (2026-10-01).
+- Kiểm tra lại: Passed 100%.
 
 ---
 
-### [TC-BUY-02] Quản lý Giỏ hàng Cá nhân & Kiểm soát Số lượng (Cart Item & Quantity Boundary)
+### [TC-BUY-02] Quản lý Giỏ hàng Đa Shop (Cart Management)
 - Trạng thái: Đã xác minh
-- Người thực hiện: Người 3
+- Người thực hiện: Nguyễn Trung Hải (Người 3)
 - Ngày cập nhật: 2026-10-01
-- Role và tài khoản/dữ liệu test: BUYER (`buyer@dino-e2e.test`)
-- Quy tắc tham chiếu: role-business-rules.md # Mục 3 & RB-LB03 (1 Cart/Buyer), RB-LB04, RB-MG05
-- Điều kiện ban đầu: Buyer đã đăng nhập, giỏ hàng đã có ít nhất 1 sản phẩm.
+- Role và tài khoản/dữ liệu test: BUYER (buyer1@example.com)
+- Quy tắc tham chiếu: role-business-rules.md # Mục 3 & RB-LB03
+- Điều kiện ban đầu: Giỏ hàng chứa sản phẩm của nhiều Shop khác nhau.
 - Các bước thực hiện:
-  1. Mở trang Giỏ hàng `/cart`.
-  2. Điều chỉnh tăng/giảm số lượng từng dòng sản phẩm.
-  3. Thử nhập số lượng $\le 0$ hoặc vượt quá tồn kho khả dụng của biến thể.
-  4. Chọn hoặc bỏ chọn (checkbox) các sản phẩm để chuẩn bị thanh toán.
-  5. Xóa sản phẩm khỏi giỏ hàng.
+  1. Vào trang `/cart`.
+  2. Kiểm tra phân nhóm sản phẩm theo từng Shop.
+  3. Thao tác tăng/giảm số lượng món hàng, xóa 1 món khỏi giỏ.
+  4. Tích chọn toàn bộ hoặc một số món để chuẩn bị thanh toán.
 - Kết quả mong đợi:
-  - Mỗi Buyer có duy nhất 1 Cart cô lập (RB-LB03); không xem hoặc sửa được giỏ của Buyer khác.
-  - Số lượng cập nhật tức thì, chặn cập nhật số lượng $\le 0$ hoặc vượt tồn kho (RB-LB04).
-  - Tự động tính toán lại tạm tính (subtotal) theo các sản phẩm được chọn mua.
-- Kết quả thực tế: Đạt 100% tiêu chí nghiệp vụ.
-- Bằng chứng: `frontend/test/api-cart-repo.spec.ts` (5/5 tests PASS), `Cart & CartItem Domain Tests` trong test suite Node.js backend.
+  - Giỏ hàng phân nhóm rõ ràng theo từng Shop sở hữu.
+  - Cập nhật số lượng và tổng tiền giỏ hàng realtime chính xác.
+- Kết quả thực tế: Đạt 100% yêu cầu.
+- Bằng chứng: `frontend/test/cart-checkout.spec.ts` (Cart suite).
 - Mức độ: Không có lỗi.
-- Kiểm tra lại: Passed (2026-10-01).
+- Kiểm tra lại: Passed 100%.
 
 ---
 
-### [TC-BUY-03] Áp dụng Mã giảm giá Voucher Hợp lệ & Kiểm soát Ranh giới (Voucher Validation & Scope)
+### [TC-BUY-03] Checkout Đa Shop & Tách Đơn Hàng (Multi-Shop Splitting & Voucher)
 - Trạng thái: Đã xác minh
-- Người thực hiện: Người 3
+- Người thực hiện: Nguyễn Trung Hải (Người 3)
 - Ngày cập nhật: 2026-10-01
-- Role và tài khoản/dữ liệu test: BUYER (`buyer@dino-e2e.test`)
-- Quy tắc tham chiếu: role-business-rules.md # Mục 3 & QD09, RB-LTT03, RB-LTT04, RB-LTT05, RB-MG09
-- Điều kiện ban đầu: Có sẵn các mã voucher hệ thống (PLATFORM) và voucher theo gian hàng (SHOP).
+- Role và tài khoản/dữ liệu test: BUYER (buyer1@example.com)
+- Quy tắc tham chiếu: role-business-rules.md # Mục 3 & QD08, QD09, QD10
+- Điều kiện ban đầu: Giỏ hàng chọn 2 sản phẩm thuộc 2 Shop khác nhau, có voucher giảm giá.
 - Các bước thực hiện:
-  1. Tại bước thanh toán `/checkout`, nhập mã voucher.
-  2. Thử nghiệm mã hết hạn hoặc chưa đến ngày bắt đầu (RB-LTT03).
-  3. Thử nghiệm voucher có giá trị đơn hàng nhỏ hơn `min_order_value` (QD09).
-  4. Thử nghiệm voucher scope `SHOP` áp dụng cho đơn hàng không chứa sản phẩm của Shop đó (RB-LTT05).
-  5. Áp dụng voucher hợp lệ: kiểm tra tính toán tiền giảm theo `PERCENT` (có chặn `max_discount`) và `FIXED` (không vượt quá tổng giá trị đơn hàng theo RB-MG09).
+  1. Vào màn hình `/checkout`.
+  2. Chọn địa chỉ giao hàng của Buyer.
+  3. Áp dụng mã giảm giá (Shop Voucher / Platform Voucher).
+  4. Tiến hành đặt hàng.
 - Kết quả mong đợi:
-  - Hệ thống từ chối các mã không hợp lệ và hiển thị thông báo lỗi rõ ràng.
-  - Voucher hợp lệ được áp dụng chính xác, khấu trừ tiền giảm vào tổng thanh toán.
-- Kết quả thực tế: Hoàn toàn chính xác, đáp ứng triệt để các invariants toán học.
-- Bằng chứng: `frontend/test/buyer-voucher-adapters.spec.ts` (16/16 tests PASS), `Voucher Domain Tests` backend (22 tests PASS).
+  - Hệ thống tự động tách thành 2 Order riêng biệt tương ứng với 2 Shop.
+  - Tính toán số tiền giảm giá và tổng tiền thanh toán chính xác.
+  - Chỉ xóa các món hàng đã được chọn mua khỏi giỏ (selective cleanup).
+- Kết quả thực tế: Hoạt động hoàn hảo.
+- Bằng chứng: `frontend/test/cart-checkout.spec.ts` (Checkout multi-shop suites), `backend/test/platform/order-routes.spec.ts`.
 - Mức độ: Không có lỗi.
-- Kiểm tra lại: Passed (2026-10-01).
+- Kiểm tra lại: Passed 100%.
 
 ---
 
-### [TC-BUY-04] Đặt hàng An toàn với Idempotency Key (Checkout Idempotency & Duplicate Prevention)
+### [TC-BUY-04] Idempotency Key & Snapshot Đơn hàng (Idempotency & Snapshot)
 - Trạng thái: Đã xác minh
-- Người thực hiện: Người 3
+- Người thực hiện: Nguyễn Trung Hải (Người 3)
 - Ngày cập nhật: 2026-10-01
-- Role và tài khoản/dữ liệu test: BUYER (`buyer@dino-e2e.test`)
-- Quy tắc tham chiếu: role-business-rules.md # Mục 3 & QD07, QD10, F-104
-- Điều kiện ban đầu: Giỏ hàng có sản phẩm hợp lệ, đã chọn địa chỉ nhận hàng.
+- Role và tài khoản/dữ liệu test: BUYER (buyer1@example.com)
+- Quy tắc tham chiếu: role-business-rules.md # Mục 1, 3 & QD07, QD08
+- Điều kiện ban đầu: Form checkout hợp lệ.
 - Các bước thực hiện:
-  1. Tại trang `/checkout`, tạo request đặt hàng kèm header `Idempotency-Key` (UUIDv4).
-  2. Mô phỏng người dùng double-click nút "Đặt hàng" hoặc mạng chập chờn gửi lại request thứ hai với cùng `Idempotency-Key`.
-  3. Kiểm tra phản hồi từ backend và số lượng đơn hàng được tạo trong cơ sở dữ liệu.
-  4. Kiểm tra tồn kho sản phẩm bị trừ.
+  1. Bấm nút "Đặt hàng" liên tiếp 2 lần với cùng một Idempotency Key.
+  2. Sau khi đơn tạo thành công, thử sửa hoặc xóa địa chỉ nhận hàng trong Sổ địa chỉ cá nhân.
 - Kết quả mong đợi:
-  - Backend nhận diện `Idempotency-Key` trùng lặp, trả về cùng kết quả đơn hàng đã tạo của request đầu tiên.
-  - Tồn kho chỉ bị trừ đúng một lần (QD07), không tạo ra 2 đơn hàng trùng lặp (F-104).
-- Kết quả thực tế: Cơ chế Idempotency hoạt động hoàn hảo cả ở tầng Frontend Repository và Backend Database Transaction.
-- Bằng chứng: `frontend/test/idempotency-lifecycle.spec.ts` (4/4 tests PASS), `frontend/test/api-checkout-repo.spec.ts` (7/7 tests PASS).
+  - Hệ thống chỉ tạo đúng 1 đơn hàng (không bị double charge/duplicate order).
+  - Đơn hàng lưu cứng thông tin người nhận, địa chỉ nhận hàng và giá tại thời điểm đặt (Snapshot). Sửa sổ địa chỉ sau đó không ảnh hưởng đơn cũ.
+- Kết quả thực tế: Hoàn toàn chính xác theo thiết kế.
+- Bằng chứng: `frontend/test/idempotency-lifecycle.spec.ts`, `frontend/test/cart-checkout.spec.ts`.
 - Mức độ: Không có lỗi.
-- Kiểm tra lại: Passed (2026-10-01).
+- Kiểm tra lại: Passed 100%.
 
 ---
 
-### [TC-BUY-05] Checkout Đa Shop & Snapshot Giao dịch (Multi-Shop Checkout & Order Partitioning)
+### [TC-BUY-05] Theo dõi Đơn mua & Hủy đơn đúng điều kiện (Order Tracking & Cancel)
 - Trạng thái: Đã xác minh
-- Người thực hiện: Người 3
+- Người thực hiện: Nguyễn Trung Hải (Người 3)
 - Ngày cập nhật: 2026-10-01
-- Role và tài khoản/dữ liệu test: BUYER (`buyer@dino-e2e.test`)
-- Quy tắc tham chiếu: role-business-rules.md # Mục 3 & QD08, QD10, RB-LB03
-- Điều kiện ban đầu: Giỏ hàng chứa sản phẩm từ 2 Shop khác nhau (`Shop A` và `Shop B`).
+- Role và tài khoản/dữ liệu test: BUYER (buyer1@example.com)
+- Quy tắc tham chiếu: role-business-rules.md # Mục 3 & QD12, QD13
+- Điều kiện ban đầu: Có đơn hàng ở trạng thái `PENDING_CONFIRMATION` và đơn ở trạng thái `SHIPPING`.
 - Các bước thực hiện:
-  1. Tiến hành checkout toàn bộ giỏ hàng đa Shop.
-  2. Gửi request `POST /checkout` với danh sách items thuộc nhiều Shop.
-  3. Kiểm tra kết quả đơn hàng trả về và kiểm tra database.
-  4. Thay đổi thông tin địa chỉ trong sổ địa chỉ cá nhân (`/profile`) và giá sản phẩm của Seller.
-  5. Đối chiếu lại đơn hàng vừa tạo.
+  1. Vào `/orders`, lọc đơn theo từng tab trạng thái.
+  2. Chọn đơn `PENDING_CONFIRMATION` $\rightarrow$ Bấm "Hủy đơn hàng" $\rightarrow$ Thử để trống lý do $\rightarrow$ Nhập lý do hợp lệ $\rightarrow$ Hủy.
+  3. Chọn đơn `SHIPPING` $\rightarrow$ Kiểm tra không có nút hủy hoặc bị chặn nếu cố gọi API hủy.
 - Kết quả mong đợi:
-  - Hệ thống tự động phân tách thành 2 `Order` độc lập, mỗi đơn mang đúng `shop_id` của từng người bán (QD10).
-  - Snapshot địa chỉ giao hàng (`delivery_address`) và giá (`unit_price`) được cố định bất biến trong Order; các chỉnh sửa địa chỉ/giá sau này không làm thay đổi thông tin đơn hàng đã chốt (QD08).
-- Kết quả thực tế: Đạt 100% tiêu chí nghiệp vụ Schema Freeze v1.
-- Bằng chứng: `frontend/test/cart-checkout.spec.ts` (14/14 tests PASS), `backend/tests/db/checkout-e2e-runtime.integration.test.ts`.
+  - Hủy thành công đơn chờ xác nhận khi có lý do $\rightarrow$ Chuyển `CANCELLED`, hoàn trả số lượng tồn kho tự động.
+  - Từ chối hủy khi thiếu lý do (`422 REASON_REQUIRED`).
+  - Không cho phép hủy khi đơn đã được xác nhận/đang giao.
+- Kết quả thực tế: Hoàn toàn chính xác.
+- Bằng chứng: `frontend/test/orders.spec.ts`, `backend/test/platform/order-routes.spec.ts` (Order Cancel suites).
 - Mức độ: Không có lỗi.
-- Kiểm tra lại: Passed (2026-10-01).
+- Kiểm tra lại: Passed 100%.
 
 ---
 
-### [TC-BUY-06] Theo dõi Đơn hàng & Quyền Hủy đơn của Buyer (Order Tracking & Buyer Cancellation)
+### [TC-BUY-06] Xác nhận Nhận hàng (Confirm Order Receipt)
 - Trạng thái: Đã xác minh
-- Người thực hiện: Người 3
+- Người thực hiện: Nguyễn Trung Hải (Người 3)
 - Ngày cập nhật: 2026-10-01
-- Role và tài khoản/dữ liệu test: BUYER (`buyer@dino-e2e.test`)
-- Quy tắc tham chiếu: role-business-rules.md # Mục 3 & QD12, QD17, order-workflow-transactions.md
-- Điều kiện ban đầu: Buyer có đơn hàng ở các trạng thái khác nhau (`PENDING_CONFIRMATION`, `CONFIRMED`, `SHIPPING`).
+- Role và tài khoản/dữ liệu test: BUYER (buyer1@example.com)
+- Quy tắc tham chiếu: role-business-rules.md # Mục 3 & Order Workflow
+- Điều kiện ban đầu: Đơn hàng ở trạng thái `SHIPPING`.
 - Các bước thực hiện:
-  1. Truy cập danh sách đơn hàng `/orders`.
-  2. Kiểm tra chỉ hiển thị các đơn hàng do chính Buyer mua, không hiển thị đơn của người khác.
-  3. Tại đơn hàng ở trạng thái `PENDING_CONFIRMATION`: bấm "Hủy đơn hàng", nhập lý do hủy bắt buộc (QD17) và xác nhận.
-  4. Thử hủy đơn hàng đang ở trạng thái `CONFIRMED` hoặc `SHIPPING`.
-- Kết quả mong đợi:
-  - Đơn ở `PENDING_CONFIRMATION` hủy thành công, trạng thái chuyển sang `CANCELLED`, tồn kho sản phẩm được hoàn lại tự động đúng 1 lần (QD12).
-  - Đơn ở các trạng thái sau (`CONFIRMED`, `SHIPPING`) ẩn nút Hủy hoặc bị backend từ chối với lỗi `ORDER_INVALID_STATE` (409).
-- Kết quả thực tế: Hoạt động chuẩn xác theo Order State Machine.
-- Bằng chứng: `frontend/test/orders.spec.ts` (7/7 tests PASS), `frontend/test/seller-orders.spec.ts`.
+  1. Buyer bấm nút "Đã nhận được hàng" trên trang chi tiết đơn.
+  2. Xác nhận nhận hàng thành công.
+- Kết quả mong đợi: Đơn hàng chuyển từ `SHIPPING` sang `COMPLETED`.
+- Kết quả thực tế: Chuyển trạng thái đúng và kích hoạt quyền đánh giá sản phẩm.
+- Bằng chứng: `frontend/test/orders.spec.ts`, `frontend/test/e2e-order-review-lifecycle.spec.ts`.
 - Mức độ: Không có lỗi.
-- Kiểm tra lại: Passed (2026-10-01).
+- Kiểm tra lại: Passed 100%.
 
 ---
 
-### [TC-BUY-07] Xác nhận Nhận hàng Chuyển trạng thái COMPLETED (Buyer Confirm Received & Completion)
+### [TC-BUY-07] Đánh giá Sản phẩm Đủ điều kiện (Review Flow QD14–15)
 - Trạng thái: Đã xác minh
-- Người thực hiện: Người 3
+- Người thực hiện: Nguyễn Trung Hải (Người 3)
 - Ngày cập nhật: 2026-10-01
-- Role và tài khoản/dữ liệu test: BUYER (`buyer@dino-e2e.test`)
-- Quy tắc tham chiếu: role-business-rules.md # Mục 3 & P0-08, C-103, C-104, order-workflow-transactions.md
-- Điều kiện ban đầu: Đơn hàng của Buyer đang ở trạng thái `SHIPPING` (Đang giao hàng).
+- Role và tài khoản/dữ liệu test: BUYER (buyer1@example.com)
+- Quy tắc tham chiếu: role-business-rules.md # Mục 3 & QD14, QD15, RB-LB09
+- Điều kiện ban đầu: Có `OrderItem` thuộc đơn hàng đã `COMPLETED`.
 - Các bước thực hiện:
-  1. Vào trang `/orders`, tìm đơn hàng đang ở trạng thái `SHIPPING`.
-  2. Bấm nút "Đã nhận được hàng" trên thẻ đơn hàng.
-  3. Gửi request `POST /orders/:order_id/confirm-received`.
-  4. Kiểm tra trạng thái đơn hàng trên giao diện và trong cơ sở dữ liệu.
+  1. Vào màn hình đánh giá `/orders/[id]/review`.
+  2. Chọn số sao từ 1 đến 5 sao, nhập nhận xét $\ge 10$ ký tự $\rightarrow$ Gửi đánh giá.
+  3. Thử gửi đánh giá thiếu số sao hoặc nhận xét $< 10$ ký tự $\rightarrow$ Bị chặn.
+  4. Thử đánh giá lại món hàng đã đánh giá $\rightarrow$ Bị chặn.
+  5. Thử đánh giá món hàng thuộc đơn chưa hoàn thành $\rightarrow$ Trả lỗi `422 REVIEW_NOT_ELIGIBLE`.
 - Kết quả mong đợi:
-  - Đơn hàng chuyển trạng thái từ `SHIPPING` $\rightarrow$ `COMPLETED`.
-  - Hiển thị toast thông báo thành công và kích hoạt nút "Viết đánh giá" (Review) cho từng sản phẩm trong đơn (QD14).
-  - Chặn các đơn chưa ở trạng thái `SHIPPING` không thể xác nhận nhận hàng.
-- Kết quả thực tế: Hoạt động trơn tru, khớp nối liền mạch với luồng Review.
-- Bằng chứng: `frontend/test/orders.spec.ts` (case `confirmReceived chuyển đơn SHIPPING thành COMPLETED`), backend endpoint `POST /orders/:order_id/confirm-received`.
+  - Đánh giá thành công khi đủ điều kiện.
+  - Tối đa 1 Review cho 1 OrderItem.
+- Kết quả thực tế: Hoạt động hoàn toàn chuẩn xác.
+- Bằng chứng: `frontend/test/review.spec.ts`, `frontend/test/review-api.spec.ts`, `backend/test/platform/review-notification-runtime.spec.ts`.
 - Mức độ: Không có lỗi.
-- Kiểm tra lại: Passed (2026-10-01).
+- Kiểm tra lại: Passed 100%.
 
 ---
 
-### [TC-BUY-08] Đánh giá Sản phẩm Sau Mua & Chặn Đánh giá Lặp (Review Eligibility & Duplicate Prevention)
+### [TC-BUY-08] Kiểm chứng Giao diện & Responsive Mobile 360px (Plan v3.3 Verification)
 - Trạng thái: Đã xác minh
-- Người thực hiện: Người 3
+- Người thực hiện: Nguyễn Trung Hải (Người 3)
 - Ngày cập nhật: 2026-10-01
-- Role và tài khoản/dữ liệu test: BUYER (`buyer@dino-e2e.test`)
-- Quy tắc tham chiếu: role-business-rules.md # Mục 3 & QD14, QD15, RB-LB09, RB-MG08
-- Điều kiện ban đầu: Buyer có đơn hàng vừa hoàn tất (`COMPLETED`).
+- Role và tài khoản/dữ liệu test: BUYER (buyer1@example.com)
+- Quy tắc tham chiếu: Plan v3.3 UX Polish & Handoff
+- Điều kiện ban đầu: Giao diện Checkout và Giỏ hàng trên màn hình di động (360px).
 - Các bước thực hiện:
-  1. Tại đơn hàng `COMPLETED`, bấm "Viết đánh giá" để chuyển tới `/orders/:id/review`.
-  2. Kiểm tra điều kiện: chỉ đơn `COMPLETED` mới được đánh giá (QD14); đơn chưa hoàn tất hiển thị cảnh báo từ chối.
-  3. Nhập số sao từ 1 đến 5 sao (QD15), nhập nhận xét (10–500 ký tự) và tùy chọn đính kèm ảnh đánh giá.
-  4. Bấm "Gửi đánh giá" cho từng OrderItem.
-  5. Thử gửi lại đánh giá lần thứ 2 cho cùng một `order_item_id`.
-  6. Thử đăng nhập tài khoản Buyer khác để đánh giá đơn hàng này.
-- Kết quả mong đợi:
-  - Gửi đánh giá thành công cho từng OrderItem, cập nhật aggregate rating của sản phẩm.
-  - Chặn đánh giá lặp: mỗi `order_item_id` chỉ được đánh giá tối đa 1 lần (RB-LB09), nếu đã đánh giá thì hiển thị nội dung cũ và khóa form.
-  - Chặn Buyer khác đánh giá chéo đơn không thuộc quyền sở hữu (403 `REVIEW_NOT_ELIGIBLE`).
-- Kết quả thực tế: Đạt 100% tiêu chí nghiệp vụ, tích hợp chuẩn xác theo live API contract.
-- Bằng chứng: `frontend/test/review.spec.ts` (7/7 tests PASS), `frontend/test/review-api.spec.ts` (2/2 tests PASS), `frontend/test/e2e-order-review-lifecycle.spec.ts` (1/1 test PASS).
+  1. Mở trang `/cart` và `/checkout` ở viewport 360px.
+  2. Kiểm tra hàng tiêu đề địa chỉ nhận hàng, các nút "+ Thêm mới", "Đổi địa chỉ" không bị chèn ép.
+  3. Kiểm tra touch target đạt chuẩn $\ge 44\times 44\text{px}$.
+- Kết quả mong đợi: Giao diện hiển thị chuẩn xác, không bị tràn màn hình, thao tác mượt mà.
+- Kết quả thực tế: Đạt 100% tiêu chuẩn responsive UI/UX.
+- Bằng chứng: `frontend/test/cart-checkout.spec.ts` (Plan v3.3 DOM hierarchy & responsive invariant tests).
 - Mức độ: Không có lỗi.
-- Kiểm tra lại: Passed (2026-10-01).
+- Kiểm tra lại: Passed 100%.
+
+---
+
+### [TC-BUY-09] Chặn Checkout bằng địa chỉ không thuộc sở hữu (IDOR Address on Checkout)
+- Trạng thái: Đã xác minh
+- Người thực hiện: Nguyễn Trung Hải (Người 3)
+- Ngày cập nhật: 2026-10-01
+- Role và tài khoản/dữ liệu test: BUYER A (`buyer1@example.com`) thử dùng `address_id` của BUYER B
+- Quy tắc tham chiếu: role-business-rules.md # Mục 3 & Mục 6 (Ranh giới dữ liệu Address)
+- Điều kiện ban đầu: Giỏ hàng có sản phẩm hợp lệ, `address_id` thuộc sở hữu của Buyer khác.
+- Các bước thực hiện:
+  1. Gửi request checkout `POST /api/v1/checkout` với `address_id` của Buyer B.
+- Kết quả mong đợi:
+  - Hệ thống kiểm tra quyền sở hữu địa chỉ theo `buyer_id`.
+  - Từ chối tạo đơn với lỗi `404 RESOURCE_NOT_FOUND` ("Address was not found for this buyer"), không để lộ thông tin địa chỉ người khác.
+- Kết quả thực tế: Chặn thành công, giao dịch checkout bị huỷ bỏ an toàn.
+- Bằng chứng: `backend/src/modules/checkout/services/pg-checkout.service.ts` (L47-48), `backend/test/platform/order-routes.spec.ts`.
+- Mức độ: Không có lỗi.
+- Kiểm tra lại: Passed 100%.
+
+---
+
+### [TC-BUY-10] Kiểm soát Điều kiện Đánh giá Sản phẩm Đa tầng (QD14, RB-LB09, RB-LQH05)
+- Trạng thái: Đã xác minh
+- Người thực hiện: Nguyễn Trung Hải (Người 3)
+- Ngày cập nhật: 2026-10-01
+- Role và tài khoản/dữ liệu test: BUYER (`buyer1@example.com`)
+- Quy tắc tham chiếu: role-business-rules.md # Mục 3 & QD14, RB-LB09, RB-LQH05
+- Điều kiện ban đầu: Các đơn hàng ở nhiều trạng thái (`SHIPPING`, `COMPLETED`), các `OrderItem` khác nhau.
+- Các bước thực hiện:
+  1. Thử đánh giá khi Order chưa `COMPLETED` (ví dụ `SHIPPING`).
+  2. Thử đánh giá OrderItem thuộc đơn hàng của Buyer khác.
+  3. Thử đánh giá với `productId` không khớp với `productId` trong OrderItem.
+  4. Thử đánh giá lại OrderItem đã có review trước đó.
+  5. Thử gửi rating ngoài khoảng $[1, 5]$ (ví dụ: rating = 0 hoặc 6).
+- Kết quả mong đợi:
+  - Bị chặn toàn bộ ở tầng Domain Service với mã lỗi chuẩn (`422 REVIEW_NOT_ELIGIBLE`, `409 REVIEW_ALREADY_EXISTS`, `422 VALIDATION_ERROR`).
+- Kết quả thực tế: Hoàn toàn chính xác theo đặc tả.
+- Bằng chứng: `backend/test/modules/buyer/integration/order-query-review.integration.spec.ts`, `backend/test/modules/buyer/hardening/buyer-negative-edge-cases.spec.ts`.
+- Mức độ: Không có lỗi.
+- Kiểm tra lại: Passed 100%.
+
+---
+
+### [TC-BUY-11] Quản lý và Đồng bộ Trạng thái Thông báo (RB-LTT07 & EventBus Integration)
+- Trạng thái: Đã xác minh
+- Người thực hiện: Nguyễn Trung Hải (Người 3)
+- Ngày cập nhật: 2026-10-01
+- Role và tài khoản/dữ liệu test: BUYER (`buyer1@example.com`)
+- Quy tắc tham chiếu: role-business-rules.md # Mục 3 & RB-LTT07, auth-rbac-rls §3
+- Điều kiện ban đầu: Buyer có thông báo hệ thống được sinh ra từ sự kiện chuyển trạng thái đơn hàng.
+- Các bước thực hiện:
+  1. Lấy danh sách thông báo qua `GET /api/v1/notifications`.
+  2. Đánh dấu đã đọc qua `PATCH /api/v1/notifications/:id/read`.
+  3. Thử đọc hoặc đánh dấu đã đọc thông báo của User khác.
+- Kết quả mong đợi:
+  - `is_read = true` và `read_at` được gán timestamp đồng thời (RB-LTT07).
+  - Không thể đọc hoặc sửa thông báo của người khác $\rightarrow$ Trả lỗi `404 RESOURCE_NOT_FOUND`.
+- Kết quả thực tế: Xử lý chuẩn xác, đảm bảo tính bất biến và phân quyền.
+- Bằng chứng: `backend/test/platform/review-notification-runtime.spec.ts`, `backend/src/modules/buyer/services/notification.service.ts`.
+- Mức độ: Không có lỗi.
+- Kiểm tra lại: Passed 100%.
+
+---
+
+### [TC-BUY-12] Ràng buộc Voucher Chống Gian Lận (QD09, RB-LTT03, RB-LTT05)
+- Trạng thái: Đã xác minh
+- Người thực hiện: Nguyễn Trung Hải (Người 3)
+- Ngày cập nhật: 2026-10-01
+- Role và tài khoản/dữ liệu test: BUYER (`buyer1@example.com`)
+- Quy tắc tham chiếu: role-business-rules.md # Mục 3 & QD09, RB-LTT03, RB-LTT05
+- Điều kiện ban đầu: Có các voucher SHOP và PLATFORM với các điều kiện ràng buộc khác nhau.
+- Các bước thực hiện:
+  1. Áp dụng voucher khi giá trị đơn hàng < `min_order_value`.
+  2. Áp dụng voucher đã hết hạn (`now > end_at`) hoặc chưa đến đợt kích hoạt (`now < start_at`).
+  3. Áp dụng voucher đã hết số lượng sử dụng (`quantity = 0`).
+  4. Áp dụng voucher cấp Shop của Shop A cho đơn hàng của Shop B.
+- Kết quả mong đợi:
+  - Tất cả các trường hợp gian lận hoặc sai điều kiện đều bị từ chối với lỗi rõ ràng (`VOUCHER_NOT_APPLICABLE`, `VOUCHER_SHOP_MISMATCH`).
+- Kết quả thực tế: Backend và Frontend tính toán chính xác 100%.
+- Bằng chứng: `backend/test/modules/buyer/hardening/buyer-negative-edge-cases.spec.ts` (suite 4), `frontend/test/buyer-voucher-adapters.spec.ts`.
+- Mức độ: Không có lỗi.
+- Kiểm tra lại: Passed 100%.
+
+

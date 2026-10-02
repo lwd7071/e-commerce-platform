@@ -13,7 +13,9 @@ export interface ReviewItemInput {
   image_url?: string | null;
   rating: number; // 1..5
   comment: string; // 10..500 chars
-  images: string[]; // max 5 base64 or URLs
+  review_id?: string;
+  images: string[];
+  image_media_ids?: string[];
   is_anonymous: boolean;
 }
 

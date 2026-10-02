@@ -134,10 +134,11 @@ export class OrderLifecycleService {
       if (order.status !== 'SHIPPING') {
         throw new OrderDomainError('ORDER_INVALID_TRANSITION', 'Only SHIPPING orders can be confirmed as received.');
       }
+      const effectiveReason = actor.kind === 'ADMIN' ? reason : (reason ?? 'Buyer confirmed receipt');
 
       transitionOrder(
         { status: order.status, buyerId: order.buyerId, shopId: order.shopId },
-        { to: 'COMPLETED', actor, shipmentStatus: 'DELIVERED', reason: reason ?? 'Buyer confirmed receipt' },
+        { to: 'COMPLETED', actor, shipmentStatus: 'DELIVERED', reason: effectiveReason },
       );
 
       const history = createOrderStatusHistoryRecord({
@@ -145,7 +146,7 @@ export class OrderLifecycleService {
         oldStatus: order.status,
         newStatus: 'COMPLETED',
         changedBy: 'userId' in actor ? actor.userId : null,
-        reason: reason ?? 'Buyer confirmed receipt',
+        reason: effectiveReason,
       });
 
       await this.orderRepo.updateStatus(orderId, 'COMPLETED', history, client);

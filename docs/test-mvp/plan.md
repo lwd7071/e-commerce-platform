@@ -50,11 +50,11 @@ Thay `Người 1…5` bằng tên thành viên khi bắt đầu. Mỗi người 
 
 | Người | Trạng thái | Luồng đã chạy | Lỗi mở (Blocker/Cao/Vừa/Thấp) | Cập nhật gần nhất |
 |---|---|---|---|---|
-| Người 1 | Đã xác minh | 6 luồng Guest, Đăng ký/nhập, returnTo, Logout, Chặn Private API & LOCKED | 0 (B:0, C:0, V:0, T:0) | 2026-10-01 |
-| Người 2 | Chưa bắt đầu | — | — | — |
-| Người 3 | Đã xác minh | 8 luồng Giỏ hàng, Checkout Đa Shop, Idempotency, Quản lý đơn & Đánh giá | 0 (B:0, C:0, V:0, T:0) | 2026-10-01 |
-| Người 4 | Đã xác minh | 7 luồng Shop PENDING, SP/SKU/Tồn kho, Media Storage, State Machine & Chặn chéo Shop | 0 (B:0, C:0, V:0, T:0) | 2026-10-01 |
-| Người 5 | Đã xác minh | 7 luồng Admin, Moderation, RBAC, Audit & Dashboard UI | 1 Thấp (Góp ý nhãn KPI) | 2026-10-01 |
+| Người 1 | Đã xác minh | 10 luồng: Guest, Đăng ký/nhập, returnTo, Logout, Chặn Private API & LOCKED, Email Conflict, Token Verification, Public Reviews, Redaction | 0 (B:0, C:0, V:0, T:0) | 2026-10-01 |
+| Người 2 | Đã xác minh | 10 luồng: Hồ sơ, Avatar, CRUD Địa chỉ, Địa chỉ mặc định (RB-LB05), Snapshot, Quyền sở hữu, RBAC, Unknown Fields, Resiliency, Missing State (Đã fix 3 lỗi) | 0 (B:0, C:0, V:0, T:0) | 2026-10-01 |
+| Người 3 | Đã xác minh | 12 luồng: Giỏ hàng, Checkout Đa Shop, Idempotency, Quản lý đơn, Nhận hàng, Đánh giá (QD14–15), Responsive 360px, IDOR Address Checkout, Guard Đánh giá đa tầng, Notification sync (RB-LTT07), Voucher Chống gian lận (Đã fix 2 lỗi) | 0 (B:0, C:0, V:0, T:0) | 2026-10-01 |
+| Người 4 | Đã xác minh | 7 luồng: Shop PENDING, SP/SKU/Tồn kho, Media Storage, State Machine & Chặn chéo Shop (Đã fix 1 lỗi State Machine) | 0 (B:0, C:0, V:0, T:0) | 2026-10-01 |
+| Người 5 | Đã xác minh | 8 luồng: Admin, Moderation, RBAC, Audit, Dashboard UI & Order Commands (Đã fix 1 lỗi logic FE-BE missing reason) | 1 Thấp (Góp ý nhãn KPI) | 2026-10-01 |
 
 ## Tiêu chí hoàn thành
 

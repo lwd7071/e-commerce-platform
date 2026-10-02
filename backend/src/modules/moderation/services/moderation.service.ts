@@ -3,6 +3,8 @@ import type { IAuditPort } from '../../../contracts/audit.port.ts';
 import type {
   AdminShopItem,
   AdminUserItem,
+  AdminModerationProduct,
+  AdminModerationReview,
   ITargetLookupRepository,
   ITransactionManager,
   ModerateTargetCommand,
@@ -91,6 +93,22 @@ export class ModerationService {
           throw new InvalidStateTransitionError('SHOP_ALREADY_LOCKED', 'Shop is already locked');
         }
       }
+    } else if (cmd.target_type === 'PRODUCT') {
+      const currentStatus = await this.targetRepo.getProductStatus?.(cleanTargetId);
+      if (cmd.action === 'HIDE' && currentStatus !== 'ACTIVE') {
+        throw new InvalidStateTransitionError('PRODUCT_NOT_ACTIVE', 'Only active products can be hidden');
+      }
+      if (cmd.action === 'RESTORE' && currentStatus !== 'HIDDEN') {
+        throw new InvalidStateTransitionError('PRODUCT_NOT_HIDDEN', 'Only hidden products can be restored');
+      }
+    } else if (cmd.target_type === 'REVIEW') {
+      const currentStatus = await this.targetRepo.getReviewStatus?.(cleanTargetId);
+      if (cmd.action === 'HIDE' && currentStatus !== 'VISIBLE') {
+        throw new InvalidStateTransitionError('REVIEW_NOT_VISIBLE', 'Only visible reviews can be hidden');
+      }
+      if (cmd.action === 'RESTORE' && currentStatus !== 'HIDDEN') {
+        throw new InvalidStateTransitionError('REVIEW_NOT_HIDDEN', 'Only hidden reviews can be restored');
+      }
     }
 
     // 6. Bước 6 (Atomic Transaction Execution, QD20)
@@ -104,7 +122,12 @@ export class ModerationService {
       if (cmd.target_type === 'USER') {
         const newStatus = cmd.action === 'LOCK' ? 'LOCKED' : 'ACTIVE';
         updateResult = await this.targetRepo.updateUserStatus(trx, cleanTargetId, newStatus);
-      } else if (cmd.target_type === 'SHOP' && this.targetRepo.updateShopStatus) {
+      } else if (cmd.target_type === 'SHOP') {
+        if (cmd.action === 'APPROVE' && !(await this.targetRepo.hasRequiredShopProfile(trx, cleanTargetId))) {
+          throw new ValidationFailedError('Shop requires a pickup address and contact phone before approval', {
+            fields: ['pickup_address', 'contact_phone'],
+          });
+        }
         const newShopStatus = cmd.action === 'LOCK' ? 'LOCKED' : 'ACTIVE';
         const shopRes = await this.targetRepo.updateShopStatus(trx, cleanTargetId, newShopStatus);
         updateResult = {
@@ -113,6 +136,12 @@ export class ModerationService {
           status: (shopRes.status === 'LOCKED' ? 'LOCKED' : 'ACTIVE') as unknown as UserStatus,
           updated_at: shopRes.updated_at
         };
+      } else if (cmd.target_type === 'PRODUCT' && this.targetRepo.updateProductStatus) {
+        const productRes = await this.targetRepo.updateProductStatus(trx, cleanTargetId, cmd.action === 'HIDE' ? 'HIDDEN' : 'ACTIVE');
+        updateResult = { user_id: cleanTargetId, product_id: productRes.product_id, status: productRes.status, updated_at: productRes.updated_at };
+      } else if (cmd.target_type === 'REVIEW' && this.targetRepo.updateReviewStatus) {
+        const reviewRes = await this.targetRepo.updateReviewStatus(trx, cleanTargetId, cmd.action === 'HIDE' ? 'HIDDEN' : 'VISIBLE');
+        updateResult = { user_id: cleanTargetId, review_id: reviewRes.review_id, status: reviewRes.status, updated_at: reviewRes.updated_at };
       }
 
       // Record in moderation_records
@@ -220,6 +249,22 @@ export class ModerationService {
       return this.targetRepo.listUsers(params);
     }
     return [];
+  }
+
+  public async listModerationProducts(params?: { status?: string; search?: string }): Promise<AdminModerationProduct[]> {
+    return this.targetRepo.listModerationProducts?.(params) ?? [];
+  }
+
+  public async listModerationReviews(params?: { status?: string; search?: string }): Promise<AdminModerationReview[]> {
+    return this.targetRepo.listModerationReviews?.(params) ?? [];
+  }
+
+  public async getUserDetail(userId: string): Promise<AdminUserItem | null> {
+    return this.targetRepo.getUserDetail?.(userId) ?? null;
+  }
+
+  public async getShopDetail(shopId: string): Promise<AdminShopItem | null> {
+    return this.targetRepo.getShopDetail?.(shopId) ?? null;
   }
 
   private async verifyTargetExists(targetType: ModerationTargetType, targetId: string): Promise<void> {

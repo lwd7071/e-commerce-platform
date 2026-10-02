@@ -22,16 +22,13 @@ export function AdminCategoriesScreen() {
 
   // Add Category Modal State
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<CategoryItem | null>(null);
   const [newCatName, setNewCatName] = useState("");
   const [newCatParentId, setNewCatParentId] = useState<string>("");
   const [newCatDescription, setNewCatDescription] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Delete Category Dialog State
-  const [deletingCat, setDeletingCat] = useState<CategoryItem | null>(null);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
 
   // Toast State
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
@@ -112,7 +109,7 @@ export function AdminCategoriesScreen() {
     }
   };
 
-  const handleCreateCategory = async (e: React.FormEvent) => {
+  const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCatName.trim()) {
       setFormError("Vui lòng nhập tên ngành hàng / danh mục.");
@@ -122,14 +119,21 @@ export function AdminCategoriesScreen() {
     setIsSubmitting(true);
     setFormError(null);
     try {
-      const created = await adminRepository.createCategory({
-        name: newCatName.trim(),
-        parentId: newCatParentId ? newCatParentId : null,
-        description: newCatDescription.trim() || null,
-      });
+      const saved = editingCategory
+        ? await adminRepository.updateCategory(editingCategory.id, {
+            name: newCatName.trim(),
+            parentId: newCatParentId ? newCatParentId : null,
+            description: newCatDescription.trim() || null,
+          })
+        : await adminRepository.createCategory({
+            name: newCatName.trim(),
+            parentId: newCatParentId ? newCatParentId : null,
+            description: newCatDescription.trim() || null,
+          });
 
-      showToast(`Đã thêm danh mục "${created.name}" thành công!`);
+      showToast(editingCategory ? `Đã cập nhật danh mục "${saved.name}".` : `Đã thêm danh mục "${saved.name}" thành công!`);
       setShowAddModal(false);
+      setEditingCategory(null);
       setNewCatName("");
       setNewCatParentId("");
       setNewCatDescription("");
@@ -141,25 +145,8 @@ export function AdminCategoriesScreen() {
     }
   };
 
-  const handleConfirmDelete = async () => {
-    if (!deletingCat) return;
-
-    setIsDeleting(true);
-    setDeleteError(null);
-    try {
-      await adminRepository.deleteCategory(deletingCat.id);
-      showToast(`Đã xóa danh mục "${deletingCat.name}"`);
-      setDeletingCat(null);
-      await fetchCategoriesData();
-    } catch (err: unknown) {
-      setDeleteError(err instanceof Error ? err.message : "Xóa danh mục thất bại.");
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
   // Root categories eligible to be parent (strictly max 2 levels per RB-KN04)
-  const rootCategories = categories.filter((c) => c.parentId === null);
+  const rootCategories = categories.filter((c) => c.parentId === null && c.id !== editingCategory?.id);
 
   return (
     <ProtectedPage allowedRoles={["ADMIN"]}>
@@ -200,7 +187,11 @@ export function AdminCategoriesScreen() {
           <Button
             variant="primary"
             className="text-xs py-2 px-4 shrink-0 flex items-center gap-1.5"
-            onClick={() => {
+          onClick={() => {
+            setEditingCategory(null);
+            setNewCatName("");
+            setNewCatParentId("");
+            setNewCatDescription("");
               setShowAddModal(true);
               setFormError(null);
             }}
@@ -320,22 +311,20 @@ export function AdminCategoriesScreen() {
 
                     {/* Actions for Root Category */}
                     <div className="flex items-center gap-2 self-end sm:self-center">
+                      <Button variant="ghost" className="text-xs py-1 px-3" onClick={() => {
+                        setEditingCategory(rootNode);
+                        setNewCatName(rootNode.name);
+                        setNewCatParentId(rootNode.parentId ?? "");
+                        setNewCatDescription(rootNode.description ?? "");
+                        setFormError(null);
+                        setShowAddModal(true);
+                      }}>Sửa</Button>
                       <Button
                         variant={isInactive ? "secondary" : "ghost"}
                         className="text-xs py-1 px-3"
                         onClick={() => handleToggleStatus(rootNode)}
                       >
                         {isInactive ? "Kích hoạt" : "Tạm ẩn"}
-                      </Button>
-                      <Button
-                        variant="danger"
-                        className="text-xs py-1 px-2.5 text-[var(--danger-text)]"
-                        onClick={() => {
-                          setDeletingCat(rootNode);
-                          setDeleteError(null);
-                        }}
-                      >
-                        Xóa
                       </Button>
                     </div>
                   </div>
@@ -375,22 +364,20 @@ export function AdminCategoriesScreen() {
                               </div>
 
                               <div className="flex items-center gap-1 shrink-0">
+                                <button type="button" onClick={() => {
+                                  setEditingCategory(child);
+                                  setNewCatName(child.name);
+                                  setNewCatParentId(child.parentId ?? "");
+                                  setNewCatDescription(child.description ?? "");
+                                  setFormError(null);
+                                  setShowAddModal(true);
+                                }} className="text-[11px] font-semibold text-[var(--subtext)] hover:text-[var(--foreground)] px-2 py-1 rounded hover:bg-[var(--card-muted)] transition-colors cursor-pointer">Sửa</button>
                                 <button
                                   type="button"
                                   onClick={() => handleToggleStatus(child)}
                                   className="text-[11px] font-semibold text-[var(--subtext)] hover:text-[var(--foreground)] px-2 py-1 rounded hover:bg-[var(--card-muted)] transition-colors cursor-pointer"
                                 >
                                   {isChildInactive ? "Bật" : "Ẩn"}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setDeletingCat(child);
-                                    setDeleteError(null);
-                                  }}
-                                  className="text-[11px] font-semibold text-[var(--danger-text)] hover:underline px-2 py-1 rounded hover:bg-[var(--danger-surface)] transition-colors cursor-pointer"
-                                >
-                                  Xóa
                                 </button>
                               </div>
                             </div>
@@ -411,8 +398,8 @@ export function AdminCategoriesScreen() {
           onOpenChange={(open) => {
             if (!open && !isSubmitting) setShowAddModal(false);
           }}
-          title="Thêm danh mục ngành hàng mới"
-          description="Khởi tạo nhóm ngành hàng tuân thủ quy chuẩn cây 2 cấp (RB-KN04)."
+          title={editingCategory ? "Chỉnh sửa danh mục ngành hàng" : "Thêm danh mục ngành hàng mới"}
+          description="Quản lý danh mục theo cây tối đa hai cấp (RB-KN04)."
           footer={
             <div className="flex justify-end gap-3 w-full">
               <Button
@@ -425,14 +412,14 @@ export function AdminCategoriesScreen() {
               <Button
                 variant="primary"
                 loading={isSubmitting}
-                onClick={handleCreateCategory}
+                onClick={handleSaveCategory}
               >
-                Tạo danh mục
+                {editingCategory ? "Lưu thay đổi" : "Tạo danh mục"}
               </Button>
             </div>
           }
         >
-          <form onSubmit={handleCreateCategory} className="space-y-4">
+          <form onSubmit={handleSaveCategory} className="space-y-4">
             {formError && (
               <div className="notice notice--warning" role="alert">
                 <Icon name="warning" />
@@ -487,45 +474,6 @@ export function AdminCategoriesScreen() {
           </form>
         </Dialog>
 
-        {/* DIALOG: Xác nhận xóa danh mục */}
-        <Dialog
-          open={Boolean(deletingCat)}
-          onOpenChange={(open) => {
-            if (!open && !isDeleting) setDeletingCat(null);
-          }}
-          title="Xác nhận xóa danh mục"
-          description={`Bạn có chắc chắn muốn xóa danh mục "${deletingCat?.name}"?`}
-          footer={
-            <div className="flex justify-end gap-3 w-full">
-              <Button
-                variant="ghost"
-                disabled={isDeleting}
-                onClick={() => setDeletingCat(null)}
-              >
-                Hủy bỏ
-              </Button>
-              <Button
-                variant="danger"
-                loading={isDeleting}
-                onClick={handleConfirmDelete}
-              >
-                Xác nhận xóa
-              </Button>
-            </div>
-          }
-        >
-          <div className="space-y-3">
-            {deleteError && (
-              <div className="notice notice--warning" role="alert">
-                <Icon name="warning" />
-                <p className="text-xs">{deleteError}</p>
-              </div>
-            )}
-            <p className="text-xs text-[var(--subtext)]">
-              Hành động này sẽ xóa danh mục khỏi hệ thống. Lưu ý: Không thể xóa danh mục cha nếu đang chứa các danh mục con trực thuộc.
-            </p>
-          </div>
-        </Dialog>
       </div>
     </ProtectedPage>
   );

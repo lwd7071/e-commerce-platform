@@ -12,8 +12,8 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Skeleton, ErrorState } from "@/components/ui/data-states";
 import { ReviewMediaUpload } from "./review-media-upload";
+import type { ReviewImageUpload } from "./review-media-upload";
 import { reviewRepository } from "./review.repository";
-import { features } from "@/lib/config/features";
 import { RATING_LABELS, type ReviewRecord } from "./review.types";
 
 interface ReviewScreenProps {
@@ -24,7 +24,8 @@ interface ItemReviewFormState {
   rating: number;
   hoverRating: number;
   comment: string;
-  images: string[];
+  reviewId: string;
+  images: ReviewImageUpload[];
   isAnonymous: boolean;
   error: string | null;
 }
@@ -64,6 +65,7 @@ export function ReviewScreen({ orderId }: ReviewScreenProps) {
               rating: 5,
               hoverRating: 0,
               comment: "",
+              reviewId: crypto.randomUUID(),
               images: [],
               isAnonymous: false,
               error: null,
@@ -150,7 +152,9 @@ export function ReviewScreen({ orderId }: ReviewScreenProps) {
           image_url: item.image_url,
           rating: state.rating,
           comment: state.comment.trim(),
-          images: state.images,
+          review_id: state.reviewId,
+          images: state.images.map(({ url }) => url),
+          image_media_ids: state.images.flatMap(({ mediaId }) => mediaId ? [mediaId] : []),
           is_anonymous: state.isAnonymous,
         };
       });
@@ -390,6 +394,7 @@ export function ReviewScreen({ orderId }: ReviewScreenProps) {
                   rating: 5,
                   hoverRating: 0,
                   comment: "",
+                  reviewId: crypto.randomUUID(),
                   images: [],
                   isAnonymous: false,
                   error: null,
@@ -528,22 +533,15 @@ export function ReviewScreen({ orderId }: ReviewScreenProps) {
                     </div>
 
                     {/* Media Upload & Preview Component (P-607c) */}
-                    {features.useMock() ? (
-                      <ReviewMediaUpload
-                        images={state.images}
-                        onChange={(newImgs) =>
-                          updateItemForm(item.id, { images: newImgs })
-                        }
-                        maxImages={3}
-                      />
-                    ) : (
-                      <p className="text-xs text-[var(--subtext)]" role="status">
-                        Ảnh đánh giá chưa khả dụng; bạn vẫn có thể gửi sao và nhận xét.
-                      </p>
-                    )}
+                    <ReviewMediaUpload
+                      images={state.images}
+                      reviewId={state.reviewId}
+                      onChange={(newImgs) => updateItemForm(item.id, { images: newImgs })}
+                      maxImages={3}
+                    />
 
                     {/* Anonymous Checkbox */}
-                    {features.useMock() && <div className="pt-2 border-t border-[var(--border)] flex items-center justify-between">
+                    <div className="pt-2 border-t border-[var(--border)] flex items-center justify-between">
                       <div>
                         <span className="text-xs font-bold text-[var(--foreground)] block">
                           Đánh giá ẩn danh
@@ -563,7 +561,7 @@ export function ReviewScreen({ orderId }: ReviewScreenProps) {
                         className="w-4 h-4 accent-[var(--primary-active)] cursor-pointer"
                         id={`anonymous-${item.id}`}
                       />
-                    </div>}
+                    </div>
                   </section>
                 );
               })}

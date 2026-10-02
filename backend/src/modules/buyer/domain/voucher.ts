@@ -138,6 +138,11 @@ export function evaluateVoucher(
     });
   }
 
+  // 0. Voucher phải đang ở trạng thái ACTIVE
+  if (voucher.status !== 'ACTIVE') {
+    throw new VoucherNotApplicableError('Voucher không còn hoạt động (đã bị vô hiệu hóa).');
+  }
+
   // 1. RB-LTT05: Kiểm tra scope consistency
   if (voucher.scope === 'PLATFORM' && voucher.shopId !== null) {
     throw new ValidationError('Voucher cấp PLATFORM thì ShopID phải là NULL (RB-LTT05).');

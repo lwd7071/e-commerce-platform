@@ -168,6 +168,10 @@ dbDescribe('Checkout E2E Runtime & Invariants Gate (B-408 / A-206 on real Postgr
     const orderShops = res.body.data.orders.map((o: { shop_id: string }) => o.shop_id).sort();
     expect(orderShops).toEqual([shop1Id, shop2Id].sort());
 
+    const sellerNotifications = await pool.query(`SELECT recipient_id,title,content FROM notifications WHERE recipient_id=ANY($1::uuid[]) AND title='Có đơn hàng mới'`, [[seller1Id, seller2Id]]);
+    expect(sellerNotifications.rows).toHaveLength(2);
+    expect(sellerNotifications.rows.map((row) => row.recipient_id).sort()).toEqual([seller1Id, seller2Id].sort());
+
     // Invariant 2: Cart items check - selected are removed, unselected remains
     const remainingCartItems = await pool.query('SELECT cart_item_id, is_selected FROM cart_items WHERE cart_id = $1', [cart.cartId]);
     expect(remainingCartItems.rows).toHaveLength(1);

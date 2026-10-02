@@ -16,7 +16,8 @@ const EXPECTED_BUSINESS_TABLES = [
   'product_images', 'product_variants', 'carts', 'cart_items', 'orders',
   'order_items', 'order_status_history', 'payments', 'shipments', 'vouchers',
   'voucher_usages', 'reviews', 'review_images', 'notifications',
-  'moderation_records', 'admin_logs', 'media_uploads',
+  'moderation_records', 'admin_logs',
+  'admin_notification_campaigns', 'admin_notification_campaign_recipients',
 ];
 
 const runRemoteDbTests = parseRunRemoteDbTests(process.env);
@@ -134,7 +135,7 @@ remoteDescribe('Migration State & Database Replay Acceptance (T3 Remote)', () =>
     }
   }, 15_000);
 
-  it('confirms the database schema contains exactly 22 business tables and 1 operational table', async () => {
+  it('confirms the database schema contains exactly 24 business tables and 2 operational tables', async () => {
     if (!pool) throw new Error('Pool not initialized');
 
     const result = await pool.query<{ table_name: string }>(
@@ -142,21 +143,22 @@ remoteDescribe('Migration State & Database Replay Acceptance (T3 Remote)', () =>
        FROM information_schema.tables
        WHERE table_schema = 'public'
          AND table_type = 'BASE TABLE'
-         AND table_name NOT IN ('_prisma_migrations', 'api_idempotency_records')
+         AND table_name NOT IN ('_prisma_migrations', 'api_idempotency_records', 'media_uploads')
        ORDER BY table_name`,
     );
 
     const actualTables = result.rows.map((r) => r.table_name).sort();
     expect(actualTables).toEqual([...EXPECTED_BUSINESS_TABLES].sort());
 
-    // Xác nhận bảng vận hành thứ 23 tồn tại riêng
+    // Xác nhận các bảng vận hành tồn tại riêng
     const opResult = await pool.query<{ table_name: string }>(
       `SELECT table_name
        FROM information_schema.tables
        WHERE table_schema = 'public'
-         AND table_name = 'api_idempotency_records'`,
+         AND table_name IN ('api_idempotency_records', 'media_uploads')
+       ORDER BY table_name`,
     );
-    expect(opResult.rows).toHaveLength(1);
+    expect(opResult.rows.map((row) => row.table_name)).toEqual(['api_idempotency_records', 'media_uploads']);
   }, 15_000);
 
   it('validates public schema has no orphaned constraints or broken foreign keys', async () => {

@@ -1,29 +1,34 @@
 import { apiClient } from "@/lib/api/client";
 import { features } from "@/lib/config/features";
-import { categoryAdapter, DEV_CATEGORY_FIXTURES, type CategoryItem, type CategoryTreeNode } from "@/lib/adapters/category.adapter";
+import { DEV_CATEGORY_FIXTURES, type CategoryItem, type CategoryTreeNode } from "@/lib/adapters/category.adapter";
 import {
   mockOrderRepository,
-  mockCatalogRepository,
 } from "@/lib/repositories/repository-factory";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
 import type {
   UserAccount,
   PlatformShop,
   ModerationProduct,
+  ModerationReview,
   AdminAuditLog,
   DashboardStats,
-  SellerKPIStats,
 } from "./admin.types";
 
 export interface IAdminRepository {
   getDashboardStats(): Promise<DashboardStats>;
   getUsers(): Promise<UserAccount[]>;
+  getUserDetail(userId: string): Promise<UserAccount>;
+  getUsersPage(params?: { status?: string; role?: string; search?: string; cursor?: string; limit?: number }): Promise<{ items: UserAccount[]; next_cursor: string | null; has_more: boolean }>;
   lockUser(userId: string, reason: string, actor?: string): Promise<UserAccount>;
   unlockUser(userId: string, actor?: string): Promise<UserAccount>;
   getShops(): Promise<PlatformShop[]>;
+  getShopDetail(shopId: string): Promise<PlatformShop & { contactPhone?: string | null; pickupAddress?: string | null; description?: string | null }>;
+  getShopsPage(params?: { status?: string; search?: string; cursor?: string; limit?: number }): Promise<{ items: PlatformShop[]; next_cursor: string | null; has_more: boolean }>;
   lockShop(shopId: string, reason: string, actor?: string): Promise<PlatformShop>;
   unlockShop(shopId: string, actor?: string): Promise<PlatformShop>;
   getModerationProducts(): Promise<ModerationProduct[]>;
+  getModerationReviews(): Promise<ModerationReview[]>;
+  moderateReview(reviewId: string, status: "VISIBLE" | "HIDDEN", reason: string): Promise<ModerationReview>;
   moderateProduct(
     productId: string,
     status: "ACTIVE" | "HIDDEN",
@@ -31,7 +36,6 @@ export interface IAdminRepository {
     actor?: string
   ): Promise<ModerationProduct>;
   getAuditLogs(): Promise<AdminAuditLog[]>;
-  getSellerKPI(shopId?: string): Promise<SellerKPIStats>;
 
   // Category management (A-709)
   getCategories(): Promise<CategoryItem[]>;
@@ -41,8 +45,8 @@ export interface IAdminRepository {
     parentId?: string | null;
     description?: string | null;
   }): Promise<CategoryItem>;
+  updateCategory(id: string, input: { name?: string; parentId?: string | null; description?: string | null }): Promise<CategoryItem>;
   toggleCategoryStatus(id: string): Promise<CategoryItem>;
-  deleteCategory(id: string): Promise<boolean>;
 }
 
 // Initial mock data store
@@ -125,7 +129,6 @@ const initialModerationProducts: ModerationProduct[] = [
     shopName: "Dino Beauty Official",
     price: "280000.00",
     status: "ACTIVE",
-    reports: 0,
   },
   {
     id: "prod_mod_02",
@@ -133,7 +136,6 @@ const initialModerationProducts: ModerationProduct[] = [
     shopName: "Dino Tech Store",
     price: "850000.00",
     status: "ACTIVE",
-    reports: 0,
   },
   {
     id: "prod_mod_03",
@@ -141,8 +143,6 @@ const initialModerationProducts: ModerationProduct[] = [
     shopName: "Cửa Hàng Hàng Giả Kém Chất Lượng",
     price: "99000.00",
     status: "HIDDEN",
-    reports: 12,
-    reportReason: "Hàng giả nhái thương hiệu quốc tế",
   },
 ];
 
@@ -217,6 +217,58 @@ export class MockAdminRepository implements IAdminRepository {
     return [...mockUsers];
   }
 
+  async getUserDetail(userId: string): Promise<UserAccount> {
+    const found = mockUsers.find((u) => u.id === userId);
+    if (!found) throw new Error("Không tìm thấy người dùng.");
+    return { ...found };
+  }
+
+  async getUsersPage(params?: { status?: string; role?: string; search?: string; cursor?: string; limit?: number }): Promise<{ items: UserAccount[]; next_cursor: string | null; has_more: boolean }> {
+    let list = [...mockUsers];
+    if (params?.role && params.role !== "ALL") list = list.filter((u) => u.role === params.role);
+    if (params?.status && params.status !== "ALL") list = list.filter((u) => u.status === params.status);
+    if (params?.search?.trim()) {
+      const q = params.search.toLowerCase();
+      list = list.filter((u) => u.email.toLowerCase().includes(q) || u.fullName.toLowerCase().includes(q));
+    }
+    const limit = params?.limit ?? 20;
+    return {
+      items: list.slice(0, limit),
+      next_cursor: list.length > limit ? "mock_next_cursor" : null,
+      has_more: list.length > limit,
+    };
+  }
+
+  async getShops(): Promise<PlatformShop[]> {
+    return [...mockShops];
+  }
+
+  async getShopDetail(shopId: string): Promise<PlatformShop & { contactPhone?: string | null; pickupAddress?: string | null; description?: string | null }> {
+    const found = mockShops.find((s) => s.id === shopId);
+    if (!found) throw new Error("Không tìm thấy gian hàng.");
+    return {
+      ...found,
+      contactPhone: "0901234567",
+      pickupAddress: "123 Đường Điện Biên Phủ, Phường 25, Quận Bình Thạnh, TP.HCM",
+      description: "Gian hàng chính thức trên sàn Dino E-Commerce",
+    };
+  }
+
+  async getShopsPage(params?: { status?: string; search?: string; cursor?: string; limit?: number }): Promise<{ items: PlatformShop[]; next_cursor: string | null; has_more: boolean }> {
+    let list = [...mockShops];
+    if (params?.status && params.status !== "ALL") list = list.filter((s) => s.status === params.status);
+    if (params?.search?.trim()) {
+      const q = params.search.toLowerCase();
+      list = list.filter((s) => s.name.toLowerCase().includes(q) || s.ownerEmail.toLowerCase().includes(q));
+    }
+    const limit = params?.limit ?? 20;
+    return {
+      items: list.slice(0, limit),
+      next_cursor: list.length > limit ? "mock_next_shop_cursor" : null,
+      has_more: list.length > limit,
+    };
+  }
+
   async lockUser(userId: string, reason: string, actor = "admin@dino.vn"): Promise<UserAccount> {
     if (!reason || reason.trim().length === 0) {
       throw new Error("Lý do khóa tài khoản là bắt buộc.");
@@ -264,10 +316,6 @@ export class MockAdminRepository implements IAdminRepository {
     });
 
     return { ...found };
-  }
-
-  async getShops(): Promise<PlatformShop[]> {
-    return [...mockShops];
   }
 
   async lockShop(shopId: string, reason: string, actor = "admin@dino.vn"): Promise<PlatformShop> {
@@ -319,6 +367,13 @@ export class MockAdminRepository implements IAdminRepository {
     return [...mockProducts];
   }
 
+  async getModerationReviews(): Promise<ModerationReview[]> { return []; }
+
+  async moderateReview(reviewId: string, status: "VISIBLE" | "HIDDEN", reason: string): Promise<ModerationReview> {
+    void reviewId; void status; void reason;
+    throw new Error("Review moderation is unavailable in fixture mode.");
+  }
+
   async moderateProduct(
     productId: string,
     status: "ACTIVE" | "HIDDEN",
@@ -329,10 +384,6 @@ export class MockAdminRepository implements IAdminRepository {
     if (!found) throw new Error("Không tìm thấy sản phẩm.");
 
     found.status = status;
-    if (status === "HIDDEN" && reason) {
-      found.reportReason = reason;
-    }
-
     mockAuditLogs.unshift({
       id: `log_${Date.now()}`,
       action: status === "HIDDEN" ? "HIDE_PRODUCT" : "RESTORE_PRODUCT",
@@ -349,39 +400,6 @@ export class MockAdminRepository implements IAdminRepository {
 
   async getAuditLogs(): Promise<AdminAuditLog[]> {
     return [...mockAuditLogs];
-  }
-
-  async getSellerKPI(shopId = "00000000-0000-0000-0000-000000000001"): Promise<SellerKPIStats> {
-    const allOrders = await mockOrderRepository.getOrders({ shop_id: shopId });
-
-    // Rule QD19: Only COMPLETED orders count into revenue
-    const completedOrders = allOrders.filter((o) => o.status === "COMPLETED");
-    const totalRevInt = completedOrders.reduce((acc, o) => {
-      return acc + moneyAdapter.toInteger(o.total_amount);
-    }, 0);
-
-    const pendingOrders = allOrders.filter((o) => o.status === "PENDING_CONFIRMATION");
-    let activeProductsCount = 18;
-    try {
-      const catalogProducts = await mockCatalogRepository.getProducts();
-      const shopProducts = catalogProducts.filter((p) => p.shop_id === shopId);
-      if (shopProducts.length > 0) {
-        activeProductsCount = shopProducts.length;
-      }
-    } catch {
-      // Fallback in case catalog API is offline or in mock tests
-      activeProductsCount = 18;
-    }
-
-    return {
-      shopId,
-      shopName: shopId === "00000000-0000-0000-0000-000000000002" ? "Dino Tech Store" : "Dino Beauty Official",
-      totalRevenue: totalRevInt.toString(),
-      completedOrdersCount: completedOrders.length,
-      pendingOrdersCount: pendingOrders.length,
-      activeProductsCount,
-      averageRating: 4.9,
-    };
   }
 
   // Categories CRUD (A-709 consuming A-700 adapter)
@@ -467,65 +485,159 @@ export class MockAdminRepository implements IAdminRepository {
     return { ...found };
   }
 
-  async deleteCategory(id: string): Promise<boolean> {
+  async updateCategory(id: string, input: { name?: string; parentId?: string | null; description?: string | null }): Promise<CategoryItem> {
     const cats = await this.getCategories();
     const found = cats.find((c) => c.id === id);
     if (!found) throw new Error("Không tìm thấy danh mục.");
-
-    // If it's a parent category with children, delete children or disallow
-    const children = cats.filter((c) => c.parentId === id);
-    if (children.length > 0) {
-      throw new Error("Không thể xóa danh mục cha đang chứa các danh mục con.");
-    }
-
-    localCategories = localCategories.filter((c) => c.id !== id);
+    Object.assign(found, {
+      ...(input.name !== undefined ? { name: input.name.trim() } : {}),
+      ...(input.parentId !== undefined ? { parentId: input.parentId } : {}),
+      ...(input.description !== undefined ? { description: input.description } : {}),
+    });
 
     mockAuditLogs.unshift({
       id: `log_${Date.now()}`,
-      action: "DELETE_CATEGORY",
+      action: "UPDATE_CATEGORY",
       targetType: "CATEGORY",
-      targetId: id,
+      targetId: found.id,
       targetName: found.name,
-      reason: "Xóa danh mục khỏi hệ thống",
+      reason: "Cập nhật danh mục",
       actor: "admin@dino.vn",
       createdAt: new Date().toISOString(),
     });
 
-    return true;
+    return { ...found };
   }
 }
 
 export class ApiAdminRepository implements IAdminRepository {
+  private moderationReviews: ModerationReview[] | null = null;
   async getDashboardStats(): Promise<DashboardStats> {
     return apiClient.get<DashboardStats>("/admin/stats");
   }
 
   async getUsers(): Promise<UserAccount[]> {
-    return apiClient.get<UserAccount[]>("/admin/users");
+    const rows = await apiClient.get<Array<{ id: string; email: string; full_name: string; role: UserAccount["role"]; status: UserAccount["status"]; created_at: string }>>("/admin/users");
+    return rows.map((row) => ({ id: row.id, email: row.email, fullName: row.full_name, role: row.role, status: row.status, createdAt: row.created_at }));
+  }
+
+  async getUserDetail(userId: string): Promise<UserAccount> {
+    const row = await apiClient.get<{ id: string; email: string; full_name?: string; fullName?: string; role: UserAccount["role"]; status: UserAccount["status"]; created_at: string; updated_at?: string }>(`/admin/users/${userId}`);
+    return {
+      id: row.id,
+      email: row.email,
+      fullName: row.fullName || row.full_name || row.email.split("@")[0],
+      role: row.role,
+      status: row.status,
+      createdAt: row.created_at,
+    };
+  }
+
+  async getUsersPage(params?: { status?: string; role?: string; search?: string; cursor?: string; limit?: number }): Promise<{ items: UserAccount[]; next_cursor: string | null; has_more: boolean }> {
+    const envelope = await apiClient.getPaginated<{ id: string; email: string; full_name?: string; fullName?: string; role: UserAccount["role"]; status: UserAccount["status"]; created_at: string }>("/admin/users", { params });
+    return {
+      items: (envelope.data || []).map((row) => ({
+        id: row.id,
+        email: row.email,
+        fullName: row.fullName || row.full_name || row.email.split("@")[0],
+        role: row.role,
+        status: row.status,
+        createdAt: row.created_at,
+      })),
+      next_cursor: envelope.meta?.next_cursor ?? null,
+      has_more: envelope.meta?.has_more ?? false,
+    };
   }
 
   async lockUser(userId: string, reason: string, actor?: string): Promise<UserAccount> {
     return apiClient.post<UserAccount>(`/admin/users/${userId}/lock`, { reason, actor });
   }
 
-  async unlockUser(userId: string, actor?: string): Promise<UserAccount> {
-    return apiClient.post<UserAccount>(`/admin/users/${userId}/unlock`, { actor });
+  async unlockUser(userId: string, actor?: string, reason = "Account unlocked by admin"): Promise<UserAccount> {
+    return apiClient.post<UserAccount>(`/admin/users/${userId}/unlock`, { reason, actor });
   }
 
   async getShops(): Promise<PlatformShop[]> {
-    return apiClient.get<PlatformShop[]>("/admin/shops");
+    const rows = await apiClient.get<Array<{ shop_id: string; shop_name: string; owner_email?: string; product_count: number; status: PlatformShop["status"]; created_at: string }>>("/admin/shops");
+    return rows.map((row) => ({ id: row.shop_id, name: row.shop_name, ownerEmail: row.owner_email ?? "", productCount: Number(row.product_count), status: row.status, createdAt: row.created_at }));
+  }
+
+  async getShopDetail(shopId: string): Promise<PlatformShop & { contactPhone?: string | null; pickupAddress?: string | null; description?: string | null }> {
+    const row = await apiClient.get<{
+      id?: string;
+      shop_id?: string;
+      name?: string;
+      shop_name?: string;
+      ownerId?: string;
+      owner_id?: string;
+      ownerEmail?: string;
+      owner_email?: string;
+      productCount?: number;
+      product_count?: number;
+      contactPhone?: string | null;
+      contact_phone?: string | null;
+      pickupAddress?: string | null;
+      pickup_address?: string | null;
+      description?: string | null;
+      status: PlatformShop["status"];
+      createdAt?: string;
+      created_at?: string;
+    }>(`/admin/shops/${shopId}`);
+    return {
+      id: row.id || row.shop_id || shopId,
+      name: row.name || row.shop_name || "Gian hàng",
+      ownerEmail: row.ownerEmail || row.owner_email || "",
+      productCount: Number(row.productCount ?? row.product_count ?? 0),
+      status: row.status,
+      createdAt: row.createdAt || row.created_at || new Date().toISOString(),
+      contactPhone: row.contactPhone ?? row.contact_phone ?? null,
+      pickupAddress: row.pickupAddress ?? row.pickup_address ?? null,
+      description: row.description ?? null,
+    };
+  }
+
+  async getShopsPage(params?: { status?: string; search?: string; cursor?: string; limit?: number }): Promise<{ items: PlatformShop[]; next_cursor: string | null; has_more: boolean }> {
+    const envelope = await apiClient.getPaginated<{ shop_id?: string; id?: string; shop_name?: string; name?: string; owner_email?: string; ownerEmail?: string; product_count?: number; productCount?: number; status: PlatformShop["status"]; created_at?: string; createdAt?: string }>("/admin/shops", { params });
+    return {
+      items: (envelope.data || []).map((row) => ({
+        id: row.id || row.shop_id || "",
+        name: row.name || row.shop_name || "",
+        ownerEmail: row.ownerEmail || row.owner_email || "",
+        productCount: Number(row.productCount ?? row.product_count ?? 0),
+        status: row.status,
+        createdAt: row.createdAt || row.created_at || new Date().toISOString(),
+      })),
+      next_cursor: envelope.meta?.next_cursor ?? null,
+      has_more: envelope.meta?.has_more ?? false,
+    };
   }
 
   async lockShop(shopId: string, reason: string, actor?: string): Promise<PlatformShop> {
     return apiClient.post<PlatformShop>(`/admin/shops/${shopId}/lock`, { reason, actor });
   }
 
-  async unlockShop(shopId: string, actor?: string): Promise<PlatformShop> {
-    return apiClient.post<PlatformShop>(`/admin/shops/${shopId}/unlock`, { actor });
+  async unlockShop(shopId: string, actor?: string, reason = "Shop unlocked by admin"): Promise<PlatformShop> {
+    return apiClient.post<PlatformShop>(`/admin/shops/${shopId}/unlock`, { reason, actor });
   }
 
   async getModerationProducts(): Promise<ModerationProduct[]> {
-    return apiClient.get<ModerationProduct[]>("/admin/products");
+    const rows = await apiClient.get<Array<{ product_id: string; product_name: string; shop_name: string; min_price: string | null; status: "DRAFT" | "ACTIVE" | "INACTIVE" | "HIDDEN" }>>("/admin/products");
+    return rows.map((row) => ({ id: row.product_id, name: row.product_name, shopName: row.shop_name, price: row.min_price ?? "0.00", status: row.status }));
+  }
+
+  async getModerationReviews(): Promise<ModerationReview[]> {
+    const rows = await apiClient.get<Array<{ review_id: string; product_id: string; product_name: string; buyer_id: string; rating: number; content: string | null; status: "VISIBLE" | "HIDDEN"; created_at: string }>>("/admin/reviews");
+    this.moderationReviews = rows.map((row) => ({ id: row.review_id, productId: row.product_id, productName: row.product_name, buyerId: row.buyer_id, rating: Number(row.rating), content: row.content, status: row.status, createdAt: row.created_at }));
+    return this.moderationReviews;
+  }
+
+  async moderateReview(reviewId: string, status: "VISIBLE" | "HIDDEN", reason: string): Promise<ModerationReview> {
+    const existing = (this.moderationReviews ?? await this.getModerationReviews()).find((review) => review.id === reviewId);
+    if (!existing) throw new Error("Không tìm thấy đánh giá.");
+    const result = await apiClient.patch<{ status: "VISIBLE" | "HIDDEN" }>(`/admin/reviews/${reviewId}/moderate`, { status, reason });
+    const updated = { ...existing, status: result.status };
+    this.moderationReviews = this.moderationReviews?.map((review) => review.id === reviewId ? updated : review) ?? null;
+    return updated;
   }
 
   async moderateProduct(
@@ -534,23 +646,36 @@ export class ApiAdminRepository implements IAdminRepository {
     reason?: string,
     actor?: string
   ): Promise<ModerationProduct> {
-    return apiClient.patch<ModerationProduct>(`/admin/products/${productId}/moderate`, { status, reason, actor });
+    void actor;
+    const existing = (await this.getModerationProducts()).find((product) => product.id === productId);
+    if (!existing) throw new Error("Không tìm thấy sản phẩm.");
+    const result = await apiClient.patch<{ product_id: string; status: "ACTIVE" | "HIDDEN" }>(`/admin/products/${productId}/moderate`, { status, reason });
+    return { ...existing, status: result.status };
   }
 
   async getAuditLogs(): Promise<AdminAuditLog[]> {
     return apiClient.get<AdminAuditLog[]>("/admin/audit-logs");
   }
 
-  async getSellerKPI(shopId?: string): Promise<SellerKPIStats> {
-    return apiClient.get<SellerKPIStats>(`/seller/kpi${shopId ? `?shop_id=${shopId}` : ""}`);
-  }
-
   async getCategories(): Promise<CategoryItem[]> {
-    return categoryAdapter.getCategories();
+    const rows = await apiClient.get<Array<{ category_id: string; parent_category_id: string | null; category_name: string; description: string | null; status: "ACTIVE" | "INACTIVE" }>>("/admin/categories");
+    return rows.map((category) => ({
+      id: category.category_id,
+      parentId: category.parent_category_id,
+      name: category.category_name,
+      description: category.description,
+      status: category.status,
+    }));
   }
 
   async getCategoryTree(): Promise<CategoryTreeNode[]> {
-    return categoryAdapter.getCategoryTree();
+    const categories = await this.getCategories();
+    return categories
+      .filter((category) => category.parentId === null)
+      .map((root) => ({
+        ...root,
+        children: categories.filter((category) => category.parentId === root.id),
+      }));
   }
 
   async createCategory(input: {
@@ -558,15 +683,30 @@ export class ApiAdminRepository implements IAdminRepository {
     parentId?: string | null;
     description?: string | null;
   }): Promise<CategoryItem> {
-    return apiClient.post<CategoryItem>("/categories", input);
+    const category = await apiClient.post<{ category_id: string; parent_category_id: string | null; category_name: string; description: string | null; status: "ACTIVE" | "INACTIVE" }>("/admin/categories", {
+      name: input.name,
+      parent_category_id: input.parentId ?? null,
+      description: input.description ?? null,
+    });
+    return { id: category.category_id, parentId: category.parent_category_id, name: category.category_name, description: category.description, status: category.status };
+  }
+
+  async updateCategory(id: string, input: { name?: string; parentId?: string | null; description?: string | null }): Promise<CategoryItem> {
+    const category = await apiClient.patch<{ category_id: string; parent_category_id: string | null; category_name: string; description: string | null; status: "ACTIVE" | "INACTIVE" }>(`/admin/categories/${id}`, {
+      ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.parentId !== undefined ? { parent_category_id: input.parentId } : {}),
+      ...(input.description !== undefined ? { description: input.description } : {}),
+    });
+    return { id: category.category_id, parentId: category.parent_category_id, name: category.category_name, description: category.description, status: category.status };
   }
 
   async toggleCategoryStatus(id: string): Promise<CategoryItem> {
-    return apiClient.patch<CategoryItem>(`/categories/${id}/status`, {});
-  }
-
-  async deleteCategory(id: string): Promise<boolean> {
-    return apiClient.delete<boolean>(`/categories/${id}`);
+    const current = (await this.getCategories()).find((item) => item.id === id);
+    if (!current) throw new Error("Không tìm thấy danh mục.");
+    const category = await apiClient.patch<{ category_id: string; status: "ACTIVE" | "INACTIVE" }>(`/admin/categories/${id}/status`, {
+      status: current.status === "ACTIVE" ? "INACTIVE" : "ACTIVE",
+    });
+    return { ...current, status: category.status };
   }
 }
 
@@ -578,6 +718,10 @@ export const adminRepository: IAdminRepository = {
     features.domains.adminMock() ? mockAdminRepository.getDashboardStats() : apiAdminRepository.getDashboardStats(),
   getUsers: () =>
     features.domains.adminMock() ? mockAdminRepository.getUsers() : apiAdminRepository.getUsers(),
+  getUserDetail: (userId: string) =>
+    features.domains.adminMock() ? mockAdminRepository.getUserDetail(userId) : apiAdminRepository.getUserDetail(userId),
+  getUsersPage: (params) =>
+    features.domains.adminMock() ? mockAdminRepository.getUsersPage(params) : apiAdminRepository.getUsersPage(params),
   lockUser: (userId, reason, actor) =>
     features.domains.adminMock()
       ? mockAdminRepository.lockUser(userId, reason, actor)
@@ -588,6 +732,10 @@ export const adminRepository: IAdminRepository = {
       : apiAdminRepository.unlockUser(userId, actor),
   getShops: () =>
     features.domains.adminMock() ? mockAdminRepository.getShops() : apiAdminRepository.getShops(),
+  getShopDetail: (shopId: string) =>
+    features.domains.adminMock() ? mockAdminRepository.getShopDetail(shopId) : apiAdminRepository.getShopDetail(shopId),
+  getShopsPage: (params) =>
+    features.domains.adminMock() ? mockAdminRepository.getShopsPage(params) : apiAdminRepository.getShopsPage(params),
   lockShop: (shopId, reason, actor) =>
     features.domains.adminMock()
       ? mockAdminRepository.lockShop(shopId, reason, actor)
@@ -600,26 +748,24 @@ export const adminRepository: IAdminRepository = {
     features.domains.adminMock()
       ? mockAdminRepository.getModerationProducts()
       : apiAdminRepository.getModerationProducts(),
+  getModerationReviews: () => features.domains.adminMock() ? mockAdminRepository.getModerationReviews() : apiAdminRepository.getModerationReviews(),
+  moderateReview: (id, status, reason) => features.domains.adminMock() ? mockAdminRepository.moderateReview(id, status, reason) : apiAdminRepository.moderateReview(id, status, reason),
   moderateProduct: (productId, status, reason, actor) =>
     features.domains.adminMock()
       ? mockAdminRepository.moderateProduct(productId, status, reason, actor)
       : apiAdminRepository.moderateProduct(productId, status, reason, actor),
   getAuditLogs: () =>
     features.domains.adminMock() ? mockAdminRepository.getAuditLogs() : apiAdminRepository.getAuditLogs(),
-  getSellerKPI: (shopId) =>
-    features.domains.adminMock()
-      ? mockAdminRepository.getSellerKPI(shopId)
-      : apiAdminRepository.getSellerKPI(shopId),
   getCategories: () =>
     features.domains.adminMock() ? mockAdminRepository.getCategories() : apiAdminRepository.getCategories(),
   getCategoryTree: () =>
     features.domains.adminMock() ? mockAdminRepository.getCategoryTree() : apiAdminRepository.getCategoryTree(),
   createCategory: (input) =>
     features.domains.adminMock() ? mockAdminRepository.createCategory(input) : apiAdminRepository.createCategory(input),
+  updateCategory: (id, input) =>
+    features.domains.adminMock() ? mockAdminRepository.updateCategory(id, input) : apiAdminRepository.updateCategory(id, input),
   toggleCategoryStatus: (id) =>
     features.domains.adminMock()
       ? mockAdminRepository.toggleCategoryStatus(id)
       : apiAdminRepository.toggleCategoryStatus(id),
-  deleteCategory: (id) =>
-    features.domains.adminMock() ? mockAdminRepository.deleteCategory(id) : apiAdminRepository.deleteCategory(id),
 };

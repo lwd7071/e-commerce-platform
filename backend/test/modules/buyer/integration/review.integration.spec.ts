@@ -137,10 +137,12 @@ describe('Phase 4 — PostgresReviewRepository (SOLID: S, L, D)', () => {
       const created = await repo.create(mockReview, images);
 
       assert.strictEqual(created.reviewId, mockReview.reviewId);
-      assert.strictEqual(client.queries.length, 3); // 1 insert review + 2 insert review_images
-      assert.ok(client.queries[0].sql.includes('INSERT INTO reviews'));
-      assert.ok(client.queries[1].sql.includes('INSERT INTO review_images'));
+      assert.strictEqual(client.queries.length, 5); // BEGIN + 1 insert review + 2 insert review_images + COMMIT
+      assert.strictEqual(client.queries[0].sql, 'BEGIN');
+      assert.ok(client.queries[1].sql.includes('INSERT INTO reviews'));
       assert.ok(client.queries[2].sql.includes('INSERT INTO review_images'));
+      assert.ok(client.queries[3].sql.includes('INSERT INTO review_images'));
+      assert.strictEqual(client.queries[4].sql, 'COMMIT');
     });
 
     it('[TEST-INT-16] Rating constraint violation (RB-MG08): lan truyền lỗi check constraint 23514', async () => {

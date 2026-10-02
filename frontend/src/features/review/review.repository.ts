@@ -152,6 +152,8 @@ export class ApiReviewRepository implements IReviewRepository {
         product_id: item.product_id,
         rating: item.rating,
         content: item.comment.trim(),
+        ...(item.review_id ? { review_id: item.review_id } : {}),
+        ...(item.image_media_ids?.length ? { image_media_ids: item.image_media_ids } : {}),
       });
       records.push({
         id: review.reviewId,
@@ -162,7 +164,7 @@ export class ApiReviewRepository implements IReviewRepository {
         variant_name: item.variant_name,
         rating: review.rating,
         comment: review.content ?? "",
-        images: [],
+        images: item.images,
         is_anonymous: false,
         created_at: review.createdAt,
       });

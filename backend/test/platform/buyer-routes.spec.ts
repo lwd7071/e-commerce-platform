@@ -5,16 +5,17 @@ import type { RequestHandler } from 'express';
 import type { Pool } from 'pg';
 import { createApp } from '../../src/platform/http/app.ts';
 import { createRequestContext } from '../../src/platform/context/request-context.ts';
+import { ProfileService } from '../../src/modules/buyer/services/profile.service.ts';
 import { AddressService } from '../../src/modules/buyer/services/address.service.ts';
 import { CartService } from '../../src/modules/buyer/services/cart.service.ts';
 import { VoucherService } from '../../src/modules/buyer/services/voucher.service.ts';
 import { ReviewService } from '../../src/modules/buyer/services/review.service.ts';
 import { NotificationService } from '../../src/modules/buyer/services/notification.service.ts';
 import { PgBuyerHttpService } from '../../src/modules/buyer/services/pg-buyer-http.service.ts';
-import type { IAddressRepository, ICartRepository, IVoucherRepository, IReviewRepository, INotificationRepository } from '../../src/modules/buyer/domain/repositories.ts';
+import type { IAddressRepository, ICartRepository, IVoucherRepository, IReviewRepository, INotificationRepository, IUserProfileRepository } from '../../src/modules/buyer/domain/repositories.ts';
 import type { ICatalogPort } from '../../src/contracts/catalog.port.ts';
 import type { IOrderQueryPort } from '../../src/modules/buyer/ports/order-query.port.ts';
-import type { Address, Cart, CartItem, Voucher, Review, Notification } from '../../src/modules/buyer/domain/types.ts';
+import type { Address, Cart, CartItem, Voucher, Review, Notification, UserProfile } from '../../src/modules/buyer/domain/types.ts';
 
 const BUYER_ID = '11111111-1111-4111-8111-111111111111';
 const OTHER_USER_ID = '99999999-9999-4999-8999-999999999999';
@@ -245,7 +246,32 @@ function createMockBuyerServices() {
     },
   };
 
+  const profiles: UserProfile[] = [{
+    userId: BUYER_ID,
+    fullName: 'Nguyen Van A',
+    phone: '0901234567',
+    avatarUrl: null,
+    updatedAt: new Date().toISOString(),
+  }, {
+    userId: '22222222-2222-4222-8222-222222222222',
+    fullName: 'Seller Name',
+    phone: '0988776655',
+    avatarUrl: null,
+    updatedAt: new Date().toISOString(),
+  }];
+
+  const profileRepo: IUserProfileRepository = {
+    async findByUserId(id) { return profiles.find(p => p.userId === id) ?? null; },
+    async upsert(p) {
+      const idx = profiles.findIndex(x => x.userId === p.userId);
+      if (idx >= 0) profiles[idx] = p;
+      else profiles.push(p);
+      return p;
+    },
+  };
+
   return {
+    profileService: new ProfileService(profileRepo),
     addressService: new AddressService(addressRepo),
     cartService: new CartService(cartRepo, catalogPort),
     voucherService: new VoucherService(voucherRepo),
@@ -282,6 +308,41 @@ describe('Buyer Domain Routes Integration (/api/v1/...) [Mốc T2]', () => {
     assert.strictEqual(res.body.error.code, 'ROLE_REQUIRED');
   });
 
+  describe('Profile Routes (role-business-rules.md §7)', () => {
+    it('GET /api/v1/profile: returns 200 and profile for BUYER', async () => {
+      const app = createApp({ auth: buyerAuth, buyerServices: createMockBuyerServices() });
+      const res = await request(app).get('/api/v1/profile').expect(200);
+      assert.strictEqual(res.body.data.full_name, 'Nguyen Van A');
+      assert.strictEqual(res.body.data.phone, '0901234567');
+    });
+
+    it('GET /api/v1/profile: allows SELLER with PENDING shop to view their own profile (decoupled from shop ACTIVE)', async () => {
+      const app = createApp({ auth: sellerAuth, buyerServices: createMockBuyerServices() });
+      const res = await request(app).get('/api/v1/profile').expect(200);
+      assert.strictEqual(res.body.data.full_name, 'Seller Name');
+      assert.strictEqual(res.body.data.phone, '0988776655');
+    });
+
+    it('PATCH /api/v1/profile: updates full_name and phone successfully', async () => {
+      const app = createApp({ auth: buyerAuth, buyerServices: createMockBuyerServices() });
+      const res = await request(app)
+        .patch('/api/v1/profile')
+        .send({ full_name: 'Nguyen Van A Updated', phone: '0909888777' })
+        .expect(200);
+      assert.strictEqual(res.body.data.full_name, 'Nguyen Van A Updated');
+      assert.strictEqual(res.body.data.phone, '0909888777');
+    });
+
+    it('PATCH /api/v1/profile: rejects invalid phone format with 422 VALIDATION_FAILED', async () => {
+      const app = createApp({ auth: buyerAuth, buyerServices: createMockBuyerServices() });
+      const res = await request(app)
+        .patch('/api/v1/profile')
+        .send({ phone: 'invalid-phone-123' })
+        .expect(422);
+      assert.strictEqual(res.body.error.code, 'VALIDATION_FAILED');
+    });
+  });
+
   describe('Address Routes', () => {
     it('GET /api/v1/addresses: returns 200 and addresses list', async () => {
       const app = createApp({ auth: buyerAuth, buyerServices: createMockBuyerServices() });
@@ -314,6 +375,24 @@ describe('Buyer Domain Routes Integration (/api/v1/...) [Mốc T2]', () => {
 
       assert.strictEqual(res.body.data.recipientName, 'Nguyen C');
       assert.strictEqual(res.body.data.province, 'Da Nang');
+    });
+
+    it('POST /api/v1/addresses: rejects invalid phone format with 422 VALIDATION_FAILED', async () => {
+      const app = createApp({ auth: buyerAuth, buyerServices: createMockBuyerServices() });
+      const res = await request(app)
+        .post('/api/v1/addresses')
+        .send({
+          recipient_name: 'Nguyen C',
+          phone: 'abcxyz',
+          province: 'Da Nang',
+          district: 'Hai Chau',
+          ward: 'Thach Thang',
+          detail_address: '10 Quang Trung',
+        })
+        .expect(422);
+
+      assert.strictEqual(res.body.error.code, 'VALIDATION_FAILED');
+      assert.ok(res.body.error.message.includes('Số điện thoại không hợp lệ'));
     });
 
     it('PATCH /api/v1/addresses/:id/default: sets default address', async () => {

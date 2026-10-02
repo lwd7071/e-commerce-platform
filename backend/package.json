@@ -28,6 +28,7 @@
     "db:media:cleanup": "tsx scripts/cleanup-expired-media.ts",
     "db:storage:deploy": "tsx scripts/deploy-storage-policies.ts",
     "test:storage": "tsx scripts/storage-policy-smoke.ts",
+    "test:review-media-smoke": "tsx scripts/review-media-live-smoke.ts",
     "test:auth-smoke": "tsx scripts/auth-smoke.ts",
     "test:watch": "vitest"
   },

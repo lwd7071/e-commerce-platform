@@ -1,5 +1,5 @@
 import { Router, type Request, type Response, type NextFunction, type RequestHandler } from 'express';
-import { buildSuccessEnvelope } from '../envelope.ts';
+import { buildPaginatedEnvelope, buildSuccessEnvelope } from '../envelope.ts';
 import { DependencyUnavailableError, ForbiddenError, NotFoundError, ReasonRequiredError, UnauthorizedError, ValidationFailedError } from '../../errors/app-error.ts';
 import { parseCheckoutCommand } from '../../../modules/checkout/contracts/checkout-command.ts';
 import type { RequestContext } from '../../context/request-context.ts';
@@ -16,13 +16,13 @@ export interface OrderServices {
   checkoutService?: {
     createOrder(context: RequestContext, command: ReturnType<typeof parseCheckoutCommand>): Promise<unknown>;
     cancelOrder?(context: RequestContext, orderId: string, input: Record<string, unknown>): Promise<unknown>;
-    confirmOrder?(context: RequestContext, orderId: string): Promise<unknown>;
+    confirmOrder?(context: RequestContext, orderId: string, reason?: string): Promise<unknown>;
   };
   cancelOrder?(context: RequestContext, orderId: string, input: Record<string, unknown>): Promise<unknown>;
   orderLifecycleService?: OrderLifecycleService;
   orderQueryService?: OrderQueryService;
   paymentService?: PaymentService;
-  confirmOrder?(context: RequestContext, orderId: string): Promise<unknown>;
+  confirmOrder?(context: RequestContext, orderId: string, reason?: string): Promise<unknown>;
   transitionOrder?(context: RequestContext, orderId: string, input: Record<string, unknown>): Promise<unknown>;
   retryPayment?(context: RequestContext, orderId: string, input: Record<string, unknown>): Promise<unknown>;
 }
@@ -107,14 +107,17 @@ export function createOrderDomainRouter(
   // ==========================================
   router.get('/orders', ...guards(auth, 'BUYER', 'SELLER', 'ADMIN'), asyncRoute(async (req, res) => {
     const ctx = context(req);
-    const unknown = Object.keys(req.query).find(key => key !== 'status');
+    const unknown = Object.keys(req.query).find(key => !['status', 'limit', 'cursor'].includes(key));
     if (unknown) throw new ValidationFailedError(`Unknown field: ${unknown}`, { field: unknown });
     const status = req.query.status;
     if (status !== undefined && typeof status !== 'string') throw new ValidationFailedError('Status must be a single value', { field: 'status' });
+    const limit = req.query.limit === undefined ? undefined : Number(req.query.limit);
+    const cursor = req.query.cursor;
+    if (cursor !== undefined && typeof cursor !== 'string') throw new ValidationFailedError('Cursor must be a single value', { field: 'cursor' });
 
     if (!orderQueryService) throw new DependencyUnavailableError('Order reads are not configured');
-    const orders = await orderQueryService.listOrders(ctx, status ? { status } : {});
-    res.json(buildSuccessEnvelope(orders, requestId(req)));
+    const page = await orderQueryService.listOrdersPaginated(ctx, { ...(status ? { status } : {}), ...(limit === undefined ? {} : { limit }), ...(cursor ? { cursor } : {}) });
+    res.json(buildPaginatedEnvelope(page.items, { next_cursor: page.next_cursor, has_more: page.has_more, limit: page.limit }, requestId(req)));
   }));
 
   // ==========================================
@@ -181,6 +184,7 @@ export function createOrderDomainRouter(
     const orderId = req.params.order_id;
     const rawReason = req.body?.reason;
     const reason = typeof rawReason === 'string' ? rawReason.trim() : undefined;
+    if (ctx.role === 'ADMIN' && !reason) throw new ReasonRequiredError('A reason is required for admin order actions.');
 
     if (orderLifecycleService) {
       let actor: OrderActor;
@@ -196,13 +200,13 @@ export function createOrderDomainRouter(
     }
 
     if (confirmHandler) {
-      const result = await confirmHandler(ctx, orderId);
+      const result = await confirmHandler(ctx, orderId, reason);
       res.json(buildSuccessEnvelope(result, requestId(req)));
       return;
     }
 
     if (legacyApp?.confirmOrder) {
-      const result = await legacyApp.confirmOrder(ctx, orderId);
+      const result = await legacyApp.confirmOrder(ctx, orderId, reason);
       res.json(buildSuccessEnvelope(result, requestId(req)));
       return;
     }
@@ -213,19 +217,22 @@ export function createOrderDomainRouter(
   router.post('/orders/:order_id/confirm-received', ...guards(auth, 'BUYER', 'ADMIN'), asyncRoute(async (req, res) => {
     const ctx = context(req);
     const orderId = req.params.order_id;
+    const rawReason = req.body?.reason;
+    const reason = typeof rawReason === 'string' ? rawReason.trim() : undefined;
+    if (ctx.role === 'ADMIN' && !reason) throw new ReasonRequiredError('A reason is required for admin order actions.');
 
     if (orderLifecycleService) {
       const actor: OrderActor = ctx.role === 'ADMIN'
         ? { kind: 'ADMIN', userId: ctx.user_id }
         : { kind: 'BUYER', userId: ctx.user_id };
 
-      const result = await orderLifecycleService.confirmReceived(orderId, actor);
+      const result = await orderLifecycleService.confirmReceived(orderId, actor, reason);
       res.json(buildSuccessEnvelope(result, requestId(req)));
       return;
     }
 
     if (legacyApp?.confirmReceived) {
-      const result = await legacyApp.confirmReceived(ctx, orderId);
+      const result = await legacyApp.confirmReceived(ctx, orderId, reason);
       res.json(buildSuccessEnvelope(result, requestId(req)));
       return;
     }
@@ -236,6 +243,9 @@ export function createOrderDomainRouter(
   router.post('/orders/:order_id/transition', ...guards(auth, 'SELLER', 'ADMIN'), asyncRoute(async (req, res) => {
     const ctx = context(req);
     const orderId = req.params.order_id;
+    const rawReason = req.body?.reason;
+    const reason = typeof rawReason === 'string' ? rawReason.trim() : undefined;
+    if (ctx.role === 'ADMIN' && !reason) throw new ReasonRequiredError('A reason is required for admin order actions.');
 
     if (orderLifecycleService) {
       let actor: OrderActor;
@@ -246,9 +256,8 @@ export function createOrderDomainRouter(
       }
 
       const to = req.body?.to as OrderStatus;
-      const reason = typeof req.body?.reason === 'string' ? req.body.reason : undefined;
       const exceptionalCancellation = req.body?.exceptional_cancellation === true;
-      const shipmentStatus = req.body?.shipment_status;
+      const shipmentStatus = req.body?.shipment_status ?? (to === 'SHIPPING' && ctx.role === 'SELLER' ? 'HANDED_OVER' : undefined);
       const processingEligible = req.body?.processing_eligible !== false;
 
       const result = await orderLifecycleService.transitionOrder(orderId, actor, {
@@ -262,7 +271,7 @@ export function createOrderDomainRouter(
       return;
     }
 
-    const input = (req.body ?? {}) as Record<string, unknown>;
+    const input = { ...((req.body ?? {}) as Record<string, unknown>), reason };
     if (transitionHandler) {
       const result = await transitionHandler(ctx, orderId, input);
       res.json(buildSuccessEnvelope(result, requestId(req)));

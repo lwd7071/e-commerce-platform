@@ -87,7 +87,7 @@ describe('Phase 3 — TDD Cycle 3.1: PostgreSQL Audit Adapter (PgAuditRepository
         await auditRepo.logAdminAction(fakeClient, {
           admin_id: '00000000-0000-0000-0000-000000000001',
           action: 'LOCK_USER',
-          target_type: 'ORDER', // Invalid polymorphic target
+          target_type: 'PAYMENT', // Invalid polymorphic target
           target_id: '00000000-0000-0000-0000-000000000002',
           reason: 'Some reason'
         } as unknown as AdminAuditRecord);
@@ -135,5 +135,20 @@ describe('Phase 3 — TDD Cycle 3.1: PostgreSQL Audit Adapter (PgAuditRepository
         return true;
       }
     );
+  });
+
+  it('accepts approved ORDER and CATEGORY audit targets', async () => {
+    for (const targetType of ['ORDER', 'CATEGORY', 'VOUCHER', 'CAMPAIGN']) {
+      const fakeClient = createFakeClient();
+      await auditRepo.logAdminAction(fakeClient, {
+        admin_id: '00000000-0000-0000-0000-000000000001',
+        action: `UPDATE_${targetType}`,
+        target_type: targetType,
+        target_id: '00000000-0000-0000-0000-000000000002',
+        reason: 'Approved admin action',
+      });
+      assert.equal(fakeClient.calls.length, 1);
+      assert.equal(fakeClient.calls[0]?.params[3], targetType);
+    }
   });
 });

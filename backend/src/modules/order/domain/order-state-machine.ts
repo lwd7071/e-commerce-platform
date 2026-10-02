@@ -54,7 +54,8 @@ export function transitionOrder(
   if (order.status === 'PREPARING' && command.to === 'CANCELLED' && command.exceptionalCancellation !== true) {
     throw new OrderDomainError('ORDER_CANCELLATION_NOT_ALLOWED', 'Exceptional cancellation eligibility is required.');
   }
-  if (command.to === 'SHIPPING' && command.shipmentStatus !== 'HANDED_OVER' && command.shipmentStatus !== 'SHIPPING') {
+  const effectiveShipmentStatus = command.shipmentStatus;
+  if (command.to === 'SHIPPING' && effectiveShipmentStatus !== 'HANDED_OVER' && effectiveShipmentStatus !== 'SHIPPING') {
     throw new OrderDomainError('ORDER_INVALID_TRANSITION', 'Shipment has not been handed over.');
   }
   if (command.to === 'COMPLETED' && actor.kind !== 'BUYER' && command.shipmentStatus !== 'DELIVERED') {

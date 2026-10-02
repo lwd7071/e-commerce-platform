@@ -48,7 +48,7 @@ export interface IReviewRepository {
   findById(reviewId: UUID): Promise<Review | null>;
   findByOrderItemId(orderItemId: UUID): Promise<Review | null>;
   findByProductId(productId: UUID): Promise<Review[]>;
-  create(review: Review, images?: string[]): Promise<Review>;
+  create(review: Review, images?: string[], mediaIds?: UUID[]): Promise<Review>;
 }
 
 export interface INotificationRepository {

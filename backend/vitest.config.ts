@@ -9,10 +9,10 @@ export default defineConfig({
     environment: 'node',
     testTimeout: 60000,
     hookTimeout: 60000,
-    // Supabase session mode is capped at 15 clients. Some concurrency suites
-    // intentionally lease 5-6 connections, so only two test files may run in
-    // parallel without turning healthy tests into EMAXCONNSESSION failures.
-    maxWorkers: 2,
+    // Remote PostgreSQL integration files use isolated schemas, but share the
+    // project's bounded Supabase session budget. Run files serially so one
+    // suite cannot drop/reset fixtures while another is still establishing its schema.
+    maxWorkers: 1,
     include: [
       'tests/db/**/*.test.ts',
       'tests/modules/catalog/**/*.test.ts',

@@ -322,9 +322,22 @@ describe('Order & Checkout Domain Routes Integration (/api/v1/...) [Mốc T2]', 
 
     const res = await request(app)
       .post('/api/v1/orders/00000000-0000-4000-8000-000000000001/confirm')
+      .send({ reason: 'Admin intervention after support review' })
       .expect(200);
 
     assert.strictEqual(res.body.data.status, 'CONFIRMED');
+  });
+
+  it('POST /api/v1/orders/:id/confirm: requires reason for admin action (QD20)', async () => {
+    const services = createMockOrderServices();
+    const app = createApp({ auth: adminAuth, orderServices: services });
+
+    const res = await request(app)
+      .post('/api/v1/orders/00000000-0000-4000-8000-000000000001/confirm')
+      .send({ reason: '   ' })
+      .expect(422);
+
+    assert.strictEqual(res.body.error.code, 'REASON_REQUIRED');
   });
 
   it('POST /api/v1/orders/:id/confirm: seller of different shop receives 403 RESOURCE_FORBIDDEN', async () => {

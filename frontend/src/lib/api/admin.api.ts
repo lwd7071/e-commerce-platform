@@ -17,6 +17,19 @@ export const adminApi = {
     return apiClient.get<AdminUserItem[]>("/admin/users", { params });
   },
 
+  async getUserDetail(userId: string): Promise<AdminUserItem> {
+    return apiClient.get<AdminUserItem>(`/admin/users/${userId}`);
+  },
+
+  async getUsersPage(params?: AdminUserParams): Promise<{ items: AdminUserItem[]; next_cursor: string | null; has_more: boolean }> {
+    const envelope = await apiClient.getPaginated<AdminUserItem>("/admin/users", { params });
+    return {
+      items: envelope.data || [],
+      next_cursor: envelope.meta?.next_cursor ?? null,
+      has_more: envelope.meta?.has_more ?? false,
+    };
+  },
+
   async lockUser(payload: LockUserPayload): Promise<void> {
     await apiClient.post(`/admin/users/${payload.user_id}/lock`, { reason: payload.reason });
   },
@@ -27,6 +40,19 @@ export const adminApi = {
 
   async getShops(params?: AdminShopParams): Promise<AdminShopItem[]> {
     return apiClient.get<AdminShopItem[]>("/admin/shops", { params });
+  },
+
+  async getShopDetail(shopId: string): Promise<AdminShopItem> {
+    return apiClient.get<AdminShopItem>(`/admin/shops/${shopId}`);
+  },
+
+  async getShopsPage(params?: AdminShopParams): Promise<{ items: AdminShopItem[]; next_cursor: string | null; has_more: boolean }> {
+    const envelope = await apiClient.getPaginated<AdminShopItem>("/admin/shops", { params });
+    return {
+      items: envelope.data || [],
+      next_cursor: envelope.meta?.next_cursor ?? null,
+      has_more: envelope.meta?.has_more ?? false,
+    };
   },
 
   async approveShop(shopId: string, reason?: string): Promise<void> {

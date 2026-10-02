@@ -34,10 +34,30 @@ const SELLER_CANCEL_REASONS = [
   "Lý do khác",
 ] as const;
 
+function OrderTimeline({ order }: { order: WireOrder }) {
+  const history = order.status_history ?? [];
+  return (
+    <details className="mt-2 text-xs">
+      <summary className="cursor-pointer font-semibold text-[var(--primary)]">Lịch sử trạng thái</summary>
+      {history.length === 0 ? <p className="mt-2 text-[var(--subtext)]">Chưa có mốc trạng thái.</p> : (
+        <ol className="mt-2 space-y-2 border-l border-[var(--border)] pl-3">
+          {history.map((entry) => <li key={entry.history_id}>
+            <strong>{entry.new_status}</strong>
+            <time className="ml-2 text-[var(--subtext)]">{new Date(entry.changed_at).toLocaleString('vi-VN')}</time>
+            {entry.reason && <p className="text-[var(--subtext)]">{entry.reason}</p>}
+          </li>)}
+        </ol>
+      )}
+    </details>
+  );
+}
+
 export function SellerOrdersScreen() {
   const showToast = useToast();
   const [activeTab, setActiveTab] = useState<SellerFilterTab>("ALL");
   const [orders, setOrders] = useState<WireOrder[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,10 +76,15 @@ export function SellerOrdersScreen() {
     setError(null);
     try {
       const orderRepo = repositories.order();
-      const list = await orderRepo.getOrders(
-        activeTab === "ALL" ? undefined : { status: activeTab }
-      );
-      setOrders(list);
+      const filter = activeTab === "ALL" ? {} : { status: activeTab };
+      if (orderRepo.getOrdersPaginated) {
+        const page = await orderRepo.getOrdersPaginated({ ...filter, limit: 20 });
+        setOrders(page.data);
+        setNextCursor(page.meta.next_cursor ?? null);
+      } else {
+        setOrders(await orderRepo.getOrders(filter));
+        setNextCursor(null);
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Không thể tải danh sách đơn hàng.";
       setError(msg);
@@ -69,27 +94,23 @@ export function SellerOrdersScreen() {
   }, [activeTab]);
 
   useEffect(() => {
-    let isMounted = true;
-    repositories
-      .order()
-      .getOrders(activeTab === "ALL" ? undefined : { status: activeTab })
-      .then((list) => {
-        if (isMounted) {
-          setOrders(list);
-          setIsLoading(false);
-        }
-      })
-      .catch((err: unknown) => {
-        if (isMounted) {
-          setError(err instanceof Error ? err.message : "Không thể tải danh sách đơn hàng.");
-          setIsLoading(false);
-        }
-      });
+    const timer = window.setTimeout(() => { void fetchOrders(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [fetchOrders]);
 
-    return () => {
-      isMounted = false;
-    };
-  }, [activeTab]);
+  const loadMoreOrders = async () => {
+    if (!nextCursor) return;
+    setIsLoadingMore(true);
+    try {
+      const repo = repositories.order();
+      if (!repo.getOrdersPaginated) return;
+      const page = await repo.getOrdersPaginated({ ...(activeTab === "ALL" ? {} : { status: activeTab }), limit: 20, cursor: nextCursor });
+      setOrders((current) => [...current, ...page.data]);
+      setNextCursor(page.meta.next_cursor ?? null);
+    } catch (cause) {
+      showToast(cause instanceof Error ? cause.message : "Không thể tải thêm đơn hàng.", "error");
+    } finally { setIsLoadingMore(false); }
+  };
 
   // Handle Confirm Order (PENDING_CONFIRMATION -> CONFIRMED)
   const handleConfirmOrder = async (order: WireOrder) => {
@@ -390,6 +411,7 @@ export function SellerOrdersScreen() {
                                 Chi tiết đang tải...
                               </span>
                             )}
+                            <OrderTimeline order={order} />
                           </td>
 
                           <td className="py-4 px-4 align-top text-right tabular-nums">
@@ -518,6 +540,8 @@ export function SellerOrdersScreen() {
                       <StatusBadge status={order.status} />
                     </div>
 
+                    <OrderTimeline order={order} />
+
                     {order.items && order.items.length > 0 && (
                       <div className="text-xs space-y-1">
                         {order.items.map((it) => (
@@ -596,6 +620,7 @@ export function SellerOrdersScreen() {
                 );
               })}
             </div>
+            {nextCursor && <div className="flex justify-center"><Button variant="secondary" onClick={() => void loadMoreOrders()} loading={isLoadingMore}>Tải thêm đơn hàng</Button></div>}
           </div>
         )}
 

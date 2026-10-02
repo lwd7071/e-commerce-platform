@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { IAuditPort, AdminAuditRecord } from '../../contracts/audit.port.ts';
 import { ValidationFailedError } from '../errors/app-error.ts';
 
-export const ALLOWED_AUDIT_TARGET_TYPES = ['USER', 'SHOP', 'PRODUCT', 'REVIEW'] as const;
+export const ALLOWED_AUDIT_TARGET_TYPES = ['USER', 'SHOP', 'PRODUCT', 'REVIEW', 'ORDER', 'CATEGORY', 'VOUCHER', 'CAMPAIGN'] as const;
 export type AuditTargetType = typeof ALLOWED_AUDIT_TARGET_TYPES[number];
 
 export interface QueryableClient {

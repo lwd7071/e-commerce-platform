@@ -9,7 +9,6 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Skeleton, ErrorState, EmptyState } from "@/components/ui/data-states";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
 import { useAuth } from "@/lib/auth/auth-context";
-import { adminRepository } from "@/features/admin/admin.repository";
 import { repositories } from "@/lib/repositories/repository-factory";
 import type { SellerKPIStats } from "@/features/admin/admin.types";
 import type { WireOrder } from "@/lib/api/order.api";
@@ -28,11 +27,10 @@ export function SellerDashboardScreen() {
     setIsLoading(true);
     setError(null);
     try {
-      const defaultShopId = "00000000-0000-0000-0000-000000000001";
       const [kpiData, ordersData, catalogData] = await Promise.all([
-        adminRepository.getSellerKPI(defaultShopId),
-        repositories.order().getOrders({ shop_id: defaultShopId }),
-        repositories.catalog().getProducts({ limit: 50 }).catch(() => [] as WireCatalogProductItem[]),
+        repositories.seller().getKpi(),
+        repositories.order().getOrders(),
+        repositories.catalog().getSellerProducts({ limit: 50 }),
       ]);
 
       setKpi(kpiData);
@@ -53,36 +51,9 @@ export function SellerDashboardScreen() {
   }, []);
 
   useEffect(() => {
-    let isMounted = true;
-    const defaultShopId = "00000000-0000-0000-0000-000000000001";
-
-    Promise.all([
-      adminRepository.getSellerKPI(defaultShopId),
-      repositories.order().getOrders({ shop_id: defaultShopId }),
-      repositories.catalog().getProducts({ limit: 50 }).catch(() => [] as WireCatalogProductItem[]),
-    ])
-      .then(([kpiData, ordersData, catalogData]) => {
-        if (!isMounted) return;
-        setKpi(kpiData);
-        setRecentOrders(ordersData);
-        const lowStock = catalogData
-          .filter((p) => (p.total_stock ?? 0) <= 20)
-          .slice(0, 6);
-        setLowStockProducts(lowStock);
-        setIsLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (!isMounted) return;
-        setError(
-          err instanceof Error ? err.message : "Không thể tải dữ liệu bảng điều khiển người bán."
-        );
-        setIsLoading(false);
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+    const timer = window.setTimeout(() => { void fetchDashboardData(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [fetchDashboardData]);
 
   const pendingOrders = recentOrders.filter(
     (o) => o.status === "PENDING_CONFIRMATION" || o.status === "CONFIRMED" || o.status === "PREPARING"

@@ -157,6 +157,7 @@ jobs:
       DIRECT_URL: ${{ secrets.SUPABASE_TEST_DIRECT_URL }}
       DATABASE_ENVIRONMENT: test
       RUN_REMOTE_DB_TESTS: "true"
+      ALLOW_MIGRATION_DEPLOY: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -166,6 +167,24 @@ jobs:
           test -n "$SUPABASE_URL"
           test -n "$DATABASE_URL"
           test -n "$DIRECT_URL"
+
+      - name: Verify test database project references
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from 'node:fs';
+
+          const supabaseUrl = new URL(process.env.SUPABASE_URL);
+          const databaseUrl = new URL(process.env.DATABASE_URL);
+          const directUrl = new URL(process.env.DIRECT_URL);
+          const projectRef = supabaseUrl.hostname.split('.')[0];
+          const databaseUsers = [databaseUrl.username, directUrl.username].map(decodeURIComponent);
+
+          if (!projectRef || !databaseUsers.every((username) => username.endsWith(`.${projectRef}`))) {
+            throw new Error('Supabase test URLs and database credentials must target the same project');
+          }
+
+          appendFileSync(process.env.GITHUB_ENV, `EXPECTED_SUPABASE_PROJECT_REF=${projectRef}\n`);
+          NODE
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -187,6 +206,9 @@ jobs:
 
       - name: Verify backend lockfile is clean
         run: git diff --exit-code -- package-lock.json
+
+      - name: Deploy repository migrations to test project
+        run: npm run db:ci:migrate
 
       - name: Run remote DB suite with zero skipped tests
         run: |

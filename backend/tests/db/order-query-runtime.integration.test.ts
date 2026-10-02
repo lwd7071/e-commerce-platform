@@ -46,6 +46,7 @@ remoteDescribe('Runtime OrderQueryService (real PostgreSQL)', () => {
     const product = await createFixtureProduct(pool, shop, category.categoryId, { productName: 'Áo khoác Snapshot' });
     const variant = await createFixtureVariant(pool, product.productId, { variantName: 'Size', sku: `SKU-${randomUUID()}`, price: '125000.50' });
     const order = await createFixtureOrder(pool, buyer, shop, { status, subtotal: '125000.50', shippingFee: '0.00', totalAmount: '125000.50' });
+    await pool.query(`INSERT INTO ${schema}.order_status_history (history_id,order_id,old_status,new_status,changed_by) VALUES ($1,$2,NULL,$3,$4)`, [randomUUID(), order.orderId, status, buyer]);
     const item = await createFixtureOrderItem(pool, order.orderId, product.productId, variant.variantId, { productName: 'Áo khoác Snapshot', unitPrice: '125000.50', lineTotal: '125000.50' });
     await pool.query(`UPDATE ${schema}.order_items SET variant_snapshot='Size M' WHERE order_item_id=$1`, [item.orderItemId]);
     await pool.query(`INSERT INTO ${schema}.product_images (image_id,product_id,image_url,sort_order) VALUES ($1,$2,$3,2),($4,$2,$5,0)`, [randomUUID(), product.productId, 'https://img.test/second.jpg', randomUUID(), 'https://img.test/primary.jpg']);
@@ -115,5 +116,17 @@ remoteDescribe('Runtime OrderQueryService (real PostgreSQL)', () => {
     const buyer = createRequestContext({ request_id: 'req_test', user_id: buyerId, role: 'BUYER' });
     await expect(service.listOrders(buyer, { status: 'UNKNOWN' as never })).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
     expect(await service.getOrderDetail(buyer, randomUUID())).toBeNull();
+  });
+
+  it('returns stable cursor pages and ordered status history through the real PostgreSQL query seam', async () => {
+    const seller = createRequestContext({ request_id: 'req_seller_page', user_id: sellerId, role: 'SELLER', shop_id: shopId, shop_status: 'ACTIVE' });
+    const first = await service.listOrdersPaginated(seller, { limit: 1 });
+    expect(first.items).toHaveLength(1);
+    expect(first.has_more).toBe(true);
+    expect(first.items[0].status_history).toHaveLength(1);
+    const second = await service.listOrdersPaginated(seller, { limit: 1, cursor: first.next_cursor! });
+    expect(second.items).toHaveLength(1);
+    expect(second.items[0].order_id).not.toBe(first.items[0].order_id);
+    expect(second.items[0].status_history[0].changed_at).toBeTruthy();
   });
 });
