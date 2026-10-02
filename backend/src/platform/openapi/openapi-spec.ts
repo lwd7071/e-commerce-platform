@@ -1498,6 +1498,56 @@ export function generateOpenApiSpec(): OpenApiSpec {
           responses: { '200': successResponse('Media attached'), '401': errorResponse('Authentication required'), '404': errorResponse('Upload not found') },
         },
       },
+      '/chat/conversations': {
+        post: {
+          summary: 'Get or create chat conversation', security: [{ BearerAuth: [] }],
+          requestBody: jsonRequest({ type: 'object', required: ['shop_id'], properties: { shop_id: { type: 'string', format: 'uuid' }, product_id: { type: 'string', format: 'uuid' } } }),
+          responses: { '200': successResponse('Chat conversation retrieved or created'), '401': errorResponse('Authentication required'), '422': errorResponse('Validation failed') },
+        },
+        get: {
+          summary: 'List chat conversations for user', security: [{ BearerAuth: [] }],
+          responses: { '200': successResponse('List of chat conversations'), '401': errorResponse('Authentication required') },
+        },
+      },
+      '/chat/conversations/{id}': {
+        get: {
+          summary: 'Get chat conversation details', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: { '200': successResponse('Chat conversation details'), '401': errorResponse('Authentication required'), '403': errorResponse('Forbidden'), '404': errorResponse('Conversation not found') },
+        },
+      },
+      '/chat/conversations/{id}/messages': {
+        get: {
+          summary: 'List messages in chat conversation', security: [{ BearerAuth: [] }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+            { name: 'limit', in: 'query', schema: { type: 'integer', default: 50 } },
+            { name: 'before_cursor', in: 'query', schema: { type: 'string' } },
+          ],
+          responses: { '200': successResponse('List of messages'), '401': errorResponse('Authentication required'), '403': errorResponse('Forbidden'), '404': errorResponse('Conversation not found') },
+        },
+        post: {
+          summary: 'Send message in chat conversation', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: jsonRequest({ type: 'object', required: ['content'], properties: { content: { type: 'string' }, client_message_id: { type: 'string' }, message_type: { type: 'string', enum: ['TEXT', 'PRODUCT_CARD', 'HANDOFF_REQUEST'] }, metadata: { type: 'object' }, product_id: { type: 'string', format: 'uuid' } } }),
+          responses: { '201': successResponse('Message sent'), '401': errorResponse('Authentication required'), '403': errorResponse('Forbidden'), '404': errorResponse('Conversation not found'), '422': errorResponse('Validation failed') },
+        },
+      },
+      '/chat/conversations/{id}/handoff': {
+        post: {
+          summary: 'Request handoff to human live seller', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: { '200': successResponse('Handoff requested'), '401': errorResponse('Authentication required'), '403': errorResponse('Forbidden'), '404': errorResponse('Conversation not found') },
+        },
+      },
+      '/chat/conversations/{id}/permissions': {
+        patch: {
+          summary: 'Update bot permissions for conversation', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: jsonRequest({ type: 'object', properties: { allow_stock: { type: 'boolean' }, allow_price: { type: 'boolean' }, allow_variants: { type: 'boolean' }, allow_description: { type: 'boolean' } } }),
+          responses: { '200': successResponse('Bot permissions updated'), '401': errorResponse('Authentication required'), '403': errorResponse('Forbidden'), '404': errorResponse('Conversation not found') },
+        },
+      },
     },
   };
 }

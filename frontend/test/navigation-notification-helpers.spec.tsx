@@ -32,7 +32,7 @@ describe("role-based navigation matrix", () => {
       "/", "/cart", "/orders", "/notifications", "/profile",
     ]);
     expect(getNavigationItems("SELLER").map((item) => item.href)).toEqual([
-      "/", "/notifications", "/profile", "/seller", "/seller/shop", "/seller/orders", "/seller/products", "/seller/vouchers", "/seller/reports",
+      "/", "/notifications", "/profile", "/seller", "/seller/shop", "/seller/orders", "/seller/chat", "/seller/products", "/seller/vouchers", "/seller/reports",
     ]);
     expect(getNavigationItems("ADMIN").map((item) => item.href)).toEqual([
       "/", "/profile", "/admin", "/admin/categories",
