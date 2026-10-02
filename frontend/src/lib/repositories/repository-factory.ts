@@ -756,6 +756,15 @@ const mockVoucherRepository: IVoucherRepository = {
   },
 };
 
+import {
+  mockAdminUsersStore,
+  mockAdminShopsStore,
+  mockAdminReviewsStore,
+  recordAdminAuditLog,
+} from "./admin-mock-store";
+
+export { mockAdminUsersStore, mockAdminShopsStore, mockAdminReviewsStore };
+
 const mockReviewsStore: WireReview[] = [
   {
     review_id: "rev_01",
@@ -778,9 +787,24 @@ const mockReviewRepository: IReviewRepository = {
       created_at: new Date().toISOString(),
     };
     mockReviewsStore.push(review);
+    mockAdminReviewsStore.unshift({
+      id: review.review_id,
+      productId: payload.product_id || "prod_mod_01",
+      productName: "Sản phẩm vừa đánh giá",
+      buyerId: "usr_001",
+      rating: payload.rating,
+      content: payload.comment,
+      status: "VISIBLE",
+      createdAt: review.created_at,
+    });
     return review;
   },
-  getReviewsByProduct: async () => mockReviewsStore,
+  getReviewsByProduct: async () => {
+    const hiddenIds = new Set(
+      mockAdminReviewsStore.filter((r) => r.status === "HIDDEN").map((r) => r.id)
+    );
+    return mockReviewsStore.filter((r) => !hiddenIds.has(r.review_id));
+  },
 };
 
 const apiReviewRepository: IReviewRepository = {
@@ -811,13 +835,6 @@ const apiReviewRepository: IReviewRepository = {
   },
 };
 
-import {
-  mockAdminUsersStore,
-  mockAdminShopsStore,
-  recordAdminAuditLog,
-} from "./admin-mock-store";
-
-export { mockAdminUsersStore, mockAdminShopsStore };
 
 export const mockAdminRepository: IAdminRepository = {
   getUsers: async (params) => {

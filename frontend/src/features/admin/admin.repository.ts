@@ -86,12 +86,59 @@ const initialModerationProducts: ModerationProduct[] = [
 ];
 
 let mockProducts = [...initialModerationProducts];
-let localCategories: CategoryItem[] = DEV_CATEGORY_FIXTURES.map((c) => ({ ...c }));
+const initialCategoryFixtures: CategoryItem[] = [
+  {
+    id: "00000000-0000-0000-0000-000000000010",
+    parentId: null,
+    name: "Mỹ phẩm & Chăm sóc sắc đẹp",
+    description: "Sản phẩm chăm sóc da và làm đẹp chính hãng",
+    status: "ACTIVE",
+  },
+  {
+    id: "00000000-0000-0000-0000-000000000011",
+    parentId: null,
+    name: "Thời trang & Phụ kiện",
+    description: "Quần áo, giày dép thời trang",
+    status: "ACTIVE",
+  },
+  {
+    id: "00000000-0000-0000-0000-000000000012",
+    parentId: null,
+    name: "Thiết bị điện tử",
+    description: "Điện thoại, bàn phím và phụ kiện công nghệ",
+    status: "ACTIVE",
+  },
+  {
+    id: "00000000-0000-0000-0000-000000000110",
+    parentId: "00000000-0000-0000-0000-000000000010",
+    name: "Chăm sóc da mặt & Serum",
+    description: "Serum, kem dưỡng, mặt nạ chuyên sâu",
+    status: "ACTIVE",
+  },
+  {
+    id: "00000000-0000-0000-0000-000000000111",
+    parentId: "00000000-0000-0000-0000-000000000011",
+    name: "Áo sơ mi & Áo thun nam",
+    description: "Trang phục nam cao cấp",
+    status: "ACTIVE",
+  },
+  {
+    id: "00000000-0000-0000-0000-000000000112",
+    parentId: "00000000-0000-0000-0000-000000000012",
+    name: "Phụ kiện máy tính & Bàn phím",
+    description: "Bàn phím cơ, chuột và tai nghe",
+    status: "ACTIVE",
+  },
+];
+
+let localCategories: CategoryItem[] = DEV_CATEGORY_FIXTURES;
 
 export function resetMockAdminStore() {
   resetAdminMockStores();
   mockProducts = [...initialModerationProducts];
-  localCategories = DEV_CATEGORY_FIXTURES.map((c) => ({ ...c }));
+  DEV_CATEGORY_FIXTURES.length = 0;
+  initialCategoryFixtures.forEach((c) => DEV_CATEGORY_FIXTURES.push({ ...c }));
+  localCategories = DEV_CATEGORY_FIXTURES;
 }
 
 export class MockAdminRepository implements IAdminRepository {
