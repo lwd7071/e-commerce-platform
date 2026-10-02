@@ -108,6 +108,22 @@ function createMockPool(options: {
         return { rows: [], rowCount: 1 };
       }
 
+      // Loyalty queries inside completion transaction
+      if (sql.includes('SELECT') && sql.includes('app_users') && sql.includes('FOR UPDATE')) {
+        return {
+          rows: [{ user_id: orderBuyerId, buyer_tier: 'STANDARD', total_spent: '0.00', loyalty_points: 0 }],
+          rowCount: 1,
+        };
+      }
+
+      if (sql.includes('INSERT INTO loyalty_point_transactions')) {
+        return { rows: [{ transaction_id: '00000000-0000-4000-8000-000000000099' }], rowCount: 1 };
+      }
+
+      if (sql.includes('UPDATE app_users') && sql.includes('buyer_tier')) {
+        return { rows: [], rowCount: 1 };
+      }
+
       return { rows: [], rowCount: 0 };
     },
     release: () => {},

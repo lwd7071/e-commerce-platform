@@ -109,4 +109,33 @@ export const buyerApi = {
   // Notification operations (legacy scaffold code from Person 1, Person 2 owns domain)
   getNotifications: () => apiClient.get<WireNotification[]>("/notifications"),
   markNotificationRead: (id: string) => apiClient.patch(`/notifications/${id}/read`),
+
+  // Loyalty & DinoPoint operations
+  getLoyalty: () => apiClient.get<BuyerLoyaltyInfo>("/buyer/loyalty"),
+  getLoyaltyHistory: (params?: { page?: number; limit?: number }) => apiClient.get<BuyerLoyaltyHistory>("/buyer/loyalty/history", { params }),
 };
+
+export interface BuyerLoyaltyInfo {
+  tier: "STANDARD" | "VIP";
+  total_spent: string;
+  loyalty_points: number;
+  vip_threshold: string;
+  points_multiplier: number;
+  next_tier: "VIP" | null;
+}
+
+export interface LoyaltyHistoryItem {
+  transaction_id: string;
+  points_delta: number;
+  reference_order_id: string | null;
+  reason: string;
+  created_at: string;
+}
+
+export interface BuyerLoyaltyHistory {
+  items: LoyaltyHistoryItem[];
+  page: number;
+  limit: number;
+  total: number;
+}
+

@@ -15,6 +15,7 @@ import { createPaymentRetry } from '../../payment/domain/payment-state-machine.t
 import type { PaymentAttempt } from '../../payment/domain/types.ts';
 import { PgAuditRepository } from '../../../platform/audit/pg-audit.repository.ts';
 import { ReasonRequiredError } from '../../../platform/errors/app-error.ts';
+import { LoyaltyService } from '../../loyalty/services/loyalty.service.ts';
 
 type CheckoutRow = {
   cart_item_id: string; variant_id: string; quantity: number; price: string; stock_quantity: number;
@@ -24,9 +25,15 @@ type CheckoutRow = {
 
 export class PgCheckoutService implements OrderHttpApplication {
   private readonly auditRepository: PgAuditRepository;
+  private readonly loyaltyService: LoyaltyService;
 
-  constructor(private readonly pool: Pool, private readonly sleep: (ms: number) => Promise<void> = (ms) => new Promise(resolve => setTimeout(resolve, ms))) {
+  constructor(
+    private readonly pool: Pool,
+    private readonly sleep: (ms: number) => Promise<void> = (ms) => new Promise(resolve => setTimeout(resolve, ms)),
+    loyaltyService?: LoyaltyService,
+  ) {
     this.auditRepository = new PgAuditRepository();
+    this.loyaltyService = loyaltyService ?? new LoyaltyService(pool);
   }
 
   async createOrder(context: RequestContext, command: CheckoutCommand): Promise<CheckoutResult> {
@@ -227,6 +234,14 @@ export class PgCheckoutService implements OrderHttpApplication {
     const result = await client.query('UPDATE orders SET status=$1,updated_at=now(),cancel_reason=$2 WHERE order_id=$3 AND status=$4 RETURNING *', [decision.to, decision.to === 'CANCELLED' ? decision.reason : null, orderId, decision.from]);
     if (!result.rows[0]) throw new ConflictError('ORDER_INVALID_TRANSITION', 'Order state changed.');
     await client.query('INSERT INTO order_status_history (history_id,order_id,old_status,new_status,changed_by,reason) VALUES ($1,$2,$3,$4,$5,$6)', [crypto.randomUUID(), orderId, decision.from, decision.to, context.user_id, decision.reason ?? null]);
+    if (decision.to === 'COMPLETED') {
+      await this.loyaltyService.recordOrderCompleted(client, {
+        order_id: result.rows[0].order_id,
+        buyer_id: result.rows[0].buyer_id,
+        subtotal: result.rows[0].subtotal,
+        discount_amount: result.rows[0].discount_amount,
+      });
+    }
     if (context.role === 'ADMIN') {
       await this.auditRepository.logAdminAction(client, {
         admin_id: context.user_id,

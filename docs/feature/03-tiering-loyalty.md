@@ -4,7 +4,7 @@
 
 - Owner: Chưa xác định
 - Người phối hợp: Không
-- Trạng thái: Đang làm
+- Trạng thái: Hoàn thành
 - Cập nhật lần cuối: 2026-10-02
 - Nhánh / PR / commit: `codex/tiering-loyalty` (cập nhật từ `dev` commit `0811358`)
 
@@ -38,6 +38,14 @@
   - Frontend: Xây dựng component `TierBadge` hiển thị nhãn MALL và Yêu thích (PREFERRED), tích hợp vào `ProductCard` và màn hình `AdminShopsScreen` kèm dialog "Đổi hạng" và bộ lọc tier.
   - Viết kiểm thử tích hợp 10/10 tests pass tại `backend/test/platform/admin-shop-tier.spec.ts` (Admin tier update, audit log, reason requirement, role authorization, seller protection, catalog filtering).
   - Viết kiểm thử frontend 3/3 tests pass tại `frontend/test/admin-portal.spec.ts` (hiển thị badge, đổi hạng shop, lọc theo hạng).
+- Đợt B: Phân hạng Buyer VIP, Ledger tích điểm DinoPoint và Profile UI:
+  - Tạo migration `20261003110000_buyer_loyalty` thêm `buyer_tier`, `total_spent`, `loyalty_points` vào `app_users` và tạo bảng `loyalty_point_transactions` kèm unique index `uq_loyalty_transactions__order_earned` ngăn tích điểm trùng lặp.
+  - Xây dựng module domain `loyalty.types.ts` với phép tính số học chính xác tuyệt đối qua `BigInt` cents chuẩn repository: loại trừ phí vận chuyển (P0-1), 1 điểm mỗi 10.000 VNĐ (P0-2), hệ số điểm lấy từ hạng cũ dưới khóa (P0-3), ngưỡng VIP 5.000.000 VNĐ.
+  - Hiện thực hóa `LoyaltyService` và hook ghi nhận nguyên tử trong `PgCheckoutService.persistTransition`: khóa dòng Buyer `SELECT ... FOR UPDATE`, chèn ledger bằng `INSERT ... ON CONFLICT DO NOTHING RETURNING transaction_id`, chỉ cộng chi tiêu/điểm khi chèn ledger thành công (`rowCount === 1`). Đơn dưới 10.000 VNĐ vẫn ghi nhận chi tiêu và tạo ledger với 0 điểm.
+  - Triển khai endpoints `GET /api/v1/buyer/loyalty` và `GET /api/v1/buyer/loyalty/history` trong `buyer-routes.ts` và đăng ký trong OpenAPI spec.
+  - Frontend: Xây dựng component `BuyerLoyaltyCard` hiển thị huy hiệu VIP/Standard, số dư DinoPoint, thanh tiến trình thăng hạng VIP và bảng lịch sử giao dịch điểm. Tích hợp trực tiếp vào trang `ProfileScreen` cho tài khoản BUYER.
+  - Viết bộ kiểm thử tích hợp backend `backend/test/platform/buyer-loyalty.spec.ts` (10/10 tests pass) kiểm chứng: công thức trừ phí ship, đơn <10k được 0 điểm, 2 trường hợp đồng thời chạm ngưỡng VIP (4.9M và 4.8M), chống duplicate trực tiếp tại database/service level, gọi lặp API trả về 409, phân quyền RBAC.
+  - Viết kiểm thử frontend `frontend/test/buyer-loyalty-card.spec.tsx` (2/2 tests pass).
 
 ## Thiết kế / quyết định kỹ thuật
 
@@ -59,11 +67,12 @@
 |---|---|---|---|
 | Runtime Wiring & P0-9 Shipment Integration | `npx tsx --test test/platform/order-confirm-received.spec.ts` | PASS | 8/8 tests pass (Buyer/Admin/Shipment/Role). |
 | Admin Shop Tiering Integration | `npx tsx --test test/platform/admin-shop-tier.spec.ts` | PASS | 10/10 tests pass (Admin/Audit/RBAC/Filter/Seller protection). |
-| Backend Node Test Suite | `npm --prefix backend run test:node` | PASS | 710/710 tests pass (198 test suites). |
+| Buyer Loyalty & Concurrency Integration | `npx tsx --test test/platform/buyer-loyalty.spec.ts` | PASS | 10/10 tests pass (P0-1..3, Concurrency 4.9M/4.8M, 0-pts, Duplicate check, RBAC). |
+| Backend Node Test Suite | `npm --prefix backend run test:node` | PASS | 720/720 tests pass (199 test suites). |
 | Backend Typecheck | `npm --prefix backend run typecheck` | PASS | `tsc --noEmit` 0 errors. |
 | Backend Lint | `npm --prefix backend run lint` | PASS | ESLint 0 errors, 0 warnings. |
-| Backend Build | `npm --prefix backend run build` | PASS | esbuild bundle 461KB thành công. |
-| Frontend Test Suites | `npm --prefix frontend test` | PASS | 324/324 tests PASS (66 test files). |
+| Backend Build | `npm --prefix backend run build` | PASS | esbuild bundle 469.2KB thành công. |
+| Frontend Test Suites | `npm --prefix frontend test` | PASS | 326/326 tests PASS (67 test files). |
 | Frontend Typecheck | `npm --prefix frontend run typecheck` | PASS | `tsc --noEmit` 0 errors. |
 | Frontend Lint | `npm --prefix frontend run lint` | PASS | ESLint 0 errors, 0 warnings. |
 | Frontend Contract Check | `npm --prefix frontend run api:types:check` | PASS | Generated API types match backend OpenAPI. |
@@ -77,13 +86,27 @@
 
 ## Việc còn lại và blocker
 
-- [x] Bước 0: Sửa lỗi nền wiring `confirmReceived` và kiểm tra quyền hoàn tất đơn — Owner: Chưa xác định — Trạng thái: Đã triển khai
+- [x] Bước 0: Sửa lỗi nền wiring `confirmReceived` và kiểm tra quyền hoàn tất đơn — Owner: Chưa xác định — Trạng thái: Đã hoàn thành
 - [x] Đợt A: Triển khai migration `shops.tier` & override metadata, Admin tier API, catalog filter và `TierBadge` UI — Owner: Chưa xác định — Trạng thái: Đã hoàn thành
-- [ ] Đợt B: Triển khai migration `app_users` + `loyalty_point_transactions`, core hook tích điểm, Buyer loyalty API và Profile UI — Owner: Chưa xác định — Trạng thái: Đang làm
+- [x] Đợt B: Triển khai migration `app_users` + `loyalty_point_transactions`, core hook tích điểm, Buyer loyalty API và Profile UI — Owner: Chưa xác định — Trạng thái: Đã hoàn thành
 - [ ] Đợt C: Đánh giá tự động PREFERRED và composite cursor search boost — Trạng thái: Ngoài phạm vi đợt này
 - Blocker: Không có.
 
 ## Nhật ký cập nhật
+
+### 2026-10-02 (Đợt B - Hoàn tất Phân hạng Buyer VIP, Ledger Tích điểm DinoPoint & Bàn giao)
+
+- Đã làm:
+  - Tạo migration `20261003110000_buyer_loyalty` bổ sung `buyer_tier`, `total_spent`, `loyalty_points` vào `app_users` và tạo bảng `loyalty_point_transactions`.
+  - Tạo unique index `uq_loyalty_transactions__order_earned` cho phép chống duplicate tuyệt đối ở tầng cơ sở dữ liệu.
+  - Hiện thực hóa module tính toán `loyalty.types.ts` bằng số học `BigInt` cents, bảo đảm zero floating point.
+  - Tích hợp `LoyaltyService` vào `PgCheckoutService.persistTransition`: khóa hàng Buyer `FOR UPDATE`, thực thi nguyên tử cùng transaction chuyển đơn sang `COMPLETED`.
+  - Triển khai các API `GET /api/v1/buyer/loyalty` và `GET /api/v1/buyer/loyalty/history`, cập nhật OpenAPI spec và sinh mã types frontend.
+  - Xây dựng component `BuyerLoyaltyCard` tích hợp vào màn hình `ProfileScreen` hiển thị hạng thành viên, số dư điểm, thanh tiến trình chi tiêu lên VIP và lịch sử giao dịch điểm.
+  - Viết bộ kiểm thử tích hợp backend `backend/test/platform/buyer-loyalty.spec.ts` (10/10 tests pass) bao gồm 2 ca concurrency race condition, đơn < 10k VND 0 điểm, kiểm thử duplicate trực tiếp tại database/service level.
+  - Viết kiểm thử frontend `frontend/test/buyer-loyalty-card.spec.tsx` (2/2 tests pass).
+  - Toàn bộ 720 tests backend (199 suites) và 326 tests frontend (67 files) đạt 100% PASS; typecheck, lint, build backend/frontend và contract check đều 100% PASS.
+- Hoàn thành đầy đủ phạm vi được duyệt của kế hoạch (Bước 0, Đợt A, Đợt B). Sẵn sàng bàn giao.
 
 ### 2026-10-02 (Đợt A - Hoàn tất Phân hạng Shop & Quản lý Admin)
 

@@ -1,6 +1,6 @@
-export type ShopTier = 'STANDARD' | 'PREFERRED' | 'MALL';
+export type TierType = 'STANDARD' | 'PREFERRED' | 'MALL' | 'VIP';
 
-export function TierBadge({ tier }: { tier?: ShopTier | string | null }) {
+export function TierBadge({ tier }: { tier?: TierType | string | null }) {
   if (!tier || tier === 'STANDARD') return null;
 
   if (tier === 'MALL') {
@@ -15,6 +15,14 @@ export function TierBadge({ tier }: { tier?: ShopTier | string | null }) {
     return (
       <span className="tier-badge tier-badge--preferred" aria-label="Yêu thích">
         Yêu thích
+      </span>
+    );
+  }
+
+  if (tier === 'VIP') {
+    return (
+      <span className="tier-badge tier-badge--vip" aria-label="Thành viên VIP">
+        VIP
       </span>
     );
   }

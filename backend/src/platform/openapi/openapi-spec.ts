@@ -242,6 +242,32 @@ export function generateOpenApiSpec(): OpenApiSpec {
           },
         },
       },
+      '/buyer/loyalty': {
+        get: {
+          summary: 'Get current buyer loyalty tier, spending progress, and DinoPoint balance',
+          security: [{ BearerAuth: [] }],
+          responses: {
+            '200': successResponse('Buyer loyalty status'),
+            '401': errorResponse('Authentication required'),
+            '403': errorResponse('Buyer role required'),
+          },
+        },
+      },
+      '/buyer/loyalty/history': {
+        get: {
+          summary: 'Get paginated buyer DinoPoint transaction history',
+          security: [{ BearerAuth: [] }],
+          parameters: [
+            { name: 'page', in: 'query', required: false, schema: { type: 'integer', default: 1 } },
+            { name: 'limit', in: 'query', schema: { type: 'integer', default: 10 }, required: false },
+          ],
+          responses: {
+            '200': successResponse('Buyer loyalty point transactions'),
+            '401': errorResponse('Authentication required'),
+            '403': errorResponse('Buyer role required'),
+          },
+        },
+      },
       '/products': {
         get: {
           summary: 'List public products',

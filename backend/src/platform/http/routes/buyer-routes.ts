@@ -8,6 +8,7 @@ import type { VoucherService } from '../../../modules/buyer/services/voucher.ser
 import type { ReviewService } from '../../../modules/buyer/services/review.service.ts';
 import type { NotificationService } from '../../../modules/buyer/services/notification.service.ts';
 import type { ProfileService } from '../../../modules/buyer/services/profile.service.ts';
+import type { LoyaltyService } from '../../../modules/loyalty/services/loyalty.service.ts';
 import type { BuyerHttpApplication } from './t1-routes.ts';
 import type { VoucherScope } from '../../../modules/buyer/domain/types.ts';
 
@@ -22,6 +23,7 @@ export interface BuyerServices {
   reviewService?: ReviewService;
   notificationService?: NotificationService;
   profileService?: ProfileService;
+  loyaltyService?: LoyaltyService;
 }
 
 function guards(auth: RequestHandler | undefined, ...roles: Role[]): RequestHandler[] {
@@ -112,6 +114,7 @@ export function createBuyerDomainRouter(
   const reviewService = services?.reviewService;
   const notificationService = services?.notificationService;
   const profileService = services?.profileService;
+  const loyaltyService = services?.loyaltyService;
 
   router.get('/profile', ...profileGuards(auth), asyncRoute(async (req, res) => {
     if (!profileService) throw new NotImplementedError('Profile is not available in the current runtime');
@@ -449,6 +452,32 @@ export function createBuyerDomainRouter(
 
   router.patch('/notifications/:notification_id/read', ...notificationGuards(auth), handleMarkNotificationRead);
   router.patch('/notifications/:notification_id', ...notificationGuards(auth), handleMarkNotificationRead);
+
+  // ==========================================
+  // 6. LOYALTY ROUTES
+  // ==========================================
+  const handleGetLoyalty = asyncRoute(async (req, res) => {
+    const ctx = context(req);
+    if (!loyaltyService) {
+      throw new NotImplementedError('Loyalty service is not available in the current runtime');
+    }
+    const data = await loyaltyService.getLoyaltyInfo(ctx.user_id);
+    res.json(buildSuccessEnvelope(data, requestId(req)));
+  });
+
+  const handleGetLoyaltyHistory = asyncRoute(async (req, res) => {
+    const ctx = context(req);
+    if (!loyaltyService) {
+      throw new NotImplementedError('Loyalty service is not available in the current runtime');
+    }
+    const page = typeof req.query.page === 'string' ? parseInt(req.query.page, 10) : 1;
+    const limit = typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : 10;
+    const data = await loyaltyService.getLoyaltyHistory(ctx.user_id, page, limit);
+    res.json(buildSuccessEnvelope(data, requestId(req)));
+  });
+
+  router.get('/buyer/loyalty', ...guards(auth, 'BUYER'), handleGetLoyalty);
+  router.get('/buyer/loyalty/history', ...guards(auth, 'BUYER'), handleGetLoyaltyHistory);
 
   return router;
 }
