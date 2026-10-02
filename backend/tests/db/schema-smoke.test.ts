@@ -10,6 +10,7 @@ const expectedTables = [
   'voucher_usages', 'reviews', 'review_images', 'notifications',
   'moderation_records', 'admin_logs',
   'admin_notification_campaigns', 'admin_notification_campaign_recipients',
+  'chat_conversations', 'chat_messages',
 ];
 const operationalTables = ['api_idempotency_records', 'media_uploads'];
 
@@ -44,7 +45,7 @@ remoteDescribe('Schema Freeze v1 Supabase smoke checks', () => {
     if (client) await client.end();
   }, 20_000);
 
-  it('connects and exposes exactly the 24 Schema Freeze business tables', async () => {
+  it('connects and exposes exactly the 26 Schema Freeze business tables', async () => {
     const result = await requireConnectedClient().query<{ table_name: string }>(
       "select table_name from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE' and table_name <> '_prisma_migrations' and table_name <> all($1::text[]) order by table_name",
       [operationalTables],

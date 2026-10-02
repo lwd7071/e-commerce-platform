@@ -18,6 +18,7 @@ const EXPECTED_BUSINESS_TABLES = [
   'voucher_usages', 'reviews', 'review_images', 'notifications',
   'moderation_records', 'admin_logs',
   'admin_notification_campaigns', 'admin_notification_campaign_recipients',
+  'chat_conversations', 'chat_messages',
 ];
 
 const runRemoteDbTests = parseRunRemoteDbTests(process.env);
@@ -40,6 +41,7 @@ describe('Migration Rebuild & Clean Replay Safety (T3 Unit)', () => {
     expect(entries).toContain('20260926100000_t3_cross_domain_hardening');
     expect(entries).toContain('20260929120000_auth_user_bootstrap');
     expect(entries).toContain('20260930150000_media_upload_lifecycle');
+    expect(entries).toContain('20261002130000_chat_conversations_and_messages');
   });
 
   it('contains durable notification event idempotency migration', () => {
@@ -135,7 +137,7 @@ remoteDescribe('Migration State & Database Replay Acceptance (T3 Remote)', () =>
     }
   }, 15_000);
 
-  it('confirms the database schema contains exactly 24 business tables and 2 operational tables', async () => {
+  it('confirms the database schema contains exactly 26 business tables and 2 operational tables', async () => {
     if (!pool) throw new Error('Pool not initialized');
 
     const result = await pool.query<{ table_name: string }>(

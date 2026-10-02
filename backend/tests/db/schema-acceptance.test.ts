@@ -11,6 +11,7 @@ const expectedTables = [
   'voucher_usages', 'reviews', 'review_images', 'notifications',
   'moderation_records', 'admin_logs', 'media_uploads',
   'admin_notification_campaigns', 'admin_notification_campaign_recipients',
+  'chat_conversations', 'chat_messages',
 ];
 const supportTables = ['_prisma_migrations'];
 const remoteDescribe = parseRunRemoteDbTests(process.env) ? describe : describe.skip;
