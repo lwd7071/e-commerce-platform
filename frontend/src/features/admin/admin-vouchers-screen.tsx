@@ -64,11 +64,11 @@ export function AdminVouchersScreen() {
   };
 
   return <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
-      <header className="flex flex-wrap items-end justify-between gap-4">
+      <header className="page-heading flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <AdminHeaderNav currentModule="Voucher toàn sàn" />
-          <h1 className="mt-1 text-2xl font-bold">Voucher toàn sàn</h1>
-          <p className="mt-1 text-sm text-[var(--subtext)]">Voucher nền tảng do Admin quản lý; voucher shop chỉ xem.</p>
+          <h1 className="page-title">Voucher toàn sàn</h1>
+          <p className="page-description">Voucher nền tảng do Admin quản lý; voucher shop chỉ xem.</p>
         </div>
       </header>
       <form className="surface-card grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4" onSubmit={submit}>

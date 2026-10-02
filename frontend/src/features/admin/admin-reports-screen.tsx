@@ -43,10 +43,12 @@ export function AdminReportsScreen() {
 
   return (
     <section className="space-y-6">
-      <header>
-        <AdminHeaderNav currentModule="Báo cáo vận hành" />
-        <h1 className="page-title mt-1">Báo cáo vận hành</h1>
-        <p className="page-description">GMV chỉ tính đơn hoàn tất; ngày báo cáo theo múi giờ Việt Nam.</p>
+      <header className="page-heading flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <AdminHeaderNav currentModule="Báo cáo vận hành" />
+          <h1 className="page-title">Báo cáo vận hành</h1>
+          <p className="page-description">GMV chỉ tính đơn hoàn tất; ngày báo cáo theo múi giờ Việt Nam.</p>
+        </div>
       </header>
       <form onSubmit={load} className="surface-card grid gap-4 p-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
         <FormField id="report-from" label="Từ ngày"><TextInput id="report-from" type="date" value={from} onChange={(event) => setFrom(event.target.value)} required /></FormField>

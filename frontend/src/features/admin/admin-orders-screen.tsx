@@ -68,10 +68,14 @@ export function AdminOrdersScreen() {
   };
 
   return <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
-    <header>
-      <AdminHeaderNav currentModule="Đơn hàng toàn sàn" />
-      <h1 className="mt-1 text-2xl font-bold">Đơn hàng toàn sàn</h1>
-      <p className="mt-1 text-sm text-[var(--subtext)]">Tra cứu đơn, sản phẩm, thanh toán, vận chuyển và lịch sử thay đổi.</p>
+    <header className="page-heading flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <AdminHeaderNav currentModule="Đơn hàng toàn sàn" />
+        <h1 className="page-title">Đơn hàng toàn sàn</h1>
+        <p className="page-description">
+          Tra cứu đơn, sản phẩm, thanh toán, vận chuyển và lịch sử thay đổi.
+        </p>
+      </div>
     </header>
 
     {/* Tabs */}

@@ -48,10 +48,12 @@ export function AdminCampaignsScreen() {
   };
 
   return <main className="mx-auto max-w-4xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
-    <header>
-      <AdminHeaderNav currentModule="Chiến dịch thông báo" />
-      <h1 className="mt-1 text-2xl font-bold">Thông báo theo nhóm</h1>
-      <p className="mt-1 text-sm text-[var(--subtext)]">Chọn một nhóm người nhận. Hệ thống lưu danh sách nhận tại thời điểm tạo và gửi lại an toàn khi cần.</p>
+    <header className="page-heading flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <AdminHeaderNav currentModule="Chiến dịch thông báo" />
+        <h1 className="page-title">Thông báo theo nhóm</h1>
+        <p className="page-description">Chọn một nhóm người nhận. Hệ thống lưu danh sách nhận tại thời điểm tạo và gửi lại an toàn khi cần.</p>
+      </div>
     </header>
     <form className="surface-card grid gap-4 p-5" onSubmit={submit}>
       <FormField id="campaign-audience" label="Nhóm nhận" required><SelectInput id="campaign-audience" value={draft.audience_role} onChange={event => setDraft({ ...draft, audience_role: event.target.value as Draft["audience_role"] })}><option value="BUYER">Người mua</option><option value="SELLER">Người bán</option></SelectInput></FormField>

@@ -75,10 +75,12 @@ export function AdminReviewsScreen() {
 
   return <ProtectedPage allowedRoles={["ADMIN"]}>
     <main className="max-w-6xl mx-auto space-y-6 pb-20">
-      <header className="page-heading">
-        <AdminHeaderNav currentModule="Kiểm duyệt đánh giá" />
-        <h1 className="page-title mt-1">Kiểm duyệt đánh giá</h1>
-        <p className="page-description">Ẩn hoặc khôi phục đánh giá với lý do được ghi vào lịch sử quản trị.</p>
+      <header className="page-heading flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <AdminHeaderNav currentModule="Kiểm duyệt đánh giá" />
+          <h1 className="page-title">Kiểm duyệt đánh giá</h1>
+          <p className="page-description">Ẩn hoặc khôi phục đánh giá với lý do được ghi vào lịch sử quản trị.</p>
+        </div>
       </header>
 
       <section className="surface-card p-4 sm:p-5 space-y-4" aria-label="Bộ lọc đánh giá">

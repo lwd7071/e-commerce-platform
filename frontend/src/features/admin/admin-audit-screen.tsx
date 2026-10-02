@@ -47,11 +47,13 @@ export function AdminAuditScreen() {
     setCursor(null);
   };
 
-  return <main className="mx-auto max-w-7xl space-y-5 px-4 py-6 sm:px-6 lg:px-8">
-    <header>
-      <AdminHeaderNav currentModule="Nhật ký quản trị" />
-      <h1 className="mt-1 text-2xl font-bold">Nhật ký quản trị</h1>
-      <p className="mt-1 text-sm text-[var(--subtext)]">Tra cứu người thực hiện, thao tác, đối tượng và thời gian.</p>
+  return <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+    <header className="page-heading flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <AdminHeaderNav currentModule="Nhật ký quản trị" />
+        <h1 className="page-title">Nhật ký quản trị</h1>
+        <p className="page-description">Tra cứu người thực hiện, thao tác, đối tượng và thời gian.</p>
+      </div>
     </header>
     <form onSubmit={submit} className="surface-card grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-5 lg:items-end">
       <FormField id="audit-action" label="Hành động"><TextInput id="audit-action" value={action} onChange={(event) => setAction(event.target.value)} /></FormField>

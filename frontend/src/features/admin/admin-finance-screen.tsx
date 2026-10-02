@@ -78,10 +78,10 @@ export function AdminFinanceScreen() {
       <header className="page-heading flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <AdminHeaderNav currentModule="Dòng tiền & Ký quỹ (A-707)" />
-          <h1 className="page-title text-2xl sm:text-3xl font-extrabold text-[var(--foreground)]">
+          <h1 className="page-title">
             Quản lý Tài chính & Ký quỹ sàn (Escrow)
           </h1>
-          <p className="page-description text-sm text-[var(--subtext)]">
+          <p className="page-description">
             Theo dõi toàn bộ dòng tiền ký quỹ, doanh thu phí sàn (5%), và duyệt lệnh rút tiền của các gian hàng.
           </p>
         </div>
