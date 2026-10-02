@@ -151,7 +151,7 @@ export function AdminCategoriesScreen() {
 
   return (
     <ProtectedPage allowedRoles={["ADMIN"]}>
-      <div className="admin-categories-page space-y-6 pb-24 max-w-5xl mx-auto">
+      <main className="admin-categories-page mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8 pb-24">
         {/* Toast Alert */}
         {toast && (
           <div
@@ -459,8 +459,7 @@ export function AdminCategoriesScreen() {
             </FormField>
           </form>
         </Dialog>
-
-      </div>
+      </main>
     </ProtectedPage>
   );
 }

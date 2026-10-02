@@ -245,7 +245,7 @@ export function AdminShopsScreen() {
   };
 
   return (
-    <div className="space-y-6">
+    <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
       {/* Header */}
       <header className="page-heading flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -659,6 +659,6 @@ export function AdminShopsScreen() {
           </div>
         </Dialog>
       )}
-    </div>
+    </main>
   );
 }
