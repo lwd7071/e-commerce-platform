@@ -243,42 +243,70 @@ export function AdminDashboardScreen() {
         )}
 
         {/* Page Header */}
-        <header className="page-heading flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+          <div className="flex-1 min-w-0">
             <p className="eyebrow">Dino Control Center</p>
-            <h1 className="page-title">Bảng điều khiển quản trị sàn (A-704)</h1>
-            <p className="page-description">
+            <h1 className="page-title text-2xl sm:text-3xl font-bold tracking-tight text-[var(--foreground)]">
+              Bảng điều khiển quản trị sàn (A-704)
+            </h1>
+            <p className="page-description text-sm text-[var(--subtext)] mt-1 max-w-2xl">
               Giám sát số liệu kinh doanh, kiểm duyệt tài khoản, gian hàng và quản lý danh mục toàn diện.
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <Link
-              href="/admin/categories"
-              className="button button--secondary text-xs py-2 px-3.5 flex items-center gap-1.5"
+              href="/admin/finance"
+              className="button button--primary text-xs py-2 px-3.5 flex items-center gap-1.5 shadow-sm font-semibold"
             >
-              <Icon name="grid" className="w-4 h-4" />
-              <span>Quản lý danh mục (A-709)</span>
-            </Link>
-            <Link href="/admin/reviews" className="button button--secondary text-xs py-2 px-3.5 flex items-center gap-1.5">
-              Kiểm duyệt đánh giá
-            </Link>
-            <Link href="/admin/vouchers" className="button button--secondary text-xs py-2 px-3.5 flex items-center gap-1.5">
-              Voucher toàn sàn
-            </Link>
-            <Link href="/admin/campaigns" className="button button--secondary text-xs py-2 px-3.5 flex items-center gap-1.5">
-              Chiến dịch thông báo
-            </Link>
-            <Link href="/admin/orders" className="button button--secondary text-xs py-2 px-3.5 flex items-center gap-1.5">
-              Đơn hàng
-            </Link>
-            <Link href="/admin/reports" className="button button--secondary text-xs py-2 px-3.5 flex items-center gap-1.5">
-              Báo cáo
-            </Link>
-            <Link href="/admin/audit-logs" className="button button--secondary text-xs py-2 px-3.5 flex items-center gap-1.5">
-              Nhật ký quản trị
+              <Icon name="bag" className="w-4 h-4" />
+              <span>Tài chính & Ví sàn (A-710)</span>
             </Link>
           </div>
         </header>
+
+        {/* Admin Navigation Hub Toolbar */}
+        <nav aria-label="Phân hệ chức năng quản trị" className="surface-card p-2.5 mb-6 rounded-xl border border-[var(--border)]">
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/admin/categories"
+              className="button button--secondary text-xs py-1.5 px-3 flex items-center gap-1.5"
+            >
+              <Icon name="grid" className="w-3.5 h-3.5" />
+              <span>Quản lý danh mục (A-709)</span>
+            </Link>
+            <Link
+              href="/admin/finance"
+              className="button button--secondary text-xs py-1.5 px-3 flex items-center gap-1.5 font-medium text-[var(--primary-active)]"
+            >
+              <Icon name="bag" className="w-3.5 h-3.5" />
+              <span>Dòng tiền & Ký quỹ</span>
+            </Link>
+            <Link href="/admin/reviews" className="button button--secondary text-xs py-1.5 px-3 flex items-center gap-1.5">
+              <Icon name="star" className="w-3.5 h-3.5" />
+              <span>Kiểm duyệt đánh giá</span>
+            </Link>
+            <Link href="/admin/vouchers" className="button button--secondary text-xs py-1.5 px-3 flex items-center gap-1.5">
+              <Icon name="grid" className="w-3.5 h-3.5" />
+              <span>Voucher toàn sàn</span>
+            </Link>
+            <Link href="/admin/campaigns" className="button button--secondary text-xs py-1.5 px-3 flex items-center gap-1.5">
+              <Icon name="bell" className="w-3.5 h-3.5" />
+              <span>Chiến dịch thông báo</span>
+            </Link>
+            <Link href="/admin/orders" className="button button--secondary text-xs py-1.5 px-3 flex items-center gap-1.5">
+              <Icon name="bag" className="w-3.5 h-3.5" />
+              <span>Đơn hàng</span>
+            </Link>
+            <Link href="/admin/reports" className="button button--secondary text-xs py-1.5 px-3 flex items-center gap-1.5">
+              <Icon name="info" className="w-3.5 h-3.5" />
+              <span>Báo cáo</span>
+            </Link>
+            <Link href="/admin/audit-logs" className="button button--secondary text-xs py-1.5 px-3 flex items-center gap-1.5">
+              <Icon name="info" className="w-3.5 h-3.5" />
+              <span>Nhật ký quản trị</span>
+            </Link>
+          </div>
+        </nav>
 
         {/* Runtime Gated Notice (GAP-08) */}
         <div className="notice notice--info" role="status">
