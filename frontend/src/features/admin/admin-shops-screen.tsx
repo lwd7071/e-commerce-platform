@@ -246,25 +246,28 @@ export function AdminShopsScreen() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <header className="page-heading flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <p className="eyebrow">Hệ thống quản trị</p>
+          <div className="flex items-center gap-2 mb-1">
+            <Link
+              href="/admin"
+              className="text-xs font-semibold text-[var(--subtext)] hover:text-[var(--primary-active)] flex items-center gap-1 transition-colors"
+            >
+              ← Quay lại Dashboard
+            </Link>
+            <span className="text-xs text-[var(--subtext)]">•</span>
+            <p className="eyebrow m-0">Quản lý gian hàng (A-708)</p>
+          </div>
           <h1 className="page-title">Quản Lý & Duyệt Gian Hàng</h1>
           <p className="page-description">
             Kiểm duyệt hồ sơ đăng ký kinh doanh, duyệt gian hàng PENDING và giám sát tuân thủ của người bán.
           </p>
         </div>
-      </div>
+      </header>
 
       {/* Tabs */}
       <nav aria-label="Điều hướng quản trị" className="border-b border-[var(--border)]">
         <div className="flex gap-6 text-sm font-semibold">
-          <Link
-            href="/admin"
-            className="pb-3 border-b-2 border-transparent text-[var(--subtext)] hover:text-[var(--foreground)]"
-          >
-            Danh sách người dùng
-          </Link>
           <Link
             href="/admin/shops"
             className="pb-3 border-b-2 border-[var(--primary-active)] text-[var(--primary-active)]"
