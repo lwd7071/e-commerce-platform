@@ -13,7 +13,7 @@ sequenceDiagram
     Buyer->>FE: Xác nhận đã nhận đơn
     FE->>API: POST /api/v1/orders/{order_id}/confirm-received
     API->>Checkout: Xác minh Buyer và xử lý xác nhận
-    Checkout->>DB: BEGIN; khóa order thuộc Buyer
+    Checkout->>DB: BEGIN, khóa order thuộc Buyer
     Checkout->>DB: Kiểm tra order đang SHIPPING
     Checkout->>DB: Khóa shipment theo order
     alt Không tìm thấy order/shipment hoặc trạng thái không hợp lệ

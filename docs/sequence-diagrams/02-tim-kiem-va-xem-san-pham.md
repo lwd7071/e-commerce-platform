@@ -10,7 +10,7 @@ sequenceDiagram
     participant DB as PostgreSQL
 
     Buyer->>FE: Nhập từ khóa, bộ lọc và cách sắp xếp
-    FE->>API: GET /api/v1/products?search=...&filters=...
+    FE->>API: GET /api/v1/products (query: category_id, search, min_price, max_price, sort, limit, cursor, shop_tier)
     API->>Catalog: listProducts(query)
     Catalog->>DB: Truy vấn sản phẩm, shop, biến thể và tồn kho
     DB-->>Catalog: Danh sách trang hiện tại

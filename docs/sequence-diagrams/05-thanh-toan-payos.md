@@ -9,6 +9,7 @@ sequenceDiagram
     participant Pay as PayOS Service
     participant DB as PostgreSQL
     participant Escrow as Escrow Service
+    participant DB2 as PostgreSQL (connection riêng của Wallet)
 
     Buyer->>FE: Chọn thanh toán online cho đơn đã tạo
     FE->>API: POST /api/v1/payments/payos/create-link (order_id)
@@ -28,11 +29,15 @@ sequenceDiagram
     else Webhook hợp lệ và có orderCode
         API->>DB: Tìm payment theo transaction_code
         DB-->>API: Payment và order liên quan
-        API->>DB: BEGIN
+        API->>DB: BEGIN trên connection webhook
         API->>DB: Cập nhật payment SUCCESS
         API->>DB: Nếu order đang PENDING_CONFIRMATION, chuyển sang CONFIRMED và ghi history
-        API->>Escrow: Tạo escrow cho order
-        API->>DB: COMMIT
+        API->>Escrow: Tạo escrow qua Wallet repository
+        Escrow->>DB2: INSERT escrow_records qua pool connection riêng
+        DB2-->>Escrow: Escrow được ghi độc lập (autocommit)
+        Escrow-->>API: Escrow đã tạo
+        API->>DB: COMMIT transaction webhook
         API-->>Pay: 200 success
     end
+    Note over DB,DB2: Payment/order và escrow hiện không nằm trong cùng transaction; escrow có thể đã commit riêng nếu transaction webhook rollback.
 ```

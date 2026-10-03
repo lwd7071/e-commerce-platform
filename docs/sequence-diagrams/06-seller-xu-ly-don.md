@@ -21,7 +21,7 @@ sequenceDiagram
     Seller->>FE: Xác nhận đơn
     FE->>API: POST /api/v1/orders/{order_id}/confirm
     API->>Order: Xác thực Seller sở hữu shop và trạng thái đơn
-    Order->>DB: BEGIN; khóa order; kiểm tra PENDING_CONFIRMATION
+    Order->>DB: BEGIN, khóa order, kiểm tra PENDING_CONFIRMATION
     alt Đơn không hợp lệ hoặc không thuộc shop Seller
         Order->>DB: ROLLBACK
         Order-->>API: Lỗi quyền hoặc ORDER_INVALID_TRANSITION

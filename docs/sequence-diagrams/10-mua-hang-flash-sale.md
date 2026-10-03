@@ -28,7 +28,7 @@ sequenceDiagram
             FS-->>API: success=false và mã lỗi
             API-->>FE: Báo không thể mua
         else Đặt chỗ Redis thành công
-            FS->>DB: BEGIN; kiểm tra idempotency và đọc item/voucher
+            FS->>DB: BEGIN, kiểm tra idempotency và đọc item/voucher
             FS->>DB: Tạo order PENDING_CONFIRMATION, order_item và payment PENDING
             FS->>DB: Ghi voucher usage và idempotency record (nếu có)
             FS->>Redis: Pre-commit handshake giữ reservation

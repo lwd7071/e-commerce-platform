@@ -12,7 +12,7 @@ sequenceDiagram
 
     Buyer->>FE: Xác nhận địa chỉ, phương thức thanh toán và voucher
     FE->>API: POST /api/v1/checkout + Idempotency-Key
-    Note over FE,API: Body gồm address_id, payment_method, vouchers và expected_shipping_fees; items lấy từ cart đã chọn
+    Note over FE,API: Body gồm address_id, payment_method, vouchers và expected_shipping_fees, items lấy từ cart đã chọn
     API->>Checkout: parse command và createOrder(context, command)
     Checkout->>DB: Tìm idempotency record còn hạn
     alt Key đã dùng với cùng payload
