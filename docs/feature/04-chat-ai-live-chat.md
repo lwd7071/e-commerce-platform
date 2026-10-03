@@ -33,7 +33,7 @@
 ## Đã thực hiện
 
 - Kế hoạch thiết kế và phê duyệt kiến trúc Hybrid 2 Tầng: [implementation_plan.md](file:///C:/Users/Admin/.gemini/antigravity/brain/b3888bd9-9adf-4ff4-bc38-72c19a9e229e/implementation_plan.md).
-- Migration CSDL: Tạo migration `20261002130000_chat_conversations_and_messages` và `20261003120000_shop_chat_presence` với các bảng `chat_conversations`, `chat_messages` và `shop_chat_presence`. Bật Row Level Security (RLS) và thu hồi toàn bộ quyền trực tiếp (`REVOKE ALL`) từ `PUBLIC`, `anon`, `authenticated` để chặn truy cập trực tiếp qua Data API. Toàn bộ chính sách kiểm soát quyền truy cập (Access Control) được thực thi nghiêm ngặt tại Application Service Guard (`assertConversationAccess`).
+- Migration CSDL: Tạo migration `20261002130000_chat_conversations_and_messages` và `20261003130000_shop_chat_presence` với các bảng `chat_conversations`, `chat_messages` và `shop_chat_presence`. Bật Row Level Security (RLS) và thu hồi toàn bộ quyền trực tiếp (`REVOKE ALL`) từ `PUBLIC`, `anon`, `authenticated` để chặn truy cập trực tiếp qua Data API. Toàn bộ chính sách kiểm soát quyền truy cập (Access Control) được thực thi nghiêm ngặt tại Application Service Guard (`assertConversationAccess`).
 - Domain & Service:
   - `BotGroundedEngine` (`backend/src/modules/chat/domain/bot-grounded-engine.ts`): Xử lý câu hỏi tự nhiên về tồn kho, biến thể, giá bán, chi tiết sản phẩm; chuẩn hóa text, lọc stop-words, đối chiếu whitelist quyền của Seller (`ProductBotPermissions`).
   - `PgChatRepository` (`backend/src/modules/chat/repositories/pg-chat.repository.ts`): Thực thi truy vấn hội thoại, đếm tin chưa đọc, tin nhắn kèm phân trang cursor, chống trùng bằng `client_message_id`, và lưu trữ trạng thái hiện diện online/offline của Shop.

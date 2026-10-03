@@ -23,7 +23,7 @@
     - Chuẩn hóa validation giá khi tạo sản phẩm (`createProduct`): Thay vì chỉ kiểm tra `Number(price) > 0`, áp dụng regex `decimal = /^\d+(\.\d{1,2})?$/` và `Number(price) > 0` nhất quán với luồng cập nhật.
     - Từ chối ngay lập tức các giá trị không hợp lệ như `0.001` (tránh bị làm tròn thành 0.00 ở DB) hoặc scientific notation `1e-5` với lỗi `422 VALIDATION_FAILED`.
   - **[Lỗi Vừa — Shop Online/Offline Presence API & Live Integration]**:
-    - Xây dựng migration `20261003120000_shop_chat_presence` và bảng `shop_chat_presence` có bật RLS.
+    - Xây dựng migration `20261003130000_shop_chat_presence` và bảng `shop_chat_presence` có bật RLS.
     - Triển khai API `GET /api/v1/chat/shops/:shopId/presence` và `PUT /api/v1/chat/shops/:shopId/presence` (kiểm tra quyền sở hữu Shop của Seller).
     - Cập nhật `PgChatService`: Khi Shop offline, bot tự động phản hồi thông báo vắng mặt khi Buyer gửi tin nhắn trong chế độ Live Agent hoặc khi yêu cầu Hand-off.
     - Frontend: Tích hợp `getShopPresence` và `setShopPresence` qua `repositories.chat()`, kết nối nút toggle ở Seller Inbox và hiển thị nhãn `Người Bán (Tạm vắng)` kèm banner cảnh báo ở Buyer `ChatWidget`.

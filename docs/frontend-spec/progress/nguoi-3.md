@@ -20,7 +20,7 @@
   - **Khắc phục lỗi Concurrency SKU (RB-LB11 - Mức Cao)**:
     - Trong `updateSellerProduct` (`backend/src/modules/catalog/services/pg-catalog-http.service.ts`), bổ sung row-level lock cho Shop: `SELECT shop_id FROM shops WHERE shop_id = $1 FOR UPDATE`. Đồng bộ tuần tự hóa tất cả các request tạo mới và cập nhật sản phẩm trong cùng 1 Shop, chặn đứng race-condition trùng SKU giữa 2 product khác nhau.
   - **Khắc phục lỗi Shop Presence chỉ nằm ở local state (Mức Vừa)**:
-    - Tạo migration `backend/prisma/migrations/20261003120000_shop_chat_presence/migration.sql` lưu bảng `shop_chat_presence`.
+    - Tạo migration `backend/prisma/migrations/20261003130000_shop_chat_presence/migration.sql` lưu bảng `shop_chat_presence`.
     - Triển khai endpoints `GET /chat/shops/:shopId/presence` và `PUT /chat/shops/:shopId/presence` (kèm xác thực JWT và quyền sở hữu shop), fallback in-memory an toàn.
     - Cập nhật `chatApi.getShopPresence` / `chatApi.setShopPresence`, `IChatRepository`, kết nối `SellerChatInboxScreen` để persist trạng thái lên server qua API khi toggle.
     - Cập nhật `BuyerChatWidget`: query presence từ backend, hiển thị nhãn `Người Bán (Tạm vắng)` và banner cảnh báo ngoại tuyến khi Shop offline, tự động gửi phản hồi offline nếu Buyer hand-off.
