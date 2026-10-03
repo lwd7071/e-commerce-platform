@@ -8,6 +8,7 @@
  * KEYS[5]: flash_sale:slot_status:<slot_id>
  * KEYS[6]: flash_sale:pending_reservations (ZSet)
  * KEYS[7]: flash_sale:lease:<idemp_key>
+ * KEYS[8]: flash_sale:end_time:<slot_id>
  *
  * ARGV[1]: user_id
  * ARGV[2]: voucher_code ("NONE" if not applied)
@@ -21,10 +22,20 @@
  *  -2  => USER_PURCHASE_LIMIT_EXCEEDED
  *  -3  => VOUCHER_ALREADY_USED_BY_USER
  *  -4  => VOUCHER_OUT_OF_STOCK
+ *  -5  => LUA_ARGV_MISSING
  */
 export const FLASH_SALE_DEDUCT_LUA = `
 local slot_status = redis.call('GET', KEYS[5])
 if slot_status ~= "ACTIVE" then
+    return -1
+end
+
+local now_ts = tonumber(ARGV[3])
+if not now_ts then
+    return -5
+end
+local end_time = tonumber(redis.call('GET', KEYS[8]))
+if end_time and now_ts > end_time then
     return -1
 end
 

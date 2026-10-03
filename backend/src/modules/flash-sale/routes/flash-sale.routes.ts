@@ -1,26 +1,39 @@
-import { Router, type Request, type Response } from 'express';
+import { Router, type Request, type Response, type NextFunction, type RequestHandler } from 'express';
+import type { Redis } from 'ioredis';
 import type { FlashSaleService } from '../services/flash-sale.service.ts';
 import type { PgFlashSaleRepository } from '../repositories/pg-flash-sale.repository.ts';
 import { getRedisClient } from '../infrastructure/redis.client.ts';
+import { requireRole } from '../../../platform/http/middlewares/rbac.ts';
+import { UnauthorizedError } from '../../../platform/errors/app-error.ts';
 
-const errorMessage = (error: unknown): string => error instanceof Error ? error.message : String(error);
+export interface FlashSaleRedisClient {
+  get(key: string): Promise<string | null>;
+  set(key: string, value: string | number, ...args: any[]): Promise<any>;
+  del(...keys: string[]): Promise<number>;
+}
 
-export function createFlashSaleRouter(service: FlashSaleService, repo: PgFlashSaleRepository): Router {
+export function createFlashSaleRouter(
+  service: FlashSaleService,
+  repo: PgFlashSaleRepository,
+  auth?: RequestHandler,
+  redisClient?: Redis | FlashSaleRedisClient
+): Router {
   const router = Router();
-  const redis = getRedisClient();
+  const redis = redisClient || getRedisClient();
+  const authMiddleware = auth ?? ((_req: Request, _res: Response, next: NextFunction) => next());
 
-  // 1. Lấy danh sách khung giờ Flash Sale
-  router.get('/slots', async (_req: Request, res: Response) => {
+  // 1. Lấy danh sách khung giờ Flash Sale (Công khai)
+  router.get('/slots', async (_req: Request, res: Response, next: NextFunction) => {
     try {
       const sessions = await repo.listActiveSessions();
       res.json({ data: sessions });
     } catch (err: unknown) {
-      res.status(500).json({ error: errorMessage(err) });
+      next(err);
     }
   });
 
-  // 2. Lấy danh sách sản phẩm trong khung giờ kèm tồn kho tức thì từ Redis
-  router.get('/slots/:slotId/items', async (req: Request, res: Response) => {
+  // 2. Lấy danh sách sản phẩm trong khung giờ kèm tồn kho tức thì từ Redis (Công khai)
+  router.get('/slots/:slotId/items', async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { slotId } = req.params;
       const items = await repo.listItemsBySlotId(slotId);
@@ -38,34 +51,41 @@ export function createFlashSaleRouter(service: FlashSaleService, repo: PgFlashSa
 
       res.json({ data: itemsWithStock });
     } catch (err: unknown) {
-      res.status(500).json({ error: errorMessage(err) });
+      next(err);
     }
   });
 
-  // 3. Admin / System kích hoạt Warm-up tồn kho lên Redis
-  router.post('/slots/:slotId/warm-up', async (req: Request, res: Response) => {
-    try {
-      const { slotId } = req.params;
-      const result = await service.warmUpSlot(slotId);
-      if (!result.success) {
-        return res.status(400).json(result);
+  // 3. Admin / System kích hoạt Warm-up tồn kho lên Redis (Role: ADMIN)
+  router.post(
+    '/slots/:slotId/warm-up',
+    authMiddleware,
+    requireRole('ADMIN'),
+    async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const { slotId } = req.params;
+        const result = await service.warmUpSlot(slotId);
+        if (!result.success) {
+          return res.status(400).json(result);
+        }
+        res.json(result);
+      } catch (err: unknown) {
+        next(err);
       }
-      res.json(result);
-    } catch (err: unknown) {
-      res.status(500).json({ error: errorMessage(err) });
     }
-  });
+  );
 
-  // 4. Mua hàng Flash Sale tốc độ cao (Fast-path Checkout)
-  router.post('/items/:itemId/purchase', async (req: Request, res: Response) => {
+  // 4. Mua hàng Flash Sale tốc độ cao (Fast-path Checkout) - Yêu cầu xác thực JWT context
+  router.post('/items/:itemId/purchase', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { itemId } = req.params;
       const idempKey = (req.header('Idempotency-Key') || req.body.idempotency_key || '').trim();
 
-      if (!idempKey || idempKey.length < 8) {
+      if (!idempKey || idempKey.length < 16 || idempKey.length > 128) {
         return res.status(400).json({
-          error: 'MISSING_IDEMPOTENCY_KEY',
-          message: 'Yêu cầu đặt mua Flash Sale bắt buộc có Idempotency-Key hợp lệ.',
+          error: {
+            code: 'VALIDATION_FAILED',
+            message: 'Yêu cầu đặt mua Flash Sale bắt buộc có Idempotency-Key từ 16 đến 128 ký tự.',
+          },
         });
       }
 
@@ -74,9 +94,11 @@ export function createFlashSaleRouter(service: FlashSaleService, repo: PgFlashSa
         return res.status(404).json({ error: 'ITEM_NOT_FOUND', message: 'Sản phẩm Flash Sale không tồn tại.' });
       }
 
-      // ponytail: Lấy user_id từ auth request context hoặc fallback body/anonymous
-      const requestWithUser = req as Request & { user?: { user_id?: string } };
-      const userId = requestWithUser.user?.user_id || req.body.user_id || '00000000-0000-0000-0000-000000000001';
+      // Nguồn định danh duy nhất: req.context.user_id từ JWT đã xác minh
+      const userId = req.context?.user_id;
+      if (!userId) {
+        throw new UnauthorizedError('AUTH_REQUIRED', 'Yêu cầu đăng nhập để mua Flash Sale.');
+      }
 
       const result = await service.purchase({
         idempotency_key: idempKey,
@@ -98,31 +120,75 @@ export function createFlashSaleRouter(service: FlashSaleService, repo: PgFlashSa
 
       return res.status(200).json(result);
     } catch (err: unknown) {
-      console.error('[FlashSale Route Error]', err);
-      res.status(500).json({ error: 'INTERNAL_ERROR', message: errorMessage(err) });
+      next(err);
     }
   });
 
-  // 5. Đối soát số liệu Redis và Database (Reconciliation)
-  router.get('/slots/:slotId/reconcile', async (req: Request, res: Response) => {
-    try {
-      const { slotId } = req.params;
-      const report = await service.reconcileSlot(slotId);
-      res.json({ data: report });
-    } catch (err: unknown) {
-      res.status(500).json({ error: errorMessage(err) });
+  // 5a. Xem báo cáo đối soát số liệu Redis và Database (Role: ADMIN)
+  router.get(
+    '/slots/:slotId/reconcile',
+    authMiddleware,
+    requireRole('ADMIN'),
+    async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const { slotId } = req.params;
+        const report = await service.reconcileSlot(slotId);
+        res.json({ data: report });
+      } catch (err: unknown) {
+        next(err);
+      }
     }
-  });
+  );
 
-  // 6. Endpoint trigger Watchdog thủ công hoặc từ Cron
-  router.post('/watchdog/sweep', async (_req: Request, res: Response) => {
-    try {
-      const result = await service.runWatchdogSweep();
-      res.json({ data: result });
-    } catch (err: unknown) {
-      res.status(500).json({ error: errorMessage(err) });
+  // 5b. Kích hoạt đối soát & tự cân bằng số liệu (Role: ADMIN, với per-slot lock)
+  router.post(
+    '/slots/:slotId/reconcile',
+    authMiddleware,
+    requireRole('ADMIN'),
+    async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const { slotId } = req.params;
+        const { autoBalance } = req.body || {};
+        const operatorUserId = req.context?.user_id;
+
+        const lockKey = `flash_sale:reconcile_lock:${slotId}`;
+        const acquired = await redis.set(lockKey, '1', 'EX', 30, 'NX');
+        if (!acquired) {
+          return res.status(409).json({
+            code: 'RECONCILIATION_IN_PROGRESS',
+            message: 'Đang có tiến trình đối soát trên khung giờ này.',
+          });
+        }
+
+        try {
+          const report = await service.reconcileSlot(slotId, {
+            autoBalance: Boolean(autoBalance),
+            operatorUserId,
+          });
+          res.json({ data: report });
+        } finally {
+          await redis.del(lockKey);
+        }
+      } catch (err: unknown) {
+        next(err);
+      }
     }
-  });
+  );
+
+  // 6. Endpoint trigger Watchdog thủ công (Role: ADMIN)
+  router.post(
+    '/watchdog/sweep',
+    authMiddleware,
+    requireRole('ADMIN'),
+    async (_req: Request, res: Response, next: NextFunction) => {
+      try {
+        const result = await service.runWatchdogSweep();
+        res.json({ data: result });
+      } catch (err: unknown) {
+        next(err);
+      }
+    }
+  );
 
   return router;
 }

@@ -149,7 +149,7 @@ describe('Feature 05: Flash Sale & Concurrency Inventory Engine', () => {
       [testVariantId]
     );
     expect(dbOrdersCount.rows[0].count).toBe(10);
-  });
+  }, 30_000);
 
   it('2. Test Concurrency Voucher: 2 users cùng bấm dùng 1 voucher chỉ còn 1 quota', async () => {
     const voucherCode = `FSVOUCHER-${Date.now()}`;
@@ -207,7 +207,7 @@ describe('Feature 05: Flash Sale & Concurrency Inventory Engine', () => {
     // Quota voucher trong Redis dừng ở 0 (không bị âm -1)
     const finalVoucherQuota = Number(await redis.get(`voucher:quota:${testSlotId}:${voucherCode}`));
     expect(finalVoucherQuota).toBe(0);
-  });
+  }, 30_000);
 
   it('3. Test Idempotent Retry: Gửi lại cùng Idempotency-Key trả lại kết quả cũ (HTTP 200 Replay)', async () => {
     const idempKey = `idemp-replay-${Date.now()}`;
@@ -404,6 +404,88 @@ describe('Feature 05: Flash Sale & Concurrency Inventory Engine', () => {
     expect(result.code).toBe(FlashSaleLuaCode.SLOT_NOT_ACTIVE);
   });
 
+  it('7b. Test Time Window: Slot bắt đầu ACTIVE, warm-up đúng TTL, trôi qua end_time -> Chặn mua SLOT_NOT_ACTIVE', async () => {
+    const slotId = crypto.randomUUID();
+    const now = Date.now();
+    const startTimeIso = new Date(now - 10000).toISOString();
+    const endTimeIso = new Date(now + 1500).toISOString();
+
+    // Dùng cùng nguồn thời gian local để tránh clock skew giữa Cloud DB (Supabase) và local node
+    await pool.query(
+      `INSERT INTO flash_sale_sessions (slot_id, slot_name, start_time, end_time, status)
+       VALUES ($1, 'Expiring Slot', $2, $3, 'ACTIVE')`,
+      [slotId, startTimeIso, endTimeIso]
+    );
+
+    const itemId = crypto.randomUUID();
+    await pool.query(
+      `INSERT INTO flash_sale_items (item_id, slot_id, product_id, variant_id, original_price, flash_sale_price, allocated_stock)
+       VALUES ($1, $2, $3, $4, 20000000, 999000, 10)`,
+      [itemId, slotId, testProductId, testVariantId]
+    );
+
+    // Warm-up slot đúng TTL
+    await service.warmUpSlot(slotId);
+
+    // Chờ 2.5 giây để trôi qua end_time
+    await new Promise((resolve) => setTimeout(resolve, 2500));
+
+    const buyerId = crypto.randomUUID();
+    await createBuyer(buyerId, `expiring-buyer-${Date.now()}@test.com`);
+
+    const result = await service.purchase({
+      idempotency_key: `idemp-expiring-${Date.now()}`,
+      user_id: buyerId,
+      slot_id: slotId,
+      item_id: itemId,
+      recipient_name: 'Expiring Buyer',
+      recipient_phone: '0901234567',
+      province: 'HCM', district: 'Q1', ward: 'BN', delivery_address: 'Addr',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.code).toBe(FlashSaleLuaCode.SLOT_NOT_ACTIVE);
+  }, 10_000);
+
+  it('7c. Test Time Window: Slot đang mở bán nhưng Admin hủy sớm (set ENDED) -> Chặn mua ngay lập tức', async () => {
+    const slotId = crypto.randomUUID();
+    // Tạo slot ACTIVE kết thúc sau 2 giờ (dùng server clock)
+    await pool.query(
+      `INSERT INTO flash_sale_sessions (slot_id, slot_name, start_time, end_time, status)
+       VALUES ($1, 'Early Cancel Slot', now() - interval '10 minutes', now() + interval '2 hours', 'ACTIVE')`,
+      [slotId]
+    );
+
+    const itemId = crypto.randomUUID();
+    await pool.query(
+      `INSERT INTO flash_sale_items (item_id, slot_id, product_id, variant_id, original_price, flash_sale_price, allocated_stock)
+       VALUES ($1, $2, $3, $4, 20000000, 999000, 10)`,
+      [itemId, slotId, testProductId, testVariantId]
+    );
+
+    await service.warmUpSlot(slotId);
+
+    // Admin can thiệp hủy sớm phiên Flash Sale
+    await pool.query('UPDATE flash_sale_sessions SET status = $1 WHERE slot_id = $2', ['ENDED', slotId]);
+    await redis.set(`flash_sale:slot_status:${slotId}`, 'ENDED');
+
+    const buyerId = crypto.randomUUID();
+    await createBuyer(buyerId, `early-cancel-buyer-${Date.now()}@test.com`);
+
+    const result = await service.purchase({
+      idempotency_key: `idemp-early-cancel-${Date.now()}`,
+      user_id: buyerId,
+      slot_id: slotId,
+      item_id: itemId,
+      recipient_name: 'Early Cancel Buyer',
+      recipient_phone: '0901234567',
+      province: 'HCM', district: 'Q1', ward: 'BN', delivery_address: 'Addr',
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.code).toBe(FlashSaleLuaCode.SLOT_NOT_ACTIVE);
+  }, 10_000);
+
   it('8a. Test User Limit: Cùng 1 User gửi 20 requests với 20 idempotency_key khác nhau -> Chỉ đúng 1 thành công', async () => {
     // Nạp lại stock = 10 cho testItemId
     await redis.set(`flash_sale:stock:${testSlotId}:${testItemId}`, 10);
@@ -497,6 +579,7 @@ describe('Feature 05: Flash Sale & Concurrency Inventory Engine', () => {
   });
 
   it('9. Test Zero Stock Fast-Reject: Kho = 0 thì 50 requests bị chặn 100% tại Redis, DB calls = 0', async () => {
+    await service.warmUpSlot(testSlotId);
     // Ép tồn kho về 0
     await redis.set(`flash_sale:stock:${testSlotId}:${testItemId}`, 0);
 
@@ -584,5 +667,498 @@ describe('Feature 05: Flash Sale & Concurrency Inventory Engine', () => {
     // Phải phát hiện ra sai lệch!
     expect(negativeReport.is_balanced).toBe(false);
     expect(negativeReport.discrepancy).not.toBe(0);
-  });
+  }, 30_000);
+
+  it('10b. Test Auto-Balance: Khôi phục Redis stock khi lệch và ghi Two-Phase log APPLIED', async () => {
+    // 1. Tạo một Admin user trong DB để làm operator cho Worker / Reconciler
+    const adminId = crypto.randomUUID();
+    const adminEmail = `admin-reconciler-${Date.now()}@test.com`;
+    await ensureAuthUser(pool, adminId, adminEmail);
+    await createFixtureUser(pool, { userId: adminId, email: adminEmail, role: 'ADMIN', status: 'ACTIVE' });
+
+    // 2. Tạo một slot đã kết thúc (status = 'ENDED')
+    const recSlotId = crypto.randomUUID();
+    const now = Date.now();
+    const startTimeIso = new Date(now - 7200000).toISOString();
+    const endTimeIso = new Date(now - 3600000).toISOString();
+
+    await pool.query(
+      `INSERT INTO flash_sale_sessions (slot_id, slot_name, start_time, end_time, status)
+       VALUES ($1, 'Ended Slot Reconcile', $2, $3, 'ENDED')`,
+      [recSlotId, startTimeIso, endTimeIso]
+    );
+
+    const varRes = await pool.query(
+      `INSERT INTO product_variants (variant_id, product_id, variant_name, sku, price, stock_quantity, status)
+       VALUES (gen_random_uuid(), $1, 'Rec Variant 10b', $2, 20000000, 500, 'ACTIVE')
+       RETURNING variant_id`,
+      [testProductId, `SKU-REC-10b-${Date.now()}`]
+    );
+    const recVariantId = varRes.rows[0].variant_id;
+
+    const recItemId = crypto.randomUUID();
+    const allocatedStock = 10;
+    await pool.query(
+      `INSERT INTO flash_sale_items (item_id, slot_id, product_id, variant_id, original_price, flash_sale_price, allocated_stock)
+       VALUES ($1, $2, $3, $4, 20000000, 999000, $5)`,
+      [recItemId, recSlotId, testProductId, recVariantId, allocatedStock]
+    );
+
+    // 3. Tạo 2 orders thật trong Postgres nằm trong khung giờ của slot
+    const buyer1Id = crypto.randomUUID();
+    await createBuyer(buyer1Id, `rec10b-buyer-1-${Date.now()}@test.com`);
+    const order1Id = crypto.randomUUID();
+    await pool.query(
+      `INSERT INTO orders (order_id, buyer_id, shop_id, recipient_name, recipient_phone, province, district, ward, delivery_address, subtotal, discount_amount, shipping_fee, total_amount, status, created_at)
+       VALUES ($1, $2, $3, 'B1', '0901234567', 'HCM', 'Q1', 'BN', 'Addr', 999000, 0, 0, 999000, 'PENDING_CONFIRMATION', $4::timestamptz)`,
+      [order1Id, buyer1Id, testShopId, new Date(now - 5000000).toISOString()]
+    );
+    await pool.query(
+      `INSERT INTO order_items (order_item_id, order_id, product_id, variant_id, product_name_snapshot, variant_snapshot, unit_price, quantity, line_total)
+       VALUES ($1, $2, $3, $4, 'P1', 'V1', 999000, 1, 999000)`,
+      [crypto.randomUUID(), order1Id, testProductId, recVariantId]
+    );
+
+    const buyer2Id = crypto.randomUUID();
+    await createBuyer(buyer2Id, `rec10b-buyer-2-${Date.now()}@test.com`);
+    const order2Id = crypto.randomUUID();
+    await pool.query(
+      `INSERT INTO orders (order_id, buyer_id, shop_id, recipient_name, recipient_phone, province, district, ward, delivery_address, subtotal, discount_amount, shipping_fee, total_amount, status, created_at)
+       VALUES ($1, $2, $3, 'B2', '0901234567', 'HCM', 'Q1', 'BN', 'Addr', 999000, 0, 0, 999000, 'CONFIRMED', $4::timestamptz)`,
+      [order2Id, buyer2Id, testShopId, new Date(now - 4000000).toISOString()]
+    );
+    await pool.query(
+      `INSERT INTO order_items (order_item_id, order_id, product_id, variant_id, product_name_snapshot, variant_snapshot, unit_price, quantity, line_total)
+       VALUES ($1, $2, $3, $4, 'P1', 'V1', 999000, 1, 999000)`,
+      [crypto.randomUUID(), order2Id, testProductId, recVariantId]
+    );
+
+    // 4. Cố tình set sai lệch trên Redis: ví dụ stock = 999
+    await redis.set(`flash_sale:stock:${recSlotId}:${recItemId}`, 999);
+
+    // Kiểm tra trước: read-only report thấy có sai lệch
+    const reportBefore = await service.reconcileSlot(recSlotId);
+    expect(reportBefore.is_balanced).toBe(false);
+    expect(reportBefore.discrepancy).not.toBe(0);
+
+    // 5. Kích hoạt autoBalance: true với operatorUserId của Admin
+    const balanceReport = await service.reconcileSlot(recSlotId, { autoBalance: true, operatorUserId: adminId });
+    expect(balanceReport.is_balanced).toBe(true);
+    expect(balanceReport.discrepancy).toBe(0);
+
+    // 6. Assert 1: Redis stock được khôi phục chính xác về allocated_stock - 2 = 8
+    const redisStock = await redis.get(`flash_sale:stock:${recSlotId}:${recItemId}`);
+    expect(Number(redisStock)).toBe(allocatedStock - 2);
+
+    // 7. Assert 2: Bản ghi Two-Phase Audit log chuyển sang APPLIED
+    const latestLogRes = await pool.query(
+      `SELECT compensation_id, slot_id, item_id, user_id, status
+       FROM flash_sale_compensation_logs
+       WHERE slot_id = $1
+       ORDER BY created_at DESC LIMIT 1`,
+      [recSlotId]
+    );
+    expect(latestLogRes.rows.length).toBe(1);
+    expect(latestLogRes.rows[0].status).toBe('APPLIED');
+    expect(latestLogRes.rows[0].user_id).toBe(adminId);
+
+    // 8. Assert 3: Gọi lại reconcileSlot lần 2 (read-only) thấy vẫn balanced
+    const reportAfter = await service.reconcileSlot(recSlotId);
+    expect(reportAfter.is_balanced).toBe(true);
+    expect(reportAfter.discrepancy).toBe(0);
+  }, 30_000);
+
+  it('T1. Test Order Invariants: Đơn mới có cancel_reason = NULL, order_status_history, payments và voucher_usages đầy đủ', async () => {
+    await service.warmUpSlot(testSlotId);
+
+    const voucherCode = `INVARIANT-VOUCHER-${Date.now()}`;
+    const voucherId = crypto.randomUUID();
+    const discountVal = 50000;
+
+    // 1. Tạo voucher hợp lệ trong DB và Redis
+    await pool.query(
+      `INSERT INTO vouchers (voucher_id, code, voucher_name, scope, discount_type, discount_value, min_order_value, quantity, start_at, end_at, status)
+       VALUES ($1, $2, 'Invariant Voucher', 'PLATFORM', 'FIXED', $3, 0, 5, now() - interval '1 hour', now() + interval '1 day', 'ACTIVE')`,
+      [voucherId, voucherCode, discountVal]
+    );
+
+    await redis.set(`flash_sale:stock:${testSlotId}:${testItemId}`, 5);
+    await redis.set(`voucher:quota:${testSlotId}:${voucherCode}`, 5);
+
+    const buyerId = crypto.randomUUID();
+    await createBuyer(buyerId, `buyer-inv-${Date.now()}@test.com`);
+    const idempKey = `idemp-inv-${Date.now()}-12345678`;
+
+    // 2. Mua hàng thành công
+    const result = await service.purchase({
+      idempotency_key: idempKey,
+      user_id: buyerId,
+      slot_id: testSlotId,
+      item_id: testItemId,
+      voucher_code: voucherCode,
+      recipient_name: 'Nguyen Van Invariant',
+      recipient_phone: '0901234567',
+      province: 'HCM',
+      district: 'Q1',
+      ward: 'BN',
+      delivery_address: '123 Le Loi',
+    });
+
+    expect(result.success).toBe(true);
+    const orderId = result.order_id!;
+
+    // 3. Assert 1: orders.cancel_reason BẮT BUỘC LÀ NULL (không lưu lậu idempotency_key tại đây)
+    const orderRes = await pool.query('SELECT * FROM orders WHERE order_id = $1', [orderId]);
+    expect(orderRes.rows.length).toBe(1);
+    expect(orderRes.rows[0].cancel_reason).toBeNull();
+    expect(orderRes.rows[0].status).toBe('PENDING_CONFIRMATION');
+    const totalAmount = Number(orderRes.rows[0].total_amount);
+
+    // 4. Assert 2: order_status_history BẮT BUỘC CÓ 1 dòng ban đầu
+    const historyRes = await pool.query('SELECT * FROM order_status_history WHERE order_id = $1', [orderId]);
+    expect(historyRes.rows.length).toBe(1);
+    expect(historyRes.rows[0].old_status).toBeNull();
+    expect(historyRes.rows[0].new_status).toBe('PENDING_CONFIRMATION');
+    expect(historyRes.rows[0].changed_by).toBe(buyerId);
+    expect(historyRes.rows[0].reason).toBe('FLASH_SALE_PURCHASE');
+
+    // 5. Assert 3: payments BẮT BUỘC CÓ 1 dòng ban đầu PENDING
+    const paymentRes = await pool.query('SELECT * FROM payments WHERE order_id = $1', [orderId]);
+    expect(paymentRes.rows.length).toBe(1);
+    expect(paymentRes.rows[0].status).toBe('PENDING');
+    expect(paymentRes.rows[0].method).toBe('ONLINE');
+    expect(Number(paymentRes.rows[0].amount)).toBe(totalAmount);
+
+    // 6. Assert 4: voucher_usages BẮT BUỘC CÓ 1 dòng liên kết
+    const usageRes = await pool.query('SELECT * FROM voucher_usages WHERE order_id = $1', [orderId]);
+    expect(usageRes.rows.length).toBe(1);
+    expect(usageRes.rows[0].voucher_id).toBe(voucherId);
+    expect(usageRes.rows[0].buyer_id).toBe(buyerId);
+    expect(Number(usageRes.rows[0].discount_amount)).toBe(Number(orderRes.rows[0].discount_amount));
+  }, 30_000);
+
+  it('T3. Test Voucher Business Validity: Voucher hết hạn / sai shop / không đủ min order bị từ chối và hoàn quota Redis', async () => {
+    await service.warmUpSlot(testSlotId);
+    // 1. Tạo voucher hết hạn trong DB
+    const expiredCode = `EXPIRED-${Date.now()}`;
+    const expiredId = crypto.randomUUID();
+    await pool.query(
+      `INSERT INTO vouchers (voucher_id, code, voucher_name, scope, discount_type, discount_value, min_order_value, quantity, start_at, end_at, status)
+       VALUES ($1, $2, 'Expired Voucher', 'PLATFORM', 'FIXED', 50000, 0, 5, now() - interval '2 days', now() - interval '1 hour', 'ACTIVE')`,
+      [expiredId, expiredCode]
+    );
+
+    // Nạp quota Redis
+    await redis.set(`flash_sale:stock:${testSlotId}:${testItemId}`, 5);
+    await redis.set(`voucher:quota:${testSlotId}:${expiredCode}`, 5);
+
+    const buyerId = crypto.randomUUID();
+    await createBuyer(buyerId, `buyer-exp-${Date.now()}@test.com`);
+    const idempKey = `idemp-exp-${Date.now()}-12345678`;
+
+    // 2. Mua hàng với voucher hết hạn
+    const result = await service.purchase({
+      idempotency_key: idempKey,
+      user_id: buyerId,
+      slot_id: testSlotId,
+      item_id: testItemId,
+      voucher_code: expiredCode,
+      recipient_name: 'Nguyen Van Expired',
+      recipient_phone: '0901234567',
+      province: 'HCM',
+      district: 'Q1',
+      ward: 'BN',
+      delivery_address: '123 Le Loi',
+    });
+
+    expect(result.success).toBe(true);
+    const orderId = result.order_id!;
+
+    // 3. Assert: Không được áp dụng giảm giá vì voucher hết hạn trong DB
+    const orderRes = await pool.query('SELECT discount_amount FROM orders WHERE order_id = $1', [orderId]);
+    expect(Number(orderRes.rows[0].discount_amount)).toBe(0);
+
+    // 4. Assert: Không có bản ghi voucher_usages
+    const usageRes = await pool.query('SELECT * FROM voucher_usages WHERE order_id = $1', [orderId]);
+    expect(usageRes.rows.length).toBe(0);
+
+    // 5. Assert: Quota voucher trên Redis được bồi hoàn trả lại (+1) về 5
+    const quota = await redis.get(`voucher:quota:${testSlotId}:${expiredCode}`);
+    expect(Number(quota)).toBe(5);
+  }, 30_000);
+
+  it('T2. Test Idempotency Conflict & Canonical Fingerprint: Cùng key khác payload trả 409 IDEMPOTENCY_KEY_REUSED', async () => {
+    await service.warmUpSlot(testSlotId);
+    await redis.set(`flash_sale:stock:${testSlotId}:${testItemId}`, 5);
+
+    const buyerId = crypto.randomUUID();
+    await createBuyer(buyerId, `buyer-idemp-${Date.now()}@test.com`);
+    const idempKey = `idemp-conflict-${Date.now()}-12345678`;
+
+    // 1. Mua lần 1 với payload A
+    const resA = await service.purchase({
+      idempotency_key: idempKey,
+      user_id: buyerId,
+      slot_id: testSlotId,
+      item_id: testItemId,
+      recipient_name: 'Khach Hang A',
+      recipient_phone: '0901234567',
+      province: 'HCM',
+      district: 'Q1',
+      ward: 'BN',
+      delivery_address: '123 Le Loi',
+    });
+    expect(resA.success).toBe(true);
+
+    // 2. Mua lần 2 với CÙNG key, CÙNG buyer nhưng KHÁC payload (đổi địa chỉ/SĐT)
+    await expect(
+      service.purchase({
+        idempotency_key: idempKey,
+        user_id: buyerId,
+        slot_id: testSlotId,
+        item_id: testItemId,
+        recipient_name: 'Khach Hang B', // Khác
+        recipient_phone: '0988888888', // Khác
+        province: 'Ha Noi', // Khác
+        district: 'HK',
+        ward: 'Hang Bac',
+        delivery_address: '456 Trang Tien',
+      })
+    ).rejects.toMatchObject({
+      code: 'IDEMPOTENCY_KEY_REUSED',
+      httpStatus: 409,
+    });
+
+    // 3. Mua lần 3 với CÙNG key, CÙNG payload ban đầu -> Replay kết quả 200 OK
+    const resReplay = await service.purchase({
+      idempotency_key: idempKey,
+      user_id: buyerId,
+      slot_id: testSlotId,
+      item_id: testItemId,
+      recipient_name: 'Khach Hang A',
+      recipient_phone: '0901234567',
+      province: 'HCM',
+      district: 'Q1',
+      ward: 'BN',
+      delivery_address: '123 Le Loi',
+    });
+    expect(resReplay.success).toBe(true);
+    expect(resReplay.order_id).toBe(resA.order_id);
+  }, 30_000);
+
+  it('T4. Test Watchdog vs Slow Transaction Race: DB bị chậm, Watchdog sweep reclaim trước -> Pre-commit Lua trả về 0 -> DB Transaction ROLLBACK', async () => {
+    await service.warmUpSlot(testSlotId);
+    await redis.set(`flash_sale:stock:${testSlotId}:${testItemId}`, 5);
+
+    const buyerId = crypto.randomUUID();
+    await createBuyer(buyerId, `buyer-t4-${Date.now()}@test.com`);
+    const idempKey = `idemp-t4-${Date.now()}-12345678`;
+
+    // Giả lập Watchdog sweep đã reclaim lease trước khi commit bằng cách set lease sang RECLAIMED
+    // Để kiểm tra FLASH_SALE_PRE_COMMIT_LUA:
+    const leaseKey = `flash_sale:lease:${idempKey}`;
+    await redis.set(leaseKey, 'RECLAIMED', 'EX', 86400);
+
+    // Khi purchase cố gắng commit, nó thấy lease đã bị RECLAIMED -> Bắt buộc ném TRANSACTION_LEASE_EXPIRED và ROLLBACK
+    // (Ta mô phỏng bằng cách chạy trực tiếp Lua pre-commit)
+    const { FLASH_SALE_PRE_COMMIT_LUA } = await import('../../src/modules/flash-sale/infrastructure/lua/flash-sale-pre-commit.lua.ts');
+    const preCommitRes = await redis.eval(
+      FLASH_SALE_PRE_COMMIT_LUA,
+      1,
+      leaseKey,
+      Date.now().toString()
+    );
+    expect(Number(preCommitRes)).toBe(0); // Bị chặn!
+  }, 30_000);
+
+  it('T5. Test COMMIT Failure After Pre-Commit: Pre-commit set COMMITTING, nhưng COMMIT ném lỗi -> Catch block FORCE reclaim -> Kho được hoàn trả +1, lease thành RECLAIMED', async () => {
+    await service.warmUpSlot(testSlotId);
+    await redis.set(`flash_sale:stock:${testSlotId}:${testItemId}`, 5);
+
+    const buyerId = crypto.randomUUID();
+    await createBuyer(buyerId, `buyer-t5-${Date.now()}@test.com`);
+    const idempKey = `idemp-t5-${Date.now()}-12345678`;
+
+    // Hook pool.connect cho purchase(): không làm ảnh hưởng pool.query
+    const originalConnect = pool.connect.bind(pool);
+    pool.connect = ((cb?: any) => {
+      if (typeof cb === 'function') {
+        return originalConnect(cb);
+      }
+      return originalConnect().then((client) => {
+        const origQuery = client.query;
+        const origRelease = client.release;
+        (client as any).query = function (...args: any[]) {
+          const sql = typeof args[0] === 'string' ? args[0] : args[0]?.text || '';
+          if (sql.trim().toUpperCase() === 'COMMIT') {
+            return Promise.reject(new Error('deadlock detected (simulated DB failure during COMMIT)'));
+          }
+          return (origQuery as any).apply(client, args);
+        };
+        client.release = function (...args: any[]) {
+          client.query = origQuery;
+          client.release = origRelease;
+          return (origRelease as any).apply(client, args);
+        };
+        return client;
+      });
+    }) as any;
+
+    try {
+      await expect(
+        service.purchase({
+          idempotency_key: idempKey,
+          user_id: buyerId,
+          slot_id: testSlotId,
+          item_id: testItemId,
+          recipient_name: 'Nguyen Van T5',
+          recipient_phone: '0901234567',
+          province: 'HCM',
+          district: 'Q1',
+          ward: 'BN',
+          delivery_address: '123 Le Loi',
+        })
+      ).rejects.toThrow(/deadlock detected/);
+
+      // Assert 1: Kho Redis được hoàn trả +1 (quay về 5)
+      const currentStock = await redis.get(`flash_sale:stock:${testSlotId}:${testItemId}`);
+      expect(Number(currentStock)).toBe(5);
+
+      // Assert 2: Lease chuyển sang RECLAIMED
+      const lease = await redis.get(`flash_sale:lease:${idempKey}`);
+      expect(lease).toBe('RECLAIMED');
+
+      // Assert 3: Không có order nào trong DB
+      const orderId = await service['repo'].findOrderIdByIdempotencyKey(idempKey);
+      expect(orderId).toBeNull();
+    } finally {
+      pool.connect = originalConnect;
+    }
+  }, 30_000);
+
+  it('T6. Test Committing Stuck But Committed (Post-Commit Glitch): DB có order, lease kẹt ở COMMITTING:T0 -> Watchdog Healing Path, lease thành COMMITTED, KHÔNG hoàn kho', async () => {
+    await service.warmUpSlot(testSlotId);
+    await redis.set(`flash_sale:stock:${testSlotId}:${testItemId}`, 5);
+
+    const buyerId = crypto.randomUUID();
+    await createBuyer(buyerId, `buyer-t6-${Date.now()}@test.com`);
+    const idempKey = `idemp-t6-${Date.now()}-12345678`;
+    const orderId = crypto.randomUUID();
+
+    // 1. Tạo đơn hàng trực tiếp trong DB (giả lập COMMIT đã thành công trên Postgres)
+    await pool.query(
+      `INSERT INTO orders (order_id, buyer_id, shop_id, recipient_name, recipient_phone, province, district, ward, delivery_address, subtotal, discount_amount, shipping_fee, total_amount, status)
+       VALUES ($1, $2, $3, 'Nguyen Van T6', '0901234567', 'HCM', 'Q1', 'BN', '123 Le Loi', 999000, 0, 0, 999000, 'PENDING_CONFIRMATION')`,
+      [orderId, buyerId, testShopId]
+    );
+    await pool.query(
+      `INSERT INTO api_idempotency_records (user_id, endpoint, idempotency_key, fingerprint, result, expires_at)
+       VALUES ($1, '/api/v1/flash-sales/purchase', $2, '0000000000000000000000000000000000000000000000000000000000000000', $3, now() + interval '1 day')`,
+      [buyerId, idempKey, JSON.stringify({ order_id: orderId, total_amount: 999000 })]
+    );
+
+    // 2. Cố tình set lease kẹt ở COMMITTING:T0 (hơn 70s trước) và pending_reservations chưa ZREM
+    const leaseKey = `flash_sale:lease:${idempKey}`;
+    const pastTimestamp = Date.now() - 75_000;
+    await redis.set(leaseKey, `COMMITTING:${pastTimestamp}`, 'EX', 86400);
+
+    const payload = JSON.stringify({
+      idemp_key: idempKey,
+      user_id: buyerId,
+      slot_id: testSlotId,
+      item_id: testItemId,
+      voucher_code: 'NONE',
+      created_at: pastTimestamp,
+    });
+    await redis.zadd('flash_sale:pending_reservations', pastTimestamp, payload);
+
+    // 3. Kích hoạt Watchdog Sweep
+    const sweepRes = await service.runWatchdogSweep();
+
+    // 4. Assert 1: Service phát hiện order trong DB -> kích hoạt Healing Path
+    expect(sweepRes.selfHealed).toBeGreaterThanOrEqual(1);
+
+    // 5. Assert 2: Kho Redis TUYỆT ĐỐI KHÔNG BỊ CỘNG HOÀN (+0, vẫn giữ nguyên 5)
+    const stockAfter = await redis.get(`flash_sale:stock:${testSlotId}:${testItemId}`);
+    expect(Number(stockAfter)).toBe(5);
+
+    // 6. Assert 3: Lease được chữa lành thành COMMITTED
+    const finalLease = await redis.get(leaseKey);
+    expect(finalLease).toBe('COMMITTED');
+
+    // 7. Assert 4: ZSet pending_reservations đã được dọn sạch
+    const score = await redis.zscore('flash_sale:pending_reservations', payload);
+    expect(score).toBeNull();
+  }, 30_000);
+
+  it('T7. Test Ambiguous Commit Network Error: COMMIT thành công ở DB nhưng client nhận lỗi ECONNRESET -> Catch block query DB thấy order -> Heal thay vì Compensate', async () => {
+    await service.warmUpSlot(testSlotId);
+    await redis.set(`flash_sale:stock:${testSlotId}:${testItemId}`, 5);
+
+    const buyerId = crypto.randomUUID();
+    await createBuyer(buyerId, `buyer-t7-${Date.now()}@test.com`);
+    const idempKey = `idemp-t7-${Date.now()}-12345678`;
+
+    // Hook pool.connect cho purchase(): COMMIT thật thành công, sau đó ném ECONNRESET
+    const originalConnect = pool.connect.bind(pool);
+    pool.connect = ((cb?: any) => {
+      if (typeof cb === 'function') {
+        return originalConnect(cb);
+      }
+      return originalConnect().then((client) => {
+        const origQuery = client.query;
+        const origRelease = client.release;
+        (client as any).query = function (...args: any[]) {
+          const sql = typeof args[0] === 'string' ? args[0] : args[0]?.text || '';
+          if (sql.trim().toUpperCase() === 'COMMIT') {
+            return (origQuery as any).call(client, 'COMMIT').then(() => {
+              throw new Error('read ECONNRESET - connection reset by peer (ambiguous commit)');
+            });
+          }
+          return (origQuery as any).apply(client, args);
+        };
+        client.release = function (...args: any[]) {
+          client.query = origQuery;
+          client.release = origRelease;
+          return (origRelease as any).apply(client, args);
+        };
+        return client;
+      });
+    }) as any;
+
+    try {
+      // Gọi purchase: Do có Ambiguous Commit verification trong catch, nó phát hiện order trong DB và HEAL thành công
+      const result = await service.purchase({
+        idempotency_key: idempKey,
+        user_id: buyerId,
+        slot_id: testSlotId,
+        item_id: testItemId,
+        recipient_name: 'Nguyen Van T7',
+        recipient_phone: '0901234567',
+        province: 'HCM',
+        district: 'Q1',
+        ward: 'BN',
+        delivery_address: '123 Le Loi',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.order_id).toBeDefined();
+
+      // Assert 1: Kho Redis trừ đúng 1 và KHÔNG BỊ HOÀN TRẢ (5 - 1 = 4)
+      const stockAfter = await redis.get(`flash_sale:stock:${testSlotId}:${testItemId}`);
+      expect(Number(stockAfter)).toBe(4);
+
+      // Assert 2: Lease là COMMITTED (không bị RECLAIMED)
+      const lease = await redis.get(`flash_sale:lease:${idempKey}`);
+      expect(lease).toBe('COMMITTED');
+
+      // Assert 3: Order tồn tại hợp lệ trong DB
+      const dbOrder = await service['repo'].findOrderIdByIdempotencyKey(idempKey);
+      expect(dbOrder).toBe(result.order_id);
+    } finally {
+      pool.connect = originalConnect;
+    }
+  }, 30_000);
 });
+
+

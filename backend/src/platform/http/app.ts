@@ -100,6 +100,7 @@ export interface PlatformApplications extends T1RouteApplications {
   payosService?: PayosService;
   escrowService?: EscrowService;
   adminCampaigns?: AdminNotificationCampaignService;
+  flashSaleService?: FlashSaleService;
   chatService?: PgChatService;
   rateLimiter?: RequestHandler | false;
   trustProxy?: boolean | string | number;
@@ -160,8 +161,8 @@ export function createApp(applications: PlatformApplications = {}): Application 
 
   if (applications.pool) {
     const flashSaleRepo = new PgFlashSaleRepository(applications.pool);
-    const flashSaleService = new FlashSaleService(applications.pool, getRedisClient());
-    app.use('/api/v1/flash-sales', createFlashSaleRouter(flashSaleService, flashSaleRepo));
+    const flashSaleService = applications.flashSaleService ?? new FlashSaleService(applications.pool, getRedisClient());
+    app.use('/api/v1/flash-sales', createFlashSaleRouter(flashSaleService, flashSaleRepo, auth));
   }
 
   app.use(errorHandlerMiddleware);
@@ -225,6 +226,8 @@ export function createRuntimeApp(
     apiKey: process.env.PAYOS_API_KEY || '',
     checksumKey: process.env.PAYOS_CHECKSUM_KEY || '',
   });
+  const flashSaleService = new FlashSaleService(pool, getRedisClient());
+  flashSaleService.startWorker();
 
   const retryEscrowOperation = async <T>(
     operation: () => Promise<T>,
@@ -252,6 +255,7 @@ export function createRuntimeApp(
     app: createApp({
       pool,
       adminCampaigns,
+      flashSaleService,
       mediaStorage,
       trustProxy: envConfig.trustProxy,
       cors: { allowedOrigins: envConfig.corsAllowedOrigins },
@@ -308,6 +312,10 @@ export function createRuntimeApp(
       ),
     }),
     eventPort: sharedEventPort,
-    close: async () => { stopAdminCampaignWorker(); if (ownsPool) await closeDatabasePool(pool); },
+    close: async () => {
+      stopAdminCampaignWorker();
+      flashSaleService.stopWorker();
+      if (ownsPool) await closeDatabasePool(pool);
+    },
   };
 }
