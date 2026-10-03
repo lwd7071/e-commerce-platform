@@ -1680,6 +1680,12 @@ export function generateOpenApiSpec(): OpenApiSpec {
           responses: { '200': successResponse('Withdrawal rejected'), '401': errorResponse('Authentication required'), '403': errorResponse('Admin required') },
         },
       },
+      '/admin/finance/escrow/reconcile': {
+        post: {
+          summary: 'Reconcile pending escrows and process eligible releases', security: [{ BearerAuth: [] }],
+          responses: { '200': successResponse('Escrow reconciliation completed'), '401': errorResponse('Authentication required'), '403': errorResponse('Admin required') },
+        },
+      },
       '/payments/payos/create-link': {
         post: {
           summary: 'Create PayOS VietQR payment link for order', security: [{ BearerAuth: [] }],
