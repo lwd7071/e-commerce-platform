@@ -10,7 +10,37 @@ import type {
 import { DEFAULT_BOT_PERMISSIONS } from '../domain/types.ts';
 
 export class PgChatRepository {
+  private readonly inMemoryPresence = new Map<string, boolean>();
+
   constructor(private readonly pool: Pool) {}
+
+  async getShopPresence(shopId: string): Promise<boolean> {
+    try {
+      const res = await this.pool.query(
+        'SELECT is_online FROM shop_chat_presence WHERE shop_id = $1',
+        [shopId]
+      );
+      if (res.rows.length === 0) return this.inMemoryPresence.get(shopId) ?? true;
+      return Boolean(res.rows[0].is_online);
+    } catch {
+      return this.inMemoryPresence.get(shopId) ?? true;
+    }
+  }
+
+  async setShopPresence(shopId: string, isOnline: boolean): Promise<boolean> {
+    this.inMemoryPresence.set(shopId, isOnline);
+    try {
+      await this.pool.query(
+        `INSERT INTO shop_chat_presence (shop_id, is_online, updated_at)
+         VALUES ($1, $2, now())
+         ON CONFLICT (shop_id) DO UPDATE SET is_online = $2, updated_at = now()`,
+        [shopId, isOnline]
+      );
+    } catch {
+      // In-memory fallback if migration not yet applied
+    }
+    return isOnline;
+  }
 
   async findConversationById(conversationId: string): Promise<ChatConversation | null> {
     const res = await this.pool.query(
@@ -290,6 +320,10 @@ export class PgChatRepository {
       product_image: row.product_image ? String(row.product_image) : null,
       unread_count: typeof row.unread_count === 'number' ? row.unread_count : 0,
       last_message: row.last_message ? String(row.last_message) : undefined,
+      is_shop_online:
+        row.is_shop_online !== undefined && row.is_shop_online !== null
+          ? Boolean(row.is_shop_online)
+          : (this.inMemoryPresence.get(String(row.shop_id)) ?? true),
     };
   }
 

@@ -160,6 +160,8 @@ export interface IChatRepository {
   sendMessage(conversationId: string, payload: import('../api/chat.api').SendMessagePayload): Promise<import('../api/chat.api').SendMessageResponse>;
   requestHandoff(conversationId: string): Promise<import('../api/chat.api').HandoffResponse>;
   updatePermissions(conversationId: string, permissions: Partial<import('../api/chat.api').ProductBotPermissions>): Promise<import('../api/chat.api').WireChatConversation>;
+  getShopPresence?(shopId: string): Promise<{ shop_id: string; is_online: boolean }>;
+  setShopPresence?(shopId: string, isOnline: boolean): Promise<{ shop_id: string; is_online: boolean }>;
 }
 
 

@@ -178,10 +178,10 @@ export class PgCatalogHttpService {
       }
       payloadSkus.add(sku);
 
-      // QD05: price > 0
-      const priceNum = Number(raw.price);
-      if (isNaN(priceNum) || priceNum <= 0) {
-        throw new ValidationError('Variant price must be greater than 0');
+      // QD05: price > 0, valid positive decimal with up to 2 decimal places
+      const priceStr = String(raw.price ?? '').trim();
+      if (!decimal.test(priceStr) || Number(priceStr) <= 0) {
+        throw new ValidationError('Variant price must be a valid positive decimal with up to 2 decimal places');
       }
 
       // QD06: stock_quantity >= 0
@@ -546,6 +546,15 @@ export class PgCatalogHttpService {
     });
 
     await withTransaction(this.pool, async (client) => {
+      // Synchronize per shop to prevent concurrent SKU insertion/update race condition (RB-LB11)
+      const shopLock = await client.query(
+        'SELECT shop_id FROM shops WHERE shop_id = $1 FOR UPDATE',
+        [context.shop_id],
+      );
+      if (shopLock.rows.length === 0) {
+        throw new ResourceNotFoundError(`Shop ${context.shop_id} not found`);
+      }
+
       const product = await client.query(
         'SELECT product_id, shop_id, status FROM products WHERE product_id = $1 FOR UPDATE',
         [productId],

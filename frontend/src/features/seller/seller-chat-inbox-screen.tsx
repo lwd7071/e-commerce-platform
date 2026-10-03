@@ -49,6 +49,16 @@ export function SellerChatInboxScreen() {
       .catch((err) => {
         console.error("Failed to load messages", err);
       });
+
+    if (conv.shop_id && repositories.chat().getShopPresence) {
+      repositories
+        .chat()
+        .getShopPresence!(conv.shop_id)
+        .then((res) => {
+          setIsShopOnline(res.is_online);
+        })
+        .catch(() => undefined);
+    }
   }, []);
 
   const loadConversations = useCallback(() => {
@@ -188,9 +198,16 @@ export function SellerChatInboxScreen() {
           {/* Shop Online / Offline Toggle */}
           <button
             type="button"
-            onClick={() => {
+            onClick={async () => {
               const nextState = !isShopOnline;
               setIsShopOnline(nextState);
+              if (selectedConv?.shop_id && repositories.chat().setShopPresence) {
+                try {
+                  await repositories.chat().setShopPresence!(selectedConv.shop_id, nextState);
+                } catch (err) {
+                  console.error("Failed to update shop presence", err);
+                }
+              }
               showToast(
                 nextState
                   ? "Shop đã chuyển sang trạng thái Trực Tuyến."

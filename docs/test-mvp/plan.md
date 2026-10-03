@@ -20,7 +20,7 @@ Thay `Người 1…5` bằng tên thành viên khi bắt đầu. Mỗi người 
 |---|---|---|---|
 | Người 1 | Guest và xác thực | Catalog công khai → đăng ký/đăng nhập → quay lại luồng dự định; guest gọi private API; đăng xuất; tài khoản LOCKED thử protected request | [person-1.md](person-1.md) |
 | Người 2 | Buyer: hồ sơ và địa chỉ | Đăng nhập → sửa hồ sơ → tạo/sửa/xóa/đặt mặc định địa chỉ → kiểm tra quyền sở hữu và trạng thái mặc định | [person-2.md](person-2.md) |
-| Người 3 | Buyer: mua hàng | Catalog → sản phẩm/giỏ → checkout (tồn, giá, voucher, idempotency, nhiều Shop) → theo dõi/hủy đúng điều kiện → nhận hàng → đánh giá OrderItem đủ điều kiện | [person-3.md](person-3.md) |
+| Người 3 | Catalog, Seller Products & Chat AI/Live Chat | Danh mục/Sản phẩm → Chi tiết/Review thật → Seller tạo/sửa SP (SKU/Tồn/Giá) → Khóa đồng bộ Shop → Bật/tắt SP → Chat AI Grounded & Live Chat Polling/Presence | [person-3.md](person-3.md) |
 | Người 4 | Seller: Shop và đơn bán/giao hàng | Onboarding Shop PENDING → hồ sơ/địa chỉ lấy hàng theo luồng hiện có → sản phẩm/tồn/voucher → xác nhận đơn → chuẩn bị → giao vận chuyển → hoàn tất/hủy theo state machine; thử truy cập chéo Shop và Shop không ACTIVE | [person-4.md](person-4.md) |
 | Người 5 | Admin và hồi quy quyền/dữ liệu | Duyệt/khóa/mở Shop, khóa/mở User, category/kiểm duyệt, thao tác Order qua command; xác minh lý do/audit/role/owner và chạy hồi quy nhanh các luồng blocker | [person-5.md](person-5.md) |
 
@@ -52,7 +52,7 @@ Thay `Người 1…5` bằng tên thành viên khi bắt đầu. Mỗi người 
 |---|---|---|---|---|
 | Người 1 | Đã xác minh | 10 luồng: Guest, Đăng ký/nhập, returnTo, Logout, Chặn Private API & LOCKED, Email Conflict, Token Verification, Public Reviews, Redaction | 0 (B:0, C:0, V:0, T:0) | 2026-10-01 |
 | Người 2 | Đã xác minh | 10 luồng: Hồ sơ, Avatar, CRUD Địa chỉ, Địa chỉ mặc định (RB-LB05), Snapshot, Quyền sở hữu, RBAC, Unknown Fields, Resiliency, Missing State (Đã fix 3 lỗi) | 0 (B:0, C:0, V:0, T:0) | 2026-10-01 |
-| Người 3 | Đã xác minh | 12 luồng: Giỏ hàng, Checkout Đa Shop, Idempotency, Quản lý đơn, Nhận hàng, Đánh giá (QD14–15), Responsive 360px, IDOR Address Checkout, Guard Đánh giá đa tầng, Notification sync (RB-LTT07), Voucher Chống gian lận (Đã fix 2 lỗi) | 0 (B:0, C:0, V:0, T:0) | 2026-10-01 |
+| Người 3 | Đã xác minh | 8 luồng: Danh mục 2 cấp, Chi tiết SP & Review thật, Seller tạo SP (QD05/06), Sửa SP & Khóa Shop (RB-LB11), Bật/Tắt SP, Chat AI Grounding, Live Chat Polling 4s, Presence Online/Offline (Đã fix 4 lỗi) | 0 (B:0, C:0, V:0, T:0) | 2026-10-03 |
 | Người 4 | Đã xác minh | 7 luồng: Shop PENDING, SP/SKU/Tồn kho, Media Storage, State Machine & Chặn chéo Shop (Đã fix 1 lỗi State Machine) | 0 (B:0, C:0, V:0, T:0) | 2026-10-01 |
 | Người 5 | Đã xác minh | 8 luồng: Admin, Moderation, RBAC, Audit, Dashboard UI & Order Commands (Đã fix 1 lỗi logic FE-BE missing reason) | 1 Thấp (Góp ý nhãn KPI) | 2026-10-01 |
 

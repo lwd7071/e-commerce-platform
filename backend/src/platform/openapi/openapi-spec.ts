@@ -1602,6 +1602,19 @@ export function generateOpenApiSpec(): OpenApiSpec {
           responses: { '200': successResponse('Bot permissions updated'), '401': errorResponse('Authentication required'), '403': errorResponse('Forbidden'), '404': errorResponse('Conversation not found') },
         },
       },
+      '/chat/shops/{shopId}/presence': {
+        get: {
+          summary: 'Get shop presence status (online/offline)',
+          parameters: [{ name: 'shopId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: { '200': successResponse('Shop presence status'), '404': errorResponse('Shop not found') },
+        },
+        put: {
+          summary: 'Update shop presence status', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'shopId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: jsonRequest({ type: 'object', required: ['is_online'], properties: { is_online: { type: 'boolean' } } }),
+          responses: { '200': successResponse('Shop presence updated'), '401': errorResponse('Authentication required'), '403': errorResponse('Forbidden') },
+        },
+      },
       '/seller/wallet': {
         get: {
           summary: 'Get shop wallet balance and information', security: [{ BearerAuth: [] }],

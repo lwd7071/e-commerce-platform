@@ -32,6 +32,7 @@ export interface ChatConversation {
   product_image?: string | null;
   unread_count?: number;
   last_message?: string;
+  is_shop_online?: boolean;
 }
 
 export interface ChatMessage {

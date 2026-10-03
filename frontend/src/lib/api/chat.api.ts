@@ -27,6 +27,7 @@ export interface WireChatConversation {
   product_image?: string | null;
   unread_count?: number;
   last_message?: string;
+  is_shop_online?: boolean;
 }
 
 export interface WireChatMessage {
@@ -93,4 +94,12 @@ export const chatApi = {
 
   updatePermissions: (conversationId: string, permissions: Partial<ProductBotPermissions>) =>
     apiClient.patch<WireChatConversation>(`/chat/conversations/${conversationId}/permissions`, permissions),
+
+  getShopPresence: (shopId: string) =>
+    apiClient.get<{ shop_id: string; is_online: boolean }>(`/chat/shops/${shopId}/presence`),
+
+  setShopPresence: (shopId: string, isOnline: boolean) =>
+    apiClient.put<{ shop_id: string; is_online: boolean }>(`/chat/shops/${shopId}/presence`, {
+      is_online: isOnline,
+    }),
 };

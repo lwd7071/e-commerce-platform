@@ -31,6 +31,7 @@ export function ChatWidget({ productContext, isOpen, onClose }: ChatWidgetProps)
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isHandoffLoading, setIsHandoffLoading] = useState(false);
+  const [isShopOnline, setIsShopOnline] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -102,6 +103,20 @@ export function ChatWidget({ productContext, isOpen, onClose }: ChatWidgetProps)
     return () => clearInterval(interval);
   }, [isOpen, conversation?.conversation_id]);
 
+  // Đồng bộ trạng thái hiện diện online/offline của Shop
+  useEffect(() => {
+    const targetShopId = productContext?.shopId || conversation?.shop_id;
+    if (!targetShopId || !repositories.chat().getShopPresence) return;
+
+    repositories
+      .chat()
+      .getShopPresence!(targetShopId)
+      .then((res) => {
+        setIsShopOnline(res.is_online);
+      })
+      .catch(() => undefined);
+  }, [isOpen, productContext?.shopId, conversation?.shop_id]);
+
   const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend || inputText).trim();
     if (!text || !conversation || isSending) return;
@@ -172,11 +187,19 @@ export function ChatWidget({ productContext, isOpen, onClose }: ChatWidgetProps)
             <div className="flex items-center gap-1.5 text-[11px] text-white/90">
               <span
                 className={`h-2 w-2 rounded-full ${
-                  conversation?.mode === "LIVE_AGENT" ? "bg-emerald-400" : "bg-sky-300 animate-pulse"
+                  conversation?.mode === "LIVE_AGENT"
+                    ? isShopOnline
+                      ? "bg-emerald-400"
+                      : "bg-amber-400"
+                    : "bg-sky-300 animate-pulse"
                 }`}
               />
               <span>
-                {conversation?.mode === "LIVE_AGENT" ? "Đang chat với Người Bán" : "Trợ lý AI Sản Phẩm"}
+                {conversation?.mode === "LIVE_AGENT"
+                  ? isShopOnline
+                    ? "Đang chat với Người Bán"
+                    : "Người Bán (Tạm vắng)"
+                  : "Trợ lý AI Sản Phẩm"}
               </span>
             </div>
           </div>
@@ -244,6 +267,12 @@ export function ChatWidget({ productContext, isOpen, onClose }: ChatWidgetProps)
 
       {/* Messages Stream */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[var(--background)]">
+        {!isShopOnline && (
+          <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-[11px] text-amber-700 dark:text-amber-300 flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-amber-500 shrink-0" />
+            <span>Shop hiện đang ngoại tuyến (Offline). Bạn vẫn có thể gửi tin nhắn, Shop sẽ phản hồi bạn khi quay lại!</span>
+          </div>
+        )}
         {isLoading ? (
           <div className="flex h-full items-center justify-center text-xs text-[var(--subtext)]">
             Đang kết nối phiên chat...

@@ -4,15 +4,38 @@
 
 - Phase/ticket: Feature 4 (Buyer-Seller Chat, AI Bot Assistant & Seller Live Chat) [x], Core & Acceptance [x]
 - Owner: thangdanglk-ui (Người 3)
-- Cập nhật lần cuối: 2026-10-02
-- Trạng thái: Hoàn thành 100% (Đã merge vào `origin/dev` tại commit `defd00f` và xác minh sau merge)
-- Nhánh/PR: `feat/fe-nguoi-3-catalog` -> Merged vào `origin/dev`
+- Cập nhật lần cuối: 2026-10-03
+- Trạng thái: Hoàn thành 100% (Đã khắc phục 3/3 lỗi auditor & cập nhật tài liệu kiểm thử)
+- Nhánh/PR: `feat/fe-nguoi-3-catalog` -> Merge vào `dev`
 - Bị block bởi: Không (0 blocker)
 - Người phối hợp:
   - Người 1 (Auth & User Platform): Xác thực JWT / Supabase Auth (`buyer_id`, `seller_id`), phân quyền RBAC (`BUYER`, `SELLER`).
   - Người 2 (Shop & Seller Operations): Xác thực quyền sở hữu Shop (`shop.owner_id`) và tích hợp menu điều hướng Seller Dashboard (`/seller/chat`).
 
 ## Nhật ký theo ngày
+
+### 2026-10-03 — Khắc phục Triệt để Defect Review: Concurrency SKU Lock, QD05 Price Validation, Shop Chat Presence API & Test Docs Re-alignment
+
+- **Đã làm**:
+  - **Khắc phục lỗi Concurrency SKU (RB-LB11 - Mức Cao)**:
+    - Trong `updateSellerProduct` (`backend/src/modules/catalog/services/pg-catalog-http.service.ts`), bổ sung row-level lock cho Shop: `SELECT shop_id FROM shops WHERE shop_id = $1 FOR UPDATE`. Đồng bộ tuần tự hóa tất cả các request tạo mới và cập nhật sản phẩm trong cùng 1 Shop, chặn đứng race-condition trùng SKU giữa 2 product khác nhau.
+  - **Khắc phục lỗi Shop Presence chỉ nằm ở local state (Mức Vừa)**:
+    - Tạo migration `backend/prisma/migrations/20261003120000_shop_chat_presence/migration.sql` lưu bảng `shop_chat_presence`.
+    - Triển khai endpoints `GET /chat/shops/:shopId/presence` và `PUT /chat/shops/:shopId/presence` (kèm xác thực JWT và quyền sở hữu shop), fallback in-memory an toàn.
+    - Cập nhật `chatApi.getShopPresence` / `chatApi.setShopPresence`, `IChatRepository`, kết nối `SellerChatInboxScreen` để persist trạng thái lên server qua API khi toggle.
+    - Cập nhật `BuyerChatWidget`: query presence từ backend, hiển thị nhãn `Người Bán (Tạm vắng)` và banner cảnh báo ngoại tuyến khi Shop offline, tự động gửi phản hồi offline nếu Buyer hand-off.
+  - **Khắc phục lỗi Price Validation QD05 (Mức Thấp)**:
+    - Áp dụng regex `^\d+(\.\d{1,2})?$` cho cả luồng `createProduct` tương đồng với `updateSellerProduct`, chặn các số thập phân siêu nhỏ (0.001) hoặc scientific notation (1e-5), trả về `422 VALIDATION_FAILED` thay vì để DB văng constraint error.
+  - **Chuẩn hóa Báo cáo Chat & Test Document Scope**:
+    - `docs/feature/04-chat-ai-live-chat.md`: Làm rõ cơ chế Access Control ở Application Service Guard (`assertConversationAccess`), integration test kiểm tra guard thay vì trực tiếp RLS policy.
+    - `docs/test-mvp/person-3.md`: Viết lại toàn bộ 8 kịch bản test MVP chuẩn xác cho phạm vi Catalog, Seller Products và Chat AI Assistant của Người 3 (TC-CAT-01, TC-CAT-02, TC-SEL-01, TC-SEL-02, TC-SEL-03, TC-CHT-01, TC-CHT-02, TC-CHT-03).
+    - `docs/test-mvp/plan.md`: Chuẩn hóa lại bảng phân công và phạm vi test MVP của Người 3.
+  - **Quality Gates Verification**:
+    - Backend Chat spec: 16/16 PASS.
+    - Backend Catalog hardening: 41/41 PASS.
+    - Frontend Vitest Chat: 7/7 PASS.
+    - Backend & Frontend Lint: PASS (0 warning, 0 error).
+    - Frontend Typecheck: PASS (`tsc --noEmit` 0 error).
 
 ### 2026-10-02 — Hoàn tất Feature 4 (Chat AI Assistant & Live Chat), Polling Realtime, Presence & Quality Gates
 

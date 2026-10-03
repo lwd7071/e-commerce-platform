@@ -183,5 +183,32 @@ export function createChatRouter(
     })
   );
 
+  // GET /chat/shops/:shopId/presence - Lấy trạng thái hiện diện online/offline của Shop
+  router.get(
+    '/chat/shops/:shopId/presence',
+    asyncRoute(async (req, res) => {
+      const service = ensureService();
+      const presence = await service.getShopPresence(req.params.shopId);
+      res.status(200).json(buildSuccessEnvelope(presence, req.requestId ?? 'req-chat'));
+    })
+  );
+
+  // PUT /chat/shops/:shopId/presence - Cập nhật trạng thái hiện diện (Seller sở hữu Shop)
+  router.put(
+    '/chat/shops/:shopId/presence',
+    ...guards(authMiddleware, 'SELLER'),
+    asyncRoute(async (req, res) => {
+      const ctx = context(req);
+      const service = ensureService();
+      const body = req.body as { is_online?: boolean };
+      if (typeof body.is_online !== 'boolean') {
+        throw new ValidationFailedError('is_online must be a boolean');
+      }
+
+      const presence = await service.setShopPresence(req.params.shopId, ctx.user_id, body.is_online);
+      res.status(200).json(buildSuccessEnvelope(presence, req.requestId ?? 'req-chat'));
+    })
+  );
+
   return router;
 }

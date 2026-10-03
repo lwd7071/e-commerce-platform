@@ -1023,6 +1023,8 @@ const apiChatRepository: IChatRepository = {
   sendMessage: (id, payload) => chatApi.sendMessage(id, payload),
   requestHandoff: (id) => chatApi.requestHandoff(id),
   updatePermissions: (id, permissions) => chatApi.updatePermissions(id, permissions),
+  getShopPresence: (shopId) => chatApi.getShopPresence(shopId),
+  setShopPresence: (shopId, isOnline) => chatApi.setShopPresence(shopId, isOnline),
 };
 
 const mockConversationsStore: import('../api/chat.api').WireChatConversation[] = [
@@ -1155,7 +1157,14 @@ const mockChatRepository: IChatRepository = {
     conv.bot_permissions = { ...conv.bot_permissions, ...permissions };
     return conv;
   },
+  getShopPresence: async (shopId) => ({ shop_id: shopId, is_online: mockShopPresenceStore[shopId] ?? true }),
+  setShopPresence: async (shopId, isOnline) => {
+    mockShopPresenceStore[shopId] = isOnline;
+    return { shop_id: shopId, is_online: isOnline };
+  },
 };
+
+const mockShopPresenceStore: Record<string, boolean> = {};
 
 // ==========================================
 // 3. Central Dependency Switcher Factory

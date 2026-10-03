@@ -2,16 +2,43 @@
 
 ## Trạng thái hiện tại
 
-- Mốc: Hoàn tất Feature 4 (Buyer-Seller Chat Hybrid AI & Live Chat) & Toàn bộ Quality Gates Sau Merge
+- Mốc: Hoàn tất Sửa lỗi Review (Concurrency SKU RB-LB11, Price QD05, Presence API, RLS Docs & Scope Alignment)
 - Owner: thangdanglk-ui (Người 3)
-- Cập nhật lần cuối: 2026-10-02
-- Trạng thái: Hoàn thành 100% (Đã merge vào `origin/dev` tại commit `defd00f` và xác minh sau merge)
+- Cập nhật lần cuối: 2026-10-03
+- Trạng thái: Đã sửa dứt điểm 100% 4 lỗi mở, xác minh qua test tự động
 - Bị block bởi: Không (0 blocker)
 - Người phối hợp:
   - Người 1 (Auth & User Platform): Xác thực JWT / Supabase Auth (`buyer_id`, `seller_id`), phân quyền RBAC (`BUYER`, `SELLER`).
   - Người 2 (Shop & Seller Operations): Xác thực quyền sở hữu Shop (`shop.owner_id`) và tích hợp menu điều hướng Seller Dashboard (`/seller/chat`).
 
 ## Nhật ký theo ngày
+
+### 2026-10-03 (Khắc phục Triệt để 4 Lỗi Review: Concurrency SKU RB-LB11, Price QD05, Presence API & RLS Docs)
+
+- **Đã làm**:
+  - **[Lỗi Cao — RB-LB11 Concurrency SKU per Shop]**:
+    - Trong `updateSellerProduct` (`pg-catalog-http.service.ts`), bổ sung khóa hàng gian hàng `SELECT shop_id FROM shops WHERE shop_id = $1 FOR UPDATE` ngay đầu transaction cập nhật.
+    - Loại bỏ hoàn toàn nguy cơ race condition: Khi 2 transaction sửa 2 sản phẩm khác nhau trong cùng Shop, khóa đồng bộ Shop bắt buộc giao dịch thứ 2 phải chờ, ngăn chặn việc cả hai cùng vượt qua kiểm tra và lưu trùng SKU trong Shop.
+  - **[Lỗi Thấp — QD05 Variant Price Validation]**:
+    - Chuẩn hóa validation giá khi tạo sản phẩm (`createProduct`): Thay vì chỉ kiểm tra `Number(price) > 0`, áp dụng regex `decimal = /^\d+(\.\d{1,2})?$/` và `Number(price) > 0` nhất quán với luồng cập nhật.
+    - Từ chối ngay lập tức các giá trị không hợp lệ như `0.001` (tránh bị làm tròn thành 0.00 ở DB) hoặc scientific notation `1e-5` với lỗi `422 VALIDATION_FAILED`.
+  - **[Lỗi Vừa — Shop Online/Offline Presence API & Live Integration]**:
+    - Xây dựng migration `20261003120000_shop_chat_presence` và bảng `shop_chat_presence` có bật RLS.
+    - Triển khai API `GET /api/v1/chat/shops/:shopId/presence` và `PUT /api/v1/chat/shops/:shopId/presence` (kiểm tra quyền sở hữu Shop của Seller).
+    - Cập nhật `PgChatService`: Khi Shop offline, bot tự động phản hồi thông báo vắng mặt khi Buyer gửi tin nhắn trong chế độ Live Agent hoặc khi yêu cầu Hand-off.
+    - Frontend: Tích hợp `getShopPresence` và `setShopPresence` qua `repositories.chat()`, kết nối nút toggle ở Seller Inbox và hiển thị nhãn `Người Bán (Tạm vắng)` kèm banner cảnh báo ở Buyer `ChatWidget`.
+  - **[Báo cáo & RLS Docs]**:
+    - Chuẩn hóa tài liệu `docs/feature/04-chat-ai-live-chat.md`: Làm rõ migration bật RLS và thu hồi quyền trực tiếp `REVOKE ALL`; phân quyền kiểm soát truy cập (Access Control) được thực thi và kiểm thử tại tầng Application Service Guard (`assertConversationAccess`).
+  - **[Khớp nối Tài liệu Scope Người 3]**:
+    - Viết lại toàn bộ `docs/test-mvp/person-3.md` khớp đúng 100% với phân công của Người 3 (Catalog, Quản lý sản phẩm Seller, Tồn kho & Chat AI/Live Chat).
+    - Cập nhật bảng phân công và ma trận kiểm thử tại `docs/test-mvp/plan.md`.
+- **Kết quả Kiểm tra**:
+  - Backend Chat Routes: 16/16 tests PASS (`npx tsx --test test/platform/chat-routes.spec.ts`).
+  - Backend Catalog Hardening: 41/41 tests PASS (`npx tsx --test test/modules/catalog/*.spec.ts`).
+  - Backend Lint: 0 warnings (`eslint --max-warnings=0`).
+  - Frontend Chat Vitest: 7/7 tests PASS (`npx vitest run test/chat-widget.spec.tsx test/seller-chat-inbox.spec.tsx`).
+  - Frontend Lint: 0 errors, 0 warnings.
+  - Frontend Typecheck: 0 errors (`tsc --noEmit`).
 
 ### 2026-10-02 (Hoàn tất Feature 4: Hybrid Buyer-Seller Chat & AI Assistant, Đáp ứng 100% Review của Lead)
 

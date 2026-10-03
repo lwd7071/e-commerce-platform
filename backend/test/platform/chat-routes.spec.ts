@@ -308,4 +308,49 @@ describe('Chat HTTP Endpoints Integration', () => {
 
     assert.equal(res.body.data.bot_permissions.allow_stock, false);
   });
+
+  it('GET /chat/shops/:shopId/presence trả về trạng thái trực tuyến của Shop', async () => {
+    const app = createApp({
+      chatService: {
+        getShopPresence: async (sId: string) => {
+          assert.equal(sId, shopId);
+          return { shop_id: sId, is_online: false };
+        },
+      } as unknown as PgChatService,
+    });
+
+    const res = await request(app)
+      .get(`/api/v1/chat/shops/${shopId}/presence`)
+      .expect(200);
+
+    assert.equal(res.body.data.is_online, false);
+  });
+
+  it('PUT /chat/shops/:shopId/presence cho phép Seller cập nhật trạng thái trực tuyến của Shop', async () => {
+    const app = createApp({
+      auth: (req, _res, next) => {
+        req.context = createRequestContext({
+          request_id: 'req-presence-test',
+          user_id: sellerId,
+          role: 'SELLER',
+        });
+        next();
+      },
+      chatService: {
+        setShopPresence: async (sId: string, sOwnerId: string, isOnline: boolean) => {
+          assert.equal(sId, shopId);
+          assert.equal(sOwnerId, sellerId);
+          assert.equal(isOnline, false);
+          return { shop_id: sId, is_online: false };
+        },
+      } as unknown as PgChatService,
+    });
+
+    const res = await request(app)
+      .put(`/api/v1/chat/shops/${shopId}/presence`)
+      .send({ is_online: false })
+      .expect(200);
+
+    assert.equal(res.body.data.is_online, false);
+  });
 });

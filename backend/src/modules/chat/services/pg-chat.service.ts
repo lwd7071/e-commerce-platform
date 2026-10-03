@@ -191,7 +191,24 @@ export class PgChatService {
       return { userMessage, botResponse: botMessage };
     }
 
-    // Nếu đang ở LIVE_AGENT, tin nhắn của Buyer chỉ lưu lại chờ Seller phản hồi
+    // Nếu đang ở LIVE_AGENT, kiểm tra nếu Shop offline thì bot tự động phản hồi thông báo offline
+    if (conversation.mode === 'LIVE_AGENT') {
+      const isShopOnline = await this.repo.getShopPresence(conversation.shop_id);
+      if (!isShopOnline) {
+        const botNotice = await this.repo.createMessage({
+          messageId: randomUUID(),
+          conversationId,
+          senderId: null,
+          senderRole: 'BOT',
+          messageType: 'TEXT',
+          content: 'Dạ Shop hiện đang tạm vắng (Offline). Tin nhắn của bạn đã được ghi nhận vào hàng đợi, Shop sẽ phản hồi bạn ngay khi trực tuyến trở lại ạ!',
+          metadata: { is_automated: true, is_offline_notice: true },
+        });
+        return { userMessage, botResponse: botNotice };
+      }
+      return { userMessage };
+    }
+
     return { userMessage };
   }
 
@@ -211,18 +228,44 @@ export class PgChatService {
     await this.repo.updateConversationMode(conversationId, 'LIVE_AGENT');
     conversation.mode = 'LIVE_AGENT';
 
+    const isShopOnline = await this.repo.getShopPresence(conversation.shop_id);
+    const content = isShopOnline
+      ? 'Yêu cầu kết nối với Người Bán đã được gửi đến Shop. Người bán sẽ phản hồi tin nhắn của bạn sớm nhất!'
+      : 'Shop hiện đang tạm vắng (Offline). Yêu cầu kết nối và tin nhắn của bạn đã được ghi nhận vào hàng đợi, Shop sẽ phản hồi bạn ngay khi trực tuyến trở lại!';
+
     const systemMessage = await this.repo.createMessage({
       messageId: randomUUID(),
       conversationId,
       senderId: null,
       senderRole: 'BOT',
       messageType: 'HANDOFF_REQUEST',
-      content:
-        'Yêu cầu kết nối với Người Bán đã được gửi đến Shop. Người bán sẽ phản hồi tin nhắn của bạn sớm nhất!',
-      metadata: { is_automated: true, handoff_requested_at: new Date().toISOString() },
+      content,
+      metadata: {
+        is_automated: true,
+        handoff_requested_at: new Date().toISOString(),
+        shop_online: isShopOnline,
+      },
     });
 
     return { conversation, systemMessage };
+  }
+
+  async getShopPresence(shopId: string): Promise<{ shop_id: string; is_online: boolean }> {
+    const isOnline = await this.repo.getShopPresence(shopId);
+    return { shop_id: shopId, is_online: isOnline };
+  }
+
+  async setShopPresence(
+    shopId: string,
+    sellerId: string,
+    isOnline: boolean
+  ): Promise<{ shop_id: string; is_online: boolean }> {
+    const shopOwnerId = await this.repo.getShopOwnerId(shopId);
+    if (shopOwnerId !== sellerId) {
+      throw new ForbiddenError('FORBIDDEN', 'Only the shop owner can configure shop presence');
+    }
+    await this.repo.setShopPresence(shopId, isOnline);
+    return { shop_id: shopId, is_online: isOnline };
   }
 
   async updateBotPermissions(
