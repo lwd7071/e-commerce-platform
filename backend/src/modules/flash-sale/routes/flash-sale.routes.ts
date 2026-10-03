@@ -3,6 +3,8 @@ import type { FlashSaleService } from '../services/flash-sale.service.ts';
 import type { PgFlashSaleRepository } from '../repositories/pg-flash-sale.repository.ts';
 import { getRedisClient } from '../infrastructure/redis.client.ts';
 
+const errorMessage = (error: unknown): string => error instanceof Error ? error.message : String(error);
+
 export function createFlashSaleRouter(service: FlashSaleService, repo: PgFlashSaleRepository): Router {
   const router = Router();
   const redis = getRedisClient();
@@ -13,7 +15,7 @@ export function createFlashSaleRouter(service: FlashSaleService, repo: PgFlashSa
       const sessions = await repo.listActiveSessions();
       res.json({ data: sessions });
     } catch (err: unknown) {
-      res.status(500).json({ error: (err as Error).message });
+      res.status(500).json({ error: errorMessage(err) });
     }
   });
 
@@ -36,7 +38,7 @@ export function createFlashSaleRouter(service: FlashSaleService, repo: PgFlashSa
 
       res.json({ data: itemsWithStock });
     } catch (err: unknown) {
-      res.status(500).json({ error: (err as Error).message });
+      res.status(500).json({ error: errorMessage(err) });
     }
   });
 
@@ -50,7 +52,7 @@ export function createFlashSaleRouter(service: FlashSaleService, repo: PgFlashSa
       }
       res.json(result);
     } catch (err: unknown) {
-      res.status(500).json({ error: (err as Error).message });
+      res.status(500).json({ error: errorMessage(err) });
     }
   });
 
@@ -73,8 +75,8 @@ export function createFlashSaleRouter(service: FlashSaleService, repo: PgFlashSa
       }
 
       // ponytail: Lấy user_id từ auth request context hoặc fallback body/anonymous
-      const authUser = (req as unknown as { user?: { user_id?: string } }).user;
-      const userId = authUser?.user_id || req.body.user_id || '00000000-0000-0000-0000-000000000001';
+      const requestWithUser = req as Request & { user?: { user_id?: string } };
+      const userId = requestWithUser.user?.user_id || req.body.user_id || '00000000-0000-0000-0000-000000000001';
 
       const result = await service.purchase({
         idempotency_key: idempKey,
@@ -97,7 +99,7 @@ export function createFlashSaleRouter(service: FlashSaleService, repo: PgFlashSa
       return res.status(200).json(result);
     } catch (err: unknown) {
       console.error('[FlashSale Route Error]', err);
-      res.status(500).json({ error: 'INTERNAL_ERROR', message: (err as Error).message });
+      res.status(500).json({ error: 'INTERNAL_ERROR', message: errorMessage(err) });
     }
   });
 
@@ -108,7 +110,7 @@ export function createFlashSaleRouter(service: FlashSaleService, repo: PgFlashSa
       const report = await service.reconcileSlot(slotId);
       res.json({ data: report });
     } catch (err: unknown) {
-      res.status(500).json({ error: (err as Error).message });
+      res.status(500).json({ error: errorMessage(err) });
     }
   });
 
@@ -118,7 +120,7 @@ export function createFlashSaleRouter(service: FlashSaleService, repo: PgFlashSa
       const result = await service.runWatchdogSweep();
       res.json({ data: result });
     } catch (err: unknown) {
-      res.status(500).json({ error: (err as Error).message });
+      res.status(500).json({ error: errorMessage(err) });
     }
   });
 

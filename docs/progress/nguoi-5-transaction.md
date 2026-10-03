@@ -2,17 +2,47 @@
 
 ## Trạng thái hiện tại
 
-- Mốc: T3 Backend (Hoàn tất) & Frontend Phase 5, Phase 6 (Hoàn tất 100% Cụm 1, 2, 3, 4 & Buyer Confirm-Received P0-08 / C-103)
-- Cập nhật lần cuối: 2026-09-30
-- Trạng thái: Hoàn tất các hạng mục trọng điểm và ghi nhận hiện trạng kết nối code thực tế:
-  1. Cụm 1 & Cụm 2: Chuyển đổi toàn bộ màu sắc thống kê đơn seller và thông báo đơn hàng sang token semantic/brand của design system; FE Transaction core (POST /checkout kèm Idempotency-Key, order mutation hủy/xác nhận/xác nhận nhận hàng/chuyển trạng thái kết nối API thật và có fallback mock). Kênh đọc đơn (`getOrders`, `getOrderById`) dùng mock in-memory do GAP-01.
-  2. Cụm 3: O-507 (Review Form UI `/orders/[id]/review` bảo vệ quyền BUYER, điều kiện hoàn thành QD14, chống trùng RB-LB09, rating 1..5 sao, nhận xét 10-500 ký tự) và P-607c (Review Media Upload & Preview UI, tối đa 5 ảnh, 5MB/ảnh). Data layer Review hỗ trợ live API và tự động fallback mock khi offline / lỗi xác thực / lỗi mạng.
-  3. Cụm 4: A-704 (Admin Dashboard `/admin`), A-705 (Khóa/Mở người dùng & gian hàng với lý do bắt buộc RB-LTT08 và audit logging), A-708 (Seller Dashboard & KPI UI `/seller` tuân thủ nghiêm ngặt quy tắc QD19 doanh thu chỉ tính đơn COMPLETED), A-709 (Admin Categories `/admin/categories` cây danh mục tối đa 2 cấp RB-KN04), Q-805 (RBAC route guard cho `/admin`, `/admin/categories`, `/seller`). Data layer Admin hỗ trợ fallback mock.
-  4. Triển khai hoàn tất: Endpoint Buyer `confirm-received` (`POST /orders/:id/confirm-received` theo Plan 08 / P0-08, C-103, C-104) đã được hiện thực hóa ở cả Backend (`order-routes.ts`, `t1-routes.ts`, `pg-checkout.service.ts`, `order-lifecycle.service.ts`, `order-state-machine.ts`) và Frontend (`order.api.ts`, `repository-factory.ts`, `order-card.tsx`, `orders-screen.tsx`).
-  5. Quality Gates: 217/217 Vitest tests PASS (100%), typecheck 0 errors (`tsc --noEmit`), Next.js Production Build 100% SUCCESS (17/17 routes).
+- Mốc: T3 Backend (Hoàn tất), Frontend Phase 5 & 6 (Hoàn tất) & Feature 01: Escrow & Seller Wallet (Hoàn tất 100%)
+- Cập nhật lần cuối: 2026-10-02
+- Trạng thái: Hoàn tất toàn bộ các hạng mục cốt lõi và tính năng mở rộng được phân công:
+  1. Cụm 1 & Cụm 2: Chuyển đổi toàn bộ màu sắc thống kê đơn seller và thông báo đơn hàng sang token semantic/brand của design system; FE Transaction core (POST /checkout kèm Idempotency-Key, order mutation hủy/xác nhận/xác nhận nhận hàng/chuyển trạng thái kết nối API thật và có fallback mock).
+  2. Cụm 3: O-507 (Review Form UI `/orders/[id]/review` bảo vệ quyền BUYER, điều kiện hoàn thành QD14, chống trùng RB-LB09, rating 1..5 sao, nhận xét 10-500 ký tự) và P-607c (Review Media Upload & Preview UI, tối đa 5 ảnh, 5MB/ảnh).
+  3. Cụm 4: A-704 (Admin Dashboard `/admin`), A-705 (Khóa/Mở người dùng & gian hàng với lý do bắt buộc RB-LTT08 và audit logging), A-708 (Seller Dashboard & KPI UI `/seller` tuân thủ nghiêm ngặt quy tắc QD19 doanh thu chỉ tính đơn COMPLETED), A-709 (Admin Categories `/admin/categories` cây danh mục tối đa 2 cấp RB-KN04), Q-805 (RBAC route guard cho `/admin`, `/admin/categories`, `/seller`).
+  4. Triển khai Buyer `confirm-received` (`POST /orders/:id/confirm-received` theo Plan 08 / P0-08, C-103, C-104) hoàn tất ở cả Backend và Frontend.
+  5. **Feature mở rộng 01 — Escrow & Seller Wallet (Hoàn tất 100%):**
+     - Bản ghi Escrow giữ 100% tiền đơn hàng khi thanh toán, tính trước phí sàn 5% (commission) và tiền thực nhận 95%.
+     - Tự động quyết toán (`settleEscrow`) sang Ví người bán khi đơn `COMPLETED`; tự động hoàn tiền (`refundEscrow`) khi đơn `CANCELLED`.
+     - Loại bỏ secret fallback trong source code; nạp PayOS credentials từ biến môi trường, hỗ trợ Mock VietQR an toàn.
+     - Cơ chế phòng vệ tự chữa lành: Thử lại tự động 3 lần (Retry with exponential backoff) khi settle/refund; hàm đối soát định kỳ (`reconcilePendingEscrows`) và endpoint quản trị `POST /admin/finance/escrow/reconcile`.
+     - Giao diện người bán `/seller/wallet` (số dư, tài khoản ngân hàng, rút tiền tối thiểu 50k, phong tỏa 2 bước, lịch sử giao dịch).
+     - Bảng điều khiển tài chính Admin `/admin/finance` (5 chỉ số KPI, duyệt/từ chối rút tiền, đối soát Escrow).
+     - Báo cáo hoàn chỉnh tại `docs/feature/01-escrow-seller-wallet.md`.
+  6. Quality Gates: 17/17 Wallet tests PASS, 756/756 Backend Node tests PASS (208 suites), 351/351 Frontend tests PASS (74 test files), Typecheck & Lint 0 errors/warnings.
 - Bị block bởi: Không
 
 ## Nhật ký theo ngày
+
+### 2026-10-02 (Hoàn tất Feature 01: Escrow & Seller Wallet, Tự Chữa Lành Retry & Đối Soát, Báo Cáo Tính Năng)
+
+- **Đã làm:**
+  - **1. Xử lý bảo mật cấu hình PayOS VietQR:**
+    - Loại bỏ fallback string hardcode trong `backend/src/platform/http/app.ts`, chuyển sang đọc từ `process.env.PAYOS_* || ''`.
+    - Bổ sung tài liệu biến môi trường (`PAYOS_CLIENT_ID`, `PAYOS_API_KEY`, `PAYOS_CHECKSUM_KEY`) vào `.env.example`.
+  - **2. Bổ sung cơ chế Retry & Đối soát (Reconciliation) cho Escrow:**
+    - Thêm helper `retryEscrowOperation` (thử lại tối đa 3 lần với exponential backoff) bọc quanh `settleEscrow` và `refundEscrow` trong hook đơn hàng `confirmReceived`, `transitionOrder`, `cancelOrder`.
+    - Triển khai phương thức `reconcilePendingEscrows()` trong `PgWalletRepository`, `EscrowService`, `AdminFinanceService` tự động phát hiện và bù trừ các đơn hàng `COMPLETED`/`CANCELLED` có escrow bị treo ở `HOLDING`.
+    - Mở endpoint quản trị: `POST /api/v1/admin/finance/escrow/reconcile` và client frontend `walletApi.reconcileEscrow()`.
+  - **3. Bổ sung bộ kiểm thử tự động:**
+    - Mở rộng `backend/test/modules/wallet/wallet-and-escrow.spec.ts` với suite `5. Escrow Reconciliation & Failure Recovery` (3 ca test mới), đạt 17/17 tests PASS.
+  - **4. Soạn thảo Báo cáo Tính năng Chuẩn hoá:**
+    - Tạo file `docs/feature/01-escrow-seller-wallet.md` theo mẫu chuẩn của dự án (Owner: Tri Nguyen).
+  - **5. Quality Gates:**
+    - Backend Wallet Spec: 17/17 tests PASS.
+    - Backend Unit toàn sàn: 756/756 tests PASS (208 suites).
+    - Frontend Wallet Vitest: 9/9 tests PASS.
+    - Frontend Vitest toàn sàn: 351/351 tests PASS (74 test files).
+    - Typecheck (`tsc --noEmit`) cả Backend & Frontend: 0 errors.
+    - ESLint cả Backend & Frontend: 0 warnings, 0 errors.
 
 ### 2026-09-30 (Triển khai Buyer confirm-received P0-08/C-103 & Đối soát trung thực Code vs Docs)
 

@@ -48,5 +48,10 @@ export function createAdminFinanceRouter(service?: AdminFinanceService, auth?: R
     res.json(buildSuccessEnvelope(result, requestId(req)));
   }));
 
+  router.post('/admin/finance/escrow/reconcile', ...guards, asyncRoute(async (req, res) => {
+    const result = await configured().reconcileEscrows(adminContext(req));
+    res.json(buildSuccessEnvelope(result, requestId(req)));
+  }));
+
   return router;
 }

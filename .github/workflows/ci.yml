@@ -28,6 +28,7 @@ jobs:
       EXPECTED_SUPABASE_PROJECT_REF: localtest
       ALLOW_MIGRATION_DEPLOY: "true"
       RUN_REMOTE_DB_TESTS: "true"
+      REDIS_URL: redis://localhost:6379
     services:
       postgres:
         image: postgres:17.6
@@ -42,6 +43,15 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -148,6 +158,16 @@ jobs:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')
     needs: backend-quality
     runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     defaults:
       run:
         working-directory: backend
@@ -158,6 +178,7 @@ jobs:
       DATABASE_ENVIRONMENT: test
       RUN_REMOTE_DB_TESTS: "true"
       ALLOW_MIGRATION_DEPLOY: "true"
+      REDIS_URL: redis://localhost:6379
     steps:
       - name: Checkout
         uses: actions/checkout@v7

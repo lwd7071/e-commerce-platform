@@ -11,7 +11,12 @@ const expectedTables = [
   'voucher_usages', 'reviews', 'review_images', 'notifications',
   'moderation_records', 'admin_logs', 'media_uploads',
   'admin_notification_campaigns', 'admin_notification_campaign_recipients',
+];
+const featureTables = [
   'chat_conversations', 'chat_messages',
+  'flash_sale_sessions', 'flash_sale_items', 'flash_sale_compensation_logs',
+  'shop_wallets', 'escrow_records', 'wallet_transactions', 'withdrawal_requests',
+  'loyalty_point_transactions',
 ];
 const supportTables = ['_prisma_migrations'];
 const remoteDescribe = parseRunRemoteDbTests(process.env) ? describe : describe.skip;
@@ -27,12 +32,12 @@ remoteDescribe('Schema Freeze v1 migration acceptance', () => {
     if (pool) await closeDatabasePool(pool);
   }, 20_000);
 
-  it('has exactly the expected public business tables plus Prisma support', async () => {
+  it('has exactly the frozen business tables, approved feature tables and Prisma support', async () => {
     if (!pool) throw new Error('Pool was not initialized');
     const result = await pool.query<{ table_name: string }>(
       "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' AND table_name <> 'api_idempotency_records' ORDER BY table_name",
     );
-    expect(result.rows.map((row) => row.table_name).sort()).toEqual([...expectedTables, ...supportTables].sort());
+    expect(result.rows.map((row) => row.table_name).sort()).toEqual([...expectedTables, ...featureTables, ...supportTables].sort());
   }, 15_000);
 
   it('keeps operational idempotency storage separate from business tables', async () => {
@@ -77,6 +82,42 @@ remoteDescribe('Schema Freeze v1 migration acceptance', () => {
       [expectedTables],
     );
     expect(policies.rows).toEqual([]);
+  }, 15_000);
+
+  it('keeps approved feature tables protected with only the Flash Sale read policies', async () => {
+    if (!pool) throw new Error('Pool was not initialized');
+    const rls = await pool.query<{ count: string }>(
+      "SELECT count(*)::text AS count FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relname = ANY($1::text[]) AND c.relrowsecurity",
+      [featureTables],
+    );
+    expect(Number(rls.rows[0].count)).toBe(featureTables.length);
+
+    const privateFeatureTables = featureTables.filter((table) => !['flash_sale_sessions', 'flash_sale_items'].includes(table));
+    const privateGrants = await pool.query(
+      "SELECT table_name, grantee, privilege_type FROM information_schema.table_privileges WHERE table_schema = 'public' AND table_name = ANY($1::text[]) AND grantee IN ('anon', 'authenticated', 'PUBLIC')",
+      [privateFeatureTables],
+    );
+    expect(privateGrants.rows).toEqual([]);
+
+    const publicReadGrants = await pool.query<{ table_name: string; grantee: string; privilege_type: string }>(
+      "SELECT table_name, grantee, privilege_type FROM information_schema.table_privileges WHERE table_schema = 'public' AND table_name = ANY($1::text[]) AND grantee IN ('anon', 'authenticated', 'PUBLIC') ORDER BY table_name, grantee, privilege_type",
+      [['flash_sale_sessions', 'flash_sale_items']],
+    );
+    expect(publicReadGrants.rows).toEqual([
+      { table_name: 'flash_sale_items', grantee: 'anon', privilege_type: 'SELECT' },
+      { table_name: 'flash_sale_items', grantee: 'authenticated', privilege_type: 'SELECT' },
+      { table_name: 'flash_sale_sessions', grantee: 'anon', privilege_type: 'SELECT' },
+      { table_name: 'flash_sale_sessions', grantee: 'authenticated', privilege_type: 'SELECT' },
+    ]);
+
+    const policies = await pool.query<{ tablename: string; policyname: string; cmd: string; roles: string; qual: string | null }>(
+      "SELECT tablename, policyname, cmd, roles, qual FROM pg_policies WHERE schemaname = 'public' AND tablename = ANY($1::text[]) ORDER BY tablename, policyname",
+      [featureTables],
+    );
+    expect(policies.rows).toEqual([
+      { tablename: 'flash_sale_items', policyname: 'flash_sale_items_public_read', cmd: 'SELECT', roles: '{public}', qual: 'true' },
+      { tablename: 'flash_sale_sessions', policyname: 'flash_sale_sessions_public_read', cmd: 'SELECT', roles: '{public}', qual: 'true' },
+    ]);
   }, 15_000);
 
   it('has the required named keys, partial unique indexes and delete actions', async () => {

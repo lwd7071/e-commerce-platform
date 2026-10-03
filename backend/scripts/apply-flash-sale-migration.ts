@@ -17,11 +17,11 @@ async function main() {
     await pool.query(sql);
     console.log('✅ [Migration] Flash Sale migration applied successfully!');
   } catch (err: unknown) {
-    const error = err as Error;
-    if (error.message && error.message.includes('already exists')) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes('already exists')) {
       console.log('ℹ️ [Migration] Tables already exist, skipping.');
     } else {
-      console.error('❌ [Migration] Error applying migration:', error.message);
+      console.error('❌ [Migration] Error applying migration:', message);
       throw err;
     }
   } finally {

@@ -267,7 +267,7 @@ export class FlashSaleService {
         slot_id,
         item_id,
         user_id,
-        reason: `DB_TRANSACTION_FAILED: ${(err as Error).message}`,
+        reason: `DB_TRANSACTION_FAILED: ${err instanceof Error ? err.message : String(err)}`,
         status: 'PENDING',
       });
 
