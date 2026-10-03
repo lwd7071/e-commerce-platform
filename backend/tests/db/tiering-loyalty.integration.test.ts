@@ -5,6 +5,10 @@ import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { loadDatabaseConfig, parseRunRemoteDbTests } from '../../db/config.ts';
 import { LoyaltyService } from '../../src/modules/loyalty/services/loyalty.service.ts';
+import { PgCheckoutService } from '../../src/modules/checkout/services/pg-checkout.service.ts';
+import { ShopTierEvaluationService } from '../../src/modules/shop/services/shop-tier-evaluation.service.ts';
+import { PgProductRepository } from '../../src/modules/catalog/repositories/pg-catalog.repository.ts';
+import type { RequestContext } from '../../src/contracts/request-context.contract.ts';
 import { withTransaction } from '../../db/transaction.ts';
 import {
   createFixtureUser,
@@ -13,6 +17,8 @@ import {
   createFixtureProduct,
   createFixtureVariant,
   createFixtureOrder,
+  createFixtureOrderItem,
+  createFixtureReview,
   type FixtureOrder,
 } from './fixtures/database-fixtures.ts';
 
@@ -59,6 +65,18 @@ dbDescribe('Tiering & Loyalty Integration (Real PostgreSQL)', { timeout: 60_000,
     });
   }
 
+  async function createShipment(orderId: string, status: 'SHIPPING' | 'DELIVERED' = 'SHIPPING') {
+    return runTx(async client => {
+      const shipmentId = randomUUID();
+      await client.query(
+        `INSERT INTO shipments (shipment_id, order_id, carrier_name, tracking_code, status)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [shipmentId, orderId, 'Express Courier', `TRK_${shipmentId.slice(0, 8)}`, status],
+      );
+      return { shipmentId, orderId, status };
+    });
+  }
+
   beforeAll(async () => {
     const config = loadDatabaseConfig(process.env);
     const directUrl = new URL(config.directUrl.toString());
@@ -72,6 +90,7 @@ dbDescribe('Tiering & Loyalty Integration (Real PostgreSQL)', { timeout: 60_000,
     });
 
     await pool.query(`CREATE SCHEMA ${schema}`);
+    await pool.query(`GRANT USAGE ON SCHEMA ${schema} TO anon, authenticated`);
     await pool.query(`SET search_path TO ${schema}, public`);
     await pool.query('CREATE TABLE fixture_auth_users (id uuid PRIMARY KEY)');
 
@@ -91,6 +110,7 @@ dbDescribe('Tiering & Loyalty Integration (Real PostgreSQL)', { timeout: 60_000,
       '20260924120000_t3_idempotency_rls_hardening',
       '20261003100000_shop_tiering',
       '20261003110000_buyer_loyalty',
+      '20261003120000_secure_loyalty_ledger',
     ];
 
     for (const migration of migrations) {
@@ -189,6 +209,42 @@ dbDescribe('Tiering & Loyalty Integration (Real PostgreSQL)', { timeout: 60_000,
         [schema],
       );
       expect(indexRes.rows).toHaveLength(1);
+    });
+
+    it('verifies explicit privilege denial: anon and authenticated are blocked, backend default user is permitted', async () => {
+      // 1. Role anon: bị từ chối truy cập SELECT (SQLSTATE 42501)
+      await expect(
+        runTx(async client => {
+          await client.query('SET ROLE anon');
+          await client.query('SELECT count(*) FROM loyalty_point_transactions');
+        }),
+      ).rejects.toThrow(/permission denied/i);
+
+      // 2. Role authenticated: bị từ chối truy cập SELECT (SQLSTATE 42501)
+      await expect(
+        runTx(async client => {
+          await client.query('SET ROLE authenticated');
+          await client.query('SELECT count(*) FROM loyalty_point_transactions');
+        }),
+      ).rejects.toThrow(/permission denied/i);
+
+      // 3. Role anon: bị từ chối truy cập INSERT
+      await expect(
+        runTx(async client => {
+          await client.query('SET ROLE anon');
+          await client.query(
+            "INSERT INTO loyalty_point_transactions (transaction_id, user_id, points_delta, reason) VALUES ($1, $2, 10, 'TEST')",
+            [randomUUID(), buyerId],
+          );
+        }),
+      ).rejects.toThrow(/permission denied/i);
+
+      // 4. Backend (postgres / service role): truy cập đọc và ghi thành công
+      await runTx(async client => {
+        await client.query('RESET ROLE');
+        const res = await client.query('SELECT count(*) FROM loyalty_point_transactions');
+        expect(Number(res.rows[0].count)).toBeGreaterThanOrEqual(0);
+      });
     });
   });
 
@@ -437,6 +493,378 @@ dbDescribe('Tiering & Loyalty Integration (Real PostgreSQL)', { timeout: 60_000,
 
       const count = await getTxCount(order.orderId);
       expect(count).toBe(0);
+    });
+
+    it('proves that a loyalty error during actual PgCheckoutService.confirmReceived rolls back Order, Shipment, ledger and buyer balances together', async () => {
+      // 1. Tạo order ở trạng thái SHIPPING
+      const order = await createOrder({
+        status: 'SHIPPING',
+        subtotal: '200000.00',
+        discountAmount: '0.00',
+        shippingFee: '30000.00',
+        totalAmount: '230000.00',
+      });
+
+      // 2. Tạo shipment ở trạng thái SHIPPING
+      const shipment = await createShipment(order.orderId, 'SHIPPING');
+
+      // 3. Khởi tạo PgCheckoutService với LoyaltyService bị lỗi giả lập
+      const failingLoyaltyService = {
+        recordOrderCompleted: async () => {
+          throw new Error('SIMULATED_LOYALTY_FAILURE: disk or ledger failure');
+        },
+      } as unknown as LoyaltyService;
+
+      const failingCheckoutService = new PgCheckoutService(pool, undefined, failingLoyaltyService);
+
+      const buyerContext: RequestContext = {
+        request_id: randomUUID(),
+        user_id: buyerId,
+        role: 'BUYER',
+      };
+
+      // 4. Thực thi confirmReceived đi qua toàn bộ logic nghiệp vụ thực tế
+      await expect(
+        failingCheckoutService.confirmReceived(buyerContext, order.orderId),
+      ).rejects.toThrow('SIMULATED_LOYALTY_FAILURE: disk or ledger failure');
+
+      // 5. CHỨNG MINH TOÀN BỘ CÙNG ROLLBACK:
+      // a. Order status vẫn giữ nguyên là SHIPPING (không thành COMPLETED)
+      const orderRes = await runTx(async client => {
+        const res = await client.query<{ status: string }>('SELECT status FROM orders WHERE order_id = $1', [order.orderId]);
+        return res.rows[0];
+      });
+      expect(orderRes.status).toBe('SHIPPING');
+
+      // b. Shipment status vẫn giữ nguyên là SHIPPING (không thành DELIVERED)
+      const shipmentRes = await runTx(async client => {
+        const res = await client.query<{ status: string }>('SELECT status FROM shipments WHERE shipment_id = $1', [shipment.shipmentId]);
+        return res.rows[0];
+      });
+      expect(shipmentRes.status).toBe('SHIPPING');
+
+      // c. app_users: total_spent và loyalty_points không bị cộng dồn
+      const userRes = await getUser(buyerId);
+      expect(Number(userRes.total_spent)).toBe(0);
+      expect(userRes.loyalty_points).toBe(0);
+
+      // d. loyalty_point_transactions: không có bản ghi nào
+      const txCount = await getTxCount(order.orderId);
+      expect(txCount).toBe(0);
+
+      // e. order_status_history: không có bản ghi chuyển sang COMPLETED
+      const historyRes = await runTx(async client => {
+        const res = await client.query<{ count: string }>(
+          "SELECT count(*) FROM order_status_history WHERE order_id = $1 AND new_status = 'COMPLETED'",
+          [order.orderId],
+        );
+        return Number(res.rows[0].count);
+      });
+      expect(historyRes).toBe(0);
+    });
+
+    it('verifies successful PgCheckoutService.confirmReceived commits Order, Shipment, ledger and balances atomically', async () => {
+      // 1. Tạo order và shipment ở trạng thái SHIPPING
+      const order = await createOrder({
+        status: 'SHIPPING',
+        subtotal: '250000.00',
+        discountAmount: '0.00',
+        shippingFee: '25000.00',
+        totalAmount: '275000.00',
+      });
+      const shipment = await createShipment(order.orderId, 'SHIPPING');
+
+      // 2. Dùng PgCheckoutService thật với real LoyaltyService
+      const liveCheckoutService = new PgCheckoutService(pool, undefined, loyaltyService);
+      const buyerContext: RequestContext = {
+        request_id: randomUUID(),
+        user_id: buyerId,
+        role: 'BUYER',
+      };
+
+      // 3. Thực thi hoàn tất đơn hàng
+      await liveCheckoutService.confirmReceived(buyerContext, order.orderId);
+
+      // 4. CHỨNG MINH TOÀN BỘ CÙNG ĐƯỢC COMMIT ATOMIC:
+      // a. Order status chuyển thành COMPLETED
+      const orderRes = await runTx(async client => {
+        const res = await client.query<{ status: string }>('SELECT status FROM orders WHERE order_id = $1', [order.orderId]);
+        return res.rows[0];
+      });
+      expect(orderRes.status).toBe('COMPLETED');
+
+      // b. Shipment status chuyển thành DELIVERED
+      const shipmentRes = await runTx(async client => {
+        const res = await client.query<{ status: string }>('SELECT status FROM shipments WHERE shipment_id = $1', [shipment.shipmentId]);
+        return res.rows[0];
+      });
+      expect(shipmentRes.status).toBe('DELIVERED');
+
+      // c. app_users: total_spent cập nhật 250k, loyalty_points nhận 25 điểm
+      const userRes = await getUser(buyerId);
+      expect(Number(userRes.total_spent)).toBe(250000);
+      expect(userRes.loyalty_points).toBe(25);
+
+      // d. loyalty_point_transactions: 1 bản ghi ORDER_COMPLETED
+      const txCount = await getTxCount(order.orderId);
+      expect(txCount).toBe(1);
+
+      // e. order_status_history: có bản ghi COMPLETED
+      const historyRes = await runTx(async client => {
+        const res = await client.query<{ count: string }>(
+          "SELECT count(*) FROM order_status_history WHERE order_id = $1 AND new_status = 'COMPLETED'",
+          [order.orderId],
+        );
+        return Number(res.rows[0].count);
+      });
+      expect(historyRes).toBe(1);
+    });
+  });
+
+  // =========================================================================
+  // Suite 5: Đợt C: Shop Tier Evaluation & Search Boost (Real PostgreSQL)
+  // =========================================================================
+  describe('Đợt C: Shop Tier Evaluation & Search Boost', { timeout: 45_000 }, () => {
+    let evalService: ShopTierEvaluationService;
+    let catalogProductRepo: PgProductRepository;
+
+    /** Tạo seller mới — mỗi shop cần owner riêng vì constraint uq_shops__owner_id */
+    async function createSeller(label: string): Promise<string> {
+      return runTx(async client => {
+        const sId = randomUUID();
+        await client.query('INSERT INTO fixture_auth_users VALUES ($1)', [sId]);
+        await createFixtureUser(client, { userId: sId, role: 'SELLER', email: `seller_${label}_${sId.slice(0, 6)}@fixture.test` });
+        return sId;
+      });
+    }
+
+    beforeEach(() => {
+      evalService = new ShopTierEvaluationService(pool);
+      catalogProductRepo = new PgProductRepository(pool);
+    });
+
+    it('promotes STANDARD shop to PREFERRED when >= 20 orders, >= 4.5 rating, and >= 5 visible reviews exist on PostgreSQL', async () => {
+      const owner = await createSeller('promote');
+      const evalShop = await runTx(async client => {
+        return createFixtureShop(client, owner, {
+          shopName: 'Shop Eval Promote Real DB',
+          status: 'ACTIVE',
+        });
+      });
+
+      const cat = await runTx(async client => createFixtureCategory(client, { categoryName: 'Eval Cat Real' }));
+      const prod = await runTx(async client => createFixtureProduct(client, evalShop.shopId, cat.categoryId, { productName: 'Eval Prod Real' }));
+      const variant = await runTx(async client => createFixtureVariant(client, prod.productId, { price: '100000.00' }));
+
+      await runTx(async client => {
+        for (let i = 0; i < 20; i++) {
+          await createFixtureOrder(client, buyerId, evalShop.shopId, { status: 'COMPLETED' });
+        }
+        for (let i = 0; i < 5; i++) {
+          const order = await createFixtureOrder(client, buyerId, evalShop.shopId, { status: 'COMPLETED' });
+          const item = await createFixtureOrderItem(client, order.orderId, prod.productId, variant.variantId);
+          await createFixtureReview(client, buyerId, prod.productId, item.orderItemId, { rating: 5, status: 'VISIBLE' });
+        }
+      });
+
+      const result = await evalService.evaluateShop(pool, evalShop.shopId);
+      expect(result).not.toBeNull();
+      expect(result?.status).toBe('PROMOTED');
+      expect(result?.currentTier).toBe('STANDARD');
+      expect(result?.newTier).toBe('PREFERRED');
+      expect(result?.stats.completedOrders).toBeGreaterThanOrEqual(20);
+      expect(result?.stats.visibleReviewsCount).toBe(5);
+      expect(result?.stats.averageRating).toBe(5.0);
+
+      const updatedShop = await runTx(async client => {
+        const res = await client.query<{ tier: string }>('SELECT tier FROM shops WHERE shop_id = $1', [evalShop.shopId]);
+        return res.rows[0];
+      });
+      expect(updatedShop.tier).toBe('PREFERRED');
+    });
+
+    it('skips MALL shop (P0-8: Admin certified MALL is exempt from auto downgrade/upgrade) on PostgreSQL', async () => {
+      const owner = await createSeller('mall');
+      const mallShop = await runTx(async client => {
+        const s = await createFixtureShop(client, owner, {
+          shopName: 'Official Brand MALL Real DB',
+          status: 'ACTIVE',
+        });
+        await client.query("UPDATE shops SET tier = 'MALL' WHERE shop_id = $1", [s.shopId]);
+        return s;
+      });
+
+      const result = await evalService.evaluateShop(pool, mallShop.shopId);
+      expect(result?.status).toBe('SKIPPED_MALL');
+      expect(result?.currentTier).toBe('MALL');
+      expect(result?.newTier).toBe('MALL');
+
+      const checkShop = await runTx(async client => {
+        const res = await client.query<{ tier: string }>('SELECT tier FROM shops WHERE shop_id = $1', [mallShop.shopId]);
+        return res.rows[0];
+      });
+      expect(checkShop.tier).toBe('MALL');
+    });
+
+    it('skips shop with tier_override = TRUE (P0-8: Admin manual override is preserved) on PostgreSQL', async () => {
+      const owner = await createSeller('override');
+      const overrideShop = await runTx(async client => {
+        const s = await createFixtureShop(client, owner, {
+          shopName: 'Admin Overridden Shop Real DB',
+          status: 'ACTIVE',
+        });
+        await client.query(
+          "UPDATE shops SET tier = 'PREFERRED', tier_override = TRUE, tier_override_reason = 'Admin designated override' WHERE shop_id = $1",
+          [s.shopId],
+        );
+        return s;
+      });
+
+      const result = await evalService.evaluateShop(pool, overrideShop.shopId);
+      expect(result?.status).toBe('SKIPPED_OVERRIDE');
+      expect(result?.currentTier).toBe('PREFERRED');
+      expect(result?.newTier).toBe('PREFERRED');
+      expect(result?.tierOverride).toBe(true);
+
+      const checkShop = await runTx(async client => {
+        const res = await client.query<{ tier: string; tier_override: boolean }>(
+          'SELECT tier, tier_override FROM shops WHERE shop_id = $1',
+          [overrideShop.shopId],
+        );
+        return res.rows[0];
+      });
+      expect(checkShop.tier).toBe('PREFERRED');
+      expect(checkShop.tier_override).toBe(true);
+    });
+
+    it('demotes PREFERRED shop to STANDARD when criteria are no longer met on PostgreSQL', async () => {
+      const owner = await createSeller('demote');
+      const preferredShop = await runTx(async client => {
+        const s = await createFixtureShop(client, owner, {
+          shopName: 'Demote Test Shop Real DB',
+          status: 'ACTIVE',
+        });
+        await client.query("UPDATE shops SET tier = 'PREFERRED', tier_override = FALSE WHERE shop_id = $1", [s.shopId]);
+        return s;
+      });
+
+      const result = await evalService.evaluateShop(pool, preferredShop.shopId);
+      expect(result?.status).toBe('DEMOTED');
+      expect(result?.currentTier).toBe('PREFERRED');
+      expect(result?.newTier).toBe('STANDARD');
+
+      const checkShop = await runTx(async client => {
+        const res = await client.query<{ tier: string }>('SELECT tier FROM shops WHERE shop_id = $1', [preferredShop.shopId]);
+        return res.rows[0];
+      });
+      expect(checkShop.tier).toBe('STANDARD');
+    });
+
+    it('ignores HIDDEN reviews in average rating and visible review counts on PostgreSQL', async () => {
+      const owner = await createSeller('hidden');
+      const evalShop = await runTx(async client => {
+        return createFixtureShop(client, owner, {
+          shopName: 'Hidden Review Shop Real DB',
+          status: 'ACTIVE',
+        });
+      });
+
+      const cat = await runTx(async client => createFixtureCategory(client, { categoryName: 'Review Cat Real' }));
+      const prod = await runTx(async client => createFixtureProduct(client, evalShop.shopId, cat.categoryId, { productName: 'Review Prod Real' }));
+      const variant = await runTx(async client => createFixtureVariant(client, prod.productId, { price: '50000.00' }));
+
+      await runTx(async client => {
+        for (let i = 0; i < 20; i++) {
+          await createFixtureOrder(client, buyerId, evalShop.shopId, { status: 'COMPLETED' });
+        }
+        for (let i = 0; i < 5; i++) {
+          const order = await createFixtureOrder(client, buyerId, evalShop.shopId, { status: 'COMPLETED' });
+          const item = await createFixtureOrderItem(client, order.orderId, prod.productId, variant.variantId);
+          await createFixtureReview(client, buyerId, prod.productId, item.orderItemId, { rating: 5, status: 'VISIBLE' });
+        }
+        for (let i = 0; i < 10; i++) {
+          const order = await createFixtureOrder(client, buyerId, evalShop.shopId, { status: 'COMPLETED' });
+          const item = await createFixtureOrderItem(client, order.orderId, prod.productId, variant.variantId);
+          await createFixtureReview(client, buyerId, prod.productId, item.orderItemId, { rating: 1, status: 'HIDDEN' });
+        }
+      });
+
+      const result = await evalService.evaluateShop(pool, evalShop.shopId);
+      expect(result?.status).toBe('PROMOTED');
+      expect(result?.stats.visibleReviewsCount).toBe(5);
+      expect(result?.stats.averageRating).toBe(5.0);
+    });
+
+    it('verifies Catalog Search Boost in default sort (MALL > PREFERRED > STANDARD) and strictly preserves price_asc', async () => {
+      const ownerMall = await createSeller('boost_mall');
+      const ownerPref = await createSeller('boost_pref');
+      const ownerStd = await createSeller('boost_std');
+
+      const mall = await runTx(async client => {
+        const s = await createFixtureShop(client, ownerMall, { shopName: 'MALL Boost Shop Real', status: 'ACTIVE' });
+        await client.query("UPDATE shops SET tier = 'MALL' WHERE shop_id = $1", [s.shopId]);
+        return s;
+      });
+      const preferred = await runTx(async client => {
+        const s = await createFixtureShop(client, ownerPref, { shopName: 'PREFERRED Boost Shop Real', status: 'ACTIVE' });
+        await client.query("UPDATE shops SET tier = 'PREFERRED' WHERE shop_id = $1", [s.shopId]);
+        return s;
+      });
+      const standard = await runTx(async client => {
+        return createFixtureShop(client, ownerStd, { shopName: 'STANDARD Shop Real', status: 'ACTIVE' });
+      });
+
+      const uniqueCategory = await runTx(async client =>
+        createFixtureCategory(client, { categoryName: `Boost Cat ${randomUUID().slice(0, 6)}`, status: 'ACTIVE' }),
+      );
+
+      const prodStandard = await runTx(async client =>
+        createFixtureProduct(client, standard.shopId, uniqueCategory.categoryId, { productName: 'Product Standard Cheap', status: 'ACTIVE' }),
+      );
+      await runTx(async client =>
+        createFixtureVariant(client, prodStandard.productId, { price: '20000.00', status: 'ACTIVE', stockQuantity: 10 }),
+      );
+
+      const prodPreferred = await runTx(async client =>
+        createFixtureProduct(client, preferred.shopId, uniqueCategory.categoryId, { productName: 'Product Preferred Medium', status: 'ACTIVE' }),
+      );
+      await runTx(async client =>
+        createFixtureVariant(client, prodPreferred.productId, { price: '50000.00', status: 'ACTIVE', stockQuantity: 10 }),
+      );
+
+      const prodMall = await runTx(async client =>
+        createFixtureProduct(client, mall.shopId, uniqueCategory.categoryId, { productName: 'Product Mall Expensive', status: 'ACTIVE' }),
+      );
+      await runTx(async client =>
+        createFixtureVariant(client, prodMall.productId, { price: '100000.00', status: 'ACTIVE', stockQuantity: 10 }),
+      );
+
+      // 1. Default sort: MALL > PREFERRED > STANDARD
+      const defaultRes = await catalogProductRepo.queryPublic({
+        categoryId: uniqueCategory.categoryId,
+      });
+
+      expect(defaultRes.items.length).toBe(3);
+      expect(defaultRes.items[0].shopTier).toBe('MALL');
+      expect(defaultRes.items[0].productId).toBe(prodMall.productId);
+      expect(defaultRes.items[1].shopTier).toBe('PREFERRED');
+      expect(defaultRes.items[1].productId).toBe(prodPreferred.productId);
+      expect(defaultRes.items[2].shopTier).toBe('STANDARD');
+      expect(defaultRes.items[2].productId).toBe(prodStandard.productId);
+
+      // 2. price_asc: Giá rẻ nhất đứng đầu, không bị tier can thiệp
+      const priceSortRes = await catalogProductRepo.queryPublic({
+        categoryId: uniqueCategory.categoryId,
+        sortBy: 'price_asc',
+      });
+
+      expect(priceSortRes.items.length).toBe(3);
+      expect(priceSortRes.items[0].productId).toBe(prodStandard.productId);
+      expect(Number(priceSortRes.items[0].minPrice)).toBe(20000);
+      expect(priceSortRes.items[1].productId).toBe(prodPreferred.productId);
+      expect(Number(priceSortRes.items[1].minPrice)).toBe(50000);
+      expect(priceSortRes.items[2].productId).toBe(prodMall.productId);
+      expect(Number(priceSortRes.items[2].minPrice)).toBe(100000);
     });
   });
 });

@@ -2,118 +2,156 @@
 
 ## Owner và trạng thái
 
-- Owner: Chưa xác định (Đội Core Platform)
-- Người phối hợp: Không
-- Trạng thái: Đang triển khai / Nghiệm thu từng phần (Đợt A & Đợt B đã kiểm chứng, Đợt C chưa triển khai)
-- Cập nhật lần cuối: 2026-10-02
-- Nhánh / PR / commit: `codex/tiering-loyalty` (cập nhật từ `dev` commit `0811358`)
-- Link tạo Pull Request trên GitHub (chưa tạo PR): https://github.com/lwd7071/e-commerce-platform/pull/new/codex/tiering-loyalty
+- Owner: Chưa xác định — cần chủ dự án xác nhận thành viên phụ trách.
+- Người phối hợp: Chưa xác định.
+- Trạng thái: Đang review / Nghiệm thu từng phần. Code A/B/C đã có; phần C hiện được kích hoạt theo yêu cầu, chưa chạy định kỳ.
+- Cập nhật lần cuối: 2026-10-02.
+- Nhánh / PR / commit: `codex/tiering-loyalty`; commit nền đối chiếu `ca118a1`.
+- Các commit triển khai: `56780a1` (wiring), `bb8b717` (A), `7e12e4b` (B), `6e09b39`, `445ffec` (kiểm chứng bổ sung), `ca118a1` (C).
+- [Nhánh GitHub](https://github.com/lwd7071/e-commerce-platform/tree/codex/tiering-loyalty). Chưa xác minh PR đã tạo; đường dẫn `/pull/new/` chỉ là trang tạo PR.
 
 ## Mục tiêu và phạm vi
 
-- Mục tiêu: Xây dựng hệ thống phân hạng tinh gọn và minh bạch cho Shop (STANDARD / PREFERRED / MALL) và Buyer (STANDARD / VIP) kèm cơ chế tích lũy điểm DinoPoint an toàn khi đơn hàng hoàn tất.
-- Trong phạm vi được duyệt (P0-1 đến P0-8, Đợt A và Đợt B):
-  - Bước 0: Sửa lỗi nền runtime wiring `confirmReceived` trên `createRuntimeApp` và hoàn thiện kiểm tra điều kiện Shipment (P0-9).
-  - Đợt A: Bổ sung `tier` cho Shop (`STANDARD`, `PREFERRED`, `MALL`) do Admin quản lý duyệt thủ công kèm audit log bắt buộc theo QD20; hỗ trợ bộ lọc catalog theo hạng và hiển thị huy hiệu `TierBadge` ở cả `ProductCard` và `ProductDetailScreen`.
-  - Đợt B: Phân hạng Buyer (`STANDARD`, `VIP`) tự động dựa trên tổng chi tiêu tích lũy `total_spent` (>= 5.000.000 VNĐ). Tích lũy điểm DinoPoint (10.000 VNĐ = 1 điểm cho Standard, x2 cho VIP) và ghi nhận vào bảng Ledger `loyalty_point_transactions`. Hiển thị thông tin thành viên VIP, số dư điểm và tiến trình chi tiêu trong trang Profile của Buyer qua `BuyerLoyaltyCard`.
-- Ngoài phạm vi:
-  - Không backfill dữ liệu cũ (P0-6).
-  - Đổi điểm trừ tiền khi checkout hoặc voucher đổi thưởng (P0-5: chỉ tích lũy và hiển thị điểm).
-  - Xử lý hoàn điểm/thu hồi điểm khi hoàn tiền/trả hàng (P0-7).
-  - Đợt C: Không triển khai cron tự động xét PREFERRED hoặc boost MALL trong tìm kiếm (hệ thống sử dụng tìm kiếm PostgreSQL `pg_trgm`/`to_tsvector`, không dùng ElasticSearch).
-  - Trợ lý AI, chat realtime, ví tiền thật.
+Buyer và Shop có hai cơ chế phân hạng riêng: Buyer tự lên VIP khi đơn hoàn tất được ghi nhận; Shop được Admin cấp hạng hoặc được service xét lên/xuống PREFERRED khi Admin gọi API đánh giá.
+
+| Phần | Mục tiêu / kế hoạch | Hiện trạng code |
+|---|---|---|
+| Bước 0 | Nối xác nhận nhận hàng và kiểm tra Shipment | Handler đã nối trong runtime; yêu cầu Order SHIPPING, Shipment tồn tại và có trạng thái SHIPPING hoặc DELIVERED |
+| A — Shop | STANDARD / PREFERRED / MALL; Admin quản lý, audit, badge và bộ lọc | Có migration, API đổi hạng, metadata override, UI Admin, badge danh sách/chi tiết và bộ lọc catalog |
+| B — Buyer | STANDARD / VIP, tự lên VIP từ 5 triệu, tích DinoPoint | Có hook transaction, ledger chống trùng, API summary/history và thẻ thành viên Profile |
+| C — Shop tự xét | Xét PREFERRED và ưu tiên hạng trong catalog mặc định | Có service và API Admin kích hoạt xét; chưa có cron. Catalog mặc định ưu tiên MALL → PREFERRED → STANDARD |
+
+- Phạm vi A/B và P0-1 đến P0-8 được chủ dự án đồng ý trong phiên làm việc. P0-9 được mô tả riêng bên dưới.
+- Chủ dự án yêu cầu bổ sung cơ chế tự xét Shop; ngưỡng và cách vận hành C dưới đây là hành vi code hiện tại, không thay thế CR Approved. Chưa tìm thấy CR riêng cho tiering/loyalty trong `docs/spec/changes/` khi đối chiếu.
+- Ngoài phạm vi: backfill đơn cũ, đổi điểm/voucher, refund/thu hồi điểm, ví/escrow và chat.
+- Chưa triển khai: lịch chạy tự xét định kỳ, API bỏ override và capability `loyalty` riêng.
 
 ## Đã thực hiện
 
-- Bước 0: Sửa lỗi wiring `confirmReceived` và kiểm tra quyền hoàn tất đơn:
-  - Đấu nối `confirmReceived` vào `orderServices` trong `createRuntimeApp` (`backend/src/platform/http/app.ts`).
-  - Mở rộng `OrderServices` interface và ủy thác handler trong `backend/src/platform/http/routes/order-routes.ts`.
-  - Thực hiện kiểm tra quyền và điều kiện Shipment P0-9 trong `PgCheckoutService.confirmReceived` (`backend/src/modules/checkout/services/pg-checkout.service.ts`).
-  - Viết bộ kiểm thử tích hợp 8/8 tests pass qua `createRuntimeApp` tại `backend/test/platform/order-confirm-received.spec.ts`.
-- Đợt A: Phân hạng Shop, huy hiệu và lịch sử duyệt của Admin:
-  - Tạo migration `20261003100000_shop_tiering` thêm `tier`, `tier_override`, `tier_override_reason`, `tier_overridden_at`, `tier_override_by` vào bảng `shops`.
-  - Triển khai endpoint `PATCH /admin/shops/:id/tier` với kiểm tra UUID, validate tier (`STANDARD`, `PREFERRED`, `MALL`), bắt buộc `reason` không rỗng và ghi audit log `SHOP_TIER_UPDATE` nguyên tử.
-  - Cập nhật `GET /admin/shops` hỗ trợ query param `tier`, trả về thông tin `tier` của shop.
-  - Cập nhật catalog repository & HTTP service: hỗ trợ lọc sản phẩm theo `shop_tier`, trả về `shop_tier` trong danh sách và chi tiết sản phẩm.
-  - Cập nhật OpenAPI spec và đồng bộ mã nguồn generated API types frontend (`frontend/src/lib/api/generated/openapi.ts`).
-  - Frontend UI:
-    - Xây dựng component `TierBadge` hiển thị nhãn MALL và Yêu thích (PREFERRED).
-    - Tích hợp `TierBadge` vào `ProductCard` (danh sách catalog) và `ProductDetailScreen` (trang chi tiết sản phẩm cạnh tên sản phẩm).
-    - Thêm bộ lọc phân hạng Shop trên màn hình danh mục sản phẩm `CatalogListScreen` (chip "Tất cả shop", "Dino Mall", "Shop Yêu thích") kèm đồng bộ query string `shop_tier`.
-    - Màn hình `AdminShopsScreen` hỗ trợ cột Hạng, bộ lọc và dialog "Đổi hạng" có lý do bắt buộc.
-- Đợt B: Phân hạng Buyer VIP, Ledger tích điểm DinoPoint và Profile UI:
-  - Tạo migration `20261003110000_buyer_loyalty` thêm `buyer_tier`, `total_spent`, `loyalty_points` vào `app_users`, tạo bảng `loyalty_point_transactions` kèm unique index `uq_loyalty_transactions__order_earned` ngăn tích điểm trùng lặp.
-  - Thiết lập bảo mật cơ sở dữ liệu: bật RLS (`ENABLE ROW LEVEL SECURITY`) và thu hồi toàn bộ quyền trực tiếp trên bảng ledger (`REVOKE ALL ON TABLE loyalty_point_transactions FROM PUBLIC, anon, authenticated;`).
-  - Xây dựng module domain `loyalty.types.ts` với phép tính số học chính xác tuyệt đối qua `BigInt` cents chuẩn repository: loại trừ phí vận chuyển (P0-1), 1 điểm mỗi 10.000 VNĐ (P0-2), hệ số điểm lấy từ hạng cũ dưới khóa (P0-3), ngưỡng VIP 5.000.000 VNĐ.
-  - Hiện thực hóa `LoyaltyService` và hook ghi nhận nguyên tử trong `PgCheckoutService.persistTransition`: khóa dòng Buyer `SELECT ... FOR UPDATE`, chèn ledger bằng `INSERT ... ON CONFLICT (reference_order_id) WHERE reason = 'ORDER_COMPLETED' DO NOTHING RETURNING transaction_id`, chỉ cộng chi tiêu/điểm khi chèn ledger thành công (`rowCount === 1`). Đơn dưới 10.000 VNĐ vẫn ghi nhận chi tiêu và tạo ledger với 0 điểm.
-  - Triển khai endpoints `GET /api/v1/buyer/loyalty` và `GET /api/v1/buyer/loyalty/history` trong `buyer-routes.ts` và đăng ký trong OpenAPI spec.
-  - Frontend: Xây dựng component `BuyerLoyaltyCard` hiển thị huy hiệu VIP/Standard, số dư DinoPoint, thanh tiến trình thăng hạng VIP và bảng lịch sử giao dịch điểm. Tích hợp trực tiếp vào trang `ProfileScreen` cho tài khoản BUYER.
-- Bổ sung kiểm thử PostgreSQL thật độc lập & E2E Lifecycle:
-  - Tạo bộ kiểm thử tích hợp trên PostgreSQL thật: `backend/tests/db/tiering-loyalty.integration.test.ts` (8/8 tests PASS) chạy trên schema độc lập `p5_loyalty_<uuid>`.
-  - Tạo bộ kiểm thử E2E Lifecycle hoàn chỉnh: `frontend/test/e2e-tiering-loyalty-lifecycle.spec.tsx` (7/7 tests PASS) kiểm chứng 2 hành trình:
-    1. Admin đổi hạng shop thành MALL/PREFERRED -> `ProductCard` và `ProductDetailScreen` hiển thị đúng badge; `CatalogListScreen` có UI bộ lọc theo phân hạng shop.
-    2. Buyer bấm nhận hàng -> đơn chuyển COMPLETED -> Profile hiển thị điểm DinoPoint, hạng thành viên, tiến trình VIP và lịch sử giao dịch.
+### Bước 0 — Xác nhận nhận hàng
+
+- Runtime nối `confirmReceived`: `backend/src/platform/http/app.ts`, `backend/src/platform/http/routes/order-routes.ts`.
+- `PgCheckoutService.confirmReceived` khóa Order, kiểm tra ownership, yêu cầu Order `SHIPPING`, khóa Shipment và cập nhật Shipment `SHIPPING` → `DELIVERED` hoặc giữ `DELIVERED`.
+- Thiếu Shipment trả `409 SHIPMENT_REQUIRED`; trạng thái khác trả `409 SHIPMENT_INVALID_STATE`. Admin thiếu lý do trả `422 REASON_REQUIRED`.
+- `persistTransition` cập nhật Order, lịch sử, loyalty, audit Admin và notification trong transaction của caller.
+- Bằng chứng: `backend/src/modules/checkout/services/pg-checkout.service.ts`, `backend/test/platform/order-confirm-received.spec.ts`.
+
+### A — Hạng Shop do Admin quản lý
+
+- Migration `backend/prisma/migrations/20261003100000_shop_tiering/migration.sql` thêm `tier` và metadata override.
+- `PATCH /api/v1/admin/shops/:id/tier` nhận `tier`, `reason`; service kiểm tra UUID/hạng/lý do, cập nhật hạng thủ công và ghi moderation/audit trong transaction.
+- `GET /api/v1/admin/shops` hỗ trợ lọc `tier`; catalog `GET /api/v1/products` hỗ trợ `shop_tier`, trả hạng trong danh sách/chi tiết.
+- Frontend có `TierBadge`, badge tại ProductCard/ProductDetail, bộ lọc Catalog và dialog đổi hạng Admin.
+- Bằng chứng: `backend/src/platform/http/routes/admin-routes.ts`, `backend/src/modules/moderation/services/moderation.service.ts`, `backend/src/modules/moderation/repositories/pg-target.repository.ts`, `frontend/src/components/ui/tier-badge.tsx`, `frontend/src/features/admin/admin-shops-screen.tsx`, `frontend/src/features/catalog/`.
+
+### B — Buyer VIP và DinoPoint
+
+- Migration `20261003110000_buyer_loyalty` thêm `buyer_tier`, `total_spent`, `loyalty_points` và ledger; `20261003120000_secure_loyalty_ledger` bật RLS, revoke quyền PUBLIC/anon/authenticated.
+- Tiền đủ điều kiện là `max(subtotal - discount_amount, 0)`, không tính ship. Tính bằng BigInt cents trong module loyalty.
+- Điểm mỗi đơn: `floor(eligible_amount / 10000) × hệ số hạng trước khi ghi nhận`; STANDARD x1, VIP x2. Tổng mới đạt 5.000.000 VNĐ thì hạng mới là VIP. Đơn đưa Buyer vượt ngưỡng vẫn dùng hệ số cũ.
+- Caller khóa Order trước; loyalty khóa Buyer `FOR UPDATE`. Insert ledger dùng partial unique index và `ON CONFLICT ... DO NOTHING RETURNING`; chỉ cập nhật tổng nếu có ledger mới. Đơn 0 điểm vẫn có ledger và tăng chi tiêu.
+- `GET /api/v1/buyer/loyalty` trả `tier`, `total_spent`, `loyalty_points`, `vip_threshold`, `points_multiplier`, `next_tier`.
+- `GET /api/v1/buyer/loyalty/history` dùng `page`, `limit` (OFFSET), trả `items`, `page`, `limit`, `total`; chưa dùng cursor như kế hoạch ban đầu.
+- Profile Buyer có `BuyerLoyaltyCard`. Frontend types có tại `frontend/src/lib/api/generated/openapi.ts`.
+- Bằng chứng: `backend/src/modules/loyalty/domain/loyalty.types.ts`, `backend/src/modules/loyalty/services/loyalty.service.ts`, `backend/src/platform/http/routes/buyer-routes.ts`, `frontend/src/features/profile/loyalty-card.tsx`.
+
+### C — Xét PREFERRED theo yêu cầu và ưu tiên catalog
+
+- `ShopTierEvaluationService` dùng mặc định: ≥20 đơn COMPLETED, rating trung bình ≥4,5 và ≥5 review VISIBLE. Thống kê toàn bộ dữ liệu, không giới hạn 30 ngày.
+- Đủ cả ba điều kiện: STANDARD → PREFERRED. Không đủ: PREFERRED → STANDARD ngay khi xét; chưa có ngưỡng hạ 4,0 hoặc thời gian chờ.
+- Bỏ qua Shop MALL và `tier_override = true` khi đọc Shop. Batch chỉ chọn ACTIVE; xét một Shop theo ID chưa kiểm tra ACTIVE.
+- `POST /api/v1/admin/shops/evaluate-tiers` yêu cầu ADMIN. Body có thể chứa `shop_id` và `criteria`; không có `shop_id` thì xét toàn bộ ACTIVE. Không có scheduler hoặc hook tự chạy sau đơn/review.
+- Catalog mặc định xếp MALL → PREFERRED → STANDARD, tiếp theo `created_at DESC`, `product_id ASC`. Sort tường minh giữ thứ tự theo giá/mới nhất.
+- Catalog hiện mã hóa cursor chứa offset, không phải cursor chứa khóa hạng/thời gian/ID. Dữ liệu thay đổi có thể làm dịch chuyển kết quả giữa các trang.
+- Bằng chứng: `backend/src/modules/shop/services/shop-tier-evaluation.service.ts`, `backend/src/platform/http/routes/admin-routes.ts`, `backend/src/platform/http/app.ts`, `backend/src/modules/catalog/repositories/pg-catalog.repository.ts`, `backend/test/platform/shop-tier-evaluation.spec.ts`.
 
 ## Thiết kế / quyết định kỹ thuật
 
-- Quyết định P0-9 (Đã chốt với Chủ dự án 2026-10-02):
-  - Order phải ở `SHIPPING`.
-  - Shipment bắt buộc phải tồn tại trong bảng `shipments`; nếu thiếu trả về `409 SHIPMENT_REQUIRED`.
-  - Admin xác nhận phải có `reason` không rỗng; nếu thiếu trả về `422 REASON_REQUIRED`.
-  - Trạng thái Shipment chỉ được chuyển sang `DELIVERED` nếu đang ở trạng thái hợp lệ (`SHIPPING` -> `DELIVERED`, hoặc giữ nguyên nếu đã là `DELIVERED`). Nếu ở trạng thái không thể chuyển (ví dụ `FAILED`), từ chối với `409 SHIPMENT_INVALID_STATE`.
-  - Cập nhật Shipment `DELIVERED`, Order `COMPLETED`, `order_status_history`, audit log (`admin_logs`) và thông báo được thực thi nguyên tử trong cùng một database transaction.
-- Loại bỏ hoàn toàn Floating Point: Sử dụng số học `BigInt` cents chuẩn repository (`order-calculation.ts`) quy đổi 10.000 VNĐ = `1_000_000n` cents.
-- Xử lý Duplicate trong PostgreSQL Transaction: Dùng `INSERT INTO loyalty_point_transactions ... ON CONFLICT (reference_order_id) WHERE reason = 'ORDER_COMPLETED' DO NOTHING RETURNING transaction_id`. Chỉ tăng chi tiêu và điểm khi `rowCount === 1`. Đơn dưới 10.000 VNĐ vẫn ghi Ledger (`points_delta = 0`) để chống duplicate.
-- An toàn Concurrency: Khóa dòng Buyer `SELECT ... FROM app_users WHERE user_id = $1 FOR UPDATE` trong transaction sau khi đã khóa Order. Đọc `old_total_spent` và `old_tier` dưới khóa, tính toán `new_total_spent` và `new_tier` bằng domain logic rồi truyền tham số vào câu lệnh UPDATE.
-- Phân biệt môi trường kiểm thử Mock vs Database Thật:
-  - `backend/test/platform/buyer-loyalty.spec.ts`: Chạy in-memory với mock database client để xác nhận logic nghiệp vụ HTTP và validation nhanh.
-  - `backend/tests/db/tiering-loyalty.integration.test.ts`: Chạy trên PostgreSQL thật (Supabase PostgreSQL test database) trên schema cô lập, kiểm chứng khóa dòng `SELECT FOR UPDATE`, cơ chế `ON CONFLICT` duplicate prevention, rollback integrity và bảo mật RLS.
-- Metadata Override cho Shop: Bổ sung các cột `tier_override`, `tier_override_reason`, `tier_overridden_at`, `tier_override_by` vào bảng `shops` để phân biệt hạng thủ công do Admin gán và tự động.
-- Tương thích dữ liệu cũ / rollback: Toàn bộ cột thêm mới đều có giá trị `DEFAULT` (`'STANDARD'`, `0`, `FALSE`), bảo đảm Zero Breaking Changes.
+- P0-9: Shipment phải tồn tại, Order phải SHIPPING; Shipment chỉ chấp nhận SHIPPING hoặc DELIVERED. Admin cần lý do. Đây là hành vi `confirmReceived` hiện tại cho cả Buyer/Admin; điều kiện của endpoint transition khác cần đối chiếu riêng, không suy rộng.
+- VIP tự nâng theo tổng chi tiêu đơn được ghi nhận, không tự hạ theo thời gian. Shop MALL do Admin cấp; hệ thống đánh giá không tự cấp MALL.
+- DEFAULT giúp insert/dữ liệu cũ nhận hạng mặc định, nhưng không chứng minh toàn bộ tương thích: truy vấn mới cần migration trước khi chạy. Không backfill tổng/điểm từ đơn cũ.
+- Migration forward-only; chưa xác minh lại trạng thái apply database ở lượt cập nhật tài liệu này.
+- Khác biệt cần theo dõi so với kế hoạch:
+  - Ledger thực tế chỉ lưu user, điểm, order tham chiếu, reason và thời gian; chưa có `eligible_amount`/`multiplier` để đối soát độc lập.
+  - FK ledger hiện dùng CASCADE với user và SET NULL với order; chưa phải RESTRICT như thiết kế mong muốn. Chưa có constraint bắt buộc order cho ORDER_COMPLETED hoặc giới hạn reason.
+  - API đổi hạng chưa hỗ trợ `clear_override`; không mô tả chức năng bỏ override là đã có.
+  - Evaluation C dùng nhiều query qua pool, chưa có transaction/audit nguyên tử hoặc khóa Shop; không khẳng định bảo vệ MALL/override trước mọi race condition.
+  - `criteria` được route ép kiểu, chưa có validation đầy đủ các ngưỡng. Chưa có cron, UI kích hoạt đánh giá hoặc capability loyalty riêng.
+  - Việc xác minh hồ sơ chính hãng là quy trình Admin, API hiện chỉ kiểm tra tier/lý do, không tự xác thực chứng từ.
 
 ## Kiểm tra và kết quả
 
-| Kiểm tra | Môi trường | Lệnh / File kiểm thử | Kết quả | Bằng chứng / ghi chú |
-|---|---|---|---|---|
-| Prisma Schema Validation | Dev/Local | `npm --prefix backend exec prisma validate` | PASS | `The schema at prisma\schema.prisma is valid 🚀` |
-| Backend Node Test Suite | In-memory Mock | `npm --prefix backend run test:node` | PASS | 720/720 tests pass (199 test suites, 17.7s). |
-| Real PostgreSQL Tiering & Loyalty Integration | PostgreSQL Thật (Isolated Schema) | `npx vitest run tests/db/tiering-loyalty.integration.test.ts` | PASS | 8/8 tests pass (Schema verification, RLS enabled, ON CONFLICT idempotency, sub-10k 0-pts, 4.9M & 4.8M Concurrency SELECT FOR UPDATE, Rollback integrity). |
-| E2E Tiering & Loyalty Lifecycle | Frontend Unit/E2E | `npm --prefix frontend test test/e2e-tiering-loyalty-lifecycle.spec.tsx` | PASS | 7/7 tests pass: Admin đổi hạng -> ProductCard & ProductDetail hiện badge; CatalogListScreen lọc hạng; Buyer nhận hàng -> Profile cập nhật DinoPoint/VIP/history. |
-| Runtime Wiring & P0-9 Shipment Integration | Mock Runtime | `npx tsx --test test/platform/order-confirm-received.spec.ts` | PASS | 8/8 tests pass (Buyer/Admin/Shipment/Role). |
-| Admin Shop Tiering Integration | Mock Runtime | `npx tsx --test test/platform/admin-shop-tier.spec.ts` | PASS | 10/10 tests pass (Admin/Audit/RBAC/Filter/Seller protection). |
-| Buyer Loyalty & Concurrency Unit | Mock Runtime | `npx tsx --test test/platform/buyer-loyalty.spec.ts` | PASS | 10/10 tests pass (P0-1..3, Concurrency 4.9M/4.8M logic, 0-pts, Duplicate check, RBAC). |
-| Backend Typecheck | TypeScript | `npm --prefix backend run typecheck` | PASS | `tsc --noEmit` 0 errors. |
-| Backend Lint | ESLint | `npm --prefix backend run lint` | PASS | ESLint 0 errors, 0 warnings. |
-| Backend Build | esbuild | `npm --prefix backend run build` | PASS | esbuild bundle 469.2KB thành công. |
-| Frontend Typecheck | TypeScript | `npm --prefix frontend run typecheck` | PASS | `tsc --noEmit` 0 errors. |
-| Frontend Lint | ESLint | `npm --prefix frontend run lint` | PASS | ESLint 0 errors, 0 warnings. |
-| Frontend Contract Check | OpenAPI Spec | `npm --prefix frontend run api:types:check` | PASS | Generated API types match backend OpenAPI. |
-| Frontend Production Build | Next.js 16 | `npm --prefix frontend run build` | PASS | Next.js 16 optimized build thành công (31 routes). |
+Lượt cập nhật tài liệu này chỉ đọc code/migration/test và lịch sử Git; không chạy lại test, build, migration hoặc browser. Các số liệu dưới đây là kết quả đã được ghi trong báo cáo/nhật ký trước, không phải xác nhận chạy mới.
+
+| Kiểm tra | Lệnh / CI job | Kết quả | Bằng chứng / ghi chú |
+|---|---|---|---|
+| Đối chiếu A/B/C hiện tại | Đọc source và `git log` | Đã đối chiếu | Commit nền `ca118a1`; các đường dẫn ở mục Đã thực hiện |
+| PostgreSQL feature A/B/C | `npm --prefix backend exec vitest run tests/db/tiering-loyalty.integration.test.ts` | PASS theo nhật ký trước | 17/17, 247,2s; schema cô lập trên database dùng chung, không phải project test độc lập |
+| Evaluation C unit/mock | `npm --prefix backend exec tsx --test test/platform/shop-tier-evaluation.spec.ts` | PASS theo nhật ký trước | 7/7; chưa chạy lại |
+| Frontend component | `npm --prefix frontend test -- test/e2e-tiering-loyalty-lifecycle.spec.tsx` | PASS theo nhật ký trước | 7/7, Vitest/jsdom và mock; không phải browser E2E |
+| Browser E2E | `npm --prefix frontend run test:e2e -- e2e/tiering-loyalty-live.spec.ts` | Chưa nghiệm thu | Nhật ký ghi 2 skipped khi thiếu live env; có spec không đồng nghĩa hành trình đã pass |
+| Full backend Vitest | `npm --prefix backend run test:vitest` | FAIL theo nhật ký trước | 53/60 files, 334/344 tests pass; nguyên nhân báo cáo gồm public thiếu tier và số bảng thay đổi. Chưa có log giải thích đầy đủ cả 7 files |
+| Node/frontend suites, lint/typecheck/build, Prisma, API types | Scripts trong `CONTRIBUTING.md` và package manifests | Kết quả lịch sử | Số lượng/timing thuộc từng lượt cũ; chưa xác minh lại sau commit C |
 
 ## An toàn và tình huống lỗi
 
-- Phân quyền / dữ liệu nhạy cảm: Áp dụng RBAC nghiêm ngặt (`requireRole`). Seller tuyệt đối không thể tự nâng tier của shop mình qua `PATCH /seller/shop`. Buyer chỉ xem được điểm và lịch sử của chính mình qua `context.user_id`. Bảng ledger `loyalty_point_transactions` đã bật RLS và thu hồi quyền trực tiếp từ `PUBLIC`, `anon`, `authenticated`.
-- Retry, request trùng, race condition: Unique Index `uq_loyalty_transactions__order_earned` và cơ chế `FOR UPDATE` khóa dòng Buyer đảm bảo không mất cập nhật hoặc nhân đôi điểm khi 2 đơn hoàn tất đồng thời, đã kiểm chứng trên PostgreSQL thật.
-- Hủy, hoàn tiền, rollback: Mọi thao tác cập nhật trạng thái đơn, cập nhật shipment, ghi nhận ledger, tăng chi tiêu và ghi audit log (`admin_logs`) chạy trong một transaction duy nhất. Đã kiểm chứng rollback hoàn toàn trên PostgreSQL thật nếu có lỗi xảy ra.
+- API loyalty lấy user từ auth context; endpoint Admin có RBAC. Seller không được sửa tier qua endpoint hồ sơ Shop.
+- Ledger có partial unique index và RLS/revoke. Nhật ký trước ghi test quyền anon/authenticated; lượt này không kết nối database để xác nhận môi trường triển khai.
+- Khi lỗi loyalty trong transaction hoàn tất đơn, transaction phải rollback cả Order/Shipment/lịch sử/số dư/ledger; test PostgreSQL có kịch bản này.
+- Chưa có hoàn/thu hồi điểm khi refund. Chưa có cơ chế đổi điểm.
+- Rủi ro C cần review: race giữa Admin đổi hạng và evaluation; chưa audit thao tác evaluation; single-shop không guard ACTIVE; ngưỡng tùy chỉnh chưa validation đầy đủ; offset pagination trên dữ liệu biến động.
 
-## Việc còn lại, phần chưa kiểm chứng và blocker
+## Việc còn lại và blocker
 
-- Việc đã hoàn thành:
-  - [x] Bước 0: Sửa lỗi nền wiring `confirmReceived` và kiểm tra quyền hoàn tất đơn (P0-9).
-  - [x] Đợt A: Triển khai migration `shops.tier` & override metadata, Admin tier API, catalog filter và `TierBadge` UI (ở cả `ProductCard` và `ProductDetailScreen`).
-  - [x] Đợt B: Triển khai migration `app_users` + `loyalty_point_transactions`, core hook tích điểm, bảo mật RLS ledger, Buyer loyalty API, Profile UI `BuyerLoyaltyCard` và kiểm thử PostgreSQL thật độc lập + E2E lifecycle.
-- Phần chưa kiểm chứng / ngoài phạm vi:
-  - [ ] Chưa kiểm chứng trên production: Toàn bộ kiểm thử mới chỉ thực hiện trên môi trường phát triển / test độc lập với test schema riêng biệt; chưa áp dụng migration lên database production.
-  - [ ] Đợt C: Đánh giá tự động PREFERRED và composite cursor search boost — Chưa triển khai theo quyết định phạm vi được duyệt.
-  - [ ] Đổi điểm DinoPoint khi thanh toán (P0-5: chỉ tích lũy, chưa đổi thưởng).
-  - [ ] Thu hồi điểm khi hoàn tiền / trả hàng sau khi hoàn tất (P0-7).
-- Blocker / Lưu ý môi trường:
-  - Không có blocker kỹ thuật chặn luồng nghiệp vụ.
-  - Lưu ý về chạy toàn bộ test suite `npm run test:vitest` ở backend: Toàn bộ suite gồm 51 file integration test remote database chạy tuần tự (`maxWorkers: 1`) sẽ tốn hơn 45-60 phút và dễ bị ảnh hưởng bởi giới hạn session pooler của Supabase. Các kiểm thử database thật cho tính năng Tiering & Loyalty đã được cô lập hoàn chỉnh và chạy riêng thành công tại `tests/db/tiering-loyalty.integration.test.ts` (8/8 tests pass).
+- [ ] Hoàn thiện/ghi nhận CR và tiêu chí C được duyệt, đối chiếu các khác biệt schema/API ở trên — Owner: Chưa xác định — Dự kiến: Chưa xác định.
+- [ ] Chốt C chỉ kích hoạt theo yêu cầu hay chạy định kỳ; nếu định kỳ cần lịch và cơ chế vận hành — Owner: Chưa xác định — Dự kiến: Chưa xác định.
+- [ ] Review bảo vệ hạng thủ công, validation, audit và concurrency của evaluation — Owner: Chưa xác định — Dự kiến: Chưa xác định.
+- [ ] Cung cấp database test độc lập và migration tương ứng trước nghiệm thu toàn bộ — Owner: Chưa xác định — Dự kiến: Chưa xác định.
+- [ ] Chạy hai hành trình Playwright thật, không skip; chạy lại gates trên phiên bản cuối — Owner: Chưa xác định — Dự kiến: Chưa xác định.
+- Blocker theo báo cáo trước: database dùng chung, full Vitest chưa đạt, browser E2E thiếu live env. Trạng thái môi trường hiện tại chưa được xác minh lại.
 
 ## Nhật ký cập nhật
 
-### 2026-10-02 (Bổ sung kiểm thử PostgreSQL thật, E2E Lifecycle, RLS Ledger & Catalog Filter UI)
+### 2026-10-02 — Đồng bộ tài liệu A/B/C với code
+
+- Đã làm: chuẩn hóa báo cáo theo mẫu `docs/feature/README.md`; bổ sung bảng phạm vi A/B/C và đối chiếu code tại `ca118a1`.
+- Kiểm tra: đọc runtime, evaluation service, catalog, loyalty, migration và test; không chạy lại quality gates hoặc database.
+- Làm rõ: C có API xét theo yêu cầu, chưa tự chạy định kỳ; xét toàn thời gian; history dùng page/offset; ledger/override/capability còn khác kế hoạch.
+- Tiếp theo / blocker: giữ nghiệm thu từng phần; các việc còn lại được liệt kê ở trên.
+
+> Nhật ký dưới đây được giữ nguyên từ các lượt trước. Các tuyên bố PASS/Hoàn tất là ghi nhận lịch sử của người cập nhật; khi khác mô tả hiện tại, ưu tiên các mục đã đối chiếu ở đầu báo cáo. “E2E” của file trong frontend/test là component test; các khẳng định “Zero Breaking Changes” hoặc “chống trùng tuyệt đối” không phải kết luận của lượt này.
+
+
+### 2026-10-02 (Đợt C - Đánh giá tự động PREFERRED, Search Boost MALL & Admin evaluate-tiers)
+
+- Đã làm:
+  - Tạo `ShopTierEvaluationService` (`backend/src/modules/shop/services/shop-tier-evaluation.service.ts`): Đánh giá tự động PREFERRED cho shop, miễn trừ P0-8 (MALL exempt, `tier_override` exempt). Điều kiện: >= 20 đơn COMPLETED, rating trung bình >= 4.5 (chỉ tính review `VISIBLE`), >= 5 review VISIBLE. Hỗ trợ đánh giá 1 shop hoặc batch tất cả shop ACTIVE.
+  - Cập nhật `PgProductRepository.queryPublic`: Search Boost trong default sort (`CASE WHEN s.tier = 'MALL' THEN 2 WHEN s.tier = 'PREFERRED' THEN 1 ELSE 0 END DESC`). Khi sắp xếp cụ thể (`price_asc`, `price_desc`, `created_at_desc`), tier không can thiệp vào thứ tự.
+  - Thêm endpoint `POST /api/v1/admin/shops/evaluate-tiers` (RBAC ADMIN) vào `admin-routes.ts` và đấu nối `ShopTierEvaluationService` vào `app.ts`.
+  - Viết bộ kiểm thử mock `backend/test/platform/shop-tier-evaluation.spec.ts` (7/7 tests PASS).
+  - Bổ sung Suite 5 vào `backend/tests/db/tiering-loyalty.integration.test.ts` (6 tests Đợt C trên PostgreSQL thật): promote, skip MALL, skip override, demote, HIDDEN reviews, Search Boost default vs price_asc. Tổng 17/17 tests PASS (247.2s).
+  - Sửa lint warning `@typescript-eslint/no-unused-vars` trong mock pool và cải thiện mock review filtering chính xác theo `product.shop_id`.
+  - Toàn bộ quality gates: Backend typecheck 0 errors, backend lint 0 errors 0 warnings, frontend typecheck 0 errors, frontend lint 0 errors.
+
+### 2026-10-02 (Làm rõ đánh giá nghiệm thu, bổ sung Playwright E2E, Rollback Order thực tế & Forward-only Migration)
+
+- **Làm rõ phân loại runner frontend**:
+  - `frontend/test/e2e-tiering-loyalty-lifecycle.spec.tsx` được xác định chính xác là **Kiểm thử tích hợp Component Frontend (React Testing Library + Vitest jsdom)**. Runner: Vitest jsdom; Lệnh chạy: `npm --prefix frontend test -- test/e2e-tiering-loyalty-lifecycle.spec.tsx`; Cách mock: mock feature flags `useMock: () => true`, mock Next.js router/images, mock auth context và mock response `buyerApi.getLoyaltySummary`.
+  - Bổ sung kịch bản **Playwright Browser E2E thực tế** tại `frontend/e2e/tiering-loyalty-live.spec.ts` cho 2 hành trình: Admin đổi hạng Shop -> Catalog & ProductDetail hiển thị badge; Buyer nhận hàng -> Profile cập nhật DinoPoint, hạng VIP và lịch sử giao dịch. Hỗ trợ chạy trực tiếp trên browser local (`--channel=msedge`).
+- **Báo cáo trung thực kết quả Full Backend test:vitest & Blocker thực tế**:
+  - Đã thực thi toàn bộ `npm run test:vitest` qua remote Supabase pooler (thời gian chạy thực tế 1340.9s ~ 22.3 phút).
+  - Kết quả: 53 test files PASS, 7 test files FAIL (334 passed, 10 failed).
+  - Ghi nhận nguyên nhân gốc rễ (blocker thực tế): Schema `public` trên database dùng chung chưa chạy migration `20261003100000_shop_tiering` khiến các query catalog không tìm thấy cột `s.tier`, và các bảng flash sale từ nhánh khác làm lệch số lượng bảng kiểm tra freeze của T2.
+- **Xác minh môi trường Supabase & Tính độc lập**:
+  - Database được cấu hình qua project `putywqmxtjttfdezlswf`.
+  - Xác nhận rõ trong báo cáo: Việc chạy trên schema cô lập tạm thời (`p5_loyalty_*`) trong cùng một database dùng chung **chưa đáp ứng tiêu chí một project/database test độc lập**. Đánh dấu chưa đạt tiêu chí database test độc lập và giữ nguyên trạng thái nghiệm thu từng phần.
+- **Tách Migration Forward-Only & Kiểm chứng bảo mật 2 chiều**:
+  - Khôi phục `20261003110000_buyer_loyalty/migration.sql` về trạng thái ban đầu để tránh sai lệch checksum.
+  - Tạo migration forward-only mới `backend/prisma/migrations/20261003120000_secure_loyalty_ledger/migration.sql` chứa lệnh bật RLS và thu hồi quyền `REVOKE ALL ON TABLE loyalty_point_transactions FROM PUBLIC, anon, authenticated;`.
+  - Bổ sung test kiểm chứng quyền truy cập trên PostgreSQL thật: Role `anon` và `authenticated` bị từ chối (SQLSTATE 42501), trong khi backend service role vẫn truy cập thành công.
+- **Chứng minh Rollback nguyên tử luồng Order hoàn chỉnh**:
+  - Mở rộng `backend/tests/db/tiering-loyalty.integration.test.ts` (11/11 tests PASS) đi qua trực tiếp `PgCheckoutService.confirmReceived`.
+  - Chứng minh khi phát sinh lỗi loyalty: Order (`SHIPPING`), Shipment (`SHIPPING`), số dư chi tiêu/điểm Buyer và bảng ledger cùng rollback đồng thời, không có trạng thái mồ côi nào được lưu vào database.
 
 - Đã làm:
   - **Prisma Validate**: Chạy `npm --prefix backend exec prisma validate` thành công (`The schema at prisma\schema.prisma is valid 🚀`).

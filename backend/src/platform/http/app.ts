@@ -40,6 +40,7 @@ import { InMemoryTransactionEventPort } from '../../modules/buyer/ports/buyer-ev
 import { PgBuyerHttpService } from '../../modules/buyer/services/pg-buyer-http.service.ts';
 import { createSellerShopRouter } from './routes/seller-shop-routes.ts';
 import { SellerShopService } from '../../modules/shop/services/seller-shop.service.ts';
+import { ShopTierEvaluationService } from '../../modules/shop/services/shop-tier-evaluation.service.ts';
 import { PgSellerShopRepository } from '../../modules/shop/repositories/pg-seller-shop.repository.ts';
 import { createSellerAnalyticsRouter } from './routes/seller-analytics-routes.ts';
 import { SellerKpiService } from '../../modules/reporting/services/seller-kpi.service.ts';
@@ -151,7 +152,18 @@ export function createApp(applications: PlatformApplications = {}): Application 
 
   const orderServices = applications.orderServices ?? applications.orders;
   const adminOrderQueries = orderServices && 'orderQueryService' in orderServices ? orderServices.orderQueryService : undefined;
-  app.use('/api/v1', createAdminRouter(applications.moderation, auth, applications.catalog, applications.pool ? new AdminReadService(applications.pool) : undefined, applications.pool ? new AdminVoucherService(applications.pool) : undefined, applications.adminCampaigns, adminOrderQueries, orderServices?.transitionOrder));
+  const tierEvaluator = applications.pool ? new ShopTierEvaluationService(applications.pool) : undefined;
+  app.use('/api/v1', createAdminRouter(
+    applications.moderation,
+    auth,
+    applications.catalog,
+    applications.pool ? new AdminReadService(applications.pool) : undefined,
+    applications.pool ? new AdminVoucherService(applications.pool) : undefined,
+    applications.adminCampaigns,
+    adminOrderQueries,
+    orderServices?.transitionOrder,
+    tierEvaluator,
+  ));
   app.use('/api/v1', createMediaRouter(
     auth,
     applications.pool && applications.mediaStorage

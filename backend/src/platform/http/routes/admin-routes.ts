@@ -9,6 +9,7 @@ import type { AdminReadService } from '../../../modules/moderation/services/admi
 import type { AdminVoucherService } from '../../../modules/voucher/services/admin-voucher.service.ts';
 import type { AdminNotificationCampaignService } from '../../../modules/moderation/services/admin-notification-campaign.service.ts';
 import type { OrderQueryService } from '../../../modules/order/services/order-query.service.ts';
+import type { ShopTierEvaluationService, TierEvaluationCriteria } from '../../../modules/shop/services/shop-tier-evaluation.service.ts';
 
 type AsyncRoute = (req: Request, res: Response, next: NextFunction) => Promise<void>;
 
@@ -40,7 +41,17 @@ function implementation<T extends (...args: never[]) => Promise<unknown>>(method
   }) as unknown as T;
 }
 
-export function createAdminRouter(moderation?: IModerationService, auth?: RequestHandler, catalog?: CatalogHttpApplication, reads?: AdminReadService, vouchers?: AdminVoucherService, campaigns?: AdminNotificationCampaignService, orderQueries?: OrderQueryService, orderTransition?: (ctx: RequestContext, orderId: string, input: Record<string, unknown>) => Promise<unknown>): Router {
+export function createAdminRouter(
+  moderation?: IModerationService,
+  auth?: RequestHandler,
+  catalog?: CatalogHttpApplication,
+  reads?: AdminReadService,
+  vouchers?: AdminVoucherService,
+  campaigns?: AdminNotificationCampaignService,
+  orderQueries?: OrderQueryService,
+  orderTransition?: (ctx: RequestContext, orderId: string, input: Record<string, unknown>) => Promise<unknown>,
+  tierEvaluator?: ShopTierEvaluationService,
+): Router {
   const router = Router();
 
   router.get('/admin/stats', ...guards(auth, 'ADMIN'), asyncRoute(async (req, res) => {
@@ -359,6 +370,29 @@ export function createAdminRouter(moderation?: IModerationService, auth?: Reques
         created_at: s.created_at ?? s.createdAt,
         updated_at: s.updated_at ?? s.updatedAt,
       }, requestId(req)));
+    })
+  );
+
+  // POST /admin/shops/evaluate-tiers
+  router.post(
+    '/admin/shops/evaluate-tiers',
+    ...guards(auth, 'ADMIN'),
+    asyncRoute(async (req, res) => {
+      if (!tierEvaluator) throw new NotFoundError('Shop tier evaluator service is not configured');
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const criteria = typeof body.criteria === 'object' && body.criteria !== null
+        ? (body.criteria as Partial<TierEvaluationCriteria>)
+        : {};
+      const shopId = typeof body.shop_id === 'string' ? body.shop_id : undefined;
+
+      if (shopId) {
+        const result = await tierEvaluator.evaluateShopById(shopId, criteria);
+        if (!result) throw new NotFoundError(`Shop with id '${shopId}' was not found`);
+        return void res.json(buildSuccessEnvelope(result, requestId(req)));
+      }
+
+      const summary = await tierEvaluator.evaluateAllActiveShops(criteria);
+      res.json(buildSuccessEnvelope(summary, requestId(req)));
     })
   );
 

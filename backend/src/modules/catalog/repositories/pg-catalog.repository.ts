@@ -421,7 +421,10 @@ export class PgProductRepository implements IProductRepository {
 
     const havingClause = havingConditions.length > 0 ? `HAVING ${havingConditions.join(' AND ')}` : '';
 
-    let orderClause = 'ORDER BY p.created_at DESC, p.product_id ASC';
+    let orderClause = `ORDER BY 
+      (CASE WHEN s.tier = 'MALL' THEN 2 WHEN s.tier = 'PREFERRED' THEN 1 ELSE 0 END) DESC,
+      p.created_at DESC, 
+      p.product_id ASC`;
     if (filter.sortBy === 'price_asc') {
       orderClause = 'ORDER BY min_price ASC, p.product_id ASC';
     } else if (filter.sortBy === 'price_desc') {
