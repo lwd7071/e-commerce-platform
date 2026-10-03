@@ -4,6 +4,8 @@
 
 [`../../spec/schema-freeze-v1.md`](../../spec/schema-freeze-v1.md) định nghĩa 22 bảng logic, cột và ràng buộc gốc. File này quy định cách triển khai vật lý trên PostgreSQL; không tự thay đổi ý nghĩa Schema Freeze.
 
+Các bảng phục vụ vận hành có thể được thêm mà không biến thành bảng nghiệp vụ của Schema Freeze, nhưng phải có CR Approved riêng nêu rõ mục đích, dữ liệu, quyền truy cập, lifecycle và migration; ví dụ `api_idempotency_records` được ghi trong [CR-IDEMP-01](../../spec/changes/CR-IDEMP-01-operational-storage.md). Repo hiện có thêm `media_uploads` qua migration `20260930150000_media_upload_lifecycle`; bộ tài liệu CR hiện hành chưa ghi nhận CR riêng cho bảng lifecycle media. Đây là khoảng trống traceability cần được xử lý trước lần mở rộng schema/media tiếp theo; không sửa Schema Freeze để bổ sung bảng này.
+
 ## 2. Mapping tên bảng vật lý
 
 | Tên logic | Tên PostgreSQL |
@@ -44,6 +46,8 @@
 - Boolean có default tường minh: `is_default`, `is_selected`, `is_read` mặc định `FALSE`.
 - Status lưu `VARCHAR` kèm CHECK theo miền trong Schema Freeze v1; không dùng PostgreSQL enum trong MVP để migration trạng thái dễ kiểm soát.
 - Chuỗi rỗng không thay thế `NULL`. Field optional dùng `NULL`; field bắt buộc có `NOT NULL` và validation độ dài.
+- Theo CR-SHIPPING-01, `products.weight_grams` là số nguyên dương, `NOT NULL`, mặc định `200` để tương thích sản phẩm cũ. Đây là trọng lượng fallback; Seller cần cập nhật số cân thực tế.
+- Địa chỉ mới dùng cặp mã và tên tỉnh/thành + phường/xã từ danh mục hành chính 2026. `district` có thể NULL cho địa chỉ mới; không sửa snapshot địa chỉ đơn hàng cũ.
 
 ## 4. Quy ước constraint
 

@@ -1,0 +1,583 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { repositories } from "@/lib/repositories/repository-factory";
+import { categoryAdapter, type CategoryItem } from "@/lib/adapters/category.adapter";
+import { uploadMediaAsset } from "@/lib/api/media.api";
+import { validateStockQuantityInput } from "@/features/catalog/catalog-query-engine";
+import { AppError } from "@/lib/api/app-error";
+import { useToast } from "@/components/ui/toast";
+import { useAuth } from "@/lib/auth/auth-context";
+import { Button } from "@/components/ui/button";
+import { FormField, TextInput, TextArea, SelectInput, ErrorSummary } from "@/components/ui/form-controls";
+import { Icon } from "@/components/ui/icon";
+
+interface VariantFormItem {
+  id: string;
+  variantName: string;
+  variantValue: string;
+  sku: string;
+  price: string;
+  stockQuantity: string;
+}
+
+interface ImageFormItem {
+  id: string;
+  url: string;
+  mediaId?: string;
+}
+
+export function SellerProductCreateScreen() {
+  const router = useRouter();
+  const showToast = useToast();
+  const { user } = useAuth();
+  const isShopPending = user?.role === "SELLER" && user?.shopStatus === "PENDING";
+
+  const [categories, setCategories] = useState<CategoryItem[]>([]);
+  const [categoryError, setCategoryError] = useState<string | null>(null);
+  const [isCategoriesLoading, setIsCategoriesLoading] = useState(true);
+  const [productName, setProductName] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [description, setDescription] = useState("");
+  const [weightGrams, setWeightGrams] = useState("200");
+
+  const [images, setImages] = useState<ImageFormItem[]>([]);
+  const [draftProductId, setDraftProductId] = useState<string | null>(null);
+
+  const [variants, setVariants] = useState<VariantFormItem[]>([
+    {
+      id: "var-1",
+      variantName: "Tiêu chuẩn",
+      variantValue: "Mặc định",
+      sku: "SKU-PROD-01",
+      price: "150000",
+      stockQuantity: "10",
+    },
+  ]);
+
+  const [errors, setErrors] = useState<Array<{ fieldId: string; message: string }>>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const loadCategories = useCallback(async () => {
+    setIsCategoriesLoading(true);
+    setCategoryError(null);
+    try {
+      const cats = await categoryAdapter.getCategories();
+      setCategories(cats);
+      if (cats.length > 0) {
+        setCategoryId(cats[0].id);
+      } else {
+        setCategoryId("");
+        setCategoryError("Hiện chưa có danh mục thật khả dụng. Vui lòng thử lại sau.");
+      }
+    } catch {
+      setCategories([]);
+      setCategoryId("");
+      setCategoryError("Không thể tải danh mục thật. Vui lòng kiểm tra kết nối và thử lại.");
+    } finally {
+      setIsCategoriesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void loadCategories(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadCategories]);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (images.length >= 5) {
+      showToast("Sản phẩm chỉ cho phép tải lên tối đa 5 hình ảnh", "error");
+      return;
+    }
+    try {
+      const productId = draftProductId ?? crypto.randomUUID();
+      setDraftProductId(productId);
+      const uploaded = await uploadMediaAsset(file, { purpose: "product_image", productId });
+      if (!uploaded.mediaId) throw new Error("Media service did not return a finalized upload ID.");
+      setImages((prev) => [...prev, { id: `img-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, url: uploaded.url, mediaId: uploaded.mediaId }]);
+      showToast("Tải ảnh thành công!", "success");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Tải ảnh thất bại";
+      showToast(msg, "error");
+    } finally {
+      e.target.value = "";
+    }
+  };
+
+  const handleRemoveImage = (id: string) => {
+    setImages((prev) => prev.filter((img) => img.id !== id));
+  };
+
+  const handleAddVariant = () => {
+    const newIdx = variants.length + 1;
+    setVariants((prev) => [
+      ...prev,
+      {
+        id: `var-${Date.now()}-${newIdx}`,
+        variantName: "Phân loại",
+        variantValue: `Lựa chọn ${newIdx}`,
+        sku: `SKU-${Date.now().toString().slice(-4)}-${newIdx}`,
+        price: variants[0]?.price || "150000",
+        stockQuantity: "10",
+      },
+    ]);
+  };
+
+  const handleRemoveVariant = (id: string) => {
+    if (variants.length <= 1) {
+      showToast("Sản phẩm cần tối thiểu 1 biến thể", "error");
+      return;
+    }
+    setVariants((prev) => prev.filter((v) => v.id !== id));
+  };
+
+  const handleUpdateVariant = (id: string, field: keyof VariantFormItem, val: string) => {
+    setVariants((prev) =>
+      prev.map((v) => (v.id === id ? { ...v, [field]: val } : v))
+    );
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isShopPending) {
+      showToast("Gian hàng đang chờ duyệt. Bạn chưa thể tạo sản phẩm mới.", "error");
+      return;
+    }
+    const newErrors: Array<{ fieldId: string; message: string }> = [];
+
+    if (!productName.trim()) {
+      newErrors.push({ fieldId: "product-name", message: "Vui lòng nhập tên sản phẩm" });
+    }
+
+    if (!categoryId.trim()) {
+      newErrors.push({ fieldId: "product-category", message: "Vui lòng chọn danh mục hợp lệ" });
+    }
+
+    if (variants.length === 0) {
+      newErrors.push({ fieldId: "product-variants", message: "Cần ít nhất một biến thể sản phẩm" });
+    }
+
+    // Validate variants & duplicate SKUs (RB-LB11, QD05, QD06)
+    const skuSet = new Set<string>();
+    variants.forEach((v, idx) => {
+      const trimmedSku = v.sku.trim();
+      if (!trimmedSku) {
+        newErrors.push({ fieldId: `variant-sku-${v.id}`, message: `Biến thể #${idx + 1}: Vui lòng nhập mã SKU` });
+      } else if (skuSet.has(trimmedSku)) {
+        newErrors.push({ fieldId: `variant-sku-${v.id}`, message: `Biến thể #${idx + 1}: Mã SKU '${trimmedSku}' bị trùng lặp` });
+      } else {
+        skuSet.add(trimmedSku);
+      }
+
+      const numPrice = Number(v.price.trim());
+      if (isNaN(numPrice) || numPrice <= 0) {
+        newErrors.push({ fieldId: `variant-price-${v.id}`, message: `Biến thể #${idx + 1}: Giá bán phải lớn hơn 0` });
+      }
+
+      const validStock = validateStockQuantityInput(v.stockQuantity);
+      if (!validStock.valid) {
+        newErrors.push({ fieldId: `variant-stock-${v.id}`, message: `Biến thể #${idx + 1}: ${validStock.error}` });
+      }
+    });
+
+    if (newErrors.length > 0) {
+      setErrors(newErrors);
+      showToast("Vui lòng kiểm tra lại các trường thông tin chưa hợp lệ", "error");
+      return;
+    }
+
+    if (images.some((image) => !image.mediaId)) {
+      showToast("Ảnh sản phẩm cần được tải lên và xác nhận trước khi lưu", "error");
+      return;
+    }
+    setErrors([]);
+    setIsSubmitting(true);
+
+    try {
+      const payload = {
+        ...(draftProductId ? { product_id: draftProductId } : {}),
+        category_id: categoryId,
+        product_name: productName.trim(),
+        description: description.trim() || null,
+        weight_grams: Number(weightGrams),
+        images: images.map((img, idx) => ({
+          image_url: img.url.trim(),
+          media_id: img.mediaId,
+          sort_order: idx,
+        })),
+        variants: variants.map((v) => ({
+          variant_name: v.variantName.trim(),
+          variant_value: v.variantValue.trim() || null,
+          sku: v.sku.trim(),
+          price: Number(v.price).toFixed(2),
+          stock_quantity: validateStockQuantityInput(v.stockQuantity).value ?? 0,
+        })),
+      };
+
+      const catalogRepo = repositories.catalog();
+      if (!catalogRepo.createProduct) {
+        showToast("Tính năng tạo sản phẩm chưa khả dụng trên môi trường hiện tại", "error");
+        return;
+      }
+
+      await catalogRepo.createProduct(payload);
+      showToast("Sản phẩm đã được tạo thành công!", "success", "Tạo sản phẩm");
+      router.push("/seller/products");
+    } catch (err: unknown) {
+      if (err instanceof AppError) {
+        if (err.status === 409) {
+          showToast(err.message || "Mã SKU này đã tồn tại trong gian hàng của bạn. Vui lòng chọn SKU khác.", "error", "Xung đột SKU");
+          return;
+        }
+        if (err.status === 403) {
+          showToast("Chỉ tài khoản Người bán mới có quyền tạo sản phẩm.", "error", "Truy cập bị từ chối");
+          return;
+        }
+        showToast(err.message, "error");
+        return;
+      }
+      const msg = err instanceof Error ? err.message : "Tạo sản phẩm thất bại. Vui lòng thử lại.";
+      showToast(msg, "error");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6 max-w-4xl mx-auto pb-12">
+      {/* Header */}
+      <div className="flex flex-col gap-2">
+        <Link
+          href="/seller/products"
+          className="text-xs font-semibold text-[var(--subtext)] hover:text-[var(--foreground)] inline-flex items-center gap-1.5 transition-colors"
+        >
+          <span aria-hidden="true">←</span>
+          Quay lại danh sách sản phẩm
+        </Link>
+        <p className="eyebrow">Kênh người bán</p>
+        <h1 className="page-title">Thêm Sản Phẩm Mới</h1>
+        <p className="page-description">
+          Khởi tạo thông tin sản phẩm, danh mục, hình ảnh và cấu hình biến thể hàng hóa theo chuẩn POST /products.
+        </p>
+      </div>
+
+      {/* Shop Pending Warning Banner (A-103) */}
+      {isShopPending && (
+        <div className="notice notice--warning" role="alert" data-testid="shop-pending-banner">
+          <Icon name="info" />
+          <div>
+            <strong>Gian hàng đang chờ duyệt:</strong> Gian hàng của bạn đang ở trạng thái chờ Admin duyệt. Bạn chưa thể tạo sản phẩm mới cho đến khi gian hàng được kích hoạt.
+          </div>
+        </div>
+      )}
+
+      <ErrorSummary errors={errors} />
+
+      <form onSubmit={handleSubmit} className="space-y-8">
+        {/* Section 1: Basic Information */}
+        <section className="surface-card p-6 space-y-5">
+          <h2 className="text-base font-bold text-[var(--foreground)] border-b border-[var(--border)] pb-3">
+            1. Thông tin chung
+          </h2>
+
+          <FormField
+            id="product-name"
+            label="Tên sản phẩm"
+            helpText="Tên hiển thị công khai trên Dino Marketplace (tối đa 255 ký tự)."
+            required
+            error={errors.find((e) => e.fieldId === "product-name")?.message}
+          >
+            <TextInput
+              id="product-name"
+              placeholder="VD: Kem Chống Nắng Phổ Rộng SPF 50+..."
+              value={productName}
+              onChange={(e) => setProductName(e.target.value)}
+              required
+            />
+          </FormField>
+
+          <FormField
+            id="product-category"
+            label="Danh mục ngành hàng"
+            helpText="Chọn danh mục đang được mở trên hệ thống."
+            required
+            error={errors.find((e) => e.fieldId === "product-category")?.message}
+          >
+            <SelectInput
+              id="product-category"
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+              disabled={isCategoriesLoading || categories.length === 0}
+              required
+            >
+              {categories.length === 0 && <option value="">{isCategoriesLoading ? "Đang tải danh mục…" : "Chưa có danh mục"}</option>}
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.parentId ? `└─ ${cat.name}` : cat.name}
+                </option>
+              ))}
+            </SelectInput>
+          </FormField>
+
+          {categoryError && (
+            <div className="notice notice--error" role="alert">
+              <p>{categoryError}</p>
+              <Button type="button" variant="secondary" onClick={() => void loadCategories()}>
+                Thử tải lại danh mục
+              </Button>
+            </div>
+          )}
+
+          <FormField
+            id="product-description"
+            label="Mô tả chi tiết"
+            helpText="Mô tả công dụng, thành phần, nguồn gốc xuất xứ và hướng dẫn sử dụng."
+          >
+            <TextArea
+              id="product-description"
+              rows={4}
+              placeholder="Nhập mô tả chi tiết sản phẩm..."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </FormField>
+          <FormField id="product-weight-grams" label="Khối lượng đóng gói (gram)" helpText="Dùng để ước tính phí vận chuyển. Mặc định 200g; hãy nhập khối lượng thực tế.">
+            <TextInput id="product-weight-grams" type="number" min={1} step={1} required value={weightGrams} onChange={(event) => setWeightGrams(event.target.value)} />
+          </FormField>
+        </section>
+
+        {/* Section 2: Images */}
+        <section className="surface-card p-6 space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-[var(--border)] pb-3">
+            <div>
+              <h2 className="text-base font-bold text-[var(--foreground)]">
+                2. Hình ảnh sản phẩm (Verified URLs)
+              </h2>
+              <p className="text-xs text-[var(--subtext)]">
+                Dùng URL ảnh HTTPS công khai từ CDN đã xác minh để đảm bảo hiển thị ổn định.
+              </p>
+            </div>
+            <span className="text-xs font-semibold text-[var(--subtext)]">
+              Đã thêm: {images.length} ảnh
+            </span>
+          </div>
+
+          {/* Finalized media upload only */}
+          <div className="space-y-2">
+            <p className="text-sm text-[var(--subtext)]">Ảnh chỉ được lưu sau khi tải lên và xác nhận thành công. Tối đa 5 ảnh.</p>
+            <div>
+              <label
+                htmlFor="product-file-upload"
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-[var(--border)] bg-[var(--card)] text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--card-muted)] cursor-pointer transition-colors ${
+                  images.length >= 5 ? "opacity-50 cursor-not-allowed pointer-events-none" : ""
+                }`}
+              >
+                <Icon name="camera" className="h-4 w-4" />
+                Tải ảnh từ thiết bị (JPG, PNG, WebP ≤ 5MB)
+              </label>
+              <input
+                id="product-file-upload"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                disabled={images.length >= 5}
+                onChange={handleFileUpload}
+                className="hidden"
+              />
+            </div>
+          </div>
+
+          {/* Image gallery previews */}
+          {images.length > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3 pt-2">
+              {images.map((img, idx) => (
+                <div
+                  key={img.id}
+                  className="group relative aspect-square rounded-xl border border-[var(--border)] overflow-hidden bg-[var(--card-muted)] shadow-xs"
+                >
+                  <Image
+                    src={img.url}
+                    alt={`Ảnh sản phẩm ${idx + 1}`}
+                    fill
+                    sizes="160px"
+                    className="object-cover"
+                  />
+                  <div className="absolute top-1.5 left-1.5 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                    #{idx + 1}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveImage(img.id)}
+                    aria-label={`Xóa ảnh ${idx + 1}`}
+                    className="absolute top-1.5 right-1.5 rounded-md bg-red-600/90 hover:bg-red-700 text-white p-1 text-xs opacity-90 transition-opacity"
+                  >
+                    <Icon name="close" className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* Section 3: Variants & Stock */}
+        <section className="surface-card p-6 space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-[var(--border)] pb-3">
+            <div>
+              <h2 className="text-base font-bold text-[var(--foreground)]">
+                3. Danh sách biến thể & Tồn kho
+              </h2>
+              <p className="text-xs text-[var(--subtext)]">
+                Mỗi biến thể có mã SKU riêng biệt trong gian hàng (RB-LB11), giá bán &gt; 0₫ và tồn kho nguyên không âm.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleAddVariant}
+              className="min-h-[44px] text-xs font-bold"
+            >
+              + Thêm biến thể
+            </Button>
+          </div>
+
+          <div className="space-y-4">
+            {variants.map((v, idx) => {
+              const skuError = errors.find((e) => e.fieldId === `variant-sku-${v.id}`)?.message;
+              const priceError = errors.find((e) => e.fieldId === `variant-price-${v.id}`)?.message;
+              const stockError = errors.find((e) => e.fieldId === `variant-stock-${v.id}`)?.message;
+
+              return (
+                <div
+                  key={v.id}
+                  className="rounded-xl border border-[var(--border)] bg-[var(--card-muted)]/50 p-4 space-y-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-[var(--primary-active)] uppercase tracking-wide">
+                      Biến thể #{idx + 1}
+                    </span>
+                    {variants.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveVariant(v.id)}
+                        className="text-xs font-semibold text-[var(--danger)] hover:underline inline-flex items-center gap-1"
+                      >
+                        <Icon name="close" className="h-3 w-3" />
+                        Xóa biến thể
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+                    <div>
+                      <label className="field-label text-xs" htmlFor={`v-name-${v.id}`}>
+                        Thuộc tính *
+                      </label>
+                      <TextInput
+                        id={`v-name-${v.id}`}
+                        placeholder="VD: Dung tích, Màu"
+                        value={v.variantName}
+                        onChange={(e) => handleUpdateVariant(v.id, "variantName", e.target.value)}
+                        required
+                        className="h-10 text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="field-label text-xs" htmlFor={`v-val-${v.id}`}>
+                        Giá trị
+                      </label>
+                      <TextInput
+                        id={`v-val-${v.id}`}
+                        placeholder="VD: 50ml, Trắng"
+                        value={v.variantValue}
+                        onChange={(e) => handleUpdateVariant(v.id, "variantValue", e.target.value)}
+                        className="h-10 text-xs"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="field-label text-xs" htmlFor={`variant-sku-${v.id}`}>
+                        Mã SKU *
+                      </label>
+                      <TextInput
+                        id={`variant-sku-${v.id}`}
+                        placeholder="VD: SKU-SP1-01"
+                        value={v.sku}
+                        onChange={(e) => handleUpdateVariant(v.id, "sku", e.target.value)}
+                        required
+                        error={skuError}
+                        className="h-10 text-xs font-mono"
+                      />
+                      {skuError && <p className="field-error text-[11px] mt-1">{skuError}</p>}
+                    </div>
+
+                    <div>
+                      <label className="field-label text-xs" htmlFor={`variant-price-${v.id}`}>
+                        Giá bán (₫) *
+                      </label>
+                      <TextInput
+                        id={`variant-price-${v.id}`}
+                        type="number"
+                        min="1000"
+                        step="1000"
+                        placeholder="150000"
+                        value={v.price}
+                        onChange={(e) => handleUpdateVariant(v.id, "price", e.target.value)}
+                        required
+                        error={priceError}
+                        className="h-10 text-xs"
+                      />
+                      {priceError && <p className="field-error text-[11px] mt-1">{priceError}</p>}
+                    </div>
+
+                    <div>
+                      <label className="field-label text-xs" htmlFor={`variant-stock-${v.id}`}>
+                        Số lượng kho *
+                      </label>
+                      <TextInput
+                        id={`variant-stock-${v.id}`}
+                        type="number"
+                        min="0"
+                        step="1"
+                        placeholder="10"
+                        value={v.stockQuantity}
+                        onChange={(e) => handleUpdateVariant(v.id, "stockQuantity", e.target.value)}
+                        required
+                        error={stockError}
+                        className="h-10 text-xs"
+                      />
+                      {stockError && <p className="field-error text-[11px] mt-1">{stockError}</p>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Footer Actions */}
+        <div className="flex items-center justify-end gap-3 pt-2">
+          <Link
+            href="/seller/products"
+            className="button button--secondary min-h-[44px] px-6 text-xs font-bold"
+          >
+            Hủy
+          </Link>
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={isSubmitting || isShopPending || isCategoriesLoading || categories.length === 0}
+            title={isShopPending ? "Gian hàng đang chờ duyệt" : categories.length === 0 ? "Cần tải được danh mục thật trước khi tạo sản phẩm" : undefined}
+            className="min-h-[44px] px-8 text-xs font-bold shadow-sm"
+          >
+            {isSubmitting ? "Đang tạo sản phẩm..." : isShopPending ? "Gian hàng chờ duyệt" : "Tạo sản phẩm mới"}
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+}

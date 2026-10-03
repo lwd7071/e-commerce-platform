@@ -1,37 +1,25 @@
-import type { UUID, DecimalString, ProductStatus, VariantStatus } from '../domain/types';
+import type { UUID, DecimalString, ProductStatus } from '../domain/types.ts';
 
-export interface CreateProductRequestDTO {
+export interface CreateProductInputDTO {
   shopId: UUID;
   categoryId: UUID;
   productName: string;
   description?: string | null;
-  images?: string[];
+  status?: ProductStatus;
   variants: Array<{
     variantName: string;
-    variantValue: string;
+    variantValue: string | null;
     sku: string;
     price: DecimalString;
     stockQuantity: number;
   }>;
+  images?: Array<{
+    imageUrl: string;
+    sortOrder: number;
+  }>;
 }
 
-export interface UpdateProductVariantStockDTO {
+export interface UpdateStockInputDTO {
   variantId: UUID;
-  stockQuantity: number;
-}
-
-export interface UpdateProductVariantPriceDTO {
-  variantId: UUID;
-  price: DecimalString;
-  salePrice?: DecimalString | null;
-}
-
-export interface SellerProductResponseDTO {
-  productId: UUID;
-  shopId: UUID;
-  productName: string;
-  status: ProductStatus;
-  variantCount: number;
-  totalStock: number;
-  updatedAt: string;
+  newStockQuantity: number;
 }

@@ -1,5 +1,5 @@
-import { ValidationError, ReviewNotEligibleError, ReviewAlreadyExistsError } from './errors.ts';
-import type { UUID } from './types.ts';
+import { ValidationError, ReviewNotEligibleError, ReviewAlreadyExistsError } from './errors';
+import type { UUID } from './types';
 
 /**
  * [QD15, RB-MG08] Review.Rating thuộc {1, 2, 3, 4, 5} (số nguyên)

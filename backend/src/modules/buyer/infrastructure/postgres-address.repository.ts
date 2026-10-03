@@ -1,0 +1,134 @@
+import type { IAddressRepository } from '../domain/repositories';
+import type { UUID, Address } from '../domain/types';
+import type { IDbClient } from './db-client';
+import type { Pool, PoolClient } from 'pg';
+import { mapAddress } from './row-mappers';
+
+/**
+ * SOLID Design Principles:
+ * - Single Responsibility (S): Chuyên biệt quản lý Address aggregate persistence.
+ * - Dependency Inversion (D): Nhận IDbClient trừu tượng qua constructor injection.
+ * - Liskov Substitution (L): Tuân thủ hoàn toàn IAddressRepository interface contract.
+ */
+export class PostgresAddressRepository implements IAddressRepository {
+  constructor(private readonly db: IDbClient) {}
+
+  async findById(addressId: UUID): Promise<Address | null> {
+    const sql = `
+      SELECT address_id, user_id, recipient_name, phone, province, province_code, district, ward, ward_code,
+             detail_address, is_default, created_at, updated_at
+      FROM addresses
+      WHERE address_id = $1
+    `;
+    const result = await this.db.query(sql, [addressId]);
+    if (!result.rows || result.rows.length === 0) {
+      return null;
+    }
+    return mapAddress(result.rows[0]);
+  }
+
+  async findByUserId(userId: UUID): Promise<Address[]> {
+    const sql = `
+      SELECT address_id, user_id, recipient_name, phone, province, province_code, district, ward, ward_code,
+             detail_address, is_default, created_at, updated_at
+      FROM addresses
+      WHERE user_id = $1
+      ORDER BY is_default DESC, created_at DESC
+    `;
+    const result = await this.db.query(sql, [userId]);
+    return (result.rows ?? []).map(mapAddress);
+  }
+
+  async create(address: Address): Promise<Address> {
+    const sql = `
+      INSERT INTO addresses (
+        address_id, user_id, recipient_name, phone, province, province_code, district,
+        ward, ward_code, detail_address, is_default, created_at, updated_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, COALESCE($12::timestamptz, now()), now())
+      RETURNING address_id, user_id, recipient_name, phone, province, province_code, district,
+                ward, ward_code, detail_address, is_default, created_at, updated_at
+    `;
+    const params = [
+      address.addressId,
+      address.userId,
+      address.recipientName,
+      address.phone,
+      address.province,
+      address.provinceCode ?? null,
+      address.district,
+      address.ward,
+      address.wardCode ?? null,
+      address.detailAddress,
+      address.isDefault,
+      address.createdAt ?? null,
+    ];
+    const result = await this.db.query(sql, params);
+    return mapAddress(result.rows[0]);
+  }
+
+  async update(address: Address): Promise<Address> {
+    const sql = `
+      UPDATE addresses
+      SET recipient_name = $2,
+          phone = $3,
+          province = $4,
+          province_code = $5,
+          district = $6,
+          ward = $7,
+          ward_code = $8,
+          detail_address = $9,
+          is_default = $10,
+          updated_at = now()
+      WHERE address_id = $1
+      RETURNING address_id, user_id, recipient_name, phone, province, province_code, district,
+                ward, ward_code, detail_address, is_default, created_at, updated_at
+    `;
+    const params = [
+      address.addressId,
+      address.recipientName,
+      address.phone,
+      address.province,
+      address.provinceCode ?? null,
+      address.district,
+      address.ward,
+      address.wardCode ?? null,
+      address.detailAddress,
+      address.isDefault,
+    ];
+    const result = await this.db.query(sql, params);
+    if (!result.rows || result.rows.length === 0) {
+      throw new Error(`Address not found: ${address.addressId}`);
+    }
+    return mapAddress(result.rows[0]);
+  }
+
+  async delete(addressId: UUID): Promise<void> {
+    const sql = `DELETE FROM addresses WHERE address_id = $1`;
+    await this.db.query(sql, [addressId]);
+  }
+
+  async setDefault(userId: UUID, targetAddressId: UUID): Promise<void> {
+    const pool = this.db as IDbClient & Pick<Pool, 'connect'>;
+    if (typeof pool.connect !== 'function') {
+      await this.db.query('UPDATE addresses SET is_default = FALSE, updated_at = now() WHERE user_id = $1 AND is_default = TRUE', [userId]);
+      await this.db.query('UPDATE addresses SET is_default = TRUE, updated_at = now() WHERE address_id = $2 AND user_id = $1', [userId, targetAddressId]);
+      return;
+    }
+
+    const client: PoolClient = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('SELECT user_id FROM addresses WHERE user_id = $1 FOR UPDATE', [userId]);
+      await client.query('UPDATE addresses SET is_default = FALSE, updated_at = now() WHERE user_id = $1 AND is_default = TRUE', [userId]);
+      const updated = await client.query('UPDATE addresses SET is_default = TRUE, updated_at = now() WHERE address_id = $2 AND user_id = $1', [userId, targetAddressId]);
+      if (!updated.rowCount) throw new Error(`Address not found: ${targetAddressId}`);
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+}

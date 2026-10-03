@@ -3,11 +3,33 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "main": "dist/app.js",
+  "engines": {
+    "node": ">=24 <25",
+    "npm": "11.x"
+  },
+  "packageManager": "npm@11.12.1",
   "scripts": {
-    "dev": "tsx watch src/platform/server.ts",
-    "build": "tsc",
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "lint": "eslint src db scripts test tests prisma.config.ts vitest.config.ts --max-warnings=0",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "build": "esbuild src/platform/http/app.ts --bundle --platform=node --format=esm --packages=external --alias:@=./src --outfile=dist/app.js",
+    "test:node": "tsx --test \"test/**/*.spec.ts\" \"tests/modules/buyer/*.test.ts\"",
+    "test:vitest": "vitest run",
+    "test:transaction:pg": "node scripts/test-transaction-pg.mjs",
+    "test": "npm run test:node && npm run test:vitest",
+    "test:cross-platform": "node scripts/run-tests.js",
+    "db:ci:bootstrap": "node scripts/ci-bootstrap-auth.mjs",
+    "db:ci:migrate": "tsx scripts/deploy-migrations.ts",
+    "db:seed:dev-categories": "tsx scripts/seed-development-categories.ts",
+    "db:seed:demo-products": "tsx scripts/seed-demo-products.ts",
+    "db:e2e:reset": "tsx scripts/reset-e2e-fixtures.ts",
+    "db:media:cleanup": "tsx scripts/cleanup-expired-media.ts",
+    "db:storage:deploy": "tsx scripts/deploy-storage-policies.ts",
+    "test:storage": "tsx scripts/storage-policy-smoke.ts",
+    "test:review-media-smoke": "tsx scripts/review-media-live-smoke.ts",
+    "test:auth-smoke": "tsx scripts/auth-smoke.ts",
     "test:watch": "vitest"
   },
   "dependencies": {
@@ -15,17 +37,28 @@
     "@prisma/client": "^7.10.0",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "ioredis": "^6.0.0",
+    "jose": "^6.2.12",
     "payload": "^3.89.0",
-    "pg": "^8.23.0"
+    "pg": "^8.23.0",
+    "uuid": "^11.1.0",
+    "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@eslint/js": "^9.21.0",
+    "@supabase/supabase-js": "^2.116.0",
     "@types/express": "^4.17.21",
-    "@types/node": "^22.13.9",
+    "@types/ioredis": "^4.28.10",
+    "@types/node": "^24.19.0",
+    "@types/pg": "^8.23.1",
     "@types/supertest": "^6.0.2",
+    "esbuild": "^0.25.0",
+    "eslint": "^9.21.0",
     "prisma": "^7.10.0",
     "supertest": "^7.0.0",
     "tsx": "^4.19.3",
-    "typescript": "^5.7.3",
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.26.0",
     "vitest": "^3.0.7"
   }
 }

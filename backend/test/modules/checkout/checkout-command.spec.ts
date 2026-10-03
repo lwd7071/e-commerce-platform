@@ -8,11 +8,22 @@ const shopId = 'a3f6d90c-82f4-4bad-a389-10e6f02788d2';
 test('[API §2] Checkout accepts an address, method and optional voucher per shop without mutating input', () => {
   const body = Object.freeze({ address_id: addressId, payment_method: 'COD' });
   assert.deepEqual(parseCheckoutCommand(body, '1234567890123456'), {
-    address_id: addressId, payment_method: 'COD', vouchers: [], idempotency_key: '1234567890123456',
+    address_id: addressId, payment_method: 'COD', vouchers: [], expected_shipping_fees: [], idempotency_key: '1234567890123456',
   });
   assert.deepEqual(parseCheckoutCommand({ address_id: addressId, payment_method: 'ONLINE', vouchers: [{ shop_id: shopId, code: 'SAVE10' }] }, 'k'.repeat(128)), {
-    address_id: addressId, payment_method: 'ONLINE', vouchers: [{ shop_id: shopId, code: 'SAVE10' }], idempotency_key: 'k'.repeat(128),
+    address_id: addressId, payment_method: 'ONLINE', vouchers: [{ shop_id: shopId, code: 'SAVE10' }], expected_shipping_fees: [], idempotency_key: 'k'.repeat(128),
   });
+});
+
+test('[CR-SHIPPING-01] Checkout normalizes expected per-shop fees and rejects duplicate shops', () => {
+  assert.deepEqual(parseCheckoutCommand({ address_id: addressId, payment_method: 'COD', expected_shipping_fees: [{ shop_id: shopId, fee: '25000' }] }, '1234567890123456').expected_shipping_fees, [
+    { shop_id: shopId, fee: '25000.00' },
+  ]);
+  assert.throws(() => parseCheckoutCommand({
+    address_id: addressId, payment_method: 'COD', expected_shipping_fees: [
+      { shop_id: shopId, fee: '25000.00' }, { shop_id: shopId, fee: '26000.00' },
+    ],
+  }, '1234567890123456'), { code: 'VALIDATION_FAILED' });
 });
 
 test('[API §2/§6] Idempotency key is mandatory and has 16–128 characters', () => {

@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sequence Diagrams Viewer - E-Commerce Platform</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --sidebar-bg: #1e293b;
+      --card-bg: #1e293b;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-hover: #0284c7;
+      --border: #334155;
+      --active-bg: #0369a1;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+    #sidebar {
+      width: 320px;
+      background: var(--sidebar-bg);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    #sidebar-header {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    #sidebar-header h1 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 4px;
+    }
+    #sidebar-header p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+    #diagram-list {
+      list-style: none;
+      overflow-y: auto;
+      flex: 1;
+      padding: 10px;
+    }
+    #diagram-list li {
+      padding: 12px 14px;
+      margin-bottom: 6px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    #diagram-list li:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text);
+    }
+    #diagram-list li.active {
+      background: var(--active-bg);
+      color: #fff;
+      font-weight: 600;
+    }
+    #diagram-list .badge {
+      font-size: 0.75rem;
+      background: rgba(255, 255, 255, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    #main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+    }
+    #top-bar {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(15, 23, 42, 0.8);
+      backdrop-filter: blur(8px);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    #top-bar h2 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #fff;
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+    }
+    .btn {
+      padding: 8px 14px;
+      background: #334155;
+      color: #fff;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: background 0.2s;
+    }
+    .btn:hover {
+      background: #475569;
+    }
+    #diagram-view {
+      flex: 1;
+      padding: 30px;
+      overflow: auto;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      background: #090d16;
+    }
+    .mermaid-container {
+      background: #1e293b;
+      padding: 30px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+      max-width: 100%;
+      overflow-x: auto;
+      transition: transform 0.2s ease-out;
+    }
+    .mermaid {
+      display: flex;
+      justify-content: center;
+    }
+  </style>
+</head>
+<body>
+
+  <aside id="sidebar">
+    <div id="sidebar-header">
+      <h1>Sơ đồ Tuần tự (Sequence Diagrams)</h1>
+      <p>Hệ thống E-Commerce Platform</p>
+    </div>
+    <ul id="diagram-list"></ul>
+  </aside>
+
+  <main id="main-content">
+    <div id="top-bar">
+      <h2 id="current-title">Chọn sơ đồ để xem</h2>
+      <div class="actions">
+        <button class="btn" onclick="zoomIn()">Zoom +</button>
+        <button class="btn" onclick="zoomOut()">Zoom -</button>
+        <button class="btn" onclick="resetZoom()">Reset</button>
+      </div>
+    </div>
+    <div id="diagram-view">
+      <div class="mermaid-container" id="container">
+        <div class="mermaid" id="mermaid-target"></div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'dark',
+      sequence: {
+        mirrorActors: false,
+        useMaxWidth: false
+      }
+    });
+
+    const diagrams = [
+      {
+        id: "01",
+        title: "UC01 — Đăng nhập và phân quyền",
+        file: "01-dang-nhap-va-phan-quyen.md",
+        code: `sequenceDiagram
+    autonumber
+    actor User as Người dùng
+    participant FE as Frontend Next.js
+    participant SA as Supabase Auth
+    participant API as Backend API
+    participant JWT as Supabase JWT Verifier
+    participant DB as PostgreSQL
+
+    User->>FE: Nhập email và mật khẩu
+    FE->>SA: signInWithPassword(email, password)
+    SA-->>FE: Session và access token JWT
+    FE-->>User: Hiển thị trạng thái đăng nhập
+
+    User->>FE: Mở chức năng cần đăng nhập
+    FE->>API: Request kèm Bearer JWT
+    API->>JWT: Xác minh chữ ký, issuer, audience và hạn token
+    alt Token không hợp lệ hoặc hết hạn
+        JWT-->>API: Xác minh thất bại
+        API-->>FE: 401 AUTH_INVALID_TOKEN
+    else Token hợp lệ
+        JWT-->>API: sub (user ID) hợp lệ
+        API->>DB: Tìm user theo ID, lấy role/status
+        DB-->>API: User, role, status và shop context (nếu Seller)
+        alt User bị khóa
+            API-->>FE: 403 USER_LOCKED
+        else User hoạt động
+            API->>API: Tạo RequestContext
+            API->>API: Kiểm tra role theo endpoint
+            alt Không đủ quyền
+                API-->>FE: 403 FORBIDDEN
+            else Đủ quyền
+                API-->>FE: Trả kết quả endpoint trong success envelope
+            end
+        end
+    end`
+      },
+      {
+        id: "02",
+        title: "UC02 — Tìm kiếm và xem sản phẩm",
+        file: "02-tim-kiem-va-xem-san-pham.md",
+        code: `sequenceDiagram
+    autonumber
+    actor Buyer as Người mua
+    participant FE as Frontend Next.js
+    participant API as Backend API
+    participant Catalog as Catalog HTTP Service
+    participant DB as PostgreSQL
+
+    Buyer->>FE: Nhập từ khóa, bộ lọc và cách sắp xếp
+    FE->>API: GET /api/v1/products (query: category_id, search, min_price, max_price, sort, limit, cursor, shop_tier)
+    API->>Catalog: listProducts(query)
+    Catalog->>DB: Truy vấn sản phẩm, shop, biến thể và tồn kho
+    DB-->>Catalog: Danh sách trang hiện tại
+    Catalog->>Catalog: Ánh xạ dữ liệu và cursor phân trang
+    Catalog-->>API: items, next_cursor, has_more
+    API-->>FE: 200 success envelope
+    FE-->>Buyer: Hiển thị danh sách sản phẩm
+
+    Buyer->>FE: Mở một sản phẩm
+    FE->>API: GET /api/v1/products/{product_id}
+    API->>Catalog: getProduct(product_id)
+    Catalog->>DB: Đọc chi tiết sản phẩm, shop và biến thể
+    alt Không tìm thấy sản phẩm
+        DB-->>Catalog: Không có bản ghi
+        Catalog-->>API: RESOURCE_NOT_FOUND
+        API-->>FE: 404
+    else Tìm thấy
+        DB-->>Catalog: Chi tiết sản phẩm và tồn kho
+        Catalog-->>API: Product detail
+        API-->>FE: 200 success envelope
+        FE-->>Buyer: Hiển thị thông tin và lựa chọn biến thể
+    end`
+      },
+      {
+        id: "03",
+        title: "UC03 — Quản lý giỏ hàng",
+        file: "03-quan-ly-gio-hang.md",
+        code: `sequenceDiagram
+    autonumber
+    actor Buyer as Người mua
+    participant FE as Frontend Next.js
+    participant API as Backend API
+    participant Cart as Buyer/Cart Service
+    participant DB as PostgreSQL
+
+    Buyer->>FE: Thêm sản phẩm hoặc đổi số lượng
+    FE->>API: POST /api/v1/cart/items hoặc PATCH /api/v1/cart/items/{id}
+    API->>Cart: Xác thực Buyer và dữ liệu đầu vào
+    Cart->>DB: Tạo/tìm cart và ghi cart_item
+    DB-->>Cart: Cart item đã lưu
+    Cart-->>API: Cart item
+    API-->>FE: 201/200 success envelope
+    FE-->>Buyer: Cập nhật giỏ hàng
+
+    Buyer->>FE: Chọn hoặc bỏ chọn sản phẩm
+    FE->>API: PATCH /api/v1/cart/items/{id} (is_selected)
+    API->>Cart: Cập nhật trạng thái chọn
+    Cart->>DB: UPDATE cart_items
+    DB-->>Cart: Dữ liệu đã cập nhật
+    Cart-->>API: Cart item
+    API-->>FE: 200 success envelope
+
+    opt Buyer xóa một món hoặc xóa các món đã chọn
+        FE->>API: DELETE /api/v1/cart/items/{id} hoặc /cart/selected
+        API->>Cart: Xóa cart item thuộc Buyer
+        Cart->>DB: DELETE cart_items
+        DB-->>Cart: Hoàn tất
+        Cart-->>API: Thành công
+        API-->>FE: 200 success envelope
+    end`
+      },
+      {
+        id: "04",
+        title: "UC04 — Đặt hàng",
+        file: "04-dat-hang.md",
+        code: `sequenceDiagram
+    autonumber
+    actor Buyer as Người mua
+    participant FE as Frontend Next.js
+    participant API as Backend API
+    participant Checkout as PgCheckoutService
+    participant Ship as Shipping Fee Provider
+    participant DB as PostgreSQL
+
+    Buyer->>FE: Xác nhận địa chỉ, phương thức thanh toán và voucher
+    FE->>API: POST /api/v1/checkout + Idempotency-Key
+    Note over FE,API: Body gồm address_id, payment_method, vouchers và expected_shipping_fees, items lấy từ cart đã chọn
+    API->>Checkout: parse command và createOrder(context, command)
+    Checkout->>DB: Tìm idempotency record còn hạn
+    alt Key đã dùng với cùng payload
+        DB-->>Checkout: Fingerprint trùng và có result
+        Checkout-->>API: Trả lại result đã lưu (idempotent replay)
+        API-->>FE: 201 success envelope (result trước đó)
+    else Key đã dùng với payload khác
+        DB-->>Checkout: Fingerprint khác
+        Checkout-->>API: 409 IDEMPOTENCY_KEY_REUSED
+        API-->>FE: Lỗi xung đột idempotency
+    else Chưa có kết quả phát lại
+        Checkout->>DB: Đọc địa chỉ và các món đã chọn để báo phí
+        DB-->>Checkout: Shop, khối lượng, địa chỉ nhận
+        Checkout->>Ship: Tính phí giao hàng theo từng shop
+        Ship-->>Checkout: Báo giá
+        alt Phí gửi lên đã thay đổi
+            Checkout-->>API: 409 SHIPPING_QUOTE_CHANGED + báo giá mới
+            API-->>FE: Yêu cầu xem lại phí giao hàng
+        else Báo giá còn hiệu lực
+            Checkout->>DB: BEGIN (READ COMMITTED)
+            Checkout->>DB: Claim Idempotency-Key trong transaction
+            Checkout->>DB: Khóa cart_items và product_variants bằng FOR UPDATE
+            DB-->>Checkout: Các món đã chọn và tồn kho
+            alt Sản phẩm ngừng bán hoặc không đủ tồn
+                Checkout->>DB: ROLLBACK
+                Checkout-->>API: 409 INVENTORY_INSUFFICIENT
+                API-->>FE: Báo sản phẩm không đủ tồn kho
+            else Giỏ và tồn kho hợp lệ
+                opt Có voucher
+                    Checkout->>DB: Đọc và đánh giá voucher
+                    Checkout->>DB: Giảm quantity có điều kiện và ghi voucher usage
+                end
+                loop Mỗi shop trong giỏ
+                    Checkout->>DB: INSERT order trạng thái PENDING_CONFIRMATION
+                    Checkout->>DB: UPDATE tồn kho với điều kiện stock_quantity >= quantity
+                    Checkout->>DB: INSERT order_items, history, payment PENDING và notifications
+                    Checkout->>DB: DELETE cart_items đã checkout
+                end
+                Checkout->>DB: Lưu kết quả idempotency
+                Checkout->>DB: COMMIT
+                Checkout-->>API: Mảng orders (một đơn cho mỗi shop)
+                API-->>FE: 201 success envelope
+                FE-->>Buyer: Hiển thị đơn hàng đã tạo
+            end
+        end
+    end`
+      },
+      {
+        id: "05",
+        title: "UC05 — Thanh toán online qua PayOS",
+        file: "05-thanh-toan-payos.md",
+        code: `sequenceDiagram
+    autonumber
+    actor Buyer as Người mua
+    participant FE as Frontend Next.js
+    participant API as Backend API
+    participant Pay as PayOS Service
+    participant DB as PostgreSQL
+    participant Escrow as Escrow Service
+    participant DB2 as PostgreSQL (connection riêng của Wallet)
+
+    Buyer->>FE: Chọn thanh toán online cho đơn đã tạo
+    FE->>API: POST /api/v1/payments/payos/create-link (order_id)
+    API->>DB: Đọc đơn và kiểm tra quyền sở hữu
+    DB-->>API: Order, buyer, tổng tiền và trạng thái
+    API->>Pay: Tạo payment link, return URL và cancel URL
+    Pay-->>API: checkoutUrl, QR và thông tin nhận tiền
+    API->>DB: Ghi payment ONLINE trạng thái PENDING
+    API-->>FE: 200 success envelope + checkout_url/QR
+    FE-->>Buyer: Mở trang thanh toán PayOS
+    Buyer->>Pay: Hoàn tất thanh toán
+
+    Pay->>API: POST /api/v1/payments/payos/webhook
+    API->>Pay: Xác minh chữ ký webhook
+    alt Chữ ký không hợp lệ
+        API-->>Pay: 400 Invalid webhook signature
+    else Webhook hợp lệ và có orderCode
+        API->>DB: Tìm payment theo transaction_code
+        DB-->>API: Payment và order liên quan
+        API->>DB: BEGIN trên connection webhook
+        API->>DB: Cập nhật payment SUCCESS
+        API->>DB: Nếu order đang PENDING_CONFIRMATION, chuyển sang CONFIRMED và ghi history
+        API->>Escrow: Tạo escrow qua Wallet repository
+        Escrow->>DB2: INSERT escrow_records qua pool connection riêng
+        DB2-->>Escrow: Escrow được ghi độc lập (autocommit)
+        Escrow-->>API: Escrow đã tạo
+        API->>DB: COMMIT transaction webhook
+        API-->>Pay: 200 success
+    end`
+      },
+      {
+        id: "06",
+        title: "UC06 — Seller tiếp nhận và xử lý đơn",
+        file: "06-seller-xu-ly-don.md",
+        code: `sequenceDiagram
+    autonumber
+    actor Seller as Seller
+    participant FE as Seller Portal (Next.js)
+    participant API as Backend API
+    participant Order as Checkout/Order Service
+    participant DB as PostgreSQL
+
+    Seller->>FE: Mở danh sách đơn cần xử lý
+    FE->>API: GET /api/v1/orders?status=PENDING_CONFIRMATION
+    API->>Order: Truy vấn đơn thuộc shop của Seller
+    Order->>DB: Đọc orders và order_items
+    DB-->>Order: Danh sách đơn
+    Order-->>API: Các đơn Seller được phép xem
+    API-->>FE: 200 success envelope
+    FE-->>Seller: Hiển thị đơn chờ xác nhận
+
+    Seller->>FE: Xác nhận đơn
+    FE->>API: POST /api/v1/orders/{order_id}/confirm
+    API->>Order: Xác thực Seller sở hữu shop và trạng thái đơn
+    Order->>DB: BEGIN, khóa order, kiểm tra PENDING_CONFIRMATION
+    alt Đơn không hợp lệ hoặc không thuộc shop Seller
+        Order->>DB: ROLLBACK
+        Order-->>API: Lỗi quyền hoặc ORDER_INVALID_TRANSITION
+        API-->>FE: Trả lỗi
+    else Hợp lệ
+        Order->>DB: UPDATE status = CONFIRMED và ghi order_status_history
+        Order->>DB: COMMIT
+        Order-->>API: Đơn đã CONFIRMED
+        API-->>FE: 200 success envelope
+        FE-->>Seller: Cập nhật trạng thái đơn
+    end
+
+    opt Seller bắt đầu chuẩn bị hàng
+        Seller->>FE: Chuyển trạng thái sang PREPARING
+        FE->>API: POST /api/v1/orders/{order_id}/transition (to=PREPARING)
+        API->>Order: Kiểm tra vai trò, quyền sở hữu và chuyển trạng thái
+        Order->>DB: Cập nhật order và order_status_history trong transaction
+        DB-->>Order: Đã lưu
+        Order-->>API: Trạng thái mới
+        API-->>FE: 200 success envelope
+    end`
+      },
+      {
+        id: "07",
+        title: "UC07 — Seller bàn giao đơn cho giao hàng",
+        file: "07-ban-giao-cho-giao-hang.md",
+        code: `sequenceDiagram
+    autonumber
+    actor Seller as Seller
+    participant FE as Seller Portal (Next.js)
+    participant API as Backend API
+    participant Order as PgCheckoutService
+    participant DB as PostgreSQL
+
+    Seller->>FE: Chọn đơn PREPARING và chuyển sang SHIPPING
+    FE->>API: POST /api/v1/orders/{order_id}/transition (to=SHIPPING)
+    API->>Order: Xác thực Seller và shop sở hữu đơn
+    Order->>DB: BEGIN, khóa order và xác thực chuyển trạng thái
+    alt Đơn không ở trạng thái cho phép hoặc Seller không sở hữu shop
+        Order->>DB: ROLLBACK
+        Order-->>API: 403/409 lỗi chuyển trạng thái
+        API-->>FE: Hiển thị lỗi
+    else Chuyển trạng thái hợp lệ
+        Order->>DB: Tạo hoặc cập nhật shipment = HANDED_OVER
+        Order->>DB: Cập nhật order = SHIPPING và ghi status history
+        Order->>DB: COMMIT
+        Order-->>API: Order SHIPPING
+        API-->>FE: 200 success envelope
+        FE-->>Seller: Hiển thị đã bàn giao
+    end
+    Note over Order,DB: Backend hiện tạo shipment mô phỏng (carrier_name = Simulated delivery), sơ đồ không giả định tích hợp hãng vận chuyển thật.`
+      },
+      {
+        id: "08",
+        title: "UC08 — Buyer xác nhận nhận hàng và tích điểm",
+        file: "08-xac-nhan-nhan-hang-va-tich-diem.md",
+        code: `sequenceDiagram
+    autonumber
+    actor Buyer as Người mua
+    participant FE as Frontend Next.js
+    participant API as Backend API
+    participant Checkout as PgCheckoutService
+    participant Loyalty as LoyaltyService
+    participant DB as PostgreSQL
+
+    Buyer->>FE: Xác nhận đã nhận đơn
+    FE->>API: POST /api/v1/orders/{order_id}/confirm-received
+    API->>Checkout: Xác minh Buyer và xử lý xác nhận
+    Checkout->>DB: BEGIN, khóa order thuộc Buyer
+    Checkout->>DB: Kiểm tra order đang SHIPPING
+    Checkout->>DB: Khóa shipment theo order
+    alt Không tìm thấy order/shipment hoặc trạng thái không hợp lệ
+        Checkout->>DB: ROLLBACK
+        Checkout-->>API: 404/409 lỗi xác nhận
+        API-->>FE: Hiển thị lỗi
+    else Order SHIPPING và shipment HANDED_OVER/SHIPPING
+        Checkout->>DB: Cập nhật shipment = DELIVERED
+        Checkout->>DB: Cập nhật order = COMPLETED và ghi history
+        Checkout->>Loyalty: recordOrderCompleted trong transaction
+        Loyalty->>DB: Khóa Buyer, chống ghi ledger trùng và tính DinoPoint/hạng
+        DB-->>Loyalty: Ghi ledger và cập nhật buyer_tier/total_spent/points
+        Loyalty-->>Checkout: Hoàn tất
+        Checkout->>DB: Ghi notifications
+        Checkout->>DB: COMMIT
+        Checkout-->>API: Order COMPLETED
+        API-->>FE: 200 success envelope
+        FE-->>Buyer: Hiển thị đơn đã hoàn tất
+        opt Frontend cần cập nhật thẻ thành viên
+            FE->>API: GET /api/v1/buyer/loyalty
+            API->>DB: Đọc hạng và điểm của Buyer hiện tại
+            DB-->>API: Loyalty summary
+            API-->>FE: 200 success envelope
+            FE-->>Buyer: Cập nhật hạng và DinoPoint
+        end
+    end`
+      },
+      {
+        id: "09",
+        title: "UC09 — Seller quản lý sản phẩm và tồn kho",
+        file: "09-seller-quan-ly-san-pham-ton-kho.md",
+        code: `sequenceDiagram
+    autonumber
+    actor Seller as Seller
+    participant FE as Seller Portal (Next.js)
+    participant API as Backend API
+    participant Catalog as Catalog HTTP Service
+    participant DB as PostgreSQL
+
+    Seller->>FE: Tạo sản phẩm và biến thể
+    FE->>API: POST /api/v1/products
+    API->>Catalog: Kiểm tra dữ liệu và shop của Seller
+    Catalog->>DB: Lưu product và product_variants
+    DB-->>Catalog: Sản phẩm đã tạo
+    Catalog-->>API: Product
+    API-->>FE: 201 success envelope
+    FE-->>Seller: Hiển thị sản phẩm
+
+    Seller->>FE: Cập nhật tồn kho biến thể
+    FE->>API: PATCH /api/v1/product-variants/{variant_id}/stock
+    API->>Catalog: Kiểm tra Seller sở hữu sản phẩm và tồn kho hợp lệ
+    alt Dữ liệu không hợp lệ hoặc không có quyền
+        Catalog-->>API: Lỗi validation/quyền truy cập
+        API-->>FE: 4xx error
+    else Dữ liệu hợp lệ
+        Catalog->>DB: UPDATE product_variants.stock_quantity
+        DB-->>Catalog: Tồn kho mới
+        Catalog-->>API: Variant và stock_quantity
+        API-->>FE: 200 success envelope
+        FE-->>Seller: Hiển thị tồn kho mới
+    end`
+      },
+      {
+        id: "10",
+        title: "UC10 — Mua sản phẩm Flash Sale",
+        file: "10-mua-hang-flash-sale.md",
+        code: `sequenceDiagram
+    autonumber
+    actor Buyer as Người mua
+    participant FE as Frontend Next.js
+    participant API as Backend API
+    participant FS as FlashSaleService
+    participant Redis as Redis (Lua atomic)
+    participant DB as PostgreSQL
+
+    Buyer->>FE: Chọn sản phẩm và mua Flash Sale
+    FE->>API: POST /api/v1/flash-sales/items/{itemId}/purchase + Idempotency-Key
+    API->>API: Xác thực JWT context và lấy user_id
+    API->>DB: Tìm Flash Sale item và slot
+    DB-->>API: item_id, slot_id
+    API->>FS: purchase(user, slot, item, voucher, địa chỉ)
+    FS->>Redis: Đặt idempotency marker / kiểm tra request lặp
+    alt Request đã hoàn tất trước đó
+        Redis-->>FS: Kết quả đã lưu
+        FS-->>API: Idempotent replay
+        API-->>FE: 200 kết quả đơn cũ
+    else Request mới
+        FS->>Redis: Lua trừ quota tồn kho, giới hạn mỗi Buyer và voucher
+        alt Hết hàng, slot không hoạt động hoặc vượt giới hạn
+            Redis-->>FS: Mã thất bại
+            FS-->>API: success=false và mã lỗi
+            API-->>FE: Báo không thể mua
+        else Đặt chỗ Redis thành công
+            FS->>DB: BEGIN, kiểm tra idempotency và đọc item/voucher
+            FS->>DB: Tạo order PENDING_CONFIRMATION, order_item và payment PENDING
+            FS->>DB: Ghi voucher usage và idempotency record (nếu có)
+            FS->>Redis: Pre-commit handshake giữ reservation
+            alt Handshake thất bại hoặc ghi PostgreSQL lỗi
+                FS->>DB: ROLLBACK
+                FS->>Redis: Bồi hoàn reservation/quota đã giữ
+                FS-->>API: Lỗi đặt hàng
+                API-->>FE: Hiển thị lỗi và cho phép thử lại
+            else Handshake thành công
+                FS->>DB: COMMIT (PostgreSQL là nguồn dữ liệu đơn hàng)
+                FS->>Redis: Hoàn tất reservation và cache idempotency
+                FS-->>API: order_id và kết quả mua hàng
+                API-->>FE: 200 kết quả thành công
+                FE-->>Buyer: Hiển thị đơn Flash Sale
+            end
+        end
+    end`
+      }
+    ];
+
+    let currentScale = 1;
+
+    function renderList() {
+      const listEl = document.getElementById('diagram-list');
+      listEl.innerHTML = '';
+      diagrams.forEach((item, index) => {
+        const li = document.createElement('li');
+        li.innerHTML = `<span class="badge">${item.id}</span> <span>${item.title.split('—')[1]?.trim() || item.title}</span>`;
+        li.onclick = () => selectDiagram(index);
+        listEl.appendChild(li);
+      });
+    }
+
+    async function selectDiagram(index) {
+      document.querySelectorAll('#diagram-list li').forEach((el, idx) => {
+        el.classList.toggle('active', idx === index);
+      });
+
+      const item = diagrams[index];
+      document.getElementById('current-title').textContent = item.title;
+      const target = document.getElementById('mermaid-target');
+      
+      target.removeAttribute('data-processed');
+      target.innerHTML = '';
+      
+      try {
+        const { svg } = await mermaid.render('mermaid-svg-' + item.id + '-' + Date.now(), item.code);
+        target.innerHTML = svg;
+      } catch (err) {
+        target.innerHTML = `<div style="color: #f87171; padding: 20px;">Lỗi render: ${err.message}</div>`;
+      }
+      resetZoom();
+    }
+
+    function zoomIn() {
+      currentScale += 0.15;
+      applyZoom();
+    }
+
+    function zoomOut() {
+      if (currentScale > 0.4) {
+        currentScale -= 0.15;
+        applyZoom();
+      }
+    }
+
+    function resetZoom() {
+      currentScale = 1;
+      applyZoom();
+    }
+
+    function applyZoom() {
+      const target = document.getElementById('mermaid-target');
+      target.style.transform = `scale(${currentScale})`;
+      target.style.transformOrigin = 'top center';
+    }
+
+    // Init
+    renderList();
+    selectDiagram(0);
+  </script>
+</body>
+</html>

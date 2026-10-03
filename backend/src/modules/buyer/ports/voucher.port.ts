@@ -1,4 +1,4 @@
-import { UUID, DecimalString, VoucherUsage } from '../domain/types.ts';
+import { UUID, DecimalString, VoucherUsage } from '../domain/types';
 
 export interface EvaluateVoucherContext {
   code: string;

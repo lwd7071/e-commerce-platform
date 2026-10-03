@@ -74,13 +74,15 @@
 | `204` | Thành công không có body | Đánh dấu Notification đã đọc |
 | `400` | JSON/query/path sai cú pháp | Cursor hỏng, JSON không parse được |
 | `401` | Thiếu, hết hạn hoặc token không hợp lệ | Chưa đăng nhập |
-| `403` | Đã xác thực nhưng thiếu role/ownership | Seller sửa Product của Shop khác |
-| `404` | Resource không tồn tại hoặc cần che giấu sự tồn tại | Order không thuộc Buyer hiện tại |
+| `403` | Đã xác thực nhưng thiếu role/ownership, khi endpoint chọn trả lời rõ quyền bị từ chối | Buyer gọi Seller command; Seller bị từ chối thao tác cross-Shop |
+| `404` | Resource không tồn tại hoặc endpoint che giấu sự tồn tại/ownership | Buyer đọc Order không thuộc mình; endpoint private dùng non-disclosure policy |
 | `409` | Xung đột trạng thái hoặc cạnh tranh dữ liệu | Hết tồn khi checkout, transition sai, idempotency conflict |
 | `422` | Request đúng cú pháp nhưng vi phạm validation nghiệp vụ | Voucher hết hạn, rating ngoài 1-5 |
 | `429` | Vượt rate limit | Spam login/checkout |
 | `500` | Lỗi không dự kiến | Lỗi nội bộ đã che chi tiết |
 | `503` | Dependency tạm thời không sẵn sàng | Supabase/Storage lỗi tạm thời |
+
+Với resource private, contract của endpoint phải chọn nhất quán giữa `403` và `404`; dùng `404` khi cần che giấu sự tồn tại. Không dùng một quy tắc status code khác nhau tùy đường code cho cùng endpoint.
 
 ## 5. Pagination, filter và sort
 

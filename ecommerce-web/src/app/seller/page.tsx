@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState } from "react";
 import Link from "next/link";
@@ -157,7 +157,7 @@ export default function SellerPage() {
   };
 
   const cancelOrder = (orderId: string) => {
-    const reason = prompt("Nhập lý do hủy/từ chối đơn (Bắt buộc theo QD12):");
+    const reason = prompt("Nhập lý do hủy/từ chối đơn:");
     if (!reason) return;
     setOrders((prev) =>
       prev.map((ord) => (ord.id === orderId ? { ...ord, status: "CANCELLED" } : ord))
@@ -165,80 +165,80 @@ export default function SellerPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] text-stone-800 pb-20">
+    <div className="min-h-screen bg-[#FBF8F9] text-[#221C1F] pb-20">
       {/* HEADER KÊNH NGƯỜI BÁN */}
-      <header className="bg-white border-b border-stone-200/80 sticky top-0 z-30">
+      <header className="bg-[#FFFFFF]/90 backdrop-blur-md border-b border-[#F2E8EC] sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-8 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link href="/" className="w-9 h-9 rounded-full bg-stone-100 hover:bg-stone-200 flex items-center justify-center text-stone-600 transition-colors" title="Về trang mua sắm">
+            <Link href="/" className="w-9 h-9 rounded-xl bg-[#FAF6F8] hover:bg-[#FFF0F6] flex items-center justify-center text-[#7E7077] hover:text-[#FF7AAC] transition-colors border border-[#F2E8EC]" title="Về trang mua sắm">
               <ArrowLeft className="w-4 h-4" />
             </Link>
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-orange-600 flex items-center justify-center text-white font-bold text-sm">
-                M
-              </div>
-              <div>
+              <span className="text-xl font-bold text-[#221C1F] tracking-tight">
+                Mori<span className="text-[#FF7AAC]">.</span>
+              </span>
+              <div className="pl-3 border-l border-[#F2E8EC]">
                 <div className="flex items-center gap-1.5">
-                  <h1 className="text-sm font-bold text-stone-900 leading-none">Mori Studio</h1>
-                  <span className="bg-orange-100 text-orange-700 text-[10px] font-semibold px-2 py-0.5 rounded-full">Shopee Mall</span>
+                  <h1 className="text-xs font-bold text-[#221C1F] leading-none">Mori Studio Official</h1>
+                  <span className="bg-[#FFF0F6] text-[#FF7AAC] text-[10px] font-semibold px-2 py-0.5 rounded-full border border-[#FFD1E3]">Mori Mall</span>
                 </div>
-                <span className="text-[11px] text-stone-400">Kênh Người Bán • Mã shop: SHOP-001</span>
+                <span className="text-[11px] text-[#7E7077]">Kênh Người Bán • Mã shop: SHOP-001</span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <Link href="/admin" className="text-xs text-stone-500 hover:text-stone-800 px-3 py-1.5 rounded-full border border-stone-200 flex items-center gap-1 bg-stone-50 hover:bg-stone-100 transition-colors">
-              <ShieldAlert className="w-3.5 h-3.5 text-rose-500" />
+          <div className="flex items-center gap-2.5">
+            <Link href="/admin" className="text-xs text-[#7E7077] hover:text-[#221C1F] px-3.5 py-2 rounded-xl border border-[#F2E8EC] flex items-center gap-1.5 bg-white hover:bg-[#FFF0F6] transition-colors font-medium">
+              <ShieldAlert className="w-3.5 h-3.5 text-[#FF7AAC]" />
               Trang Admin
             </Link>
-            <Link href="/" className="text-xs font-semibold text-orange-600 hover:text-orange-700 px-3 py-1.5 rounded-full bg-orange-50 hover:bg-orange-100 transition-colors flex items-center gap-1">
+            <Link href="/" className="btn-matte-primary text-xs !py-2 !px-3.5">
               Xem gian hàng ↗
             </Link>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-8 mt-8 space-y-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-8 mt-8 space-y-6">
         {/* METRIC STATS CARDS */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white border border-stone-200/80 rounded-2xl p-5 shadow-2xs">
-            <div className="flex items-center justify-between text-xs text-stone-500">
-              <span>Doanh thu hợp lệ (QD19)</span>
-              <BarChart3 className="w-4 h-4 text-orange-600" />
+          <div className="matte-card p-5">
+            <div className="flex items-center justify-between text-xs text-[#7E7077]">
+              <span>Doanh thu tháng</span>
+              <BarChart3 className="w-4 h-4 text-[#FF7AAC]" />
             </div>
-            <div className="text-2xl font-black text-stone-900 mt-2">12.850.000₫</div>
-            <p className="text-[11px] text-emerald-600 font-medium mt-1">↑ +18% so với tháng trước</p>
+            <div className="text-xl font-bold text-[#221C1F] mt-2">12.850.000₫</div>
+            <p className="text-[11px] text-[#059669] font-medium mt-1">↑ +18% so với tháng trước</p>
           </div>
 
-          <div className="bg-white border border-stone-200/80 rounded-2xl p-5 shadow-2xs">
-            <div className="flex items-center justify-between text-xs text-stone-500">
-              <span>Chờ xác nhận</span>
-              <Clock className="w-4 h-4 text-amber-500" />
+          <div className="matte-card p-5">
+            <div className="flex items-center justify-between text-xs text-[#7E7077]">
+              <span>Đơn chờ xử lý</span>
+              <Clock className="w-4 h-4 text-[#FF7AAC]" />
             </div>
-            <div className="text-2xl font-black text-amber-600 mt-2">
+            <div className="text-xl font-bold text-[#FF7AAC] mt-2">
               {orders.filter(o => o.status === "PENDING_CONFIRMATION").length} đơn
             </div>
-            <p className="text-[11px] text-stone-400 mt-1">Cần chuẩn bị đóng gói sớm</p>
+            <p className="text-[11px] text-[#7E7077] mt-1">Cần chuẩn bị đóng gói sớm</p>
           </div>
 
-          <div className="bg-white border border-stone-200/80 rounded-2xl p-5 shadow-2xs">
-            <div className="flex items-center justify-between text-xs text-stone-500">
+          <div className="matte-card p-5">
+            <div className="flex items-center justify-between text-xs text-[#7E7077]">
               <span>Đang vận chuyển</span>
               <Truck className="w-4 h-4 text-blue-500" />
             </div>
-            <div className="text-2xl font-black text-stone-900 mt-2">
+            <div className="text-xl font-bold text-[#221C1F] mt-2">
               {orders.filter(o => o.status === "SHIPPING").length} đơn
             </div>
-            <p className="text-[11px] text-stone-400 mt-1">Bàn giao đơn vị giao hàng</p>
+            <p className="text-[11px] text-[#7E7077] mt-1">Bàn giao đơn vị giao hàng</p>
           </div>
 
-          <div className="bg-white border border-stone-200/80 rounded-2xl p-5 shadow-2xs">
-            <div className="flex items-center justify-between text-xs text-stone-500">
+          <div className="matte-card p-5">
+            <div className="flex items-center justify-between text-xs text-[#7E7077]">
               <span>Cảnh báo tồn kho</span>
               <AlertTriangle className="w-4 h-4 text-rose-500" />
             </div>
-            <div className="text-2xl font-black text-rose-600 mt-2">
+            <div className="text-xl font-bold text-rose-600 mt-2">
               {products.filter(p => p.stock <= 5).length} SKU
             </div>
             <p className="text-[11px] text-rose-500 mt-1">Tồn kho nhỏ hơn ngưỡng an toàn</p>
@@ -246,52 +246,52 @@ export default function SellerPage() {
         </div>
 
         {/* TABS SELECTOR */}
-        <div className="flex items-center gap-3 border-b border-stone-200 pb-2">
+        <div className="flex items-center gap-3 border-b border-[#F2E8EC] pb-2">
           <button
             onClick={() => setActiveTab("orders")}
-            className={`pb-2 px-3 text-sm font-bold transition-all border-b-2 cursor-pointer ${
+            className={`pb-2 px-3 text-xs font-bold transition-all border-b-2 cursor-pointer ${
               activeTab === "orders"
-                ? "border-orange-600 text-orange-600"
-                : "border-transparent text-stone-500 hover:text-stone-800"
+                ? "border-[#FF7AAC] text-[#FF7AAC]"
+                : "border-transparent text-[#7E7077] hover:text-[#221C1F]"
             }`}
           >
             Quản lý đơn hàng ({orders.length})
           </button>
           <button
             onClick={() => setActiveTab("products")}
-            className={`pb-2 px-3 text-sm font-bold transition-all border-b-2 cursor-pointer ${
+            className={`pb-2 px-3 text-xs font-bold transition-all border-b-2 cursor-pointer ${
               activeTab === "products"
-                ? "border-orange-600 text-orange-600"
-                : "border-transparent text-stone-500 hover:text-stone-800"
+                ? "border-[#FF7AAC] text-[#FF7AAC]"
+                : "border-transparent text-[#7E7077] hover:text-[#221C1F]"
             }`}
           >
             Sản phẩm & Tồn kho ({products.length})
           </button>
           <button
             onClick={() => setActiveTab("vouchers")}
-            className={`pb-2 px-3 text-sm font-bold transition-all border-b-2 cursor-pointer ${
+            className={`pb-2 px-3 text-xs font-bold transition-all border-b-2 cursor-pointer ${
               activeTab === "vouchers"
-                ? "border-orange-600 text-orange-600"
-                : "border-transparent text-stone-500 hover:text-stone-800"
+                ? "border-[#FF7AAC] text-[#FF7AAC]"
+                : "border-transparent text-[#7E7077] hover:text-[#221C1F]"
             }`}
           >
             Voucher của Shop ({shopVouchers.length})
           </button>
         </div>
 
-        {/* TAB 1: ORDERS MANAGEMENT (QLDH-B) */}
+        {/* TAB 1: ORDERS MANAGEMENT (ĐỒNG BỘ SIZE & STYLE CHO TOÀN BỘ BUTTON ACTION) */}
         {activeTab === "orders" && (
-          <div className="bg-white border border-stone-200/80 rounded-3xl p-6 shadow-2xs space-y-4">
+          <div className="matte-card p-6 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2">
               <div>
-                <h3 className="text-base font-bold text-stone-900">Danh sách đơn bán của Shop</h3>
-                <p className="text-xs text-stone-500">Thực hiện xác nhận, đóng gói và chuyển trạng thái theo quy trình</p>
+                <h3 className="text-sm font-bold text-[#221C1F]">Danh sách đơn bán của Shop</h3>
+                <p className="text-xs text-[#7E7077]">Thực hiện xác nhận, đóng gói và chuyển trạng thái theo quy trình</p>
               </div>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-stone-700">
-                <thead className="bg-stone-50 text-stone-500 uppercase tracking-wider text-[10px] border-y border-stone-200">
+              <table className="w-full text-left text-xs text-[#221C1F]">
+                <thead className="bg-[#FAF6F8] text-[#7E7077] uppercase tracking-wider text-[10px] border-y border-[#F2E8EC]">
                   <tr>
                     <th className="py-3 px-4">Mã đơn & Thời gian</th>
                     <th className="py-3 px-4">Người mua & Địa chỉ</th>
@@ -301,57 +301,57 @@ export default function SellerPage() {
                     <th className="py-3 px-4 text-right">Thao tác xử lý</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-stone-100">
+                <tbody className="divide-y divide-[#F2E8EC]">
                   {orders.map((ord) => (
-                    <tr key={ord.id} className="hover:bg-stone-50/70 transition-colors">
-                      <td className="py-3.5 px-4 font-mono font-bold text-stone-900">
+                    <tr key={ord.id} className="hover:bg-[#FAF6F8] transition-colors">
+                      <td className="py-3.5 px-4 font-mono font-bold text-[#221C1F]">
                         {ord.id}
-                        <div className="text-[10px] font-normal text-stone-400 font-sans">{ord.createdAt}</div>
+                        <div className="text-[10px] font-normal text-[#7E7077] font-sans">{ord.createdAt}</div>
                       </td>
                       <td className="py-3.5 px-4">
-                        <div className="font-semibold text-stone-800">{ord.buyerName}</div>
-                        <div className="text-[11px] text-stone-400 truncate max-w-[180px]">{ord.address}</div>
+                        <div className="font-semibold text-[#221C1F]">{ord.buyerName}</div>
+                        <div className="text-[11px] text-[#7E7077] truncate max-w-[180px]">{ord.address}</div>
                       </td>
                       <td className="py-3.5 px-4">
-                        <div className="font-medium text-stone-900">{ord.productName}</div>
-                        <div className="text-[10px] text-stone-500">Phân loại: {ord.variant} • SL: {ord.qty}</div>
+                        <div className="font-medium text-[#221C1F]">{ord.productName}</div>
+                        <div className="text-[10px] text-[#7E7077]">Phân loại: {ord.variant} • SL: {ord.qty}</div>
                       </td>
-                      <td className="py-3.5 px-4 font-bold text-stone-900">
+                      <td className="py-3.5 px-4 font-bold text-[#221C1F]">
                         {fmtPrice(ord.total)}
                       </td>
                       <td className="py-3.5 px-4">
                         {ord.status === "PENDING_CONFIRMATION" && (
-                          <span className="bg-amber-100 text-amber-800 text-[11px] font-semibold px-2.5 py-1 rounded-full">Chờ xác nhận</span>
+                          <span className="bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-semibold px-2.5 py-0.5 rounded-full">Chờ xác nhận</span>
                         )}
                         {ord.status === "CONFIRMED" && (
-                          <span className="bg-blue-100 text-blue-800 text-[11px] font-semibold px-2.5 py-1 rounded-full">Đã xác nhận</span>
+                          <span className="bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-semibold px-2.5 py-0.5 rounded-full">Đã xác nhận</span>
                         )}
                         {ord.status === "PREPARING" && (
-                          <span className="bg-purple-100 text-purple-800 text-[11px] font-semibold px-2.5 py-1 rounded-full">Đang chuẩn bị</span>
+                          <span className="bg-purple-50 text-purple-700 border border-purple-200 text-[11px] font-semibold px-2.5 py-0.5 rounded-full">Đang chuẩn bị</span>
                         )}
                         {ord.status === "SHIPPING" && (
-                          <span className="bg-indigo-100 text-indigo-800 text-[11px] font-semibold px-2.5 py-1 rounded-full">Đang giao hàng</span>
+                          <span className="bg-[#FFF0F6] text-[#FF7AAC] border border-[#FFD1E3] text-[11px] font-semibold px-2.5 py-0.5 rounded-full">Đang giao hàng</span>
                         )}
                         {ord.status === "COMPLETED" && (
-                          <span className="bg-emerald-100 text-emerald-800 text-[11px] font-semibold px-2.5 py-1 rounded-full">Hoàn thành</span>
+                          <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-semibold px-2.5 py-0.5 rounded-full">Hoàn thành</span>
                         )}
                         {ord.status === "CANCELLED" && (
-                          <span className="bg-rose-100 text-rose-800 text-[11px] font-semibold px-2.5 py-1 rounded-full">Đã hủy</span>
+                          <span className="bg-rose-50 text-rose-700 border border-rose-200 text-[11px] font-semibold px-2.5 py-0.5 rounded-full">Đã hủy</span>
                         )}
                       </td>
                       <td className="py-3.5 px-4 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+                        <div className="flex items-center justify-end gap-2">
                           {ord.status === "PENDING_CONFIRMATION" && (
                             <>
                               <button
                                 onClick={() => advanceOrderStatus(ord.id)}
-                                className="px-3 py-1.5 bg-stone-900 text-white rounded-lg text-xs font-medium hover:bg-stone-800 transition-colors cursor-pointer"
+                                className="btn-action-primary"
                               >
                                 Xác nhận đơn
                               </button>
                               <button
                                 onClick={() => cancelOrder(ord.id)}
-                                className="px-2 py-1.5 text-rose-600 hover:bg-rose-50 rounded-lg text-xs font-medium cursor-pointer"
+                                className="btn-action-danger"
                               >
                                 Từ chối
                               </button>
@@ -360,7 +360,7 @@ export default function SellerPage() {
                           {ord.status === "CONFIRMED" && (
                             <button
                               onClick={() => advanceOrderStatus(ord.id)}
-                              className="px-3 py-1.5 bg-stone-900 text-white rounded-lg text-xs font-medium hover:bg-stone-800 transition-colors cursor-pointer"
+                              className="btn-action-primary"
                             >
                               Chuẩn bị hàng
                             </button>
@@ -368,7 +368,7 @@ export default function SellerPage() {
                           {ord.status === "PREPARING" && (
                             <button
                               onClick={() => advanceOrderStatus(ord.id)}
-                              className="px-3 py-1.5 bg-orange-600 text-white rounded-lg text-xs font-medium hover:bg-orange-700 transition-colors cursor-pointer"
+                              className="btn-action-secondary"
                             >
                               Bàn giao vận chuyển
                             </button>
@@ -376,13 +376,13 @@ export default function SellerPage() {
                           {ord.status === "SHIPPING" && (
                             <button
                               onClick={() => advanceOrderStatus(ord.id)}
-                              className="px-3 py-1.5 bg-emerald-700 text-white rounded-lg text-xs font-medium hover:bg-emerald-800 transition-colors cursor-pointer"
+                              className="btn-action-success"
                             >
                               Giao thành công
                             </button>
                           )}
                           {ord.status === "COMPLETED" && (
-                            <span className="text-[11px] text-stone-400">Đã ghi nhận DT</span>
+                            <span className="text-[11px] font-medium text-[#7E7077]">Đã ghi nhận DT</span>
                           )}
                         </div>
                       </td>
@@ -394,25 +394,25 @@ export default function SellerPage() {
           </div>
         )}
 
-        {/* TAB 2: PRODUCTS & STOCK MANAGEMENT (QLSP) */}
+        {/* TAB 2: PRODUCTS & STOCK MANAGEMENT */}
         {activeTab === "products" && (
-          <div className="bg-white border border-stone-200/80 rounded-3xl p-6 shadow-2xs space-y-4">
+          <div className="matte-card p-6 space-y-4">
             <div className="flex items-center justify-between pb-2">
               <div>
-                <h3 className="text-base font-bold text-stone-900">Quản lý biến thể & Tồn kho (ProductVariant)</h3>
-                <p className="text-xs text-stone-500">Đảm bảo tồn kho không âm theo QD06 và cập nhật giá bán hiện hành</p>
+                <h3 className="text-sm font-bold text-[#221C1F]">Quản lý biến thể & Tồn kho</h3>
+                <p className="text-xs text-[#7E7077]">Đảm bảo tồn kho cập nhật và không âm</p>
               </div>
-              <button
-                onClick={() => alert("Chức năng thêm sản phẩm mới cho gian hàng Mori Studio")}
-                className="px-4 py-2 bg-stone-900 text-white rounded-full text-xs font-semibold hover:bg-stone-800 transition-colors flex items-center gap-1.5 cursor-pointer"
+              <Link
+                href="/seller/products/new"
+                className="btn-matte-primary text-xs !py-2 !px-3.5 flex items-center gap-1.5"
               >
-                <Plus className="w-3.5 h-3.5" /> Thêm sản phẩm
-              </button>
+                <Plus className="w-3.5 h-3.5" /> Thêm sản phẩm mới
+              </Link>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-stone-700">
-                <thead className="bg-stone-50 text-stone-500 uppercase tracking-wider text-[10px] border-y border-stone-200">
+              <table className="w-full text-left text-xs text-[#221C1F]">
+                <thead className="bg-[#FAF6F8] text-[#7E7077] uppercase tracking-wider text-[10px] border-y border-[#F2E8EC]">
                   <tr>
                     <th className="py-3 px-4">Sản phẩm</th>
                     <th className="py-3 px-4">Mã SKU</th>
@@ -423,27 +423,27 @@ export default function SellerPage() {
                     <th className="py-3 px-4 text-right">Điều chỉnh kho</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-stone-100">
+                <tbody className="divide-y divide-[#F2E8EC]">
                   {products.map((p) => (
-                    <tr key={p.id} className="hover:bg-stone-50/70 transition-colors">
+                    <tr key={p.id} className="hover:bg-[#FAF6F8] transition-colors">
                       <td className="py-3 px-4 flex items-center gap-3">
-                        <img src={p.image} className="w-10 h-10 rounded-lg object-cover bg-stone-100" />
-                        <span className="font-bold text-stone-900">{p.name}</span>
+                        <img src={p.image} className="w-10 h-10 rounded-xl object-cover bg-[#FAF6F8]" />
+                        <span className="font-semibold text-[#221C1F]">{p.name}</span>
                       </td>
-                      <td className="py-3 px-4 font-mono font-semibold text-stone-600">{p.sku}</td>
-                      <td className="py-3 px-4 font-bold text-stone-900">{fmtPrice(p.price)}</td>
+                      <td className="py-3 px-4 font-mono font-medium text-[#7E7077]">{p.sku}</td>
+                      <td className="py-3 px-4 font-bold text-[#221C1F]">{fmtPrice(p.price)}</td>
                       <td className="py-3 px-4">
                         {p.stock === 0 ? (
-                          <span className="bg-rose-100 text-rose-700 font-bold px-2 py-0.5 rounded text-[11px]">Hết hàng</span>
+                          <span className="bg-rose-50 text-rose-700 border border-rose-200 font-semibold px-2 py-0.5 rounded text-[11px]">Hết hàng</span>
                         ) : p.stock <= 5 ? (
-                          <span className="bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded text-[11px]">{p.stock} (Sắp hết)</span>
+                          <span className="bg-amber-50 text-amber-800 border border-amber-200 font-semibold px-2 py-0.5 rounded text-[11px]">{p.stock} (Sắp hết)</span>
                         ) : (
-                          <span className="font-semibold text-stone-800">{p.stock}</span>
+                          <span className="font-semibold text-[#221C1F]">{p.stock}</span>
                         )}
                       </td>
-                      <td className="py-3 px-4 text-stone-500">{p.sold}</td>
+                      <td className="py-3 px-4 text-[#7E7077]">{p.sold}</td>
                       <td className="py-3 px-4">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${p.status === "ACTIVE" ? "bg-emerald-100 text-emerald-800" : "bg-stone-200 text-stone-600"}`}>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${p.status === "ACTIVE" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-gray-100 text-gray-600"}`}>
                           {p.status}
                         </span>
                       </td>
@@ -455,7 +455,7 @@ export default function SellerPage() {
                               setProducts(prev => prev.map(x => x.id === p.id ? { ...x, stock: Math.max(0, parseInt(newStock)) } : x));
                             }
                           }}
-                          className="text-xs text-orange-600 font-semibold hover:underline cursor-pointer"
+                          className="btn-action-secondary"
                         >
                           Cập nhật tồn
                         </button>
@@ -468,17 +468,17 @@ export default function SellerPage() {
           </div>
         )}
 
-        {/* TAB 3: VOUCHERS (QLKM) */}
+        {/* TAB 3: VOUCHERS */}
         {activeTab === "vouchers" && (
-          <div className="bg-white border border-stone-200/80 rounded-3xl p-6 shadow-2xs space-y-4">
+          <div className="matte-card p-6 space-y-4">
             <div className="flex items-center justify-between pb-2">
               <div>
-                <h3 className="text-base font-bold text-stone-900">Voucher khuyến mãi riêng của Shop</h3>
-                <p className="text-xs text-stone-500">Chỉ áp dụng cho các sản phẩm thuộc Mori Studio (Scope = SHOP)</p>
+                <h3 className="text-sm font-bold text-[#221C1F]">Voucher khuyến mãi riêng của Shop</h3>
+                <p className="text-xs text-[#7E7077]">Chỉ áp dụng cho các sản phẩm thuộc Mori Studio</p>
               </div>
               <button
                 onClick={() => alert("Tạo voucher mới cho gian hàng")}
-                className="px-4 py-2 bg-stone-900 text-white rounded-full text-xs font-semibold hover:bg-stone-800 transition-colors flex items-center gap-1.5 cursor-pointer"
+                className="btn-matte-primary text-xs !py-2 !px-3.5 flex items-center gap-1.5 cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" /> Tạo Voucher Shop
               </button>
@@ -486,14 +486,14 @@ export default function SellerPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {shopVouchers.map((v) => (
-                <div key={v.code} className="border border-dashed border-stone-300 rounded-2xl p-4 flex items-center justify-between bg-stone-50/50">
+                <div key={v.code} className="border border-dashed border-[#FFD1E3] rounded-2xl p-4 flex items-center justify-between bg-[#FAF6F8]">
                   <div>
-                    <span className="text-[10px] font-mono font-bold bg-orange-100 text-orange-800 px-2 py-0.5 rounded">{v.code}</span>
-                    <div className="text-base font-extrabold text-stone-900 mt-1">Giảm {v.value}</div>
-                    <p className="text-xs text-stone-500">Đơn tối thiểu: {v.min}</p>
-                    <div className="text-[11px] text-stone-400 mt-2">Đã dùng: {v.used}</div>
+                    <span className="text-[10px] font-mono font-semibold bg-[#FFF0F6] text-[#FF7AAC] border border-[#FFD1E3] px-2 py-0.5 rounded-full">{v.code}</span>
+                    <div className="text-base font-bold text-[#221C1F] mt-1">Giảm {v.value}</div>
+                    <p className="text-xs text-[#7E7077]">Đơn tối thiểu: {v.min}</p>
+                    <div className="text-[11px] text-[#7E7077] mt-2">Đã dùng: {v.used}</div>
                   </div>
-                  <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-full">{v.status}</span>
+                  <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold px-2.5 py-0.5 rounded-full">{v.status}</span>
                 </div>
               ))}
             </div>

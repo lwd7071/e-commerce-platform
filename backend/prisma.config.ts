@@ -1,5 +1,7 @@
-import "dotenv/config";
 import { defineConfig, env } from "prisma/config";
+
+// Load the shared root .env before Prisma reads DIRECT_URL.
+import "./src/platform/config/load-root-env.ts";
 
 export default defineConfig({
   schema: "prisma/schema.prisma",

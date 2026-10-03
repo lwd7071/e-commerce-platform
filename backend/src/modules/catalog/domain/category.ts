@@ -1,13 +1,12 @@
-import type { Category, UUID, CategoryStatus } from './types';
-import { ValidationError } from './errors';
+import type { Category, UUID, CategoryStatus } from './types.ts';
+import { ValidationError } from './errors.ts';
 
 export class CategoryEntity implements Category {
   public readonly categoryId: UUID;
-  public parentCategoryId: UUID | null;
+  public readonly parentCategoryId: UUID | null;
   public categoryName: string;
   public description: string | null;
   public status: CategoryStatus;
-  public depth: number;
   public readonly createdAt: string;
   public updatedAt: string;
 
@@ -17,17 +16,16 @@ export class CategoryEntity implements Category {
     categoryName: string;
     description: string | null;
     status: CategoryStatus;
-    depth?: number;
     createdAt: string;
     updatedAt: string;
+    parentDepth?: number; // Cấp độ sâu của danh mục cha (nếu có)
   }) {
-    const calculatedDepth = params.depth ?? (params.parentCategoryId === null ? 1 : 2);
-    
-    // RB-KN04 & Schema Freeze: Cây danh mục hỗ trợ tối đa 2 cấp trong MVP
-    if (calculatedDepth > 2) {
-      throw new ValidationError('Cây danh mục sản phẩm chỉ hỗ trợ tối đa 2 cấp trong MVP (RB-KN04).', {
-        depth: calculatedDepth,
-      });
+    // RB-KN04 & Schema Freeze: Cây danh mục tối đa 2 cấp
+    if (params.parentDepth !== undefined && params.parentDepth >= 2) {
+      throw new ValidationError(
+        'Cây danh mục chỉ cho phép tối đa 2 cấp (RB-KN04, Schema Freeze). Danh mục cha đã là cấp 2 nên không thể tạo thêm cấp con.',
+        { parentCategoryId: params.parentCategoryId, parentDepth: params.parentDepth }
+      );
     }
 
     this.categoryId = params.categoryId;
@@ -35,7 +33,6 @@ export class CategoryEntity implements Category {
     this.categoryName = params.categoryName;
     this.description = params.description;
     this.status = params.status;
-    this.depth = calculatedDepth;
     this.createdAt = params.createdAt;
     this.updatedAt = params.updatedAt;
   }

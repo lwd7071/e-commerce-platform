@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loadDatabaseConfig } from '../../db/config.js';
+import { loadDatabaseConfig, parseRunRemoteDbTests } from '../../db/config.js';
 
 const validEnv = {
   SUPABASE_URL: 'https://demo123.supabase.co',
@@ -9,6 +9,19 @@ const validEnv = {
 };
 
 describe('loadDatabaseConfig', () => {
+  it('defaults remote database tests to false when the flag is missing', () => {
+    expect(parseRunRemoteDbTests({})).toBe(false);
+  });
+
+  it('rejects a whitespace-only remote database test flag', () => {
+    expect(() => parseRunRemoteDbTests({ RUN_REMOTE_DB_TESTS: '   ' })).toThrow('RUN_REMOTE_DB_TESTS');
+  });
+
+  it('accepts case-insensitive boolean remote database test flags', () => {
+    expect(parseRunRemoteDbTests({ RUN_REMOTE_DB_TESTS: ' TRUE ' })).toBe(true);
+    expect(parseRunRemoteDbTests({ RUN_REMOTE_DB_TESTS: 'False' })).toBe(false);
+  });
+
   it('loads valid project URLs without exposing secrets', () => {
     const config = loadDatabaseConfig(validEnv);
     expect(config.supabaseUrl.hostname).toBe('demo123.supabase.co');
@@ -30,5 +43,19 @@ describe('loadDatabaseConfig', () => {
   it('rejects an invalid remote-test flag', () => {
     const env = { ...validEnv, RUN_REMOTE_DB_TESTS: 'yes' };
     expect(() => loadDatabaseConfig(env)).toThrow('RUN_REMOTE_DB_TESTS');
+  });
+
+  it('uses bounded pool defaults', () => {
+    expect(loadDatabaseConfig(validEnv).pool).toEqual({
+      max: 10,
+      connectionTimeoutMillis: 30_000,
+      idleTimeoutMillis: 30_000,
+    });
+  });
+
+  it('rejects invalid pool bounds before creating a pool', () => {
+    expect(() => loadDatabaseConfig({ ...validEnv, DB_POOL_MAX: '0' })).toThrow('DB_POOL_MAX');
+    expect(() => loadDatabaseConfig({ ...validEnv, DB_CONNECTION_TIMEOUT_MS: '60001' })).toThrow('DB_CONNECTION_TIMEOUT_MS');
+    expect(() => loadDatabaseConfig({ ...validEnv, DB_IDLE_TIMEOUT_MS: 'not-a-number' })).toThrow('DB_IDLE_TIMEOUT_MS');
   });
 });
