@@ -5,7 +5,7 @@
 - Mốc: Hoàn tất Sửa lỗi Review (Concurrency SKU RB-LB11, Price QD05, Presence API, RLS Docs & Scope Alignment)
 - Owner: thangdanglk-ui (Người 3)
 - Cập nhật lần cuối: 2026-10-03
-- Trạng thái: Đã sửa dứt điểm 100% 4 lỗi mở, xác minh qua test tự động
+- Trạng thái: Đã sửa dứt điểm 100% 4 lỗi mở, xác minh qua test tự động (Merged vào `dev` tại commit `3c14703`)
 - Bị block bởi: Không (0 blocker)
 - Người phối hợp:
   - Người 1 (Auth & User Platform): Xác thực JWT / Supabase Auth (`buyer_id`, `seller_id`), phân quyền RBAC (`BUYER`, `SELLER`).

@@ -5,8 +5,8 @@
 - Phase/ticket: Feature 4 (Buyer-Seller Chat, AI Bot Assistant & Seller Live Chat) [x], Core & Acceptance [x]
 - Owner: thangdanglk-ui (Người 3)
 - Cập nhật lần cuối: 2026-10-03
-- Trạng thái: Hoàn thành 100% (Đã khắc phục 3/3 lỗi auditor & cập nhật tài liệu kiểm thử)
-- Nhánh/PR: `feat/fe-nguoi-3-catalog` -> Merge vào `dev`
+- Trạng thái: Hoàn thành 100% (Đã khắc phục 3/3 lỗi auditor & cập nhật tài liệu kiểm thử, merged vào `dev` tại commit `3c14703`)
+- Nhánh/PR: `feat/fe-nguoi-3-catalog` -> Merged vào `dev`
 - Bị block bởi: Không (0 blocker)
 - Người phối hợp:
   - Người 1 (Auth & User Platform): Xác thực JWT / Supabase Auth (`buyer_id`, `seller_id`), phân quyền RBAC (`BUYER`, `SELLER`).
