@@ -13,6 +13,7 @@ import { repositories } from "@/lib/repositories/repository-factory";
 import type { SellerKPIStats } from "@/features/admin/admin.types";
 import type { WireOrder } from "@/lib/api/order.api";
 import type { WireCatalogProductItem } from "@/lib/api/catalog.api";
+import { SellerHeaderNav } from "./seller-header-nav";
 
 export function SellerDashboardScreen() {
   const { user } = useAuth();
@@ -107,6 +108,11 @@ export function SellerDashboardScreen() {
               <span>Sản phẩm & Tồn kho</span>
             </Link>
           </div>
+        </div>
+
+        {/* Sub-navigation tabs across all seller features */}
+        <div className="pt-4">
+          <SellerHeaderNav />
         </div>
 
         {/* Shop Pending Warning Banner (A-103) */}

@@ -15,8 +15,14 @@ export default defineConfig({
   timeout: 120_000,
   expect: { timeout: 10_000 },
   use: {
-    baseURL: process.env.E2E_BASE_URL ?? "http://127.0.0.1:3000",
+    baseURL: "http://127.0.0.1:3000",
     trace: "retain-on-failure",
-    channel: process.env.PLAYWRIGHT_CHANNEL ?? "msedge",
+  },
+  webServer: {
+    command: "npx next dev --hostname 127.0.0.1 --port 3000",
+    cwd: __dirname,
+    url: "http://127.0.0.1:3000",
+    reuseExistingServer: true,
+    timeout: 120_000,
   },
 });

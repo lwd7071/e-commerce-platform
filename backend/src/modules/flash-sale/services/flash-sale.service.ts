@@ -541,16 +541,27 @@ export class FlashSaleService {
     return resultObj;
   }
 
+  private isSweeping = false;
+
   /**
    * 3. Watchdog tự chữa lành (Self-healing Orphaned Reservations)
+   * Lưu ý kiến trúc: isSweeping chỉ là cờ in-process chống overlap trong cùng 1 process.
+   * Cơ chế chống overlap toàn cluster (PM2/K8s pods) là Redis Distributed Lock (UUID token + 60s TTL).
    */
   async runWatchdogSweep(): Promise<{ swept: number; selfHealed: number; compensated: number }> {
-    const lockKey = 'flash_sale:watchdog_lock';
-    const acquired = await this.redis.set(lockKey, 'locked', 'EX', 25, 'NX');
-    if (!acquired) {
+    if (this.isSweeping) {
       return { swept: 0, selfHealed: 0, compensated: 0 };
     }
 
+    const lockKey = 'flash_sale:watchdog_lock';
+    const lockToken = crypto.randomUUID();
+    const acquired = await this.redis.set(lockKey, lockToken, 'EX', 60, 'NX');
+    if (!acquired) {
+      console.warn('[Watchdog Warning] Previous sweep still in progress or taking >30s across cluster. Skipping this tick.');
+      return { swept: 0, selfHealed: 0, compensated: 0 };
+    }
+
+    this.isSweeping = true;
     let selfHealed = 0;
     let compensated = 0;
 
@@ -650,7 +661,19 @@ export class FlashSaleService {
 
       return { swept: overdue.length, selfHealed, compensated };
     } finally {
-      await this.redis.del(lockKey);
+      this.isSweeping = false;
+      const releaseLua = `
+        if redis.call("get", KEYS[1]) == ARGV[1] then
+          return redis.call("del", KEYS[1])
+        else
+          return 0
+        end
+      `;
+      try {
+        await this.redis.eval(releaseLua, 1, lockKey, lockToken);
+      } catch (err) {
+        console.error('[Watchdog] Failed to release lock safely:', err);
+      }
     }
   }
 
@@ -777,38 +800,55 @@ export class FlashSaleService {
   }
 
   private workerTimer: NodeJS.Timeout | null = null;
+  private watchdogTimer: NodeJS.Timeout | null = null;
 
   /**
-   * 5. Scheduler Worker tự động đối soát các slot vừa kết thúc (batch 5 sessions/tick)
+   * 5. Scheduler Worker tự động đối soát các slot vừa kết thúc và định kỳ quét watchdog
    */
   startWorker(): void {
-    if (this.workerTimer) return;
-    const interval = Number(process.env.FLASH_SALE_WORKER_INTERVAL_MS ?? 60_000);
-    this.workerTimer = setInterval(async () => {
-      try {
-        const sessions = await this.repo.listRecentlyEndedSessions(30, 5);
-        for (const session of sessions) {
-          const lockKey = `flash_sale:reconcile_lock:${session.slot_id}`;
-          const acquired = await this.redis.set(lockKey, 'worker', 'EX', 30, 'NX');
-          if (!acquired) continue;
-          try {
-            await this.reconcileSlot(session.slot_id, { autoBalance: true });
-          } catch (err) {
-            console.error(`[FlashSale Worker] Error reconciling slot ${session.slot_id}:`, err);
-          } finally {
-            await this.redis.del(lockKey);
+    if (!this.workerTimer) {
+      const interval = Number(process.env.FLASH_SALE_WORKER_INTERVAL_MS ?? 60_000);
+      this.workerTimer = setInterval(async () => {
+        try {
+          const sessions = await this.repo.listRecentlyEndedSessions(30, 5);
+          for (const session of sessions) {
+            const lockKey = `flash_sale:reconcile_lock:${session.slot_id}`;
+            const acquired = await this.redis.set(lockKey, 'worker', 'EX', 30, 'NX');
+            if (!acquired) continue;
+            try {
+              await this.reconcileSlot(session.slot_id, { autoBalance: true });
+            } catch (err) {
+              console.error(`[FlashSale Worker] Error reconciling slot ${session.slot_id}:`, err);
+            } finally {
+              await this.redis.del(lockKey);
+            }
           }
+        } catch (err) {
+          console.error('[FlashSale Worker] Error in worker tick:', err);
         }
-      } catch (err) {
-        console.error('[FlashSale Worker] Error in worker tick:', err);
-      }
-    }, interval);
+      }, interval);
+    }
+
+    if (!this.watchdogTimer) {
+      const watchdogInterval = Number(process.env.FLASH_SALE_WATCHDOG_INTERVAL_MS ?? 30_000);
+      this.watchdogTimer = setInterval(async () => {
+        try {
+          await this.runWatchdogSweep();
+        } catch (err) {
+          console.error('[FlashSale Watchdog] Error in watchdog tick:', err);
+        }
+      }, watchdogInterval);
+    }
   }
 
   stopWorker(): void {
     if (this.workerTimer) {
       clearInterval(this.workerTimer);
       this.workerTimer = null;
+    }
+    if (this.watchdogTimer) {
+      clearInterval(this.watchdogTimer);
+      this.watchdogTimer = null;
     }
   }
 }

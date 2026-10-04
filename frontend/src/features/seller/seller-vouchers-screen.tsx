@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { EmptyState, Skeleton } from '@/components/ui/data-states';
 import { FormField, SelectInput, TextInput } from '@/components/ui/form-controls';
 import { moneyAdapter } from '@/lib/adapters/money.adapter';
+import { SellerHeaderNav } from './seller-header-nav';
 
 const emptyForm: SellerVoucherInput = {
   code: '', voucher_name: '', discount_type: 'PERCENT', discount_value: '', max_discount: null,
@@ -75,6 +76,7 @@ export function SellerVouchersScreen() {
       <h1 className="text-2xl font-bold text-[var(--foreground)]">Voucher gian hàng</h1>
       <p className="text-sm text-[var(--subtext)]">Voucher được gắn với gian hàng hiện tại. Voucher đã có lượt sử dụng chỉ có thể bật hoặc tắt; muốn đổi điều kiện hãy tạo voucher mới.</p>
     </header>
+    <SellerHeaderNav />
     {error && <p className="notice notice--error" role="alert">{error}</p>}
     {message && <p className="notice notice--success" role="status">{message}</p>}
     <section className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-5 sm:p-7" aria-labelledby="voucher-form-title">

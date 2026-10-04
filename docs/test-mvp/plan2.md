@@ -63,3 +63,61 @@ Người 2 và 4 cùng xác nhận Order ID của `T2-E2E-01/02`; Người 3 xá
 - Không còn lỗi Blocker/Cao chưa được xử lý hoặc chưa có quyết định rõ; lỗi Vừa/Thấp còn lại có người phụ trách và mức ảnh hưởng.
 - Lint, typecheck, build và test liên quan có kết quả được ghi; các phần dùng mock/sandbox được phân biệt với luồng live.
 - Người 5 đối chiếu bảng tổng hợp với nhật ký của năm người và ghi kết luận phát hành/test tiếp.
+
+---
+
+## Phụ lục Kỹ thuật Đợt 2: Quy chuẩn Nghiệp vụ, State Machine & Danh mục Mã lỗi (Module Người 4)
+*Ngày ban hành:* `2026-10-04`.  
+*Các bên thống nhất & Ký xác nhận:* Người 2 (Buyer Module), Người 4 (Nguyễn Trung Hải - Seller Module), Người 5 (Nguyễn Minh Trí - Lead Admin & Gatekeeper).
+
+### 1. Danh mục Mã Lỗi Chung Bổ sung (Thống nhất Người 2, Người 4, Người 5)
+- `ORDER_CANCELLATION_NOT_ALLOWED` (`409 Conflict`): Buyer cố tình hủy đơn hàng khi trạng thái đã là `CONFIRMED` hoặc `PREPARING` (*"Orders already confirmed by seller cannot be cancelled directly by buyer"*).
+- `SELLER_CANNOT_COMPLETE_ORDER` (`403 Forbidden`): Seller vi phạm quy tắc QD11, cố tình gọi transition sang `COMPLETED` (*"Sellers cannot complete orders; completion requires buyer confirmation or administrative proof"*).
+- `REFUND_REQUIRES_ADMIN` (`403 Forbidden`): Seller hoặc Buyer gọi transition sang `REFUNDED` tại các trạng thái `SHIPPING` hoặc `COMPLETED` (*"Refund processing requires Admin authority"*).
+- `VOUCHER_CODE_CONFLICT` (`409 Conflict`): Trùng mã voucher trong cùng một Shop (mã chuẩn thực tế của codebase tại `error-handler.ts`, thay thế các biến thể cũ).
+- `VOUCHER_NOT_OWNED` (`422 Unprocessable Entity`): Sử dụng voucher của shop khác cho sản phẩm không thuộc shop đó.
+- `SHOP_NOT_ACTIVE` (`403 Forbidden`): Shop ở trạng thái `PENDING` cố tình tạo/sửa sản phẩm hoặc tạo voucher.
+- `SHOP_PROFILE_READ_ONLY` (`403 Forbidden`): Token cũ gọi API ghi khi shop đã bị Admin `LOCKED` hoặc `SUSPENDED`.
+
+### 2. Quy chuẩn Whitelist & Validation Mass Assignment (Task 1)
+- Áp dụng Zod schema `.strict()` trên endpoint `PATCH /seller/shop`:
+  - Mọi trường lạ không khai báo (unknown/unrecognized fields) hoặc trường nhạy cảm trong danh sách cấm (`status`, `owner_id`, `commission_rate`, `tier`, `escrow_balance`, `id`, `created_at`, `updated_at`) đều bị **REJECT thẳng thừng với mã `422 Unprocessable Entity`** (code: `VALIDATION_FAILED`), tuyệt đối **không âm thầm strip**.
+- Cơ chế kiểm tra Token cũ sau khi Shop bị khóa (Ca 1.4):
+  - Áp dụng **Per-request Database Query** tức thời trong middleware `auth/shop-guard`. Không phụ thuộc vào TTL của cache, đảm bảo zero-latency ngay khi Admin vừa lock shop.
+
+### 3. Thống kê Phủ độ Ma trận State Machine Order (Tổng cộng 42 cặp trạng thái)
+Hệ thống quản lý 7 trạng thái: `PENDING_CONFIRMATION`, `CONFIRMED`, `PREPARING`, `SHIPPING`, `COMPLETED`, `CANCELLED`, `REFUNDED` ($7 \times 6 = 42$ cặp chuyển trạng thái):
+- **9 Cặp chuyển hợp lệ có điều kiện:** 
+  1. `PENDING_CONFIRMATION` $\rightarrow$ `CONFIRMED` (Seller/Admin)
+  2. `PENDING_CONFIRMATION` $\rightarrow$ `CANCELLED` (Buyer/Seller/Admin)
+  3. `CONFIRMED` $\rightarrow$ `PREPARING` (Seller/Admin)
+  4. `CONFIRMED` $\rightarrow$ `CANCELLED` (Seller/Admin)
+  5. `PREPARING` $\rightarrow$ `SHIPPING` (Seller/Admin)
+  6. `PREPARING` $\rightarrow$ `CANCELLED` (Seller/Admin)
+  7. `SHIPPING` $\rightarrow$ `COMPLETED` (Buyer/Admin/Webhook ĐVVC - **Seller bị 403 QD11**)
+  8. `SHIPPING` $\rightarrow$ `REFUNDED` (Admin/Hệ thống khi giao thất bại)
+  9. `COMPLETED` $\rightarrow$ `REFUNDED` (Admin/Hệ thống khi khiếu nại sau nhận hàng)
+- **15 Cặp cấm có test ca biên:** Bao gồm tất cả các luồng đi lùi (`COMPLETED` $\rightarrow$ `SHIPPING`, `SHIPPING` $\rightarrow$ `PREPARING`, v.v.), nhảy cóc trái phép, và các chuyển đổi đi ra từ trạng thái cuối (`COMPLETED` sang các trạng thái khác trừ `REFUNDED`, `CANCELLED` sang trạng thái khác, `REFUNDED` sang trạng thái khác).
+- **18 Cặp cấm còn lại:** Tự động trả về `409 Conflict` (`ORDER_INVALID_TRANSITION`) bởi guard clause tập trung tại Service layer.
+$\Rightarrow$ **Tổng cộng:** $9 + 15 + 18 = 42$ cặp (100% không gian trạng thái được đóng kín).
+
+### 4. Quy chuẩn Kỹ thuật Kiểm thử Concurrency, Voucher & Doanh thu
+1. **Ca Concurrency lặp 30 lần (`T2-P4-02`):**
+   - Đơn vị đếm: 1 ca con (test scenario) chạy 30 iterations concurrency bên trong.
+   - Bắt buộc ghi nhận bảng thống kê chi tiết toàn bộ 30 iterations (từ #1 đến #30, gồm Request ID, Order ID, Req 1 status, Req 2 status, Collision Duration < 50ms, History Count = 1, Kết quả PASS/FAIL) vào báo cáo tiến độ, không chỉ ghi tóm tắt một con số "30/30".
+   - Bằng chứng cốt lõi tại DB: Đúng 1 request nhận `200 OK`, request thứ hai nhận `409 Conflict`, và bảng `order_status_history` chỉ ghi đúng 1 bản ghi chuyển trạng thái. Không dùng `db_lock_wait_time > 0` làm tiêu chí PASS nếu hạ tầng pooler hạn chế quyền xem `pg_stat_activity`. Nếu cả hai nhận 200 hoặc cả hai nhận 409 $\rightarrow$ Tính là `FAIL / CHẠY LẠI`. Tỷ lệ đạt chuẩn: 30 / 30 iterations (100%).
+2. **Ca Race Condition 2 chiều (`T2-P4-01`):**
+   - Sử dụng transaction kiểm soát lock chủ động (`SELECT ... FOR UPDATE` trên bảng `shops`) kèm `SET LOCAL lock_timeout = '5000ms'` để tránh treo vô hạn connection.
+3. **Smoke Check Voucher Trùng Mã (`T2-P4-05`):**
+   - Trước khi chạy bộ test lớn của `T2-P4-05`, thực hiện 1 request smoke check thật gửi POST tạo voucher với mã đã tồn tại. Xác thực và ghi nhận raw response trả về đúng mã `409 Conflict` kèm code `VOUCHER_CODE_CONFLICT` theo đúng `backend/src/platform/http/middlewares/error-handler.ts`.
+4. **Ca 3.3 (Buyer xác nhận nhận hàng):**
+   - Được định nghĩa là **Ca phụ trợ (Test Harness)** do Người 4 điều phối để khép kín chu trình kiểm chứng QD11; trách nhiệm chính thuộc về Người 2 (`T2-E2E-02`).
+5. **Smoke Check API Báo cáo Doanh thu QD19 (`T2-P4-06`):**
+   - Thực hiện 1 request smoke check độc lập gọi `GET /seller/reports/revenue?date=YYYY-MM-DD` để xác thực cơ chế quy đổi múi giờ `Asia/Ho_Chi_Minh` (UTC+7) sang dải UTC trên database. Kết quả thật (Raw Response Status 200 OK và dải UTC đã quy đổi) bắt buộc phải được ghi vào `person-4.md` trước khi chạy `T2-P4-06`.
+   - Doanh thu tính theo VNĐ nguyên tệ Integer: $\sum_{\text{Đơn COMPLETED}} \left[ \sum (\text{Price} \times \text{Qty} - \text{ShopDiscount}) \right]$. Không trừ phí ship, không cộng đơn `PREPARING` / `SHIPPING`.
+6. **Lộ trình Thực thi Phân kỳ (Execution Phasing):**
+   - **Đợt A (Chạy ngay):** Giai đoạn 0 (Seed dữ liệu & chuẩn bị môi trường), `T2-P4-01` (Shop Gating & Mass Assignment), `T2-P4-03` (QD11 Cấm Seller Hoàn tất đơn), `T2-P4-04` (IDOR & Cách ly đa gian hàng).
+   - **Đợt B (Chạy sau khi xác thực Smoke Voucher):** `T2-P4-02` (Concurrency 30 iterations có bảng log 30 dòng), `T2-P4-05` (Quản trị voucher shop & Checkout).
+   - **Đợt C (Chạy sau khi xác thực Smoke Date và có kết quả Đợt A/B):** `T2-P4-06` (Đối soát doanh thu QD19), `T2-E2E-01` (Hành trình mua bán live), `T2-E2E-03` (Hành trình mở shop PENDING live).
+7. **Hiệu lực Ký Nghiệm Thu:**
+   - Chữ ký tại kế hoạch là cam kết phương pháp luận và tiêu chuẩn chất lượng. Hiệu lực nghiệm thu chính thức được kích hoạt sau khi chạy xong thực tế và xuất kèm Biên bản nghiệm thu nghiệm thu đầy đủ bằng chứng 4 yếu tố.

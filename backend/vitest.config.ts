@@ -16,6 +16,9 @@ export default defineConfig({
     include: [
       'tests/db/**/*.test.ts',
       'tests/modules/catalog/**/*.test.ts',
+      'tests/modules/flash-sale-security.test.ts',
+      'tests/modules/seller-phase2-security.test.ts',
+      'tests/modules/seller-phase2-suite.test.ts',
     ],
     exclude: [
       'test/**',

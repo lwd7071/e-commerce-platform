@@ -9,6 +9,7 @@ import { Icon } from "@/components/ui/icon";
 import { Dialog } from "@/components/ui/dialog";
 import { FormField, TextInput } from "@/components/ui/form-controls";
 import { Skeleton, EmptyState } from "@/components/ui/data-states";
+import { SellerHeaderNav } from "./seller-header-nav";
 
 export function SellerWalletScreen() {
   const [wallet, setWallet] = useState<ShopWallet | null>(null);
@@ -119,6 +120,7 @@ export function SellerWalletScreen() {
           </Button>
         </div>
       </header>
+      <SellerHeaderNav />
 
       {notice && (
         <div className="rounded-xl border border-[var(--success-border)] bg-[var(--success-surface)] p-4 text-sm font-medium text-[var(--success)] flex items-center justify-between">

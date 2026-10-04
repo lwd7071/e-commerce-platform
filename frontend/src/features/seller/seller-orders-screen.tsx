@@ -13,6 +13,7 @@ import { useToast } from "@/components/ui/toast";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
 import { repositories } from "@/lib/repositories/repository-factory";
 import type { WireOrder } from "@/lib/api/order.api";
+import { SellerHeaderNav } from "@/features/seller/seller-header-nav";
 
 type SellerFilterTab = "ALL" | OrderStatus;
 
@@ -241,24 +242,8 @@ export function SellerOrdersScreen() {
           </div>
         </header>
 
-        {/* Sub-navigation tabs between Orders and Products */}
-        <nav aria-label="Điều hướng kênh người bán" className="border-b border-[var(--border)]">
-          <div className="flex gap-6 text-sm font-semibold">
-            <Link
-              href="/seller/orders"
-              className="pb-3 border-b-2 border-[var(--primary-active)] text-[var(--primary-active)]"
-              aria-current="page"
-            >
-              Đơn hàng cần xử lý
-            </Link>
-            <Link
-              href="/seller/products"
-              className="pb-3 border-b-2 border-transparent text-[var(--subtext)] hover:text-[var(--foreground)]"
-            >
-              Danh sách sản phẩm
-            </Link>
-          </div>
-        </nav>
+        {/* Sub-navigation tabs across all seller features */}
+        <SellerHeaderNav />
 
         {/* Quick Queue Stats Banner */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

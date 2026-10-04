@@ -179,7 +179,11 @@ export const errorHandlerMiddleware: ErrorRequestHandler = (
       httpStatus = 422;
     } else if (code === 'RESOURCE_NOT_FOUND') {
       httpStatus = 404;
-    } else if (code === 'RESOURCE_FORBIDDEN') {
+    } else if (
+      code === 'RESOURCE_FORBIDDEN' ||
+      code === 'SELLER_CANNOT_COMPLETE_ORDER' ||
+      code === 'REFUND_REQUIRES_ADMIN'
+    ) {
       httpStatus = 403;
     } else if (
       code === 'CONFLICT' ||

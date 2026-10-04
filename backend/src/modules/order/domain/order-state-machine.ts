@@ -35,7 +35,10 @@ export function transitionOrder(
       throw new OrderDomainError('RESOURCE_FORBIDDEN', 'Buyer cannot perform this transition.');
     }
   } else if (actor.kind === 'SELLER') {
-    if (actor.shopId !== order.shopId || command.to === 'COMPLETED' || command.to === 'DELIVERY_FAILED') {
+    if (command.to === 'COMPLETED') {
+      throw new OrderDomainError('SELLER_CANNOT_COMPLETE_ORDER', 'Sellers cannot complete orders; completion requires buyer confirmation or administrative proof.');
+    }
+    if (actor.shopId !== order.shopId || command.to === 'DELIVERY_FAILED') {
       throw new OrderDomainError('RESOURCE_FORBIDDEN', 'Seller cannot perform this transition.');
     }
   } else if (actor.kind === 'SHIPMENT_INTEGRATION') {

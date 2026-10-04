@@ -1,15 +1,46 @@
+import crypto from 'node:crypto';
 import { Router, type Request, type Response, type NextFunction, type RequestHandler } from 'express';
 import type { Redis } from 'ioredis';
 import type { FlashSaleService } from '../services/flash-sale.service.ts';
 import type { PgFlashSaleRepository } from '../repositories/pg-flash-sale.repository.ts';
 import { getRedisClient } from '../infrastructure/redis.client.ts';
 import { requireRole } from '../../../platform/http/middlewares/rbac.ts';
-import { UnauthorizedError } from '../../../platform/errors/app-error.ts';
+import { UnauthorizedError, ForbiddenError } from '../../../platform/errors/app-error.ts';
+import { validatePurchaseBody } from '../dtos/purchase.dto.ts';
 
 export interface FlashSaleRedisClient {
   get(key: string): Promise<string | null>;
   set(key: string, value: string | number, ...args: any[]): Promise<any>;
   del(...keys: string[]): Promise<number>;
+}
+
+/**
+ * Guard middleware allowing either an authenticated ADMIN user or an internal caller
+ * providing a valid 'x-internal-key' header (compared with timing-safe equality).
+ */
+export function adminOrInternalKeyGuard(req: Request, _res: Response, next: NextFunction): void {
+  const internalKeyHeader = req.header('x-internal-key');
+  const configuredKey = process.env.INTERNAL_SERVICE_KEY;
+  if (configuredKey && internalKeyHeader) {
+    const keyBuf = Buffer.from(internalKeyHeader);
+    const targetBuf = Buffer.from(configuredKey);
+    if (keyBuf.length === targetBuf.length && crypto.timingSafeEqual(keyBuf, targetBuf)) {
+      return next();
+    }
+  }
+
+  if (req.context && req.context.role === 'ADMIN') {
+    return next();
+  }
+
+  if (!req.context) {
+    throw new UnauthorizedError('AUTH_REQUIRED', 'Yêu cầu đăng nhập hoặc cung cấp khóa dịch vụ nội bộ.');
+  }
+
+  throw new ForbiddenError(
+    'RESOURCE_FORBIDDEN',
+    `Quyền truy cập bị từ chối đối với vai trò '${req.context.role}'. Yêu cầu quyền ADMIN hoặc Internal Service Key.`
+  );
 }
 
 export function createFlashSaleRouter(
@@ -55,11 +86,11 @@ export function createFlashSaleRouter(
     }
   });
 
-  // 3. Admin / System kích hoạt Warm-up tồn kho lên Redis (Role: ADMIN)
+  // 3. Admin / System kích hoạt Warm-up tồn kho lên Redis (Role: ADMIN hoặc Internal Key)
   router.post(
     '/slots/:slotId/warm-up',
     authMiddleware,
-    requireRole('ADMIN'),
+    adminOrInternalKeyGuard,
     async (req: Request, res: Response, next: NextFunction) => {
       try {
         const { slotId } = req.params;
@@ -74,61 +105,67 @@ export function createFlashSaleRouter(
     }
   );
 
-  // 4. Mua hàng Flash Sale tốc độ cao (Fast-path Checkout) - Yêu cầu xác thực JWT context
-  router.post('/items/:itemId/purchase', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { itemId } = req.params;
-      const idempKey = (req.header('Idempotency-Key') || req.body.idempotency_key || '').trim();
+  // 4. Mua hàng Flash Sale tốc độ cao (Fast-path Checkout) - Yêu cầu xác thực JWT context BUYER
+  router.post(
+    '/items/:itemId/purchase',
+    authMiddleware,
+    requireRole('BUYER'),
+    async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const { itemId } = req.params;
+        const body = validatePurchaseBody(req.body);
+        const idempKey = (req.header('Idempotency-Key') || body.idempotency_key || '').trim();
 
-      if (!idempKey || idempKey.length < 16 || idempKey.length > 128) {
-        return res.status(400).json({
-          error: {
-            code: 'VALIDATION_FAILED',
-            message: 'Yêu cầu đặt mua Flash Sale bắt buộc có Idempotency-Key từ 16 đến 128 ký tự.',
-          },
+        if (!idempKey || idempKey.length < 16 || idempKey.length > 128) {
+          return res.status(400).json({
+            error: {
+              code: 'VALIDATION_FAILED',
+              message: 'Yêu cầu đặt mua Flash Sale bắt buộc có Idempotency-Key từ 16 đến 128 ký tự.',
+            },
+          });
+        }
+
+        const item = await repo.findItemById(itemId);
+        if (!item) {
+          return res.status(404).json({ error: 'ITEM_NOT_FOUND', message: 'Sản phẩm Flash Sale không tồn tại.' });
+        }
+
+        // Nguồn định danh duy nhất: req.context.user_id từ JWT đã xác minh
+        const userId = req.context?.user_id;
+        if (!userId) {
+          throw new UnauthorizedError('AUTH_REQUIRED', 'Yêu cầu đăng nhập để mua Flash Sale.');
+        }
+
+        const result = await service.purchase({
+          idempotency_key: idempKey,
+          user_id: userId,
+          slot_id: item.slot_id,
+          item_id: item.item_id,
+          voucher_code: body.voucher_code,
+          recipient_name: body.recipient_name || 'Khách Mua Flash Sale',
+          recipient_phone: body.recipient_phone || '0901234567',
+          province: body.province || 'Hồ Chí Minh',
+          district: body.district || 'Quận 1',
+          ward: body.ward || 'Bến Nghé',
+          delivery_address: body.delivery_address || 'Số 1 Lê Duẩn',
         });
+
+        if (!result.success) {
+          return res.status(400).json(result);
+        }
+
+        return res.status(200).json(result);
+      } catch (err: unknown) {
+        next(err);
       }
-
-      const item = await repo.findItemById(itemId);
-      if (!item) {
-        return res.status(404).json({ error: 'ITEM_NOT_FOUND', message: 'Sản phẩm Flash Sale không tồn tại.' });
-      }
-
-      // Nguồn định danh duy nhất: req.context.user_id từ JWT đã xác minh
-      const userId = req.context?.user_id;
-      if (!userId) {
-        throw new UnauthorizedError('AUTH_REQUIRED', 'Yêu cầu đăng nhập để mua Flash Sale.');
-      }
-
-      const result = await service.purchase({
-        idempotency_key: idempKey,
-        user_id: userId,
-        slot_id: item.slot_id,
-        item_id: item.item_id,
-        voucher_code: req.body.voucher_code,
-        recipient_name: req.body.recipient_name || 'Khách Mua Flash Sale',
-        recipient_phone: req.body.recipient_phone || '0901234567',
-        province: req.body.province || 'Hồ Chí Minh',
-        district: req.body.district || 'Quận 1',
-        ward: req.body.ward || 'Bến Nghé',
-        delivery_address: req.body.delivery_address || 'Số 1 Lê Duẩn',
-      });
-
-      if (!result.success) {
-        return res.status(400).json(result);
-      }
-
-      return res.status(200).json(result);
-    } catch (err: unknown) {
-      next(err);
     }
-  });
+  );
 
-  // 5a. Xem báo cáo đối soát số liệu Redis và Database (Role: ADMIN)
+  // 5a. Xem báo cáo đối soát số liệu Redis và Database (Role: ADMIN hoặc Internal Key)
   router.get(
     '/slots/:slotId/reconcile',
     authMiddleware,
-    requireRole('ADMIN'),
+    adminOrInternalKeyGuard,
     async (req: Request, res: Response, next: NextFunction) => {
       try {
         const { slotId } = req.params;
@@ -140,11 +177,11 @@ export function createFlashSaleRouter(
     }
   );
 
-  // 5b. Kích hoạt đối soát & tự cân bằng số liệu (Role: ADMIN, với per-slot lock)
+  // 5b. Kích hoạt đối soát & tự cân bằng số liệu (Role: ADMIN hoặc Internal Key, với per-slot lock)
   router.post(
     '/slots/:slotId/reconcile',
     authMiddleware,
-    requireRole('ADMIN'),
+    adminOrInternalKeyGuard,
     async (req: Request, res: Response, next: NextFunction) => {
       try {
         const { slotId } = req.params;
@@ -175,11 +212,11 @@ export function createFlashSaleRouter(
     }
   );
 
-  // 6. Endpoint trigger Watchdog thủ công (Role: ADMIN)
+  // 6. Endpoint trigger Watchdog thủ công (Role: ADMIN hoặc Internal Key)
   router.post(
     '/watchdog/sweep',
     authMiddleware,
-    requireRole('ADMIN'),
+    adminOrInternalKeyGuard,
     async (_req: Request, res: Response, next: NextFunction) => {
       try {
         const result = await service.runWatchdogSweep();
