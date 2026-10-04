@@ -4,7 +4,7 @@ import { withTransaction } from '../../../../db/transaction.ts';
 import { PgAddressRepository, PgCartRepository, PgVoucherRepository } from '../repositories/pg-buyer.repository.ts';
 import { VoucherPortService } from './voucher-port.service.ts';
 import { validateAddToCartDTO, validateCreateAddressDTO, validateUpdateCartItemDTO } from '../contracts/buyer.dto.ts';
-import { ResourceNotFoundError } from '../domain/errors.ts';
+import { InventoryInsufficientError, ResourceNotFoundError } from '../domain/errors.ts';
 
 export class PgBuyerHttpService {
   constructor(private readonly pool: Pool) {}
@@ -81,10 +81,37 @@ export class PgBuyerHttpService {
 
   async updateCartItem(context: RequestContext, itemId: string, input: Record<string, unknown>): Promise<unknown> {
     const validated = validateUpdateCartItemDTO(input);
-    const repo = new PgCartRepository(this.pool); const cart = await repo.findByBuyerId(context.user_id); if (!cart) throw new ResourceNotFoundError('Cart not found');
-    const items = await repo.getItems(cart.cartId); const current = items.find(item => item.cartItemId === itemId); if (!current) throw new ResourceNotFoundError('Cart item not found');
-    const item = await repo.updateItem({ ...current, quantity: validated.quantity ?? current.quantity, isSelected: validated.isSelected ?? current.isSelected });
-    return { cart_item_id: item.cartItemId, variant_id: item.variantId, quantity: item.quantity, is_selected: item.isSelected };
+    return withTransaction(this.pool, async (client) => {
+      const repo = new PgCartRepository(client);
+      const cart = await repo.findByBuyerId(context.user_id);
+      if (!cart) throw new ResourceNotFoundError('Cart not found');
+      const items = await repo.getItems(cart.cartId);
+      const current = items.find(item => item.cartItemId === itemId);
+      if (!current) throw new ResourceNotFoundError('Cart item not found');
+
+      if (validated.quantity !== undefined) {
+        const variant = await client.query<{ stock_quantity: number }>(
+          'SELECT stock_quantity FROM product_variants WHERE variant_id=$1 FOR UPDATE',
+          [current.variantId],
+        );
+        if (!variant.rows[0]) throw new ResourceNotFoundError('Product variant not found');
+        const stock = Number(variant.rows[0].stock_quantity);
+        if (validated.quantity > stock) {
+          throw new InventoryInsufficientError('Requested cart quantity exceeds available stock.', {
+            variantId: current.variantId,
+            requested: validated.quantity,
+            available: stock,
+          });
+        }
+      }
+
+      const item = await repo.updateItem({
+        ...current,
+        quantity: validated.quantity ?? current.quantity,
+        isSelected: validated.isSelected ?? current.isSelected,
+      });
+      return { cart_item_id: item.cartItemId, variant_id: item.variantId, quantity: item.quantity, is_selected: item.isSelected };
+    });
   }
 
   async deleteCartItem(context: RequestContext, itemId: string): Promise<void> {

@@ -34,6 +34,7 @@ const pool = new pg.Pool({ connectionString: config.directUrl.toString(), max: 2
 
 const users = [
   { key: 'buyer', email: 'buyer@dino-e2e.test', name: 'E2E Buyer', role: 'BUYER' as const },
+  { key: 'buyerSecondary', email: 'buyer-secondary@dino-e2e.test', name: 'E2E Buyer Secondary', role: 'BUYER' as const },
   { key: 'sellerPending', email: 'seller-pending@dino-e2e.test', name: 'E2E Seller Pending', role: 'SELLER' as const },
   { key: 'sellerActive', email: 'seller-active@dino-e2e.test', name: 'E2E Seller Active', role: 'SELLER' as const },
   { key: 'admin', email: 'admin@dino-e2e.test', name: 'E2E Admin', role: 'ADMIN' as const },
@@ -83,9 +84,15 @@ const ids = {
   regularVariant: 'e2000000-0000-4000-8000-000000000005',
   lastItemVariant: 'e2000000-0000-4000-8000-000000000006',
   address: 'e2000000-0000-4000-8000-000000000007',
+  secondaryAddress: 'e2000000-0000-4000-8000-000000000014',
   cart: 'e2000000-0000-4000-8000-000000000008',
+  secondaryCart: 'e2000000-0000-4000-8000-000000000015',
   voucher: 'e2000000-0000-4000-8000-000000000009',
   notification: 'e2000000-0000-4000-8000-000000000010',
+  expiredVoucher: 'e2000000-0000-4000-8000-000000000016',
+  exhaustedVoucher: 'e2000000-0000-4000-8000-000000000017',
+  wrongShopVoucher: 'e2000000-0000-4000-8000-000000000018',
+  minValueVoucher: 'e2000000-0000-4000-8000-000000000019',
 } as const;
 
 const fixtureImagePath = buildProductImagePath(ids.activeShop, ids.product, ids.productImage, 'png');
@@ -115,24 +122,53 @@ async function resetDatabaseFixtures(): Promise<void> {
     await client.query('BEGIN');
 
     const buyerId = userIds.get('buyer')!;
+    const secondaryBuyerId = userIds.get('buyerSecondary')!;
+    const buyerIds = [buyerId, secondaryBuyerId];
+    const fixtureUserIds = [...userIds.values()];
     const activeSellerId = userIds.get('sellerActive')!;
     const pendingSellerId = userIds.get('sellerPending')!;
     const adminId = userIds.get('admin')!;
 
-    // Tests may create orders, reviews, vouchers usages, notifications and products.
-    // This scope is safe because these four accounts and the two shops are E2E-only fixtures.
+    // Tests may create orders, reviews, voucher usages, notifications and media.
+    // This scope is safe because every account here is guarded as an E2E-only fixture.
+    const buyerMedia = await client.query<{ bucket_id: string; object_path: string }>(`
+      SELECT bucket_id,object_path FROM media_uploads
+      WHERE owner_id=ANY($1::uuid[]) AND purpose IN ('AVATAR','REVIEW') AND status<>'DELETED'
+    `, [buyerIds]);
+    const storagePathsByBucket = new Map<string, string[]>();
+    for (const media of buyerMedia.rows) {
+      const paths = storagePathsByBucket.get(media.bucket_id) ?? [];
+      paths.push(media.object_path);
+      storagePathsByBucket.set(media.bucket_id, paths);
+    }
+    for (const [bucket, paths] of storagePathsByBucket) {
+      const { error } = await supabase.storage.from(bucket).remove(paths);
+      if (error) throw error;
+    }
     await client.query(`
       DELETE FROM voucher_usages vu USING orders o
-      WHERE vu.order_id=o.order_id AND o.buyer_id=$1`, [buyerId]);
+      WHERE vu.order_id=o.order_id AND o.buyer_id=ANY($1::uuid[])
+    `, [buyerIds]);
     await client.query(`
       DELETE FROM reviews r USING order_items oi, orders o
-      WHERE r.order_item_id=oi.order_item_id AND oi.order_id=o.order_id AND o.buyer_id=$1`, [buyerId]);
-    await client.query(`DELETE FROM order_items oi USING orders o WHERE oi.order_id=o.order_id AND o.buyer_id=$1`, [buyerId]);
-    await client.query(`DELETE FROM payments p USING orders o WHERE p.order_id=o.order_id AND o.buyer_id=$1`, [buyerId]);
-    await client.query(`DELETE FROM shipments s USING orders o WHERE s.order_id=o.order_id AND o.buyer_id=$1`, [buyerId]);
-    await client.query(`DELETE FROM order_status_history h USING orders o WHERE h.order_id=o.order_id AND o.buyer_id=$1`, [buyerId]);
-    await client.query('DELETE FROM orders WHERE buyer_id=$1', [buyerId]);
-    await client.query('DELETE FROM notifications WHERE recipient_id=$1', [buyerId]);
+      WHERE r.order_item_id=oi.order_item_id AND oi.order_id=o.order_id AND o.buyer_id=ANY($1::uuid[])
+    `, [buyerIds]);
+    await client.query(`DELETE FROM order_items oi USING orders o WHERE oi.order_id=o.order_id AND o.buyer_id=ANY($1::uuid[])`, [buyerIds]);
+    await client.query(`DELETE FROM payments p USING orders o WHERE p.order_id=o.order_id AND o.buyer_id=ANY($1::uuid[])`, [buyerIds]);
+    await client.query(`DELETE FROM shipments s USING orders o WHERE s.order_id=o.order_id AND o.buyer_id=ANY($1::uuid[])`, [buyerIds]);
+    await client.query(`DELETE FROM order_status_history h USING orders o WHERE h.order_id=o.order_id AND o.buyer_id=ANY($1::uuid[])`, [buyerIds]);
+    await client.query('DELETE FROM orders WHERE buyer_id=ANY($1::uuid[])', [buyerIds]);
+    await client.query('DELETE FROM api_idempotency_records WHERE user_id=ANY($1::uuid[])', [buyerIds]);
+    await client.query('DELETE FROM notifications WHERE recipient_id=ANY($1::uuid[])', [fixtureUserIds]);
+    await client.query(`
+      DELETE FROM media_uploads
+      WHERE owner_id=ANY($1::uuid[]) AND purpose IN ('AVATAR','REVIEW')
+    `, [buyerIds]);
+
+    // Replace fixture carts before deleting seller-created products so no stale
+    // cart item can keep a generated test product and variant alive.
+    await resetE2EBuyerCart(client, { buyerId, cartId: ids.cart });
+    await resetE2EBuyerCart(client, { buyerId: secondaryBuyerId, cartId: ids.secondaryCart });
 
     await client.query(`
       DELETE FROM product_variants v USING products p
@@ -148,6 +184,7 @@ async function resetDatabaseFixtures(): Promise<void> {
 
     const accountRows = [
       { id: buyerId, email: 'buyer@dino-e2e.test', role: 'BUYER', name: 'E2E Buyer' },
+      { id: secondaryBuyerId, email: 'buyer-secondary@dino-e2e.test', role: 'BUYER', name: 'E2E Buyer Secondary' },
       { id: pendingSellerId, email: 'seller-pending@dino-e2e.test', role: 'SELLER', name: 'E2E Seller Pending' },
       { id: activeSellerId, email: 'seller-active@dino-e2e.test', role: 'SELLER', name: 'E2E Seller Active' },
       { id: adminId, email: 'admin@dino-e2e.test', role: 'ADMIN', name: 'E2E Admin' },
@@ -228,7 +265,10 @@ async function resetDatabaseFixtures(): Promise<void> {
       buyerId, addressId: ids.address, recipientName: 'E2E Buyer', phone: '0900000000',
       province: 'TP Hồ Chí Minh', district: 'Quận 1', ward: 'Bến Nghé', detailAddress: '1 Dino E2E Street',
     });
-    await resetE2EBuyerCart(client, { buyerId, cartId: ids.cart });
+    await resetE2EBuyerAddress(client, {
+      buyerId: secondaryBuyerId, addressId: ids.secondaryAddress, recipientName: 'E2E Buyer Secondary', phone: '0900000001',
+      province: 'TP Hồ Chí Minh', district: 'Quận 1', ward: 'Bến Nghé', detailAddress: '2 Dino E2E Street',
+    });
     await client.query(`
       INSERT INTO cart_items(cart_item_id,cart_id,variant_id,quantity,is_selected)
       VALUES($1,$2,$3,1,true),($4,$2,$5,1,false)
@@ -240,6 +280,18 @@ async function resetDatabaseFixtures(): Promise<void> {
       VALUES($1,'E2E-SAVE','E2E Checkout Voucher','PLATFORM',NULL,'FIXED','10000.00',NULL,'50000.00',100,now()-interval '1 day',now()+interval '30 days','ACTIVE')
       ON CONFLICT(voucher_id) DO UPDATE SET code=EXCLUDED.code,voucher_name=EXCLUDED.voucher_name,scope='PLATFORM',shop_id=NULL,discount_type='FIXED',discount_value='10000.00',max_discount=NULL,min_order_value='50000.00',quantity=100,start_at=now()-interval '1 day',end_at=now()+interval '30 days',status='ACTIVE',updated_at=now()`,
     [ids.voucher]);
+    await client.query(`
+      INSERT INTO vouchers(voucher_id,code,voucher_name,scope,shop_id,discount_type,discount_value,max_discount,min_order_value,quantity,start_at,end_at,status)
+      VALUES
+        ($1,'E2E-EXPIRED','E2E Expired Voucher','PLATFORM',NULL,'FIXED','1000.00',NULL,'0.00',100,now()-interval '30 days',now()-interval '1 day','ACTIVE'),
+        ($2,'E2E-EXHAUSTED','E2E Exhausted Voucher','PLATFORM',NULL,'FIXED','1000.00',NULL,'0.00',0,now()-interval '1 day',now()+interval '30 days','ACTIVE'),
+        ($3,'E2E-WRONG-SHOP','E2E Wrong Shop Voucher','SHOP',$4,'FIXED','1000.00',NULL,'0.00',100,now()-interval '1 day',now()+interval '30 days','ACTIVE'),
+        ($5,'E2E-MINIMUM','E2E Minimum Value Voucher','PLATFORM',NULL,'FIXED','1000.00',NULL,'200000.00',100,now()-interval '1 day',now()+interval '30 days','ACTIVE')
+      ON CONFLICT(voucher_id) DO UPDATE SET code=EXCLUDED.code,voucher_name=EXCLUDED.voucher_name,scope=EXCLUDED.scope,
+        shop_id=EXCLUDED.shop_id,discount_type=EXCLUDED.discount_type,discount_value=EXCLUDED.discount_value,
+        max_discount=EXCLUDED.max_discount,min_order_value=EXCLUDED.min_order_value,quantity=EXCLUDED.quantity,
+        start_at=EXCLUDED.start_at,end_at=EXCLUDED.end_at,status=EXCLUDED.status,updated_at=now()
+    `, [ids.expiredVoucher, ids.exhaustedVoucher, ids.wrongShopVoucher, ids.pendingShop, ids.minValueVoucher]);
 
     for (const fixture of orderFixtures) {
       const numericSuffix = Number(fixture.suffix);

@@ -20,6 +20,7 @@ remoteDescribe('Enriched runtime cart read model (real PostgreSQL)', () => {
   let otherBuyerId: string;
   let shopId: string;
   let availableVariantId: string;
+  let availableCartItemId: string;
   let inactiveVariantId: string;
   let unavailableVariantId: string;
 
@@ -58,7 +59,7 @@ remoteDescribe('Enriched runtime cart read model (real PostgreSQL)', () => {
     await pool.query(`UPDATE ${schema}.products SET status='INACTIVE' WHERE product_id=$1`, [inactiveProduct.productId]);
     await pool.query(`INSERT INTO ${schema}.product_images (image_id,product_id,image_url,sort_order) VALUES ($1,$2,$3,4),($4,$2,$5,0)`, [randomUUID(), availableProduct.productId, 'https://img.test/last.jpg', randomUUID(), 'https://img.test/cover.jpg']);
     const cart = await createFixtureCart(pool, buyerId);
-    await createFixtureCartItem(pool, cart.cartId, availableVariantId, { quantity: 2 });
+    availableCartItemId = (await createFixtureCartItem(pool, cart.cartId, availableVariantId, { quantity: 2 })).cartItemId;
     await createFixtureCartItem(pool, cart.cartId, inactiveVariantId, { quantity: 1 });
     await createFixtureCartItem(pool, cart.cartId, unavailableVariantId, { quantity: 1 });
   }, 60_000);
@@ -83,5 +84,13 @@ remoteDescribe('Enriched runtime cart read model (real PostgreSQL)', () => {
     const app = createApp({ rateLimiter: false, buyer: service, auth: (req, _res, next) => { req.context = buyer; next(); } });
     const response = await request(app).get('/api/v1/cart').expect(200);
     expect(response.body.data.items).toHaveLength(3);
+  });
+
+  it('rejects quantity changes above current stock and leaves the cart unchanged', async () => {
+    const context = createRequestContext({ request_id: 'req_stock_limit', user_id: buyerId, role: 'BUYER' });
+    await expect(service.updateCartItem(context, availableCartItemId, { quantity: 10 }))
+      .rejects.toMatchObject({ code: 'INVENTORY_INSUFFICIENT' });
+    const result = await service.getCart(context) as { items: Array<{ cart_item_id: string; quantity: number }> };
+    expect(result.items.find(item => item.cart_item_id === availableCartItemId)?.quantity).toBe(2);
   });
 });

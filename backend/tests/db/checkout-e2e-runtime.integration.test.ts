@@ -281,6 +281,27 @@ dbDescribe('Checkout E2E Runtime & Invariants Gate (B-408 / A-206 on real Postgr
     expect(cartItemsCount.rows[0].count).toBe(2);
   });
 
+  it('rejects a changed shipping quote without creating an order or mutating cart and stock', async () => {
+    const cart = await createFixtureCart(pool, buyerId);
+    await createFixtureCartItem(pool, cart.cartId, variant1Id, { quantity: 1, isSelected: true });
+    const expected = await shippingFees(buyerContext, addressId);
+    const changed = expected.map(quote => ({ ...quote, fee: (Number(quote.fee) + 1).toFixed(2) }));
+
+    await expect(service.createOrder(buyerContext, {
+      address_id: addressId,
+      payment_method: 'COD',
+      vouchers: [],
+      expected_shipping_fees: changed,
+      idempotency_key: randomUUID(),
+    })).rejects.toMatchObject({ code: 'SHIPPING_QUOTE_CHANGED' });
+
+    const ordersCount = await pool.query('SELECT count(*)::int AS count FROM orders WHERE buyer_id=$1', [buyerId]);
+    const cartItemsCount = await pool.query('SELECT count(*)::int AS count FROM cart_items WHERE cart_id=$1', [cart.cartId]);
+    expect(ordersCount.rows[0].count).toBe(0);
+    expect(cartItemsCount.rows[0].count).toBe(1);
+    expect(await getStock(variant1Id)).toBe(10);
+  });
+
   // =========================================================================
   // Invariant 6 & 7: Idempotency Replay and Mismatch Conflict
   // =========================================================================

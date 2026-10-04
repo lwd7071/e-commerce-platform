@@ -119,5 +119,6 @@ export function NotificationsScreen({ production, repository = production ? apiN
 export function NotificationsPageContent({ production }: { production: boolean }) {
   const { user } = useAuth();
   const liveAvailable = Boolean(user) && process.env.NEXT_PUBLIC_NOTIFICATIONS_API === "live";
-  return <ProtectedPage allowedRoles={["BUYER", "SELLER"]}><NotificationsScreen production={production && Boolean(user)} liveAvailable={production ? liveAvailable : Boolean(user)} /></ProtectedPage>;
+  const liveRepository = liveAvailable ? apiNotificationRepository : demoNotificationRepository;
+  return <ProtectedPage allowedRoles={["BUYER", "SELLER"]}><NotificationsScreen production={production || liveAvailable} repository={liveRepository} liveAvailable={liveAvailable} /></ProtectedPage>;
 }

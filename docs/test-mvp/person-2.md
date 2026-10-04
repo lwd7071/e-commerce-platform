@@ -249,4 +249,40 @@ Phạm vi: hồ sơ cá nhân Buyer; tạo/xem/sửa/xóa địa chỉ nhận h�
 - **Khắc phục**: Trong `deleteAddress`, nếu `address.isDefault === true`, tự động tìm các địa chỉ còn lại của user và gọi `setDefault` cho địa chỉ đầu tiên còn lại.
 - **Xác minh**: Bổ sung test case `deleteAddress: khi xóa địa chỉ default thì tự động đôn địa chỉ còn lại lên làm default` trong `backend/test/modules/buyer/services/address-profile.service.spec.ts` $\rightarrow$ Passed 100%.
 
+## Đợt 2 — kiểm thử sau merge
+
+- **Ngày chạy:** 2026-10-04 (Asia/Saigon)
+- **Commit `dev`:** `790a65e299e69c9036654d1a0c24646f74238850`
+- **Môi trường:** Frontend/backend local kết nối Supabase dev/test đã được chủ dự án cho phép; `NEXT_PUBLIC_USE_MOCK=false`. Không lưu URL định danh project, thông tin đăng nhập hay secret. Cờ allowlist/reset và notification live chỉ đặt theo tiến trình.
+- **Dữ liệu:** Buyer fixture `buyer@dino-e2e.test` và Buyer phụ `buyer-secondary@dino-e2e.test`. Reset fixture cuối phiên thành công, khôi phục hồ sơ địa chỉ/giỏ/voucher/tồn kho/đơn mẫu và xóa dữ liệu phát sinh của hai Buyer. Các Order ID dùng làm bằng chứng đã bị reset; chưa có Order còn sống để bàn giao Người 4.
+- **Phân loại bằng chứng:** `live` = Playwright/browser gọi backend và Supabase dev/test; `PostgreSQL` = integration test với schema tạm riêng; `mock/unit` = test không chứng minh kết nối live.
+
+| Mã | Kết quả đợt 2 | Bằng chứng / giới hạn |
+|---|---|---|
+| `T2-P2-01` | **Đạt (live)** | Playwright đăng nhập, sửa tên/SĐT, xác nhận email/role chỉ đọc, tải avatar và kiểm tra sau reload. |
+| `T2-P2-02` | **Đạt (live)** | Tạo/sửa/xóa địa chỉ, chuyển default, dữ liệu sai trả 422; sau khi xóa địa chỉ default, địa chỉ còn lại được giữ làm default. |
+| `T2-P2-03` | **Đạt (live + PostgreSQL)** | Buyer phụ thử đọc/sửa địa chỉ, giỏ, đơn và notification của Buyer chính đều bị từ chối 404; giỏ riêng không lộ item. DB tests xác nhận owner scope. |
+| `T2-P2-04` | **Đạt (live)** | Số lượng và lựa chọn còn sau reload; 0/âm bị 422, vượt tồn bị 409. Phát hiện và sửa lỗi API trước đây nhận số lượng vượt tồn; regression test xác nhận giỏ không đổi khi bị từ chối. |
+| `T2-P2-05` | **Đạt (live + DB đối chiếu)** | Checkout COD một Shop với `E2E-SAVE` tạo `PENDING_CONFIRMATION`; DB xác nhận subtotal 100.000, giảm 10.000, ship 25.000, tổng 115.000, snapshot địa chỉ/giá, notification và tồn giảm đúng. Order kiểm chứng đã được reset. |
+| `T2-P2-06` | **Đạt (live + PostgreSQL)** | Voucher hết hạn, hết lượt, sai Shop, chưa đạt mức tối thiểu đều bị từ chối; quote phí ship thay đổi trước submit không tạo Order và không đổi giỏ/tồn. Phát hiện và sửa lỗi voucher hết hạn bị đánh giá hợp lệ. |
+| `T2-P2-07` | **Đạt (PostgreSQL)** | Replay cùng idempotency key không tạo/trừ lần hai; payload khác bị từ chối; kiểm thử tranh tồn cuối không làm tồn âm. |
+| `T2-P2-08` | **Đạt (PostgreSQL)** | Checkout nhiều Shop tạo Order theo Shop khi thành công; lỗi ở một Shop rollback toàn giao dịch, gồm dữ liệu và voucher. |
+| `T2-P2-09` | **Đạt (live + PostgreSQL)** | Thiếu lý do hủy 422; hủy hợp lệ thành công; hủy lặp và hủy sau Seller xác nhận bị từ chối. DB concurrency xác nhận hoàn tồn đúng một lần. |
+| `T2-P2-10` | **Đạt (live + PostgreSQL)** | Review sớm, rating ngoài 1–5 và sai Buyer bị từ chối; review đúng OrderItem hoàn tất tạo 201, review trùng 409. PostgreSQL kiểm tra transaction/media. |
+| `T2-P2-11` | **Đạt (live)** | Buyer đọc notification, đánh dấu đã đọc và trạng thái vẫn còn sau reload. |
+
+### Kiểm tra tự động và thay đổi fixture
+
+- Frontend Buyer Vitest: **42/42 pass** (7 file). Fixture reset/account guard: **6/6 pass**. Voucher port unit tests: **7/7 pass**.
+- Playwright live: **10/10 pass** qua đăng nhập, guest access, hồ sơ/avatar, notification, địa chỉ, ownership, checkout thành công, voucher từ chối, hủy đơn và review.
+- PostgreSQL integration: **59/59 pass** (checkout runtime 5, checkout transactions 32, checkout concurrency 1, address/order scope 12, cart 4, notification/review 5). Các suite tạo schema riêng và dọn schema sau khi chạy.
+- Frontend lint, typecheck, build: pass. Backend build: pass. ESLint mục tiêu cho file Buyer/fixture đã sửa: pass. Backend full typecheck còn 2 lỗi có sẵn ngoài phạm vi ở `backend/tests/db/tiering-loyalty.integration.test.ts` (dòng 518, 578: `LoyaltyService` thiếu `quote` cho `ShippingFeeProvider`). Backend full lint có 22 warning cũ ở module `flash-sale`, ngoài phạm vi Người 2.
+- E2E fixture reset cuối phiên: pass; backend/frontend dev server đã dừng. Các đơn live được dùng để đối chiếu đã bị xóa trong lần reset cuối.
+- Thay đổi trong đợt này: thêm fixture Buyer phụ; reset có phạm vi ID/tài khoản fixture để xóa Order, Review, notification, idempotency, avatar/review media của hai Buyer, khôi phục địa chỉ/giỏ và giữ dữ liệu ngoài fixture. Auth account collision vẫn được guard. Không xóa dữ liệu người dùng khác.
+
+### Lỗi và việc còn lại
+
+- Đã sửa và retest 2 lỗi thuộc Buyer: API giỏ chấp nhận số lượng vượt tồn; voucher hết hạn được đánh giá hợp lệ khi không truyền thời điểm hiện tại.
+- Không còn Blocker/Cao chưa xử lý trong 11 ca. Phần kiểm thử Người 2 đã hoàn tất. Việc còn lại để khép luồng phối hợp `T2-E2E-01/02` là tạo một Order mới trong phiên liên tục và bàn giao Order ID cho Người 4; Order ID cũ đã được dọn theo yêu cầu reset cuối phiên nên không dùng tiếp được.
+
 

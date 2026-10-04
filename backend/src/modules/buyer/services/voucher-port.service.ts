@@ -26,7 +26,7 @@ export class VoucherPortService implements IVoucherPort {
         buyerId: context.buyerId,
         shopId: context.shopId,
         orderSubtotal: context.orderSubtotal,
-        now: context.now,
+        now: context.now ?? new Date().toISOString(),
       });
 
       return {

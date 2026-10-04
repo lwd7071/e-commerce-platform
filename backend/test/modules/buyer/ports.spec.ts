@@ -91,6 +91,26 @@ describe('Buyer Ports Contract Tests (Bàn giao cho Người 5 - Transaction Cor
       }
     });
 
+    it('evaluateVoucher: checks expiry against the current time when caller omits now', async () => {
+      await voucherRepo.create({
+        ...mockPlatformVoucher,
+        voucherId: 'expired-now-voucher',
+        code: 'EXPIREDNOW',
+        startAt: '2020-01-01T00:00:00.000Z',
+        endAt: '2020-01-02T00:00:00.000Z',
+      });
+
+      const result = await voucherPort.evaluateVoucher({
+        code: 'EXPIREDNOW',
+        buyerId: mockBuyerId,
+        shopId: mockShopId,
+        orderSubtotal: '100000.00',
+      });
+
+      assert.equal(result.isValid, false);
+      if (!result.isValid) assert.equal(result.errorCode, 'VOUCHER_NOT_APPLICABLE');
+    });
+
     it('evaluateVoucher: mã không tồn tại -> trả về isValid: false kèm VOUCHER_NOT_APPLICABLE', async () => {
       const result = await voucherPort.evaluateVoucher({
         code: 'NON_EXISTING',
