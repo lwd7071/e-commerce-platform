@@ -4,13 +4,13 @@ import React, { useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth/auth-context";
-import { sanitizeReturnTo } from "@/lib/auth/route-guards";
+import { resolvePostLoginRedirect } from "@/lib/auth/route-guards";
 import { Lock, Mail, AlertCircle, Loader2 } from "lucide-react";
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const returnTo = sanitizeReturnTo(searchParams.get("returnTo"));
+  const rawReturnTo = searchParams.get("returnTo");
 
   const { login, loginWithGoogle } = useAuth();
   const [email, setEmail] = useState("");
@@ -20,7 +20,7 @@ function LoginForm() {
 
   const handleGoogleLogin = async () => {
     setErrorMsg(null);
-    try { await loginWithGoogle(returnTo); }
+    try { await loginWithGoogle(rawReturnTo || "/"); }
     catch (err) { setErrorMsg(err instanceof Error ? err.message : "Không thể đăng nhập bằng Google."); }
   };
 
@@ -35,8 +35,9 @@ function LoginForm() {
 
     setIsSubmitting(true);
     try {
-      await login(email, password);
-      router.push(returnTo);
+      const loggedUser = await login(email, password);
+      const destination = resolvePostLoginRedirect(rawReturnTo, loggedUser?.role);
+      router.push(destination);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.";
       setErrorMsg(msg);

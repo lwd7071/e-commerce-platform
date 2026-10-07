@@ -14,7 +14,7 @@ export interface AuthContextType {
   accessToken: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<AuthUser>;
   register: (email: string, password: string, role?: UserRole, fullName?: string, shopName?: string) => Promise<"otp" | "mock">;
   loginWithGoogle: (returnTo?: string) => Promise<void>;
   verifySignupOtp: (email: string, token: string) => Promise<void>;

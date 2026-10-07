@@ -50,3 +50,31 @@ export function sanitizeReturnTo(url: string | null | undefined): string {
 export function matchRouteRule(pathname: string): RouteRule | undefined {
   return ROUTE_RULES.find((rule) => pathname === rule.pathPrefix || pathname.startsWith(`${rule.pathPrefix}/`));
 }
+
+/**
+ * Resolves the destination URL after a successful login:
+ * 1. Checks open redirect safety (relative path, no //, no /\, no external protocols).
+ * 2. If no returnTo, or returnTo is root/auth route, falls back to role default:
+ *    - ADMIN -> /admin
+ *    - SELLER -> /seller
+ *    - BUYER / default -> /
+ * 3. If returnTo is provided, matches against ROUTE_RULES:
+ *    - If destination route has allowedRoles and the current user role is not permitted
+ *      (e.g., BUYER trying /admin, SELLER trying /admin, BUYER trying /seller),
+ *      neutralizes privilege bypass by falling back to the role's default portal.
+ */
+export function resolvePostLoginRedirect(returnTo: string | null | undefined, role?: UserRole): string {
+  const defaultPath = role === "ADMIN" ? "/admin" : role === "SELLER" ? "/seller" : "/";
+  const safePath = sanitizeReturnTo(returnTo);
+
+  if (!returnTo || safePath === "/" || safePath === "/login" || safePath === "/register") {
+    return defaultPath;
+  }
+
+  const matchedRule = matchRouteRule(safePath);
+  if (matchedRule?.allowedRoles && role && !matchedRule.allowedRoles.includes(role)) {
+    return defaultPath;
+  }
+
+  return safePath;
+}

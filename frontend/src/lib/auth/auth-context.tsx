@@ -36,14 +36,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       throw error;
     }
-    setUser({
+    const authUser: AuthUser = {
       id: identity.user_id,
       email: identity.email || session.user.email || "",
       role: identity.role,
       fullName: (session.user.user_metadata?.full_name as string) || null,
       shopId: identity.shop_id,
       shopStatus: identity.shop_status ?? null,
-    });
+    };
+    setUser(authUser);
+    return authUser;
   }, []);
 
   // Sync token with ApiClient singleton
@@ -143,17 +145,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (typeof window !== "undefined") {
           localStorage.setItem("dev_mock_user", JSON.stringify(mockUser));
         }
-        return;
+        return mockUser;
       }
 
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
         throw new Error(error.message);
       }
-      if (data.session) {
-        setAccessToken(data.session.access_token);
-        await syncSession(data.session);
+      if (!data.session) {
+        throw new Error("Đăng nhập thành công nhưng không có phiên hợp lệ.");
       }
+      setAccessToken(data.session.access_token);
+      return await syncSession(data.session);
     } finally {
       setIsLoading(false);
     }

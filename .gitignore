@@ -15,3 +15,5 @@ backend/.env.*
 !ecommerce-web/.env.example
 /docs/demo-seed-accounts.local.md
 scratch/
+test-results/
+.cursor/

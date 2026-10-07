@@ -11,7 +11,14 @@ async function runBenchmark() {
   console.log('⚡ STARTING FLASH SALE 1,000 CONCURRENT REQUESTS BENCHMARK');
   console.log('================================================================================');
 
-  const pool = createDatabasePool(loadDatabaseConfig(process.env));
+  const dbConfig = loadDatabaseConfig(process.env);
+  const pool = createDatabasePool({
+    ...dbConfig,
+    pool: {
+      ...dbConfig.pool,
+      max: 5,
+    },
+  });
   const redis = getRedisClient();
   const service = new FlashSaleService(pool, redis);
 

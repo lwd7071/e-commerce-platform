@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { FormField, TextArea, TextInput } from '@/components/ui/form-controls';
 import { ErrorState, Skeleton } from '@/components/ui/data-states';
 import { AdministrativeAddressFields } from '@/components/forms/administrative-address-fields';
+import { SellerHeaderNav } from './seller-header-nav';
 
 export function SellerShopScreen() {
   const [shop, setShop] = useState<SellerShopProfile | null>(null);
@@ -94,6 +95,7 @@ export function SellerShopScreen() {
           <span className="rounded-full border border-[var(--border)] px-3 py-1 text-sm" aria-label={`Trạng thái gian hàng: ${shop.status}`}>{shop.status}</span>
         </div>
       </header>
+      <SellerHeaderNav />
       {shop.status === 'PENDING' && <p className="notice notice--warning" role="status">Hãy điền địa chỉ nhận hàng và số điện thoại liên hệ để Admin có thể duyệt gian hàng.</p>}
       {!canEdit && <p className="notice" role="status">Hồ sơ đang ở chế độ chỉ xem trong trạng thái hiện tại.</p>}
       {error && <div className="notice notice--error" role="alert">{error}</div>}

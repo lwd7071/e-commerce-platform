@@ -15,6 +15,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { FormField, TextInput } from "@/components/ui/form-controls";
 import { Icon } from "@/components/ui/icon";
+import { SellerHeaderNav } from "./seller-header-nav";
 
 export function SellerProductsScreen() {
   const router = useRouter();
@@ -250,24 +251,8 @@ export function SellerProductsScreen() {
           <strong>Kênh quản lý sản phẩm gian hàng:</strong> Dữ liệu được máy chủ giới hạn theo gian hàng của bạn; tại đây bạn có thể cập nhật tồn kho và trạng thái sản phẩm.
         </div>
       </div>
-      {/* Sub-navigation tabs between Orders and Products */}
-      <nav aria-label="Điều hướng kênh người bán" className="border-b border-[var(--border)]">
-        <div className="flex gap-6 text-sm font-semibold">
-          <Link
-            href="/seller/orders"
-            className="pb-3 border-b-2 border-transparent text-[var(--subtext)] hover:text-[var(--foreground)]"
-          >
-            Đơn hàng cần xử lý
-          </Link>
-          <Link
-            href="/seller/products"
-            className="pb-3 border-b-2 border-[var(--primary-active)] text-[var(--primary-active)]"
-            aria-current="page"
-          >
-            Danh sách sản phẩm
-          </Link>
-        </div>
-      </nav>
+      {/* Sub-navigation tabs across all seller features */}
+      <SellerHeaderNav />
 
       {isLoading ? (
         <div className="space-y-3 surface-card p-6">
