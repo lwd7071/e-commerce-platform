@@ -50,7 +50,7 @@ Người 2 và 4 cùng xác nhận Order ID của `T2-E2E-01/02`; Người 3 xá
 
 | Người | Trạng thái | Ca đã chạy / dự kiến | Lỗi mở (Blocker/Cao/Vừa/Thấp) | Cập nhật gần nhất |
 |---|---|---|---|---|
-| Người 1 | Chưa bắt đầu | 0 / chưa chốt | 0 / 0 / 0 / 0 | — |
+| Người 1 | Đang làm (Đã chạy ca biên) | 3 / 5 | 0 / 0 / 0 / 0 | 2026-10-04 |
 | Người 2 | Chưa bắt đầu | 0 / chưa chốt | 0 / 0 / 0 / 0 | — |
 | Người 3 | Chưa bắt đầu | 0 / chưa chốt | 0 / 0 / 0 / 0 | — |
 | Người 4 | Chưa bắt đầu | 0 / chưa chốt | 0 / 0 / 0 / 0 | — |

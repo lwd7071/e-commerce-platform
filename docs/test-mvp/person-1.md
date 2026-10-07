@@ -216,7 +216,99 @@ Phạm vi: luồng Guest, đăng ký/đăng nhập/đăng xuất, điều hướ
   - Error handler không để lộ stack trace thô hay database connection string ra client.
 - Kết quả thực tế: Hoàn toàn đảm bảo chuẩn bảo mật, các test redaction và auth repository đều pass.
 - Bằng chứng: `backend/test/platform/security-redaction.spec.ts` ([REDACT-01..05]) và `backend/test/platform/auth-middleware.spec.ts` ([AUTH-07 / QD02]).
+- Kiểm tra lại: Passed 100%.
+
+---
+
+## Đợt 2 — kiểm thử sau merge
+
+- Ngày cập nhật: 2026-10-04
+- Commit kiểm thử: `790a65e` (nhánh `dev`)
+- Môi trường: Frontend Vitest / jsdom + Backend Node Platform + Remote PostgreSQL test
+- Người thực hiện: Nông Văn Cường (Người 1)
+- Trạng thái: Đã kiểm chứng các ca biên thực tế (Edge cases) về điều hướng `returnTo`, hết hạn token và khóa tài khoản
+
+### Tóm tắt Đợt 2
+- **Khắc phục nhận định từ Đợt 1**: Ở Đợt 1 phần lớn kết quả dựa vào unit test mock route guards/middleware in-memory. Đợt 2 bổ sung kiểm thử hành vi thực tế trên UI cho 3 tình huống biên then chốt:
+  1. `T2-P1-01`: Guest bấm vào trang thanh toán `/checkout` $\rightarrow$ bị chặn bởi `ProtectedPage`, điều hướng sang `/login?returnTo=%2Fcheckout`. Đăng nhập thành công $\rightarrow$ quay lại đúng `/checkout` (không bị văng về trang chủ `/`). Thử nghiệm tấn công Open Redirect (`returnTo=//malicious-phishing-site.com`) $\rightarrow$ bị `sanitizeReturnTo` điều hướng an toàn về `/`.
+  2. `T2-P1-02`: Token hết hạn đột ngột giữa chừng khi đang thao tác (API trả `401 AUTH_REQUIRED`) $\rightarrow$ Phân loại đúng lỗi `AUTH`, giữ an toàn snapshot đặt hàng, điều hướng về `/login?returnTo=/checkout&reason=expired`. Trang đăng nhập hiển thị thông báo: *"Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại."*
+  3. `T2-P1-03`: Tài khoản bị Admin khóa (`403 USER_LOCKED`) trong lúc đang mở phiên $\rightarrow$ Hệ thống thu hồi phiên local, điều hướng sang `/login?reason=locked`. Trang đăng nhập hiển thị cảnh báo đỏ rõ ràng: *"Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên."* Thử đăng nhập lại bằng tài khoản bị khóa $\rightarrow$ backend chặn và form login hiển thị thông báo lỗi.
+- **Sửa lỗi phát hiện (Bug Fix)**:
+  - Khắc phục khiếm khuyết trên màn hình đăng nhập (`frontend/src/app/login/page.tsx`): Trước đây trang login bỏ qua tham số `reason` dẫn đến việc người dùng bị văng ra mà không rõ lý do. Đã bổ sung đọc tham số `reason=locked` và `reason=expired` để hiển thị alert tương ứng.
+- **Kết quả kiểm thử**:
+  - File kiểm thử: `frontend/test/auth-e2e-real-flows.spec.tsx` (7/7 tests PASS).
+  - Quality gates: `npm --prefix frontend run typecheck` (0 errors) & `npm --prefix frontend run lint` (0 errors, 0 warnings).
+
+### Nhật ký kiểm thử chi tiết Đợt 2
+
+#### [T2-P1-01] Điều hướng returnTo khi Guest truy cập trang cần bảo vệ (Checkout / Giỏ hàng)
+- Trạng thái: Đã xác minh
+- Người thực hiện: Nông Văn Cường (Người 1)
+- Ngày cập nhật: 2026-10-04
+- Role và tài khoản/dữ liệu test: GUEST $\rightarrow$ BUYER (`buyer@dino.vn`)
+- Quy tắc tham chiếu: role-business-rules.md # Mục 2 & F-106 / Route Protection
+- Điều kiện ban đầu: Người dùng chưa đăng nhập (Guest), truy cập trực tiếp URL trang thanh toán `/checkout`.
+- Các bước thực hiện:
+  1. Render `ProtectedPage` với `allowedRoles={["BUYER"]}` bọc nội dung `/checkout`.
+  2. Kiểm tra router kích hoạt chuyển hướng sang `/login?returnTo=%2Fcheckout` và không hiển thị nội dung nhạy cảm của checkout.
+  3. Người dùng nhập thông tin đăng nhập trên form `/login` và bấm nút "Đăng nhập".
+  4. Kiểm tra router điều hướng chính xác về `returnTo` (`/checkout`), không bị rơi về trang chủ `/`.
+  5. Thử nghiệm bảo mật (Security Pentest): Truy cập `/login?returnTo=//malicious-phishing-site.com` $\rightarrow$ Đăng nhập $\rightarrow$ Kiểm tra `sanitizeReturnTo` điều hướng an toàn về `/`.
+- Kết quả mong đợi:
+  - Guest bị chặn và chuyển sang login kèm `returnTo` đã encode.
+  - Đăng nhập thành công đưa người dùng quay lại đúng trang thanh toán đang dở dang.
+  - Chặn triệt để lỗ hổng Open Redirect.
+- Kết quả thực tế: Hoạt động chuẩn xác 100%.
+- Bằng chứng: `frontend/test/auth-e2e-real-flows.spec.tsx` (Suite 1: 3/3 tests PASS).
 - Mức độ: Không có lỗi.
+- Kiểm tra lại: Passed 100%.
+
+---
+
+#### [T2-P1-02] Token hết hạn đột ngột trong lúc đang thao tác (Session Expiration / 401 AUTH_REQUIRED)
+- Trạng thái: Đã xác minh
+- Người thực hiện: Nông Văn Cường (Người 1)
+- Ngày cập nhật: 2026-10-04
+- Role và tài khoản/dữ liệu test: BUYER đang thao tác trên giao diện Checkout
+- Quy tắc tham chiếu: role-business-rules.md # Mục 1, F-102 & checkout-error-classifier.ts
+- Điều kiện ban đầu: Buyer đang chuẩn bị đặt hàng tại màn hình `/checkout`, JWT access token hết hạn giữa chừng.
+- Các bước thực hiện:
+  1. API Backend trả về HTTP 401 kèm mã lỗi `AUTH_REQUIRED`.
+  2. Kiểm tra bộ phân loại lỗi `classifyCheckoutError` bắt đúng nhóm lỗi `AUTH`.
+  3. Hệ thống giữ nguyên snapshot idempotency đơn hàng để tránh mất dữ liệu giỏ/địa chỉ đã chọn.
+  4. Hệ thống chuyển hướng người dùng sang `/login?returnTo=/checkout&reason=expired`.
+  5. Kiểm tra giao diện `/login`: Phải hiển thị thông báo alert rõ ràng: *"Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại."*
+- Kết quả mong đợi:
+  - Phân loại đúng lỗi `AUTH`, không coi 401 là lỗi mạng hay crash 500.
+  - UI hiển thị thông báo phiên hết hạn, giúp người dùng an tâm đăng nhập lại và tiếp tục đơn hàng.
+- Kết quả thực tế: Hoạt động chuẩn xác 100%.
+- Bằng chứng: `frontend/test/auth-e2e-real-flows.spec.tsx` (Suite 2: 2/2 tests PASS) và `frontend/src/app/login/page.tsx`.
+- Mức độ: Không có lỗi.
+- Kiểm tra lại: Passed 100%.
+
+---
+
+#### [T2-P1-03] Hành vi UI khi tài khoản bị Admin khóa (403 USER_LOCKED) trong lúc đang thao tác
+- Trạng thái: Đã xác minh
+- Người thực hiện: Nông Văn Cường (Người 1)
+- Ngày cập nhật: 2026-10-04
+- Role và tài khoản/dữ liệu test: BUYER (`locked_user@dino.vn`) bị Admin chuyển trạng thái sang `LOCKED`
+- Quy tắc tham chiếu: role-business-rules.md # Mục 1 (Tài khoản LOCKED) & AuthContext
+- Điều kiện ban đầu: User đang có phiên hoạt động, nhưng tài khoản bị Admin khóa trong database.
+- Các bước thực hiện:
+  1. User thực hiện một thao tác gửi request lên server $\rightarrow$ Backend phát hiện `status = 'LOCKED'` và trả HTTP 403 `USER_LOCKED`.
+  2. Kiểm tra bộ phân loại `classifyCheckoutError` phân loại chính xác nhóm `USER_LOCKED`.
+  3. Hệ thống xóa bỏ snapshot idempotency, gọi `signOut({ scope: "local" })` để hủy token phiên hiện tại.
+  4. Router điều hướng sang `/login?reason=locked`.
+  5. Kiểm tra giao diện `/login`: Phải hiển thị banner cảnh báo: *"Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên."*
+  6. Thử cố tình nhập lại thông tin đăng nhập với tài khoản bị khóa $\rightarrow$ Form đăng nhập hiển thị thông báo lỗi từ backend và từ chối tạo phiên mới.
+- Kết quả mong đợi:
+  - Thu hồi token ngay lập tức khi phát hiện tài khoản bị khóa.
+  - Giao diện login giải thích rõ lý do bị đăng xuất cho người dùng.
+  - Chặn không cho tái đăng nhập bằng tài khoản `LOCKED`.
+- Kết quả thực tế: Hoạt động chuẩn xác 100%.
+- Bằng chứng: `frontend/test/auth-e2e-real-flows.spec.tsx` (Suite 3: 2/2 tests PASS) và `frontend/src/app/login/page.tsx`.
+- Mức độ: Đã phát hiện 1 lỗi Vừa ở Đợt 1 (trang login thiếu hiển thị lý do khi redirect `reason=locked`) và đã khắc phục triệt để.
 - Kiểm tra lại: Passed 100%.
 
 

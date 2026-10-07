@@ -4,23 +4,32 @@ import React, { useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth/auth-context";
-import { resolvePostLoginRedirect } from "@/lib/auth/route-guards";
+import { resolvePostLoginRedirect, sanitizeReturnTo } from "@/lib/auth/route-guards";
 import { Lock, Mail, AlertCircle, Loader2 } from "lucide-react";
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const rawReturnTo = searchParams.get("returnTo");
+  const returnTo = sanitizeReturnTo(searchParams.get("returnTo"));
+  const reason = searchParams.get("reason");
 
   const { login, loginWithGoogle } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(() => {
+    if (reason === "locked") {
+      return "Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên.";
+    }
+    if (reason === "expired") {
+      return "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
+    }
+    return null;
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleGoogleLogin = async () => {
     setErrorMsg(null);
-    try { await loginWithGoogle(rawReturnTo || "/"); }
+    try { await loginWithGoogle(returnTo); }
     catch (err) { setErrorMsg(err instanceof Error ? err.message : "Không thể đăng nhập bằng Google."); }
   };
 
@@ -36,7 +45,7 @@ function LoginForm() {
     setIsSubmitting(true);
     try {
       const loggedUser = await login(email, password);
-      const destination = resolvePostLoginRedirect(rawReturnTo, loggedUser?.role);
+      const destination = resolvePostLoginRedirect(returnTo, loggedUser?.role);
       router.push(destination);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.";
