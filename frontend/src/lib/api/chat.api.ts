@@ -56,6 +56,7 @@ export interface SendMessagePayload {
   message_type?: MessageType;
   metadata?: Record<string, unknown>;
   product_id?: string;
+  sender_role?: SenderRole;
 }
 
 export interface SendMessageResponse {

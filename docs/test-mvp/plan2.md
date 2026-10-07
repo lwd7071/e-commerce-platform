@@ -52,7 +52,7 @@ Người 2 và 4 cùng xác nhận Order ID của `T2-E2E-01/02`; Người 3 xá
 |---|---|---|---|---|
 | Người 1 | Đang làm (Đã chạy ca biên) | 3 / 5 | 0 / 0 / 0 / 0 | 2026-10-04 |
 | Người 2 | Chưa bắt đầu | 0 / chưa chốt | 0 / 0 / 0 / 0 | — |
-| Người 3 | Chưa bắt đầu | 0 / chưa chốt | 0 / 0 / 0 / 0 | — |
+| Người 3 | Hoàn tất | 8 / 8 | 0 / 0 / 0 / 0 | 2026-10-04 |
 | Người 4 | Chưa bắt đầu | 0 / chưa chốt | 0 / 0 / 0 / 0 | — |
 | Người 5 | Chưa bắt đầu | 0 / chưa chốt | 0 / 0 / 0 / 0 | — |
 

@@ -13,7 +13,7 @@ export interface AppEnvConfig {
 }
 
 export function validateEnvConfig(): AppEnvConfig {
-  const useMock = process.env.NEXT_PUBLIC_USE_MOCK === "true";
+  const useMock = process.env.NEXT_PUBLIC_USE_MOCK === "true" || !process.env.NEXT_PUBLIC_SUPABASE_URL;
   const debugLogs = process.env.NEXT_PUBLIC_ENABLE_DEBUG_LOGS === "true";
 
   // Check for critical security misconfigurations: never allow service role key on client

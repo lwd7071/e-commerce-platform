@@ -6,6 +6,7 @@ import {
   ValidationFailedError,
 } from '../../../platform/errors/app-error.ts';
 import { BotGroundedEngine } from '../domain/bot-grounded-engine.ts';
+import { GroqChatClient } from '../infrastructure/groq-chat.client.ts';
 import type {
   ChatConversation,
   ChatMessage,
@@ -34,10 +35,12 @@ export interface SendMessageResult {
 export class PgChatService {
   private readonly repo: PgChatRepository;
   private readonly botEngine: BotGroundedEngine;
+  private readonly groqClient: GroqChatClient;
 
-  constructor(private readonly pool: Pool) {
+  constructor(private readonly pool: Pool, groqClient?: GroqChatClient) {
     this.repo = new PgChatRepository(pool);
     this.botEngine = new BotGroundedEngine();
+    this.groqClient = groqClient ?? new GroqChatClient();
   }
 
   async getOrCreateConversation(
@@ -166,11 +169,22 @@ export class PgChatService {
     // Nếu người gửi là Buyer và cuộc hội thoại đang ở chế độ BOT_ASSISTANT
     if (conversation.mode === 'BOT_ASSISTANT') {
       const productContext = await this.resolveProductContext(conversation.current_product_id);
-      const botEval = this.botEngine.evaluate(
+
+      // 1. Thử gọi GroqCloud LLM (LPU Inference) nếu đã cấu hình GROQ_API_KEY
+      let botEval = await this.groqClient.generateResponse(
         content,
         productContext,
         conversation.bot_permissions
       );
+
+      // 2. Tự động fallback về quy tắc nội bộ BotGroundedEngine nếu chưa có key hoặc lỗi mạng/timeout
+      if (!botEval) {
+        botEval = this.botEngine.evaluate(
+          content,
+          productContext,
+          conversation.bot_permissions
+        );
+      }
 
       const botMessage = await this.repo.createMessage({
         messageId: randomUUID(),

@@ -169,3 +169,37 @@ Phạm vi: Quản lý danh mục & sản phẩm Catalog công khai → Chi tiế
 - Bằng chứng: `backend/test/platform/chat-routes.spec.ts` (presence suite), `frontend/test/seller-chat-inbox.spec.tsx`.
 - Mức độ: Đã sửa (Lỗi Vừa).
 - Kiểm tra lại: Passed 100%.
+
+## Đợt 2 — kiểm thử sau merge
+
+- **Ngày chạy:** 2026-10-04 (Asia/Saigon)
+- **Commit `dev`:** `99580d4d1c1c4b5bb7a1461950ca4306205deb47`
+- **Môi trường:** Frontend/backend local kết nối database test/dev; `NEXT_PUBLIC_USE_MOCK=false` cho luồng live API và mock/unit cho các suite cô lập.
+- **Dữ liệu:** Sản phẩm mẫu Catalog (`Áo Thun Cotton Cao Cấp`, `Quần Jeans Slimfit`, các variants và tồn kho khả dụng), Shop fixture `ACTIVE` (`Dino Official Store` / `seller-active@dino-e2e.test`), Shop fixture `PENDING` (kiểm tra phân quyền sở hữu), tài khoản Guest và Buyer (`buyer@dino-e2e.test`).
+- **Phân loại bằng chứng:** `live` = Browser/Playwright gọi backend và database test thật; `PostgreSQL` = integration test với schema test riêng; `mock/unit` = suite cô lập kiểm tra business logic và UI state.
+
+| Mã | Kết quả đợt 2 | Bằng chứng / giới hạn |
+|---|---|---|
+| `T2-P3-01` | **Đạt (API + UI Unit)** | Guest và Buyer xem danh mục 2 cấp (RB-KN04), tìm kiếm từ khóa, lọc theo khoảng giá, danh mục, shop tier và phân trang cursor chuẩn Base64; cursor không hợp lệ bị từ chối với 422; sản phẩm `INACTIVE`/`HIDDEN` và Shop `LOCKED` không bị lộ ra ngoài. Bằng chứng: `catalog-hardening.spec.ts`, `catalog-search-filters.spec.ts`, `catalog-pagination.spec.ts`. |
+| `T2-P3-02` | **Đạt (API + UI)** | Trang chi tiết sản phẩm hiển thị gallery ảnh chuẩn SEO (`next/image`), danh sách biến thể kèm giá/tồn kho thực; aggregate rating và bình luận truy vấn trực tiếp từ `reviewRepository`, chỉ hiển thị các review có trạng thái `VISIBLE`, không dùng fallback 5 sao giả. Bằng chứng: `catalog-port.spec.ts`, `review-media.spec.ts`, `product-detail-screen.spec.tsx`. |
+| `T2-P3-03` | **Đạt (API + UI)** | Seller tạo sản phẩm mới và biến thể: giá thập phân dương tối đa 2 chữ số (QD05), tồn kho nguyên không âm (QD06), SKU duy nhất trong Shop (RB-LB11); upload ảnh sản phẩm qua Media Asset Service với sortOrder $\ge 0$ (RB-MG11). Cung cấp sản phẩm mẫu sẵn sàng cho hành trình mua hàng `T2-E2E-01` và duyệt shop `T2-E2E-03`. Bằng chứng: `product-variant.spec.ts`, `catalog-product-create.spec.ts`, `seller-create-product.spec.ts`. |
+| `T2-P3-04` | **Đạt (API + UI)** | Cập nhật thông tin sản phẩm và biến thể; transaction thực thi khóa hàng Shop `SELECT shop_id FROM shops WHERE shop_id = $1 FOR UPDATE` chống trùng SKU đồng thời; kiểm tra batch update/delete biến thể chạy ổn định, khắc phục dứt điểm nguy cơ timeout khi thêm/xóa nhiều biến thể. Bằng chứng: `pg-catalog-http.service.ts` (lines 548-580), `seller-product-edit-screen.spec.tsx`. |
+| `T2-P3-05` | **Đạt (Security & Access Control)** | Kiểm tra cô lập dữ liệu gian hàng: Seller thuộc Shop khác hoặc User chưa có Shop cố tình sửa sản phẩm, đổi trạng thái hoặc chỉnh sửa biến thể của Shop A đều bị từ chối 403 Forbidden (QD04); không lộ dữ liệu nhạy cảm của Shop khác. Bằng chứng: `catalog-domain.spec.ts` (Shop Ownership & SKU Isolation suite), `seller-onboarding-gating.spec.ts`. |
+| `T2-P3-06` | **Đạt (API + DB State)** | Bật/tắt hiển thị sản phẩm (QD16): Seller đổi trạng thái sang `INACTIVE` hoặc `HIDDEN`; Catalog công khai lập tức ẩn sản phẩm khỏi Guest/Buyer; dữ liệu đơn hàng và lịch sử giao dịch cũ không bị ảnh hưởng (Immutability). Bằng chứng: `catalog-hardening.spec.ts` (Status Visibility suite), `product-variant.spec.ts`. |
+| `T2-P3-07` | **Đạt (Unit + Integration)** | Trợ lý AI trả lời chính xác thông tin tồn kho, giá bán, biến thể và đặc tính sản phẩm; tuân thủ cấu hình `bot_permissions` của Seller; chống bịa đặt (Anti-hallucination): từ chối trả lời thông tin ngoài mô tả và đề xuất gặp Shop; phát hiện ý định mặc cả/giao gấp để gợi ý kết nối Live Agent. Bằng chứng: `chat-routes.spec.ts` (BotGroundedEngine 9/9 tests pass), `chat-widget.spec.tsx`. |
+| `T2-P3-08` | **Đạt (Live Polling + API + UI)** | Live Chat hai chiều: Buyer bấm nút "Gặp Người Bán" kích hoạt hand-off chuyển sang `LIVE_AGENT`; Seller tiếp quản tại `/seller/chat` gửi tin nhắn với tư cách Người bán (`SELLER`); cơ chế short-polling 4s tự động đồng bộ hai chiều; Seller bật/tắt `Shop Tạm Vắng (Offline)` lưu API `shop_chat_presence`; khi Shop offline, bot tự động phản hồi thông báo vắng mặt; fallback an toàn khi API lỗi. Bằng chứng: `chat-routes.spec.ts` (presence & handoff suites), `seller-chat-inbox.spec.tsx`, `chat-widget.spec.tsx`. |
+
+### Kiểm tra tự động và chất lượng (Quality Gates)
+
+- **Backend Catalog Domain & Contract Tests:** **41/41 pass 100%** (bao gồm 6 suite kiểm tra SKU conflict, decimal price, tồn kho QD06, category depth max 2 cấp, cursor pagination, và catalog port bàn giao cho Người 5).
+- **Backend Chat Engine & HTTP Integration Tests:** **16/16 pass 100%** (bao gồm 9/9 unit tests BotGroundedEngine chống bịa đặt và 7/7 integration tests chat routes, handoff, shop presence).
+- **Frontend Vitest Suites:** **25/25 pass 100%** (Catalog search filters 8, Catalog pagination 2, Product create 5, Chat widget 3, Seller product edit 3, Seller chat inbox 4).
+- **ESLint & Static Analysis:** Pass 0 errors trên toàn bộ các file Catalog và Chat.
+- **Phối hợp liên vai trò:** Đã chuẩn bị sẵn sàng dữ liệu sản phẩm mẫu (Áo Thun Cotton Cao Cấp, Quần Jeans Slimfit) kèm biến thể và tồn kho khả dụng để bàn giao cho Người 2 và Người 4 thực hiện trọn vẹn luồng `T2-E2E-01` (Đặt hàng $\rightarrow$ Giao hàng $\rightarrow$ Review) và `T2-E2E-03` (Seller Shop PENDING $\rightarrow$ Duyệt $\rightarrow$ Bán sản phẩm).
+
+### Lỗi và việc còn lại
+
+- **Lỗi phát hiện và xử lý trong đợt 2:**
+  1. *[UX Terminology & Mock Role]* Khi Seller gửi tin nhắn trên màn hình `/seller/chat` ở chế độ mock/offline, `mockChatRepository` trước đó mặc định gán role `BUYER`, dẫn đến việc Trợ lý AI tự động phản hồi lại chính Người bán. Đã cập nhật `sendMessage` truyền tường minh `sender_role: 'SELLER'`, ngắt bot khi Seller nhắn và hiển thị đúng nhãn `Bạn (Người bán)`.
+  2. *[UI Clarification]* Đã việt hóa rõ ràng các nhãn trạng thái từ tiếng Anh dễ gây hiểu lầm (`LIVE AGENT`) sang tiếng Việt chuẩn mực: `Người bán trực tiếp (Người thật)` đối lập với `Trợ lý AI tự động` để phục vụ báo cáo và bảo vệ đồ án rõ ràng.
+- **Lỗi mở:** Blocker 0 · Cao 0 · Vừa 0 · Thấp 0. Toàn bộ 8 ca kiểm thử đợt 2 của Người 3 đã hoàn tất và sẵn sàng.

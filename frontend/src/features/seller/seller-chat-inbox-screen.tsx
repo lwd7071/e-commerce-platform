@@ -148,6 +148,7 @@ export function SellerChatInboxScreen() {
     try {
       const res = await repositories.chat().sendMessage(selectedConv.conversation_id, {
         content: text,
+        sender_role: "SELLER",
       });
 
       setMessages((prev) => [...prev, res.userMessage]);

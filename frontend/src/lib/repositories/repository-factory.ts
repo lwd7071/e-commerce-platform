@@ -1100,11 +1100,14 @@ const mockChatRepository: IChatRepository = {
   },
   getMessages: async (id) => [...(mockMessagesStore[id] || [])],
   sendMessage: async (id, payload) => {
+    const senderRole = payload.sender_role || (payload.metadata?.sender_role as import('../api/chat.api').SenderRole) || 'BUYER';
+    const isSeller = senderRole === 'SELLER';
+
     const userMsg: import('../api/chat.api').WireChatMessage = {
-      message_id: `msg_u_${Date.now()}`,
+      message_id: `msg_${isSeller ? 's' : 'u'}_${Date.now()}`,
       conversation_id: id,
-      sender_id: 'buyer-demo',
-      sender_role: 'BUYER',
+      sender_id: isSeller ? 'seller-demo' : 'buyer-demo',
+      sender_role: isSeller ? 'SELLER' : 'BUYER',
       message_type: payload.message_type || 'TEXT',
       content: payload.content,
       metadata: payload.metadata || {},
@@ -1115,6 +1118,16 @@ const mockChatRepository: IChatRepository = {
     mockMessagesStore[id].push(userMsg);
 
     const conv = mockConversationsStore.find((c) => c.conversation_id === id);
+    if (conv) {
+      conv.last_message = payload.content;
+      conv.last_message_at = userMsg.created_at;
+    }
+
+    if (isSeller) {
+      if (conv) conv.mode = 'LIVE_AGENT';
+      return { userMessage: userMsg };
+    }
+
     if (conv && conv.mode === 'BOT_ASSISTANT') {
       const botMsg: import('../api/chat.api').WireChatMessage = {
         message_id: `msg_b_${Date.now()}`,
@@ -1128,6 +1141,7 @@ const mockChatRepository: IChatRepository = {
         created_at: new Date(Date.now() + 500).toISOString(),
       };
       mockMessagesStore[id].push(botMsg);
+      conv.last_message = botMsg.content;
       return { userMessage: userMsg, botResponse: botMsg };
     }
     return { userMessage: userMsg };

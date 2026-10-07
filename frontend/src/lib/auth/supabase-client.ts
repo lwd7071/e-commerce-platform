@@ -15,12 +15,7 @@ export function getSupabaseClient(): SupabaseClient | null {
   const { supabaseUrl, supabaseAnonKey, useMock } = envConfig;
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    if (useMock) {
-      return null;
-    }
-    throw new Error(
-      "[SupabaseError] Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY. Set NEXT_PUBLIC_USE_MOCK=true for offline development."
-    );
+    return null;
   }
 
   supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
