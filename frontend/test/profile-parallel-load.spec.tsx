@@ -39,7 +39,7 @@ const authValue: AuthContextType = {
   isLoading: false,
   isAuthenticated: true,
   login: vi.fn(),
-  register: vi.fn(async () => "mock"),
+  register: vi.fn(async () => "mock" as const),
   loginWithGoogle: vi.fn(),
   verifySignupOtp: vi.fn(),
   resendSignupOtp: vi.fn(),

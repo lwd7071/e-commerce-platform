@@ -32,7 +32,7 @@ export function AdministrativeAddressFields({ provinceCode, wardCode, onProvince
   }, [provinceCode]);
 
   return <div className="grid gap-3 sm:grid-cols-2">
-    <label className="field-stack"><span className="field-label">Tỉnh/thành phố</span><select aria-label="Tỉnh/thành phố" required value={provinceCode} onChange={event => { const row = provinces.find(item => item.code === event.target.value); onProvinceChange(event.target.value, row?.name ?? ''); onWardChange('', ''); }} className={selectClass}>
+    <label className="field-stack"><span className="field-label">Tỉnh/thành phố</span><select aria-label="Tỉnh/thành phố" required value={provinceCode} onChange={event => { const row = provinces.find(item => item.code === event.target.value); onProvinceChange(event.target.value, row?.name ?? ''); }} className={selectClass}>
       <option value="">Chọn tỉnh/thành phố</option>{provinces.map(item => <option key={item.code} value={item.code}>{item.name}</option>)}
     </select></label>
     <label className="field-stack"><span className="field-label">Phường/xã</span><select aria-label="Phường/xã" required disabled={!provinceCode || wards.length === 0} value={wardCode} onChange={event => { const row = wards.find(item => item.code === event.target.value); onWardChange(event.target.value, row?.name ?? ''); }} className={selectClass}>
