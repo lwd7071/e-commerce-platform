@@ -43,7 +43,10 @@ const paths: Record<IconName, ReactNode> = {
   warning: <><path d="m12 3 10 18H2L12 3Z" /><path d="M12 9v5M12 17h.01" /></>,
 };
 
-export function Icon({ name, ...props }: Props) {
+export function Icon({ name, className = "", ...props }: Props) {
+  const isSpinner = name === "spinner";
+  const mergedClass = `${isSpinner ? "animate-spin text-[var(--primary)]" : ""} ${className}`.trim();
+
   return (
     <svg
       aria-hidden="true"
@@ -56,6 +59,7 @@ export function Icon({ name, ...props }: Props) {
       strokeLinejoin="round"
       width="20"
       height="20"
+      className={mergedClass || undefined}
       {...props}
     >
       {paths[name]}

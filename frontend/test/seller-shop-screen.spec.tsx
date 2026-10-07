@@ -54,8 +54,9 @@ describe('SellerShopScreen UI', () => {
     expect(screen.getByDisplayValue('123 Đường Công Nghệ, Q.1, TP.HCM')).toBeTruthy();
     expect(screen.getByDisplayValue('0901234567')).toBeTruthy();
     expect(screen.getByText('PENDING')).toBeTruthy();
-    expect(screen.getByText(/Hãy điền địa chỉ nhận hàng/)).toBeTruthy();
+    expect(screen.getByText(/Hãy điền địa chỉ shop/)).toBeTruthy();
   });
+
 
   it('allows saving updated shop details', async () => {
     vi.mocked(sellerShopApi.get).mockResolvedValueOnce(mockShop);

@@ -2,22 +2,32 @@
 
 import React, { useEffect, useState } from "react";
 import { buyerApi, type BuyerLoyaltyInfo, type BuyerLoyaltyHistory } from "@/lib/api/buyer.api";
+import { moneyAdapter } from "@/lib/adapters/money.adapter";
 import { TierBadge } from "@/components/ui/tier-badge";
 import { Icon } from "@/components/ui/icon";
 
-function formatVND(value: string | number): string {
-  const num = typeof value === "string" ? parseFloat(value) : value;
-  if (isNaN(num)) return "0 đ";
-  return new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(num);
-}
+export type BuyerLoyaltyCardProps = {
+  initialLoyalty?: BuyerLoyaltyInfo | null;
+  initialHistory?: BuyerLoyaltyHistory | null;
+  isLoading?: boolean;
+};
 
-export function BuyerLoyaltyCard() {
-  const [loyalty, setLoyalty] = useState<BuyerLoyaltyInfo | null>(null);
-  const [history, setHistory] = useState<BuyerLoyaltyHistory | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+export function BuyerLoyaltyCard({
+  initialLoyalty,
+  initialHistory,
+  isLoading: externalLoading,
+}: BuyerLoyaltyCardProps = {}) {
+  const hasExternalData = initialLoyalty !== undefined;
+
+  const [selfLoyalty, setSelfLoyalty] = useState<BuyerLoyaltyInfo | null>(null);
+  const [selfHistory, setSelfHistory] = useState<BuyerLoyaltyHistory | null>(null);
+  const [selfLoading, setSelfLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Nếu dữ liệu đã được cung cấp từ tầng điều phối trang thì không fetch lại
+    if (hasExternalData) return;
+
     let active = true;
     const fetchLoyalty = typeof buyerApi.getLoyalty === "function"
       ? buyerApi.getLoyalty().catch((e) => { console.warn("Could not load loyalty info", e); return null; })
@@ -29,23 +39,28 @@ export function BuyerLoyaltyCard() {
 
     Promise.all([fetchLoyalty, fetchHistory]).then(([loyaltyRes, historyRes]) => {
       if (!active) return;
-      if (loyaltyRes) setLoyalty(loyaltyRes);
-      if (historyRes) setHistory(historyRes);
-      setIsLoading(false);
+      if (loyaltyRes) setSelfLoyalty(loyaltyRes);
+      if (historyRes) setSelfHistory(historyRes);
+      setSelfLoading(false);
     }).catch((err: unknown) => {
       if (!active) return;
       setError(err instanceof Error ? err.message : "Không thể tải thông tin tích điểm");
-      setIsLoading(false);
+      setSelfLoading(false);
     });
     return () => { active = false; };
-  }, []);
+  }, [hasExternalData]);
+
+  const loyalty = hasExternalData ? (initialLoyalty ?? null) : selfLoyalty;
+  const history = hasExternalData ? (initialHistory ?? null) : selfHistory;
+  const isLoading = hasExternalData ? Boolean(externalLoading) : selfLoading;
+
 
   if (isLoading) {
     return (
-      <section className="surface-card space-y-4" aria-busy="true" aria-label="Đang tải thông tin thành viên">
-        <div className="flex items-center gap-2 text-[var(--muted)]">
-          <Icon name="spinner" />
-          <span>Đang tải thông tin hạng thành viên và DinoPoint…</span>
+      <section className="surface-card space-y-4 p-5 sm:p-6" aria-busy="true" aria-label="Đang tải thông tin thành viên" data-testid="loyalty-card-skeleton">
+        <div className="flex items-center gap-3 text-[var(--subtext)]">
+          <Icon name="spinner" className="animate-spin text-[var(--primary)]" />
+          <span className="text-sm font-medium">Đang tải thông tin hạng thành viên và DinoPoint…</span>
         </div>
       </section>
     );
@@ -61,7 +76,7 @@ export function BuyerLoyaltyCard() {
   const isVip = loyalty.tier === "VIP";
 
   return (
-    <section className="surface-card space-y-6" aria-labelledby="loyalty-title" data-testid="buyer-loyalty-card">
+    <section className="surface-card space-y-6 p-5 sm:p-6" aria-labelledby="loyalty-title" data-testid="buyer-loyalty-card">
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--border)] pb-4">
         <div>
           <div className="flex items-center gap-3">
@@ -75,11 +90,13 @@ export function BuyerLoyaltyCard() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3 bg-[var(--surface-muted)] px-4 py-2.5 rounded-xl border border-[var(--border)]" data-testid="loyalty-points-badge">
-          <span className="text-2xl" role="img" aria-label="Ngôi sao">⭐</span>
+        <div className="flex items-center gap-3 bg-[var(--card-muted)] px-4 py-2.5 rounded-xl border border-[var(--border)]" data-testid="loyalty-points-badge">
+          <div className="w-9 h-9 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+            <Icon name="star" className="w-5 h-5 fill-amber-400 text-amber-500" />
+          </div>
           <div>
-            <p className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider">Số dư DinoPoint</p>
-            <p className="text-xl font-bold text-[var(--primary)]">{loyalty.loyalty_points.toLocaleString("vi-VN")} <span className="text-sm font-normal text-[var(--muted)]">điểm</span></p>
+            <p className="text-xs font-semibold text-[var(--subtext)] uppercase tracking-wider">Số dư DinoPoint</p>
+            <p className="text-xl font-bold text-[var(--primary)]">{loyalty.loyalty_points.toLocaleString("vi-VN")} <span className="text-sm font-normal text-[var(--subtext)]">điểm</span></p>
           </div>
         </div>
       </div>
@@ -88,14 +105,14 @@ export function BuyerLoyaltyCard() {
       <div className="space-y-2">
         <div className="flex items-center justify-between text-sm">
           <span className="font-medium text-[var(--foreground)]">
-            Tiến trình hạng VIP ({formatVND(loyalty.total_spent)} / {formatVND(loyalty.vip_threshold)})
+            Tiến trình hạng VIP ({moneyAdapter.formatVND(loyalty.total_spent)} / {moneyAdapter.formatVND(loyalty.vip_threshold)})
           </span>
           <span className="font-semibold text-[var(--primary)]">
             {isVip ? "Đạt VIP" : `${progressPct}%`}
           </span>
         </div>
         <div
-          className="w-full bg-[var(--surface-muted)] rounded-full h-3 overflow-hidden border border-[var(--border)]"
+          className="w-full bg-[var(--card-muted)] rounded-full h-3 overflow-hidden border border-[var(--border)]"
           role="progressbar"
           aria-valuenow={progressPct}
           aria-valuemin={0}
@@ -103,14 +120,14 @@ export function BuyerLoyaltyCard() {
           aria-label="Tiến trình lên hạng VIP"
         >
           <div
-            className="h-full rounded-full transition-all duration-500 bg-gradient-to-r from-amber-500 to-amber-600"
+            className="h-full rounded-full transition-all duration-500 bg-gradient-to-r from-amber-400 to-amber-500"
             style={{ width: `${progressPct}%` }}
           />
         </div>
-        <p className="text-xs text-[var(--muted)]">
+        <p className="text-xs text-[var(--subtext)]">
           {isVip
             ? "Tuyệt vời! Bạn đã đạt hạng VIP cao nhất và đang hưởng hệ số tích điểm x2."
-            : `Còn thiếu ${formatVND(Math.max(0, thresholdNum - spentNum))} chi tiêu hoàn tất để đạt hạng VIP.`}
+            : `Còn thiếu ${moneyAdapter.formatVND(Math.max(0, thresholdNum - spentNum))} chi tiêu hoàn tất để đạt hạng VIP.`}
         </p>
       </div>
 
@@ -118,14 +135,14 @@ export function BuyerLoyaltyCard() {
       <div className="space-y-3 pt-2">
         <h3 className="font-semibold text-base text-[var(--foreground)]">Lịch sử tích điểm gần đây</h3>
         {(!history || history.items.length === 0) ? (
-          <p className="text-sm text-[var(--muted)] italic py-2">
+          <p className="text-sm text-[var(--subtext)] italic py-2">
             Chưa có giao dịch tích điểm nào. Điểm DinoPoint sẽ tự động cộng khi bạn hoàn tất đơn hàng.
           </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left border-collapse" aria-label="Bảng lịch sử tích điểm">
               <thead>
-                <tr className="border-b border-[var(--border)] text-xs font-semibold text-[var(--muted)] uppercase">
+                <tr className="border-b border-[var(--border)] text-xs font-semibold text-[var(--subtext)] uppercase">
                   <th scope="col" className="py-2 px-3">Thời gian</th>
                   <th scope="col" className="py-2 px-3">Hoạt động</th>
                   <th scope="col" className="py-2 px-3">Mã đơn hàng</th>
@@ -134,8 +151,8 @@ export function BuyerLoyaltyCard() {
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
                 {history.items.map((item) => (
-                  <tr key={item.transaction_id} className="hover:bg-[var(--surface-muted)]">
-                    <td className="py-2.5 px-3 text-[var(--muted)] whitespace-nowrap">
+                  <tr key={item.transaction_id} className="hover:bg-[var(--card-muted)] transition-colors">
+                    <td className="py-2.5 px-3 text-[var(--subtext)] whitespace-nowrap">
                       {new Date(item.created_at).toLocaleDateString("vi-VN", {
                         year: "numeric",
                         month: "2-digit",
@@ -147,7 +164,7 @@ export function BuyerLoyaltyCard() {
                     <td className="py-2.5 px-3 font-medium text-[var(--foreground)]">
                       {item.reason === "ORDER_COMPLETED" ? "Hoàn tất đơn hàng" : item.reason}
                     </td>
-                    <td className="py-2.5 px-3 font-mono text-xs text-[var(--muted)]">
+                    <td className="py-2.5 px-3 font-mono text-xs text-[var(--subtext)]">
                       {item.reference_order_id ? `#${item.reference_order_id.slice(0, 8)}` : "—"}
                     </td>
                     <td className="py-2.5 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">

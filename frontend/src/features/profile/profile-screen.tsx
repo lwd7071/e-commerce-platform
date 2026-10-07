@@ -10,13 +10,17 @@ import { ErrorState } from "../../components/ui/data-states";
 import { Icon } from "../../components/ui/icon";
 import { TextInput } from "../../components/ui/form-controls";
 import { useToast } from "../../components/ui/toast";
-import { buyerApi } from "../../lib/api/buyer.api";
+import { buyerApi, type BuyerLoyaltyInfo, type BuyerLoyaltyHistory } from "../../lib/api/buyer.api";
 import { uploadMediaAsset } from "../../lib/api/media.api";
 import { AddressManager } from "./address-manager";
 import { BuyerLoyaltyCard } from "./loyalty-card";
 import { profileFailureState, type ProfileRequestState, type ProfileSnapshot } from "./profile-request-state";
 
-export type AuthProfileSnapshot = ProfileSnapshot & { avatarUrl?: string | null };
+export type AuthProfileSnapshot = ProfileSnapshot & {
+  avatarUrl?: string | null;
+  loyalty?: BuyerLoyaltyInfo | null;
+  loyaltyHistory?: BuyerLoyaltyHistory | null;
+};
 
 export function ProfilePageContent() {
   const { user, isLoading: authLoading, logout } = useAuth();
@@ -29,14 +33,43 @@ export function ProfilePageContent() {
   useEffect(() => {
     let active = true;
     if (authLoading || !userId || !userEmail || !userRole) return () => { active = false; };
-    buyerApi.getProfile()
-      .then((value) => {
+
+    // Tải song song thông tin profile và hạng thành viên / điểm thưởng (tránh thác nước)
+    const profilePromise = buyerApi.getProfile();
+    const loyaltyPromise = (userRole === "BUYER" && typeof buyerApi.getLoyalty === "function")
+      ? buyerApi.getLoyalty().catch(() => null)
+      : Promise.resolve(null);
+    const historyPromise = (userRole === "BUYER" && typeof buyerApi.getLoyaltyHistory === "function")
+      ? buyerApi.getLoyaltyHistory({ page: 1, limit: 10 }).catch(() => null)
+      : Promise.resolve(null);
+
+    Promise.allSettled([profilePromise, loyaltyPromise, historyPromise])
+      .then(([pResult, lResult, hResult]) => {
+        if (!active) return;
+        if (pResult.status === "rejected") {
+          setRequestState(profileFailureState(pResult.reason));
+          return;
+        }
+
+        const value = pResult.value;
         if (!value || (value.full_name !== null && typeof value.full_name !== "string") || (value.phone !== null && typeof value.phone !== "string")) {
           throw new Error("Phản hồi hồ sơ không hợp lệ. Vui lòng thử lại.");
         }
-        if (active) setRequestState({
+
+        const loyaltyData = lResult.status === "fulfilled" ? lResult.value : null;
+        const historyData = hResult.status === "fulfilled" ? hResult.value : null;
+
+        setRequestState({
           status: "ready",
-          profile: { email: userEmail, role: userRole, fullName: value.full_name, phone: value.phone, avatarUrl: value.avatar_url },
+          profile: {
+            email: userEmail,
+            role: userRole,
+            fullName: value.full_name,
+            phone: value.phone,
+            avatarUrl: value.avatar_url,
+            loyalty: loyaltyData,
+            loyaltyHistory: historyData,
+          },
         });
       })
       .catch((error: unknown) => {
@@ -281,7 +314,11 @@ function ProfileReadyScreen({
       </div>
       {profile.role === "BUYER" && (
         <div className="space-y-6 mt-6">
-          <BuyerLoyaltyCard />
+          <BuyerLoyaltyCard
+            initialLoyalty={profile.loyalty}
+            initialHistory={profile.loyaltyHistory}
+            isLoading={false}
+          />
           <AddressManager />
         </div>
       )}

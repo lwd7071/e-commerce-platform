@@ -856,10 +856,22 @@ svg {
 }
 
 .loading-stack {
-  display: grid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   gap: 12px;
-  padding: 24px;
+  padding: 36px 24px;
+  color: var(--subtext);
+  font-size: 14px;
+  font-weight: 500;
 }
+
+.loading-stack svg {
+  animation: spin 700ms linear infinite;
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
 
 .loading-row {
   display: grid;
