@@ -49,9 +49,9 @@
 | Kiểm tra | Lệnh / CI job | Kết quả | Bằng chứng / ghi chú |
 |---|---|---|---|
 | Unit Test Cache Provider & Keys | `npm test -- test/query-provider-setup.spec.tsx` | PASS | 3/3 tests pass (1.22s) |
-| Integration Test Profile Cache & 0ms Navigation | `npm test -- test/profile-query-cache.spec.tsx` | PASS | 1/1 test pass (1.53s) - xác minh unmount/remount không gọi lại API |
+| Integration Test Profile Cache & 0ms Navigation | `npm test -- test/profile-query-cache.spec.tsx` | PASS | 2/2 tests pass - xác minh unmount/remount không gọi lại API và dữ liệu tài khoản mới không nhận cache tài khoản cũ |
 | Cache isolation, cart mutations, auth and loading accessibility | `npm test -- test/auth-session-hydration.spec.tsx test/cart-query-cache.spec.tsx test/address-manager-query.spec.tsx test/e2e-tiering-loyalty-lifecycle.spec.tsx` | PASS | Bao gồm sign-out/đổi tài khoản, cart cache/rollback/partial failure, product detail invalidation và skeleton accessibility |
-| Full Test Suite Frontend Regression | `npm test` | PASS | 86/86 test files, 380/380 tests pass (24.24s) |
+| Full Test Suite Frontend Regression | `npm test` | PASS | 86/86 test files, 380/380 tests pass (37.59s) |
 | TypeScript Typecheck | `npm run typecheck` | PASS | `tsc --noEmit` hoàn thành với 0 lỗi |
 | Production Build Next.js | `npm run build` | PASS | Biên dịch thành công 34/34 static & dynamic routes trong 7.3s |
 
