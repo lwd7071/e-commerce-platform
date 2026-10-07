@@ -30,7 +30,7 @@ export function Button({
       {...props}
     >
       {loading ? <Icon name="spinner" className="button__spinner" /> : leadingIcon}
-      <span>{children}</span>
+      <span className="inline-flex items-center justify-center gap-2 whitespace-nowrap">{children}</span>
       {!loading && trailingIcon}
     </button>
   );

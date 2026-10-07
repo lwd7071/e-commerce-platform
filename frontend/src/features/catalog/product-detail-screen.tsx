@@ -1,20 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth/auth-context";
 import { repositories } from "@/lib/repositories/repository-factory";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
-import type { WireCatalogProductDetail, WireProductVariant } from "@/lib/api/catalog.api";
-import type { WireReview } from "@/lib/repositories/types";
+import type { WireProductVariant } from "@/lib/api/catalog.api";
+import { useQuery } from "@tanstack/react-query";
+import { getQueryClient } from "@/lib/query/query-client";
+import { queryKeys } from "@/lib/query/query-keys";
 import { StarRating } from "@/components/ui/star-rating";
 import { useToast } from "@/components/ui/toast";
 import { Skeleton, EmptyState, ErrorState } from "@/components/ui/data-states";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { ChatWidget } from "@/components/chat/chat-widget";
+import { QueryProvider } from "@/lib/query/query-provider";
 
 import { TierBadge } from "@/components/ui/tier-badge";
 
@@ -22,82 +25,54 @@ type Props = {
   productId: string;
 };
 
-export function ProductDetailScreen({ productId }: Props) {
+export function ProductDetailScreen(props: Props) {
+  return (
+    <QueryProvider>
+      <InnerProductDetailScreen {...props} />
+    </QueryProvider>
+  );
+}
+
+function InnerProductDetailScreen({ productId }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const { user } = useAuth();
   const showToast = useToast();
 
-  const [product, setProduct] = useState<WireCatalogProductDetail | null>(null);
-  const [selectedVariant, setSelectedVariant] = useState<WireProductVariant | null>(null);
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
 
-  // C-205: Real reviews & ratings without fake fallback
-  const [reviews, setReviews] = useState<WireReview[]>([]);
-  const [isLoadingReviews, setIsLoadingReviews] = useState(true);
+  const {
+    data: product,
+    isLoading,
+    error: queryErr,
+    refetch: refetchProduct,
+  } = useQuery({
+    queryKey: queryKeys.catalog.detail(productId),
+    queryFn: () => repositories.catalog().getProductById(productId),
+  });
 
-  useEffect(() => {
-    let ignore = false;
-    repositories.catalog().getProductById(productId)
-      .then((data) => {
-        if (ignore) return;
-        setProduct(data);
-        if (data.variants && data.variants.length > 0) {
-          const preferred = data.variants.find((v) => v.stock_quantity > 0) || data.variants[0];
-          setSelectedVariant(preferred);
-        }
-        setIsLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (ignore) return;
-        const msg = err instanceof Error ? err.message : "Không thể tải chi tiết sản phẩm.";
-        setError(msg);
-        setIsLoading(false);
-      });
+  const selectedVariant = product?.variants.find((variant) => variant.variant_id === selectedVariantId)
+    ?? product?.variants.find((variant) => variant.stock_quantity > 0)
+    ?? product?.variants[0]
+    ?? null;
 
-    repositories.review().getReviewsByProduct(productId)
-      .then((data) => {
-        if (ignore) return;
-        setReviews(Array.isArray(data) ? data : []);
-        setIsLoadingReviews(false);
-      })
-      .catch(() => {
-        if (ignore) return;
-        setReviews([]);
-        setIsLoadingReviews(false);
-      });
+  const { data: reviews = [], isLoading: isLoadingReviews } = useQuery({
+    queryKey: queryKeys.catalog.reviews(productId),
+    queryFn: () => repositories.review().getReviewsByProduct(productId),
+  });
 
-    return () => {
-      ignore = true;
-    };
-  }, [productId]);
+  const error = queryErr instanceof Error ? queryErr.message : queryErr ? "Không thể tải chi tiết sản phẩm." : null;
 
   const handleRetry = () => {
-    setIsLoading(true);
-    setError(null);
-    repositories.catalog().getProductById(productId)
-      .then((data) => {
-        setProduct(data);
-        if (data.variants && data.variants.length > 0) {
-          const preferred = data.variants.find((v) => v.stock_quantity > 0) || data.variants[0];
-          setSelectedVariant(preferred);
-        }
-        setIsLoading(false);
-      })
-      .catch((err: unknown) => {
-        const msg = err instanceof Error ? err.message : "Không thể tải chi tiết sản phẩm.";
-        setError(msg);
-        setIsLoading(false);
-      });
+    refetchProduct();
   };
 
   const handleVariantSelect = (variant: WireProductVariant) => {
-    setSelectedVariant(variant);
+    setSelectedVariantId(variant.variant_id);
     // If current quantity exceeds new variant stock, clamp it
     if (quantity > variant.stock_quantity) {
       setQuantity(Math.max(1, variant.stock_quantity));
@@ -136,6 +111,9 @@ export function ProductDetailScreen({ productId }: Props) {
     setIsSubmitting(true);
     try {
       await repositories.buyer().addToCart(selectedVariant.variant_id, quantity);
+      if (user?.id) {
+        await getQueryClient().invalidateQueries({ queryKey: queryKeys.cart.items(user.id) });
+      }
       showToast(
         `Đã thêm ${quantity} sản phẩm vào giỏ hàng thành công!`,
         "success",
@@ -166,7 +144,7 @@ export function ProductDetailScreen({ productId }: Props) {
     );
   }
 
-  if (error) {
+  if (error && !product) {
     return (
       <ErrorState
         title="Không thể tải chi tiết sản phẩm"
@@ -407,23 +385,15 @@ export function ProductDetailScreen({ productId }: Props) {
             </div>
 
             {/* Action Buttons */}
-            <div className="pt-4 border-t border-[var(--border)] flex flex-col sm:flex-row gap-3">
+            <div className="pt-4 border-t border-[var(--border)] flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
               <Button
                 variant="primary"
                 disabled={isOutOfStock || isSubmitting}
                 onClick={handleAddToCart}
-                className="flex-1 h-12 text-sm font-bold shadow-md"
+                leadingIcon={!isSubmitting && !isOutOfStock ? <Icon name="bag" className="w-5 h-5 shrink-0" /> : undefined}
+                className="flex-1 h-12 text-sm font-bold shadow-sm hover:shadow active:scale-[0.99] transition-all whitespace-nowrap"
               >
-                {isSubmitting ? (
-                  "Đang xử lý..."
-                ) : isOutOfStock ? (
-                  "Tạm Hết Hàng"
-                ) : (
-                  <>
-                    <Icon name="bag" />
-                    Thêm Vào Giỏ Hàng
-                  </>
-                )}
+                {isSubmitting ? "Đang xử lý..." : isOutOfStock ? "Tạm Hết Hàng" : "Thêm Vào Giỏ Hàng"}
               </Button>
 
               <Button
@@ -437,9 +407,9 @@ export function ProductDetailScreen({ productId }: Props) {
                   }
                   setIsChatOpen(true);
                 }}
-                className="h-12 px-5 text-sm font-bold border-[var(--primary)] text-[var(--primary)] hover:bg-[var(--primary-subtle)]"
+                leadingIcon={<Icon name="chat" className="w-5 h-5 shrink-0 text-[var(--primary)]" />}
+                className="h-12 px-6 text-sm font-semibold border-2 border-[var(--primary)] text-[var(--primary)] hover:bg-[var(--primary-subtle)] active:scale-[0.99] transition-all whitespace-nowrap"
               >
-                <Icon name="chat" className="mr-1.5" />
                 Chat với Shop
               </Button>
             </div>

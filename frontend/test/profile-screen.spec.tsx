@@ -23,14 +23,18 @@ vi.mock("@/lib/api/media.api", () => ({
 
 const ready: ProfileRequestState = {
   status: "ready",
-  profile: { email: "buyer@dino.vn", role: "BUYER", fullName: "Nguyễn An", phone: "0900000000" },
+  profile: { userId: "buyer-1", email: "buyer@dino.vn", role: "BUYER", fullName: "Nguyễn An", phone: "0900000000" },
 };
 
 describe("ProfileScreen request state UI", () => {
   it("renders distinct loading, signed-out, missing, and API error states", () => {
     const retry = vi.fn();
     const { rerender } = render(<ProfileScreen state={{ status: "loading" }} onRetry={retry} />);
-    expect(screen.getByLabelText("Đang tải hồ sơ")).toBeTruthy();
+    const loadingStatus = screen.getByRole("status", { name: "Đang tải hồ sơ" });
+    expect(loadingStatus.getAttribute("aria-busy")).toBe("true");
+    const skeletonCards = loadingStatus.querySelectorAll(".surface-card");
+    expect(skeletonCards[0].className).toContain("min-h-[110px]");
+    expect(skeletonCards[1].className).toContain("min-h-[220px]");
 
     rerender(<ProfileScreen state={{ status: "signed_out" }} onRetry={retry} />);
     expect(screen.getByRole("link", { name: "Đăng nhập" }).getAttribute("href")).toBe("/login?returnTo=%2Fprofile");

@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useState, useTransition, useCallback } from "react";
+import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { getQueryClient } from "@/lib/query/query-client";
+import { queryKeys } from "@/lib/query/query-keys";
 import { ProtectedPage } from "@/components/navigation/protected-page";
 import { Skeleton, EmptyState, ErrorState } from "@/components/ui/data-states";
 import { Icon } from "@/components/ui/icon";
@@ -9,19 +12,29 @@ import { repositories } from "@/lib/repositories/repository-factory";
 import { ORDER_TABS, type OrderFilterTab, type WireOrder } from "./orders.types";
 import { OrderCard } from "./order-card";
 import { CancelOrderDialog } from "./cancel-order-dialog";
+import { useAuth } from "@/lib/auth/auth-context";
+
+import { QueryProvider } from "@/lib/query/query-provider";
 
 export function OrdersScreen() {
+  return (
+    <QueryProvider>
+      <InnerOrdersScreen />
+    </QueryProvider>
+  );
+}
+
+function InnerOrdersScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+  const userId = user?.id ?? "";
   const searchParams = useSearchParams();
   const createdIdsParam = searchParams.get("created");
+  const queryClient = getQueryClient();
 
   const [activeTab, setActiveTab] = useState<OrderFilterTab>(() => {
     return createdIdsParam ? "PENDING_CONFIRMATION" : "ALL";
   });
-
-  const [orders, setOrders] = useState<WireOrder[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   const [cancellingOrder, setCancellingOrder] = useState<WireOrder | null>(null);
   const [toastMessage, setToastMessage] = useState<{
@@ -35,51 +48,22 @@ export function OrdersScreen() {
   // Parse highlighted IDs from URL
   const createdOrderIds = createdIdsParam ? createdIdsParam.split(",") : [];
 
-  const fetchOrders = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const orderRepo = repositories.order();
-      const list = await orderRepo.getOrders(
-        activeTab === "ALL" ? undefined : { status: activeTab }
-      );
-      setOrders(list);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Không thể tải danh sách đơn hàng.";
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  }, [activeTab]);
+  const {
+    data: orders = [],
+    isLoading: loading,
+    error: queryErr,
+    refetch: fetchOrders,
+  } = useQuery({
+    queryKey: queryKeys.orders.list(userId, activeTab),
+    queryFn: () => repositories.order().getOrders(activeTab === "ALL" ? undefined : { status: activeTab }),
+    enabled: Boolean(userId),
+  });
 
-  useEffect(() => {
-    let isMounted = true;
-    repositories
-      .order()
-      .getOrders(activeTab === "ALL" ? undefined : { status: activeTab })
-      .then((list) => {
-        if (isMounted) {
-          setOrders(list);
-          setLoading(false);
-        }
-      })
-      .catch((err: unknown) => {
-        if (isMounted) {
-          setError(err instanceof Error ? err.message : "Không thể tải danh sách đơn hàng.");
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [activeTab]);
+  const error = queryErr instanceof Error ? queryErr.message : queryErr ? "Không thể tải danh sách đơn hàng." : null;
 
   // Handle successful cancellation
   const handleCancelSuccess = (updated: WireOrder) => {
-    setOrders((prev) =>
-      prev.map((ord) => (ord.id === updated.id ? updated : ord))
-    );
+    queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
     setToastMessage({
       type: "success",
       title: "Hủy đơn hàng thành công",
@@ -98,9 +82,7 @@ export function OrdersScreen() {
       if (orderRepo.confirmReceived) {
         await orderRepo.confirmReceived(order.id);
       }
-      setOrders((prev) =>
-        prev.map((ord) => (ord.id === order.id ? { ...ord, status: "COMPLETED" } : ord))
-      );
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
       setToastMessage({
         type: "success",
         title: "Xác nhận nhận hàng thành công",
@@ -194,7 +176,7 @@ export function OrdersScreen() {
               </div>
             ))}
           </div>
-        ) : error ? (
+        ) : error && orders.length === 0 ? (
           <ErrorState
             title="Chưa tải được danh sách đơn hàng"
             description={error}

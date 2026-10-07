@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -12,9 +12,13 @@ import { TextInput } from "../../components/ui/form-controls";
 import { useToast } from "../../components/ui/toast";
 import { buyerApi, type BuyerLoyaltyInfo, type BuyerLoyaltyHistory } from "../../lib/api/buyer.api";
 import { uploadMediaAsset } from "../../lib/api/media.api";
+import { getQueryClient } from "@/lib/query/query-client";
+import { QueryProvider } from "@/lib/query/query-provider";
+import { queryKeys } from "@/lib/query/query-keys";
+import { useProfileDashboard } from "./use-profile-queries";
 import { AddressManager } from "./address-manager";
 import { BuyerLoyaltyCard } from "./loyalty-card";
-import { profileFailureState, type ProfileRequestState, type ProfileSnapshot } from "./profile-request-state";
+import type { ProfileRequestState, ProfileSnapshot } from "./profile-request-state";
 
 export type AuthProfileSnapshot = ProfileSnapshot & {
   avatarUrl?: string | null;
@@ -23,65 +27,26 @@ export type AuthProfileSnapshot = ProfileSnapshot & {
 };
 
 export function ProfilePageContent() {
+  return (
+    <QueryProvider>
+      <InnerProfilePageContent />
+    </QueryProvider>
+  );
+}
+
+function InnerProfilePageContent() {
   const { user, isLoading: authLoading, logout } = useAuth();
   const userId = user?.id;
   const userEmail = user?.email;
   const userRole = user?.role;
-  const [requestState, setRequestState] = useState<ProfileRequestState>({ status: "loading" });
-  const [attempt, setAttempt] = useState(0);
 
-  useEffect(() => {
-    let active = true;
-    if (authLoading || !userId || !userEmail || !userRole) return () => { active = false; };
+  const { requestState, retry } = useProfileDashboard({
+    userId,
+    userEmail,
+    userRole,
+    authLoading,
+  });
 
-    // Tải song song thông tin profile và hạng thành viên / điểm thưởng (tránh thác nước)
-    const profilePromise = buyerApi.getProfile();
-    const loyaltyPromise = (userRole === "BUYER" && typeof buyerApi.getLoyalty === "function")
-      ? buyerApi.getLoyalty().catch(() => null)
-      : Promise.resolve(null);
-    const historyPromise = (userRole === "BUYER" && typeof buyerApi.getLoyaltyHistory === "function")
-      ? buyerApi.getLoyaltyHistory({ page: 1, limit: 10 }).catch(() => null)
-      : Promise.resolve(null);
-
-    Promise.allSettled([profilePromise, loyaltyPromise, historyPromise])
-      .then(([pResult, lResult, hResult]) => {
-        if (!active) return;
-        if (pResult.status === "rejected") {
-          setRequestState(profileFailureState(pResult.reason));
-          return;
-        }
-
-        const value = pResult.value;
-        if (!value || (value.full_name !== null && typeof value.full_name !== "string") || (value.phone !== null && typeof value.phone !== "string")) {
-          throw new Error("Phản hồi hồ sơ không hợp lệ. Vui lòng thử lại.");
-        }
-
-        const loyaltyData = lResult.status === "fulfilled" ? lResult.value : null;
-        const historyData = hResult.status === "fulfilled" ? hResult.value : null;
-
-        setRequestState({
-          status: "ready",
-          profile: {
-            email: userEmail,
-            role: userRole,
-            fullName: value.full_name,
-            phone: value.phone,
-            avatarUrl: value.avatar_url,
-            loyalty: loyaltyData,
-            loyaltyHistory: historyData,
-          },
-        });
-      })
-      .catch((error: unknown) => {
-        if (active) setRequestState(profileFailureState(error));
-      });
-    return () => { active = false; };
-  }, [authLoading, attempt, userEmail, userId, userRole]);
-
-  const retry = () => {
-    setRequestState({ status: "loading" });
-    setAttempt((value) => value + 1);
-  };
   if (authLoading) return <ProfileScreen state={{ status: "loading" }} onRetry={retry} onLogout={logout} />;
   if (!user) return <ProfileScreen state={{ status: "signed_out" }} onRetry={retry} onLogout={logout} />;
   const state = requestState.status === "ready" && requestState.profile.email !== user.email
@@ -100,7 +65,24 @@ export function ProfileScreen({
   onLogout?: () => Promise<void> | void;
 }) {
   if (state.status === "loading") {
-    return <section className="surface-card loading-stack" aria-busy="true" aria-label="Đang tải hồ sơ"><Icon name="spinner" />Đang tải hồ sơ…</section>;
+    return (
+        <section role="status" className="space-y-6" aria-busy="true" aria-label="Đang tải hồ sơ">
+        <div className="surface-card p-6 flex items-center gap-4 min-h-[110px] animate-pulse">
+          <div className="h-16 w-16 rounded-full bg-[var(--card-muted)]" />
+          <div className="space-y-2 flex-1">
+            <div className="h-5 w-48 rounded bg-[var(--card-muted)]" />
+            <div className="h-4 w-32 rounded bg-[var(--card-muted)]" />
+          </div>
+        </div>
+        <div className="surface-card p-6 min-h-[220px] animate-pulse">
+          <div className="h-6 w-40 rounded bg-[var(--card-muted)] mb-4" />
+          <div className="space-y-3">
+            <div className="h-10 w-full rounded bg-[var(--card-muted)]" />
+            <div className="h-10 w-full rounded bg-[var(--card-muted)]" />
+          </div>
+        </div>
+      </section>
+    );
   }
   if (state.status === "signed_out") {
     return <section className="notice" role="status"><Icon name="info" /><span>Phiên đăng nhập đã kết thúc. Hãy đăng nhập lại để xem hồ sơ.</span><Link href="/login?returnTo=%2Fprofile">Đăng nhập</Link></section>;
@@ -116,7 +98,7 @@ export function ProfileScreen({
   }
   return (
     <ProfileReadyScreen
-      key={`${state.profile.email}:${state.profile.fullName ?? ""}:${state.profile.phone ?? ""}`}
+      key={`${state.profile.userId}:${state.profile.email}:${state.profile.fullName ?? ""}:${state.profile.phone ?? ""}`}
       profile={state.profile}
       onLogout={onLogout}
     />
@@ -132,6 +114,7 @@ function ProfileReadyScreen({
 }) {
   const router = useRouter();
   const showToast = useToast();
+  const queryClient = getQueryClient();
 
   const [fullName, setFullName] = useState(profile?.fullName || "");
   const [phone, setPhone] = useState(profile?.phone || "");
@@ -171,6 +154,7 @@ function ProfileReadyScreen({
       const saved = await buyerApi.updateProfile({ full_name: fullName.trim(), phone: phone.trim() || null });
       setFullName(saved.full_name || "");
       setPhone(saved.phone || "");
+      queryClient.invalidateQueries({ queryKey: queryKeys.profile.details(profile.userId) });
       showToast("Cập nhật thông tin hồ sơ thành công!", "success");
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Cập nhật hồ sơ thất bại", "error");
@@ -189,6 +173,7 @@ function ProfileReadyScreen({
       if (!uploaded.mediaId) throw new Error("Máy chủ chưa xác nhận ảnh đại diện. Vui lòng thử lại.");
       const saved = await buyerApi.updateAvatar(uploaded.mediaId);
       setAvatarUrl(saved.avatar_url);
+      queryClient.invalidateQueries({ queryKey: queryKeys.profile.details(profile.userId) });
       showToast("Đã cập nhật ảnh đại diện", "success");
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Tải ảnh đại diện thất bại", "error");

@@ -1,11 +1,12 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useState, useMemo, useCallback, useRef } from "react";
 import type { AuthUser, AuthContextType, UserRole } from "./types";
 import { getSupabaseClient } from "./supabase-client";
 import { setAuthTokenProvider } from "../api/client";
 import { envConfig } from "../config/env";
 import { apiClient } from "../api/client";
+import { clearAppQueryCache } from "../query/query-client";
 
 export const AuthContext = createContext<AuthContextType | null>(null);
 
@@ -15,8 +16,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const activeSessionUserId = useRef<string | null>(null);
 
   const syncSession = useCallback(async (session: { access_token: string; user: { id: string; email?: string; user_metadata?: Record<string, unknown> } }) => {
+    if (activeSessionUserId.current && activeSessionUserId.current !== session.user.id) {
+      clearAppQueryCache();
+    }
+    activeSessionUserId.current = session.user.id;
     setAccessToken(session.access_token);
     setAuthTokenProvider(() => session.access_token);
     let identity: {
@@ -32,6 +38,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (isUserLockedError(error)) {
         const client = getSupabaseClient();
         if (client) await client.auth.signOut({ scope: "local" });
+        activeSessionUserId.current = null;
+        clearAppQueryCache();
         setAccessToken(null); setUser(null);
       }
       throw error;
@@ -97,11 +105,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         if (session) await syncSession(session);
       } catch {
+        activeSessionUserId.current = null;
+        clearAppQueryCache();
         setAccessToken(null); setUser(null);
       } finally {
         setIsLoading(false);
       }
     }).catch(() => {
+      activeSessionUserId.current = null;
+      clearAppQueryCache();
       setAccessToken(null); setUser(null); setIsLoading(false);
     });
 
@@ -113,10 +125,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // against persisted-session restoration after a full page reload.
       if (event === "INITIAL_SESSION") return;
       if (session) {
+        if (activeSessionUserId.current && activeSessionUserId.current !== session.user.id) {
+          clearAppQueryCache();
+          setUser(null);
+          setIsLoading(true);
+        }
         void syncSession(session)
-          .catch(() => { setAccessToken(null); setUser(null); })
+          .catch(() => {
+            activeSessionUserId.current = null;
+            clearAppQueryCache();
+            setAccessToken(null);
+            setUser(null);
+          })
           .finally(() => setIsLoading(false));
       } else {
+        activeSessionUserId.current = null;
+        clearAppQueryCache();
         setAccessToken(null);
         setUser(null);
         setIsLoading(false);
@@ -255,6 +279,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { error } = await supabase.auth.updateUser({ password });
     if (error) throw new Error(error.message);
     await supabase.auth.signOut();
+    activeSessionUserId.current = null;
+    clearAppQueryCache();
     setAccessToken(null); setUser(null);
   }, []);
 
@@ -270,6 +296,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (typeof window !== "undefined") {
         localStorage.removeItem("dev_mock_user");
       }
+      activeSessionUserId.current = null;
+      clearAppQueryCache();
     } finally {
       setIsLoading(false);
     }

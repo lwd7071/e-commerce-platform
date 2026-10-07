@@ -1,8 +1,13 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
 import type { WireCatalogProductItem } from "@/lib/api/catalog.api";
 import { TierBadge } from "@/components/ui/tier-badge";
+import { getQueryClient } from "@/lib/query/query-client";
+import { queryKeys } from "@/lib/query/query-keys";
+import { repositories } from "@/lib/repositories/repository-factory";
 
 type ProductCardProps = {
   product: WireCatalogProductItem;
@@ -19,8 +24,25 @@ export function ProductCard({ product, categoryName }: ProductCardProps) {
   const fallbackImage = "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600";
   const imageUrl = product.image_url && product.image_url.trim() !== "" ? product.image_url : fallbackImage;
 
+  const handlePrefetch = () => {
+    try {
+      const queryClient = getQueryClient();
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.catalog.detail(product.product_id),
+        queryFn: () => repositories.catalog().getProductById(product.product_id),
+        staleTime: 60 * 1000,
+      });
+    } catch {
+      // Ignore prefetch error silently
+    }
+  };
+
   return (
-    <article className="surface-card group flex flex-col overflow-hidden transition-shadow duration-200 hover:shadow-md">
+    <article
+      className="surface-card group flex flex-col overflow-hidden transition-shadow duration-200 hover:shadow-md"
+      onMouseEnter={handlePrefetch}
+      onFocus={handlePrefetch}
+    >
       <Link
         href={`/products/${product.product_id}`}
         className="block focus-visible:outline-none"

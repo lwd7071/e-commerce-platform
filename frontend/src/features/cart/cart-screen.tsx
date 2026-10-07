@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, useMemo, useTransition, useRef } from "react";
+import { useState, useMemo, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ProtectedPage } from "@/components/navigation/protected-page";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
@@ -11,6 +12,8 @@ import { Dialog } from "@/components/ui/dialog";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
 import { cartRepository } from "./cart.repository";
 import type { CartItem, CartGroup } from "./cart.types";
+import { queryKeys } from "@/lib/query/query-keys";
+import { useAuth } from "@/lib/auth/auth-context";
 
 export function CartPageContent() {
   return (
@@ -22,9 +25,26 @@ export function CartPageContent() {
 
 export function CartScreen() {
   const router = useRouter();
-  const [items, setItems] = useState<CartItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
+  const userId = user?.id ?? "";
+  const cartQueryKey = queryKeys.cart.items(userId);
+  const queryClient = useQueryClient();
+  const {
+    data: cachedItems,
+    isLoading: loading,
+    error: queryError,
+    refetch,
+  } = useQuery({
+    queryKey: cartQueryKey,
+    queryFn: () => cartRepository.getCart(),
+    enabled: Boolean(userId),
+  });
+  const items = useMemo(() => cachedItems ?? [], [cachedItems]);
+  const error = queryError
+    ? queryError instanceof Error
+      ? queryError.message
+      : "Không thể tải thông tin giỏ hàng. Vui lòng kiểm tra lại kết nối."
+    : null;
   const [, startTransition] = useTransition();
 
   // Dialog state for deletion confirmation
@@ -36,54 +56,39 @@ export function CartScreen() {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
   };
-  const mountedRef = useRef(true);
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
+  const loadCart = () => {
+    void refetch();
+  };
 
-  const loadCart = async () => {
-    if (!mountedRef.current) return;
-    setLoading(true);
-    setError(null);
+  const runCartMutation = async (
+    optimisticUpdate: (current: CartItem[]) => CartItem[],
+    operation: () => Promise<void>,
+    errorMessage: string,
+    reconcileOnFailure = false,
+  ): Promise<boolean> => {
+    const previousItems = queryClient.getQueryData<CartItem[]>(cartQueryKey) ?? items;
+    queryClient.setQueryData<CartItem[]>(cartQueryKey, optimisticUpdate(previousItems));
     try {
-      const data = await cartRepository.getCart();
-      if (mountedRef.current) {
-        setItems(data);
-      }
+      await operation();
+      await queryClient.invalidateQueries({ queryKey: cartQueryKey });
+      return true;
     } catch {
-      if (mountedRef.current) {
-        setError("Không thể tải thông tin giỏ hàng. Vui lòng kiểm tra lại kết nối.");
+      queryClient.setQueryData(cartQueryKey, previousItems);
+      showNotice(errorMessage);
+      if (reconcileOnFailure) {
+        await queryClient.invalidateQueries({ queryKey: cartQueryKey });
       }
-    } finally {
-      if (mountedRef.current) {
-        setLoading(false);
-      }
+      return false;
     }
   };
 
-  useEffect(() => {
-    let ignore = false;
-    void Promise.resolve()
-      .then(() => cartRepository.getCart())
-      .then((data) => {
-        if (!ignore && mountedRef.current) {
-          setItems(data);
-          setLoading(false);
-        }
-      })
-      .catch(() => {
-        if (!ignore && mountedRef.current) {
-          setError("Không thể tải thông tin giỏ hàng. Vui lòng kiểm tra lại kết nối.");
-          setLoading(false);
-        }
-      });
-    return () => {
-      ignore = true;
-    };
-  }, []);
+  const updateSelectionForItems = async (itemsToUpdate: CartItem[], isSelected: boolean) => {
+    const results = await Promise.allSettled(
+      itemsToUpdate.map((item) => cartRepository.updateItem(item.id, { is_selected: isSelected })),
+    );
+    const failed = results.find((result) => result.status === "rejected");
+    if (failed?.status === "rejected") throw failed.reason;
+  };
 
   // Group items by shop
   const groupedCart = useMemo<CartGroup[]>(() => {
@@ -115,109 +120,80 @@ export function CartScreen() {
 
   // Optimistic Selection Toggle
   const handleToggleItem = async (itemId: string) => {
-    const prevItems = [...items];
     const target = items.find((i) => i.id === itemId);
     if (!target) return;
 
     const newSelection = !target.isSelected;
     if (newSelection && !target.isAvailable) return;
-    // Optimistic UI update
-    setItems((prev) =>
-      prev.map((i) => (i.id === itemId ? { ...i, isSelected: newSelection } : i))
+    await runCartMutation(
+      (current) => current.map((i) => (i.id === itemId ? { ...i, isSelected: newSelection } : i)),
+      () => cartRepository.updateItem(itemId, { is_selected: newSelection }),
+      "Không thể cập nhật lựa chọn sản phẩm.",
     );
-
-    try {
-      await cartRepository.updateItem(itemId, { is_selected: newSelection });
-    } catch {
-      // Rollback on failure
-      setItems(prevItems);
-      showNotice("Không thể cập nhật lựa chọn sản phẩm.");
-    }
   };
 
   // Optimistic Shop Selection Toggle
   const handleToggleShop = async (shopId: string, currentSelected: boolean) => {
-    const prevItems = [...items];
     const newSelection = !currentSelected;
-
-    setItems((prev) =>
-      prev.map((i) => (i.shopId === shopId && (i.isAvailable || !newSelection) ? { ...i, isSelected: newSelection } : i))
+    const shopItems = items.filter((i) => i.shopId === shopId && (i.isAvailable || !newSelection));
+    await runCartMutation(
+      (current) => current.map((i) => (i.shopId === shopId && (i.isAvailable || !newSelection) ? { ...i, isSelected: newSelection } : i)),
+      () => updateSelectionForItems(shopItems, newSelection),
+      "Không thể cập nhật lựa chọn cửa hàng.",
+      true,
     );
-
-    try {
-      const shopItems = items.filter((i) => i.shopId === shopId && (i.isAvailable || !newSelection));
-      await Promise.all(
-        shopItems.map((item) =>
-          cartRepository.updateItem(item.id, { is_selected: newSelection })
-        )
-      );
-    } catch {
-      setItems(prevItems);
-      showNotice("Không thể cập nhật lựa chọn cửa hàng.");
-    }
   };
 
   // Optimistic Select All Toggle
   const handleToggleAll = async () => {
-    const prevItems = [...items];
     const newSelection = !isAllSelected;
-
-    setItems((prev) => prev.map((i) => (i.isAvailable ? { ...i, isSelected: newSelection } : i)));
-
-    try {
-      await Promise.all(
-        items.filter(item => item.isAvailable).map((item) =>
-          cartRepository.updateItem(item.id, { is_selected: newSelection })
-        )
-      );
-    } catch {
-      setItems(prevItems);
-      showNotice("Không thể cập nhật tất cả sản phẩm.");
-    }
+    const availableItems = items.filter((item) => item.isAvailable);
+    await runCartMutation(
+      (current) => current.map((i) => (i.isAvailable ? { ...i, isSelected: newSelection } : i)),
+      () => updateSelectionForItems(availableItems, newSelection),
+      "Không thể cập nhật tất cả sản phẩm.",
+      true,
+    );
   };
 
   // Optimistic Quantity Change
   const handleQuantityChange = async (itemId: string, delta: number) => {
-    const prevItems = [...items];
     const target = items.find((i) => i.id === itemId);
     if (!target) return;
 
     const newQty = Math.max(1, Math.min(target.stock, target.quantity + delta));
     if (newQty === target.quantity) return;
 
-    // Optimistic UI update
-    setItems((prev) =>
-      prev.map((i) => (i.id === itemId ? { ...i, quantity: newQty } : i))
+    await runCartMutation(
+      (current) => current.map((i) => (i.id === itemId ? { ...i, quantity: newQty } : i)),
+      () => cartRepository.updateItem(itemId, { quantity: newQty }),
+      "Không thể cập nhật số lượng.",
     );
-
-    try {
-      await cartRepository.updateItem(itemId, { quantity: newQty });
-    } catch {
-      // Rollback
-      setItems(prevItems);
-      showNotice("Không thể cập nhật số lượng.");
-    }
   };
 
   // Delete Action Confirm
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     setIsDeleting(true);
-    const prevItems = [...items];
-
     try {
       if (deleteTarget === "selected") {
-        setItems((prev) => prev.filter((i) => !i.isSelected));
-        await cartRepository.removeSelected();
-        showNotice("Đã xóa các sản phẩm được chọn khỏi giỏ hàng.");
+        const selectedItems = items.filter((i) => i.isSelected);
+        if (selectedItems.length === 0) return;
+        const success = await runCartMutation(
+          (current) => current.filter((i) => !i.isSelected),
+          () => cartRepository.removeSelected(),
+          "Không thể xóa sản phẩm. Vui lòng thử lại.",
+          true,
+        );
+        if (success) showNotice("Đã xóa các sản phẩm được chọn khỏi giỏ hàng.");
       } else {
-        setItems((prev) => prev.filter((i) => i.id !== deleteTarget));
-        await cartRepository.removeItem(deleteTarget);
-        showNotice("Đã xóa sản phẩm khỏi giỏ hàng.");
+        const success = await runCartMutation(
+          (current) => current.filter((i) => i.id !== deleteTarget),
+          () => cartRepository.removeItem(deleteTarget),
+          "Không thể xóa sản phẩm. Vui lòng thử lại.",
+        );
+        if (success) showNotice("Đã xóa sản phẩm khỏi giỏ hàng.");
       }
-    } catch {
-      setItems(prevItems);
-      showNotice("Không thể xóa sản phẩm. Vui lòng thử lại.");
     } finally {
       setIsDeleting(false);
       setDeleteTarget(null);
@@ -233,7 +209,7 @@ export function CartScreen() {
 
   if (loading) {
     return (
-      <div className="cart-page max-w-4xl mx-auto space-y-6">
+      <div className="cart-page max-w-4xl mx-auto space-y-6" role="status" aria-busy="true" aria-label="Đang tải giỏ hàng">
         <header className="page-heading">
           <div>
             <p className="eyebrow">Dino Shopping</p>
@@ -249,7 +225,7 @@ export function CartScreen() {
     );
   }
 
-  if (error) {
+  if (error && items.length === 0) {
     return (
       <div className="cart-page max-w-4xl mx-auto">
         <ErrorState

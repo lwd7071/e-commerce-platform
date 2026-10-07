@@ -25,6 +25,10 @@ import { ProductCard } from "@/features/catalog/product-card";
 import { ProductDetailScreen } from "@/features/catalog/product-detail-screen";
 import { CatalogListScreen } from "@/features/catalog/catalog-list-screen";
 import { BuyerLoyaltyCard } from "@/features/profile/loyalty-card";
+import { CartScreen } from "@/features/cart/cart-screen";
+import { cartRepository } from "@/features/cart/cart.repository";
+import { QueryProvider } from "@/lib/query/query-provider";
+import { clearAppQueryCache } from "@/lib/query/query-client";
 import { buyerApi } from "@/lib/api/buyer.api";
 import type { WireCatalogProductItem, WireCatalogProductDetail } from "@/lib/api/catalog.api";
 
@@ -80,6 +84,7 @@ describe("E2E Lifecycle: Tiering & Loyalty (Yêu cầu 3 & 4)", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    clearAppQueryCache();
   });
 
   // =========================================================================
@@ -198,6 +203,65 @@ describe("E2E Lifecycle: Tiering & Loyalty (Yêu cầu 3 & 4)", () => {
       const mallBadge = screen.getByText("Mall");
       expect(mallBadge).toBeTruthy();
       expect(mallBadge.className).toContain("tier-badge--mall");
+    });
+
+    it("refreshes the visible cart after adding a product from its detail page", async () => {
+      const detailProduct: WireCatalogProductDetail = {
+        product_id: "prod-cart-invalidation",
+        product_name: "Sản phẩm cho giỏ hàng",
+        description: "Mô tả sản phẩm.",
+        shop_id: shopId,
+        shop_tier: "STANDARD",
+        status: "ACTIVE",
+        category_id: "cat-home-01",
+        images: [],
+        variants: [{
+          variant_id: "var-cart-invalidation",
+          variant_name: "Size",
+          variant_value: "M",
+          price: "100000.00",
+          stock_quantity: 5,
+          sku: "CART-INVALIDATION",
+          status: "ACTIVE",
+        }],
+      };
+      vi.spyOn(repositories.catalog(), "getProductById").mockResolvedValue(detailProduct);
+      vi.spyOn(repositories.review(), "getReviewsByProduct").mockResolvedValue([]);
+      const addToCart = vi.spyOn(repositories.buyer(), "addToCart").mockResolvedValue({} as never);
+      const getCart = vi.spyOn(cartRepository, "getCart").mockResolvedValue([{
+        id: "cart-item-invalidation",
+        variantId: "var-cart-invalidation",
+        productId: "prod-cart-invalidation",
+        productName: "Sản phẩm cho giỏ hàng",
+        variantName: "M",
+        price: "100000.00",
+        quantity: 1,
+        stock: 5,
+        shopId,
+        shopName: "Dino Shop",
+        imageUrl: null,
+        isSelected: true,
+        isAvailable: true,
+        productStatus: "ACTIVE",
+        variantStatus: "ACTIVE",
+        shopStatus: "ACTIVE",
+      }]);
+
+      const { ToastProvider } = await import("@/components/ui/toast");
+      render(
+        <QueryProvider>
+          <ToastProvider>
+            <ProductDetailScreen productId="prod-cart-invalidation" />
+            <CartScreen />
+          </ToastProvider>
+        </QueryProvider>
+      );
+
+      await waitFor(() => expect(screen.getByRole("heading", { name: "Giỏ hàng (1 sản phẩm)" })).toBeTruthy());
+      expect(getCart).toHaveBeenCalledTimes(1);
+      await userEvent.click(screen.getByRole("button", { name: "Thêm Vào Giỏ Hàng" }));
+      await waitFor(() => expect(getCart).toHaveBeenCalledTimes(2));
+      expect(addToCart).toHaveBeenCalledWith("var-cart-invalidation", 1);
     });
 
     it("CatalogListScreen có UI bộ lọc theo phân hạng shop và tương tác cập nhật truy vấn", async () => {

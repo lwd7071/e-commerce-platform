@@ -11,6 +11,7 @@ Thư mục này lưu báo cáo của từng thành viên cho 5 feature mở rộ
 | 3 | Phân cấp Buyer & Shop (Tiering & Loyalty) | [`03-tiering-loyalty.md`](03-tiering-loyalty.md) |
 | 4 | Chat Buyer–Seller, trợ lý AI và Seller Live Chat | [`04-chat-ai-live-chat.md`](04-chat-ai-live-chat.md) |
 | 5 | Flash Sale & chống bán vượt tồn | [`05-flash-sale-inventory.md`](05-flash-sale-inventory.md) |
+| 6 | Tối ưu bộ nhớ đệm Client & Điều hướng (TanStack Query) | [`06-client-cache-tanstack-query.md`](06-client-cache-tanstack-query.md) |
 
 ## Cách cập nhật
 

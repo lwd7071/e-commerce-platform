@@ -3,7 +3,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { ProfilePageContent } from "@/features/profile/profile-screen";
 import { useAuth } from "@/lib/auth/auth-context";
-import { buyerApi } from "@/lib/api/buyer.api";
+import type { AuthContextType } from "@/lib/auth/types";
+import { buyerApi, type WireProfile } from "@/lib/api/buyer.api";
 
 vi.mock("@/lib/auth/auth-context", () => ({
   useAuth: vi.fn(),
@@ -32,23 +33,37 @@ import { ToastProvider } from "@/components/ui/toast";
 
 const mockUseAuth = vi.mocked(useAuth);
 
+const authValue: AuthContextType = {
+  user: { id: "buyer-1", email: "buyer@test.vn", role: "BUYER" },
+  accessToken: null,
+  isLoading: false,
+  isAuthenticated: true,
+  login: vi.fn(),
+  register: vi.fn(async () => "mock"),
+  loginWithGoogle: vi.fn(),
+  verifySignupOtp: vi.fn(),
+  resendSignupOtp: vi.fn(),
+  requestPasswordReset: vi.fn(),
+  updatePassword: vi.fn(),
+  completeOnboarding: vi.fn(),
+  reloadUser: vi.fn(),
+  logout: vi.fn(),
+  hasRole: vi.fn(() => true),
+};
+
 describe("ProfilePageContent Parallel Data Orchestration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it("orchestrates profile, loyalty, and loyalty history in parallel for BUYER role", async () => {
-    mockUseAuth.mockReturnValue({
-      user: { id: "buyer-1", email: "buyer@test.vn", role: "BUYER" },
-      isLoading: false,
-      logout: vi.fn(),
-    } as any);
+    mockUseAuth.mockReturnValue(authValue);
 
     vi.mocked(buyerApi.getProfile).mockResolvedValue({
       full_name: "Nguyễn Văn A",
       phone: "0912345678",
       avatar_url: null,
-    } as any);
+    } satisfies WireProfile);
 
     vi.mocked(buyerApi.getLoyalty).mockResolvedValue({
       tier: "VIP",

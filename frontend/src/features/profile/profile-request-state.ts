@@ -4,6 +4,7 @@ import type { UserRole } from "../../lib/auth/types";
 import type { BuyerLoyaltyInfo, BuyerLoyaltyHistory } from "../../lib/api/buyer.api";
 
 export type ProfileSnapshot = {
+  userId: string;
   email: string;
   role: UserRole;
   fullName: string | null;
