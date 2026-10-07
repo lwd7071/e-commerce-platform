@@ -467,7 +467,7 @@ export class FlashSaleService {
             await this.redis.zrem('flash_sale:pending_reservations', payloadStr);
             return resultObj;
           }
-        } catch (verifyErr) {
+        } catch {
           // Nếu verify DB cũng lỗi: TUYỆT ĐỐI KHÔNG BỒI HOÀN MÙ QUÁNG!
           // Giữ nguyên COMMITTING:<ts> để Watchdog xử lý sau khi DB sống lại.
           throw err;

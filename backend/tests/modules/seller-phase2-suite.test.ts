@@ -1,16 +1,20 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../../src/platform/http/app.ts';
-import { createRequestContext } from '../../src/platform/context/request-context.ts';
+import { createRequestContext as buildRequestContext, type CreateRequestContextInput, type RequestContext } from '../../src/platform/context/request-context.ts';
 import { transitionOrder } from '../../src/modules/order/domain/order-state-machine.ts';
-import { OrderDomainError } from '../../src/modules/order/domain/errors.ts';
 import { SellerVoucherService } from '../../src/modules/voucher/services/seller-voucher.service.ts';
 import { SellerRevenueService } from '../../src/modules/reporting/services/seller-revenue.service.ts';
 import { ReportingService } from '../../src/modules/reporting/services/reporting.service.ts';
-import { ConflictError, ValidationFailedError } from '../../src/platform/errors/app-error.ts';
+import { ConflictError } from '../../src/platform/errors/app-error.ts';
 import type { ISellerVoucherRepository, SellerVoucher, SellerVoucherFields } from '../../src/modules/voucher/domain/seller-voucher.types.ts';
-import type { IOrderRepository, OrderRecord } from '../../src/modules/order/domain/repositories.ts';
+import type { IOrderRepository, OrderRecord, OrderItemRecord } from '../../src/modules/order/domain/repositories.ts';
+import type { OrderStatusHistoryRecord } from '../../src/modules/order/domain/order-snapshot.ts';
 import type { OrderStatus, OrderState, OrderActor } from '../../src/modules/order/domain/types.ts';
+
+function createRequestContext(input: Omit<CreateRequestContextInput, 'request_id'>): RequestContext {
+  return buildRequestContext({ request_id: 'seller-phase2-test', ...input });
+}
 
 // ============================================================================
 // FIXTURES & IN-MEMORY REPOSITORIES
@@ -43,6 +47,7 @@ class MockSellerVoucherRepository implements ISellerVoucherRepository {
     const voucher: SellerVoucher = {
       voucher_id: `v_${Date.now()}_${Math.random()}`,
       shop_id: context.shop_id,
+      scope: 'SHOP',
       status: 'ACTIVE',
       ...fields,
       created_at: new Date().toISOString(),
@@ -79,6 +84,11 @@ class MockSellerVoucherRepository implements ISellerVoucherRepository {
 class MockOrderRepository implements IOrderRepository {
   public orders: Map<string, OrderRecord> = new Map();
 
+  async createOrder(order: OrderRecord): Promise<OrderRecord> {
+    this.orders.set(order.orderId, order);
+    return order;
+  }
+
   async findById(orderId: string): Promise<OrderRecord | null> {
     return this.orders.get(orderId) ?? null;
   }
@@ -91,8 +101,33 @@ class MockOrderRepository implements IOrderRepository {
     return Array.from(this.orders.values()).filter(o => o.buyerId === buyerId);
   }
 
-  async save(order: OrderRecord): Promise<void> {
-    this.orders.set(order.id, order);
+  async findItemsByOrderId(_orderId: string): Promise<OrderItemRecord[]> {
+    return [];
+  }
+
+  async findItemById(_orderItemId: string): Promise<OrderItemRecord | null> {
+    return null;
+  }
+
+  async updateStatus(orderId: string, newStatus: OrderStatus, _history: OrderStatusHistoryRecord): Promise<void> {
+    const order = this.orders.get(orderId);
+    if (order) this.orders.set(orderId, { ...order, status: newStatus });
+  }
+
+  async findHistoryByOrderId(_orderId: string): Promise<OrderStatusHistoryRecord[]> {
+    return [];
+  }
+
+  async save(order: Pick<OrderRecord, 'orderId' | 'shopId' | 'buyerId' | 'status' | 'totalAmount' | 'subtotal' | 'discountAmount' | 'shippingFee' | 'createdAt' | 'updatedAt'>): Promise<void> {
+    this.orders.set(order.orderId, {
+      recipientName: 'Buyer',
+      recipientPhone: '0900000000',
+      province: 'Hồ Chí Minh',
+      district: 'Quận 1',
+      ward: 'Bến Nghé',
+      deliveryAddress: 'Test address',
+      ...order,
+    });
   }
 }
 
@@ -130,20 +165,6 @@ describe('Đợt 2: Kênh Người Bán — State Machine 42 Pairs, Concurrency 
       let forbiddenOrBoundaryCount = 0;
       let invalidTransitionCount = 0;
       let totalPairs = 0;
-
-      // 9 valid transitions definition:
-      // (from, to, actor, extraParams)
-      const validTransitionsMap = new Map<string, { actor: OrderActor; params?: any }>([
-        ['PENDING_CONFIRMATION->CONFIRMED', { actor: adminActor, params: { processingEligible: true, reason: 'Admin confirmed payment' } }],
-        ['PENDING_CONFIRMATION->CANCELLED', { actor: buyerActor, params: { reason: 'Buyer cancelled' } }],
-        ['CONFIRMED->PREPARING', { actor: sellerActor, params: {} }],
-        ['CONFIRMED->CANCELLED', { actor: sellerActor, params: { reason: 'Out of stock' } }],
-        ['PREPARING->SHIPPING', { actor: sellerActor, params: { shipmentStatus: 'HANDED_OVER' } }],
-        ['PREPARING->CANCELLED', { actor: sellerActor, params: { exceptionalCancellation: true, reason: 'Seller warehouse damaged' } }],
-        ['SHIPPING->COMPLETED (BUYER)', { actor: buyerActor, params: { reason: 'Buyer confirmed delivery' } }],
-        ['SHIPPING->COMPLETED (ADMIN)', { actor: adminActor, params: { shipmentStatus: 'DELIVERED', reason: 'Admin completed with delivery proof' } }],
-        ['SHIPPING->DELIVERY_FAILED', { actor: shipmentActor, params: { shipmentStatus: 'FAILED', reason: 'Receiver unavailable' } }],
-      ]);
 
       for (const from of allStatuses) {
         for (const to of allStatuses) {
@@ -354,10 +375,11 @@ describe('Đợt 2: Kênh Người Bán — State Machine 42 Pairs, Concurrency 
           isConstraintViolated = true;
           throw new Error('new row for relation "shipments" violates check constraint "chk_tracking_number"');
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         // Rollback transaction
         dbRollbackExecuted = true;
-        expect(err.message).toContain('violates check constraint');
+        expect(err).toBeInstanceOf(Error);
+        if (err instanceof Error) expect(err.message).toContain('violates check constraint');
       } finally {
         // Dọn dẹp tài nguyên
         finallyCleanedUp = true;
@@ -375,7 +397,7 @@ describe('Đợt 2: Kênh Người Bán — State Machine 42 Pairs, Concurrency 
   describe('TASK 5 [T2-P4-05]: Voucher Shop CRUD, Trùng Mã Conflict & Giảm Giá', () => {
     let voucherRepo: MockSellerVoucherRepository;
     let voucherService: SellerVoucherService;
-    let sellerContext: any;
+    let sellerContext: RequestContext;
 
     beforeEach(() => {
       voucherRepo = new MockSellerVoucherRepository();
@@ -519,7 +541,7 @@ describe('Đợt 2: Kênh Người Bán — State Machine 42 Pairs, Concurrency 
     let orderRepo: MockOrderRepository;
     let reportingService: ReportingService;
     let sellerRevenueService: SellerRevenueService;
-    let sellerContext: any;
+    let sellerContext: RequestContext;
 
     beforeEach(() => {
       orderRepo = new MockOrderRepository();
@@ -564,7 +586,7 @@ describe('Đợt 2: Kênh Người Bán — State Machine 42 Pairs, Concurrency 
       // Seed 5 đơn hàng tại các mốc thời gian biên:
       // Đơn 1: COMPLETED lúc 00:00:01 UTC+7 (2026-10-03T17:00:01.000Z)
       await orderRepo.save({
-        id: 'ord-1-completed-start',
+        orderId: 'ord-1-completed-start',
         shopId,
         buyerId,
         status: 'COMPLETED',
@@ -578,7 +600,7 @@ describe('Đợt 2: Kênh Người Bán — State Machine 42 Pairs, Concurrency 
 
       // Đơn 2: COMPLETED lúc 23:59:59 UTC+7 (2026-10-04T16:59:59.000Z)
       await orderRepo.save({
-        id: 'ord-2-completed-end',
+        orderId: 'ord-2-completed-end',
         shopId,
         buyerId,
         status: 'COMPLETED',
@@ -592,7 +614,7 @@ describe('Đợt 2: Kênh Người Bán — State Machine 42 Pairs, Concurrency 
 
       // Đơn 3: PREPARING (Đang chuẩn bị hàng) -> KHÔNG ĐƯỢC TÍNH VÀO DOANH THU
       await orderRepo.save({
-        id: 'ord-3-preparing',
+        orderId: 'ord-3-preparing',
         shopId,
         buyerId,
         status: 'PREPARING',
@@ -606,7 +628,7 @@ describe('Đợt 2: Kênh Người Bán — State Machine 42 Pairs, Concurrency 
 
       // Đơn 4: SHIPPING (Đang vận chuyển) -> KHÔNG ĐƯỢC TÍNH VÀO DOANH THU
       await orderRepo.save({
-        id: 'ord-4-shipping',
+        orderId: 'ord-4-shipping',
         shopId,
         buyerId,
         status: 'SHIPPING',
@@ -620,7 +642,7 @@ describe('Đợt 2: Kênh Người Bán — State Machine 42 Pairs, Concurrency 
 
       // Đơn 5: CANCELLED (Đã hủy) -> KHÔNG TÍNH DOANH THU, GHI NHẬN VÀO cancelledOrders
       await orderRepo.save({
-        id: 'ord-5-cancelled',
+        orderId: 'ord-5-cancelled',
         shopId,
         buyerId,
         status: 'CANCELLED',

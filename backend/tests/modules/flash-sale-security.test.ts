@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it } from 'vitest';
 import assert from 'node:assert/strict';
 import { validatePurchaseBody } from '../../src/modules/flash-sale/dtos/purchase.dto.ts';
 import { adminOrInternalKeyGuard } from '../../src/modules/flash-sale/routes/flash-sale.routes.ts';
@@ -24,8 +24,8 @@ describe('Flash Sale Security & Validation Guard', () => {
       const result = validatePurchaseBody(input);
       assert.equal(result.idempotency_key, 'idemp-key-test-1234567890');
       assert.equal(result.recipient_name, 'Nguyễn Văn A');
-      assert.equal((result as any)._tracking_id, undefined, 'Extra unknown fields must be automatically stripped');
-      assert.equal((result as any).client_timestamp, undefined, 'Extra unknown fields must be automatically stripped');
+      assert.equal('_tracking_id' in result, false, 'Extra unknown fields must be automatically stripped');
+      assert.equal('client_timestamp' in result, false, 'Extra unknown fields must be automatically stripped');
     });
 
     it('rejects identity spoofing attempt with user_id', () => {

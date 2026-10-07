@@ -10,7 +10,7 @@ import { validatePurchaseBody } from '../dtos/purchase.dto.ts';
 
 export interface FlashSaleRedisClient {
   get(key: string): Promise<string | null>;
-  set(key: string, value: string | number, ...args: any[]): Promise<any>;
+  set(key: string, value: string | number, ...args: Array<string | number>): Promise<string | null>;
   del(...keys: string[]): Promise<number>;
 }
 

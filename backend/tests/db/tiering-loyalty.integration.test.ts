@@ -515,7 +515,7 @@ dbDescribe('Tiering & Loyalty Integration (Real PostgreSQL)', { timeout: 60_000,
         },
       } as unknown as LoyaltyService;
 
-      const failingCheckoutService = new PgCheckoutService(pool, undefined, failingLoyaltyService);
+      const failingCheckoutService = new PgCheckoutService(pool, undefined, undefined, failingLoyaltyService);
 
       const buyerContext: RequestContext = {
         request_id: randomUUID(),
@@ -575,7 +575,7 @@ dbDescribe('Tiering & Loyalty Integration (Real PostgreSQL)', { timeout: 60_000,
       const shipment = await createShipment(order.orderId, 'SHIPPING');
 
       // 2. Dùng PgCheckoutService thật với real LoyaltyService
-      const liveCheckoutService = new PgCheckoutService(pool, undefined, loyaltyService);
+      const liveCheckoutService = new PgCheckoutService(pool, undefined, undefined, loyaltyService);
       const buyerContext: RequestContext = {
         request_id: randomUUID(),
         user_id: buyerId,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolvePostLoginRedirect, sanitizeReturnTo } from "@/lib/auth/route-guards";
+import { resolvePostLoginRedirect } from "@/lib/auth/route-guards";
 
 describe("resolvePostLoginRedirect - Role-based landing & Anti-privilege bypass", () => {
   describe("Default role redirects when returnTo is missing or root", () => {

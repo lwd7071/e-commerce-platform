@@ -981,28 +981,33 @@ describe('Feature 05: Flash Sale & Concurrency Inventory Engine', () => {
 
     // Hook pool.connect cho purchase(): không làm ảnh hưởng pool.query
     const originalConnect = pool.connect.bind(pool);
-    pool.connect = ((cb?: any) => {
+    pool.connect = ((cb?: unknown) => {
       if (typeof cb === 'function') {
-        return originalConnect(cb);
+        return Reflect.apply(originalConnect, pool, [cb]);
       }
       return originalConnect().then((client) => {
         const origQuery = client.query;
         const origRelease = client.release;
-        (client as any).query = function (...args: any[]) {
-          const sql = typeof args[0] === 'string' ? args[0] : args[0]?.text || '';
+        (client as unknown as { query: (...args: unknown[]) => unknown }).query = (...args: unknown[]) => {
+          const query = args[0];
+          const sql = typeof query === 'string'
+            ? query
+            : typeof query === 'object' && query !== null && 'text' in query && typeof query.text === 'string'
+              ? query.text
+              : '';
           if (sql.trim().toUpperCase() === 'COMMIT') {
             return Promise.reject(new Error('deadlock detected (simulated DB failure during COMMIT)'));
           }
-          return (origQuery as any).apply(client, args);
+          return Reflect.apply(origQuery, client, args);
         };
-        client.release = function (...args: any[]) {
-          client.query = origQuery;
-          client.release = origRelease;
-          return (origRelease as any).apply(client, args);
+        (client as unknown as { release: (...args: unknown[]) => unknown }).release = (...args: unknown[]) => {
+          (client as unknown as { query: typeof origQuery }).query = origQuery;
+          (client as unknown as { release: typeof origRelease }).release = origRelease;
+          return Reflect.apply(origRelease, client, args);
         };
         return client;
       });
-    }) as any;
+    }) as unknown as typeof pool.connect;
 
     try {
       await expect(
@@ -1101,30 +1106,35 @@ describe('Feature 05: Flash Sale & Concurrency Inventory Engine', () => {
 
     // Hook pool.connect cho purchase(): COMMIT thật thành công, sau đó ném ECONNRESET
     const originalConnect = pool.connect.bind(pool);
-    pool.connect = ((cb?: any) => {
+    pool.connect = ((cb?: unknown) => {
       if (typeof cb === 'function') {
-        return originalConnect(cb);
+        return Reflect.apply(originalConnect, pool, [cb]);
       }
       return originalConnect().then((client) => {
         const origQuery = client.query;
         const origRelease = client.release;
-        (client as any).query = function (...args: any[]) {
-          const sql = typeof args[0] === 'string' ? args[0] : args[0]?.text || '';
+        (client as unknown as { query: (...args: unknown[]) => unknown }).query = (...args: unknown[]) => {
+          const query = args[0];
+          const sql = typeof query === 'string'
+            ? query
+            : typeof query === 'object' && query !== null && 'text' in query && typeof query.text === 'string'
+              ? query.text
+              : '';
           if (sql.trim().toUpperCase() === 'COMMIT') {
-            return (origQuery as any).call(client, 'COMMIT').then(() => {
+            return Reflect.apply(origQuery, client, ['COMMIT']).then(() => {
               throw new Error('read ECONNRESET - connection reset by peer (ambiguous commit)');
             });
           }
-          return (origQuery as any).apply(client, args);
+          return Reflect.apply(origQuery, client, args);
         };
-        client.release = function (...args: any[]) {
-          client.query = origQuery;
-          client.release = origRelease;
-          return (origRelease as any).apply(client, args);
+        (client as unknown as { release: (...args: unknown[]) => unknown }).release = (...args: unknown[]) => {
+          (client as unknown as { query: typeof origQuery }).query = origQuery;
+          (client as unknown as { release: typeof origRelease }).release = origRelease;
+          return Reflect.apply(origRelease, client, args);
         };
         return client;
       });
-    }) as any;
+    }) as unknown as typeof pool.connect;
 
     try {
       // Gọi purchase: Do có Ambiguous Commit verification trong catch, nó phát hiện order trong DB và HEAL thành công

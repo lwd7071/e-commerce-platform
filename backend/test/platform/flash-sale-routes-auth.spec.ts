@@ -1,7 +1,7 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import request from 'supertest';
-import express, { type Request, type Response, type NextFunction } from 'express';
+import express from 'express';
 import { createFlashSaleRouter } from '../../src/modules/flash-sale/routes/flash-sale.routes.ts';
 import type { FlashSaleService } from '../../src/modules/flash-sale/services/flash-sale.service.ts';
 import type { PgFlashSaleRepository } from '../../src/modules/flash-sale/repositories/pg-flash-sale.repository.ts';
@@ -172,20 +172,18 @@ describe('Flash Sale Routes Auth & RBAC (Task 1)', () => {
     assert.equal(res.body.error?.code, 'AUTH_INVALID_TOKEN');
   });
 
-  it('1.3: Lấy định danh từ JWT context, bỏ qua user_id giả mạo trong body', async () => {
-    const jwtUserId = 'buyer-1';
+  it('1.3: Từ chối user_id giả mạo trong body', async () => {
     const fakeBodyUserId = 'attacker-user-id-999';
 
     const res = await request(app)
       .post('/api/v1/flash-sales/items/item-1/purchase')
-      .set('Authorization', `Bearer stub-token-${jwtUserId}`)
+      .set('Authorization', 'Bearer stub-token-buyer-1')
       .set('Idempotency-Key', 'idemp-12345678-test')
       .send({ user_id: fakeBodyUserId });
 
-    assert.equal(res.status, 200);
-    assert.ok(lastPurchaseCommand, 'purchase() should have been called');
-    assert.equal(lastPurchaseCommand.user_id, jwtUserId);
-    assert.notEqual(lastPurchaseCommand.user_id, fakeBodyUserId);
+    assert.equal(res.status, 400);
+    assert.equal(res.body.error?.code, 'INVALID_REQUEST');
+    assert.equal(lastPurchaseCommand, null, 'purchase() should not be called for an identity spoofing attempt');
   });
 
   it('1.4: Chặn Buyer gọi các route vận hành Admin -> 403 RESOURCE_FORBIDDEN', async () => {
@@ -194,10 +192,10 @@ describe('Flash Sale Routes Auth & RBAC (Task 1)', () => {
       { method: 'get', path: '/api/v1/flash-sales/slots/slot-1/reconcile' },
       { method: 'post', path: '/api/v1/flash-sales/slots/slot-1/reconcile' },
       { method: 'post', path: '/api/v1/flash-sales/watchdog/sweep' },
-    ];
+    ] as const;
 
     for (const ep of endpoints) {
-      const reqInstance = (request(app) as any)[ep.method](ep.path)
+      const reqInstance = (ep.method === 'post' ? request(app).post(ep.path) : request(app).get(ep.path))
         .set('Authorization', 'Bearer stub-token-buyer-1');
       const res = await reqInstance;
       assert.equal(

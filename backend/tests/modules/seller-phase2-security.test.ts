@@ -1,16 +1,19 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../../src/platform/http/app.ts';
-import { createRequestContext } from '../../src/platform/context/request-context.ts';
+import { createRequestContext as buildRequestContext, type CreateRequestContextInput, type RequestContext } from '../../src/platform/context/request-context.ts';
 import { SellerShopService } from '../../src/modules/shop/services/seller-shop.service.ts';
 import { SellerVoucherService } from '../../src/modules/voucher/services/seller-voucher.service.ts';
 import { transitionOrder } from '../../src/modules/order/domain/order-state-machine.ts';
-import { OrderDomainError } from '../../src/modules/order/domain/errors.ts';
-import { ValidationFailedError, ForbiddenError, NotFoundError } from '../../src/platform/errors/app-error.ts';
+import { ValidationFailedError } from '../../src/platform/errors/app-error.ts';
 import type { ISellerShopRepository, SellerShop, SellerShopUpdate } from '../../src/modules/shop/domain/shop.types.ts';
 import type { ISellerVoucherRepository, SellerVoucher, SellerVoucherFields } from '../../src/modules/voucher/domain/seller-voucher.types.ts';
-import type { IOrderQueryPort } from '../../src/modules/order/contracts/order-query.contract.ts';
 import type { OrderState, OrderActor } from '../../src/modules/order/domain/types.ts';
+import type { OrderServices } from '../../src/platform/http/routes/order-routes.ts';
+
+function createRequestContext(input: Omit<CreateRequestContextInput, 'request_id'>): RequestContext {
+  return buildRequestContext({ request_id: 'seller-phase2-test', ...input });
+}
 
 // ============================================================================
 // IN-MEMORY MOCK REPOSITORIES FOR PHASE 2 SECURITY & CONTRACT TESTS
@@ -62,6 +65,7 @@ class InMemorySellerVoucherRepository implements ISellerVoucherRepository {
     const voucher: SellerVoucher = {
       voucher_id: `v_${Date.now()}_${Math.random()}`,
       shop_id: context.shop_id,
+      scope: 'SHOP',
       status: 'ACTIVE',
       ...fields,
       created_at: new Date().toISOString(),
@@ -95,7 +99,7 @@ class InMemorySellerVoucherRepository implements ISellerVoucherRepository {
   }
 }
 
-class MockOrderQueryService implements IOrderQueryPort {
+class MockOrderQueryService {
   public orders: Array<{
     order_id: string;
     shop_id: string;
@@ -109,7 +113,7 @@ class MockOrderQueryService implements IOrderQueryPort {
     updated_at: string;
   }> = [];
 
-  async listOrders(viewer: any, filter?: any): Promise<any> {
+  async listOrders(viewer: RequestContext, _filter?: unknown) {
     return this.orders.filter(o => {
       if (viewer.role === 'BUYER') return o.buyer_id === viewer.user_id;
       if (viewer.role === 'SELLER') return o.shop_id === viewer.shop_id;
@@ -117,17 +121,17 @@ class MockOrderQueryService implements IOrderQueryPort {
     });
   }
 
-  async listOrdersPaginated(viewer: any, filter?: any): Promise<any> {
+  async listOrdersPaginated(viewer: RequestContext, filter?: unknown) {
     const items = await this.listOrders(viewer, filter);
     return { items, limit: 20, has_more: false, next_cursor: null };
   }
 
-  async listAdminOrdersPaginated(viewer: any, filter?: any): Promise<any> {
+  async listAdminOrdersPaginated(viewer: RequestContext, _filter?: unknown) {
     if (viewer.role !== 'ADMIN') throw new ValidationFailedError('Admin role is required');
     return { items: this.orders, limit: 20, has_more: false, next_cursor: null };
   }
 
-  async getOrderDetail(viewer: any, orderId: string): Promise<any | null> {
+  async getOrderDetail(viewer: RequestContext, orderId: string) {
     const order = this.orders.find(o => o.order_id === orderId);
     if (!order) return null;
     if (viewer.role === 'BUYER' && order.buyer_id !== viewer.user_id) return null;
@@ -150,7 +154,6 @@ describe('Đợt 2: Kênh Người Bán — Xác Nhận Ranh Giới Bảo Mật 
   const shop1Id = '11111111-1111-1111-1111-111111111111';
   const shop2Id = '22222222-2222-2222-2222-222222222222';
   const seller1UserId = 'user-seller-01';
-  const seller2UserId = 'user-seller-02';
   const adminUserId = 'user-admin-01';
   const buyerUserId = 'user-buyer-01';
 
@@ -165,7 +168,6 @@ describe('Đợt 2: Kênh Người Bán — Xác Nhận Ranh Giới Bảo Mật 
     // Seed Shop 1 (ACTIVE)
     shopRepo.shops.set(shop1Id, {
       shop_id: shop1Id,
-      owner_id: seller1UserId,
       shop_name: 'Shop 1 Official',
       description: 'Chuyên hàng chính hãng',
       pickup_address: '123 Đường D2, Thủ Đức',
@@ -176,14 +178,12 @@ describe('Đợt 2: Kênh Người Bán — Xác Nhận Ranh Giới Bảo Mật 
       pickup_detail_address: '123 Đường D2',
       contact_phone: '0901234567',
       status: 'ACTIVE',
-      created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
 
     // Seed Shop 2 (ACTIVE)
     shopRepo.shops.set(shop2Id, {
       shop_id: shop2Id,
-      owner_id: seller2UserId,
       shop_name: 'Shop 2 Đối Thủ',
       description: 'Shop của bên khác',
       pickup_address: '456 Lê Duẩn, Q1',
@@ -194,7 +194,6 @@ describe('Đợt 2: Kênh Người Bán — Xác Nhận Ranh Giới Bảo Mật 
       pickup_detail_address: '456 Lê Duẩn',
       contact_phone: '0909999999',
       status: 'ACTIVE',
-      created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
 
@@ -301,7 +300,6 @@ describe('Đợt 2: Kênh Người Bán — Xác Nhận Ranh Giới Bảo Mật 
       const pendingShopId = 'pending-shop-uuid';
       shopRepo.shops.set(pendingShopId, {
         shop_id: pendingShopId,
-        owner_id: 'pending-seller',
         shop_name: 'Gian Hàng Chờ Duyệt',
         description: null,
         pickup_address: null,
@@ -312,7 +310,6 @@ describe('Đợt 2: Kênh Người Bán — Xác Nhận Ranh Giới Bảo Mật 
         pickup_detail_address: null,
         contact_phone: null,
         status: 'PENDING',
-        created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });
 
@@ -469,7 +466,7 @@ describe('Đợt 2: Kênh Người Bán — Xác Nhận Ranh Giới Bảo Mật 
       const app = createApp({
         rateLimiter: false,
         auth: (req, _res, next) => { req.context = seller1Context; next(); },
-        orderServices: { orderQueryService } as any,
+        orderServices: { orderQueryService } as unknown as OrderServices,
       });
 
       // Seller 1 cố tình xem đơn của Shop 2
@@ -568,7 +565,7 @@ describe('Đợt 2: Kênh Người Bán — Xác Nhận Ranh Giới Bảo Mật 
       const app = createApp({
         rateLimiter: false,
         auth: (req, _res, next) => { req.context = adminContext; next(); },
-        orderServices: { orderQueryService } as any,
+        orderServices: { orderQueryService } as unknown as OrderServices,
       });
 
       const resShop1 = await request(app).get('/api/v1/orders/ord-shop1-001');
