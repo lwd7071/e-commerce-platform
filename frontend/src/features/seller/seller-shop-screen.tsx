@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useRef } from 'react';
-import Link from 'next/link';
 import { sellerShopApi, type SellerShopProfile, type UpdateSellerShop } from '@/lib/api/seller-shop.api';
 import { uploadMediaAsset } from '@/lib/api/media.api';
 import { Button } from '@/components/ui/button';
@@ -89,7 +88,6 @@ export function SellerShopScreen() {
   return (
     <main className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6">
       <header className="space-y-2">
-        <Link href="/seller" className="text-sm font-medium text-[var(--primary)]">← Kênh người bán</Link>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div><h1 className="text-2xl font-bold text-[var(--foreground)]">Hồ sơ gian hàng</h1><p className="mt-1 text-sm text-[var(--subtext)]">Địa chỉ shop ở đây dùng làm nơi lấy hàng cho các đơn bán; đây không phải sổ địa chỉ giao hàng của người mua.</p></div>
           <span className="rounded-full border border-[var(--border)] px-3 py-1 text-sm" aria-label={`Trạng thái gian hàng: ${shop.status}`}>{shop.status}</span>

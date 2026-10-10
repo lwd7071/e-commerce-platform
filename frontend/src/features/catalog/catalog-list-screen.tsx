@@ -15,6 +15,9 @@ import {
 } from "./catalog-query-engine";
 
 type SortOption = "created_at_desc" | "price_asc" | "price_desc";
+const PRICE_SLIDER_MAX = 500_000_000;
+const PRICE_SLIDER_STEP = 100_000;
+const vndFormatter = new Intl.NumberFormat("vi-VN");
 
 type Props = {
   initialSearch?: string;
@@ -49,8 +52,7 @@ export function CatalogListScreen({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Controlled search input & debounced search term (300ms debounce per user flow)
-  const [searchInput, setSearchInput] = useState(initialSearch);
+  // Search is submitted from the shared site header and provided in the URL.
   const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
 
   // Filters state
@@ -59,20 +61,26 @@ export function CatalogListScreen({
   const [sort, setSort] = useState<SortOption>(initialSort);
   const [minPrice, setMinPrice] = useState(initialMinPrice);
   const [maxPrice, setMaxPrice] = useState(initialMaxPrice);
+  const [appliedMinPrice, setAppliedMinPrice] = useState(initialMinPrice);
+  const [appliedMaxPrice, setAppliedMaxPrice] = useState(initialMaxPrice);
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
 
   const coordinatorRef = useRef(createCatalogQueryCoordinator());
   const [, startTransition] = useTransition();
+  const minPriceValue = Math.min(PRICE_SLIDER_MAX, Math.max(0, Number(minPrice) || 0));
+  const maxPriceValue = Math.max(
+    minPriceValue,
+    Math.min(PRICE_SLIDER_MAX, maxPrice ? Number(maxPrice) || 0 : PRICE_SLIDER_MAX),
+  );
 
-  // 300ms search input debounce
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchInput.trim());
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [searchInput]);
+    const timer = window.setTimeout(() => {
+      setAppliedMinPrice(minPrice);
+      setAppliedMaxPrice(maxPrice);
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [minPrice, maxPrice]);
 
   // Load categories on mount (safe live fallback if unverified per GAP-05)
   useEffect(() => {
@@ -136,8 +144,8 @@ export function CatalogListScreen({
     if (selectedTier === "STANDARD" || selectedTier === "PREFERRED" || selectedTier === "MALL") {
       params.shop_tier = selectedTier;
     }
-    if (minPrice.trim() && !isNaN(Number(minPrice))) params.min_price = minPrice.trim();
-    if (maxPrice.trim() && !isNaN(Number(maxPrice))) params.max_price = maxPrice.trim();
+    if (appliedMinPrice.trim() && !isNaN(Number(appliedMinPrice))) params.min_price = appliedMinPrice.trim();
+    if (appliedMaxPrice.trim() && !isNaN(Number(appliedMaxPrice))) params.max_price = appliedMaxPrice.trim();
 
     // Sync URL without triggering full page reload
     if (typeof window !== "undefined") {
@@ -145,8 +153,8 @@ export function CatalogListScreen({
         search: debouncedSearch,
         categoryId: selectedCategory,
         sort,
-        minPrice,
-        maxPrice,
+        minPrice: appliedMinPrice,
+        maxPrice: appliedMaxPrice,
         shopTier: selectedTier,
       });
       const queryStr = urlParams.toString();
@@ -157,15 +165,9 @@ export function CatalogListScreen({
     startTransition(() => {
       fetchProducts(params, false);
     });
-  }, [debouncedSearch, selectedCategory, selectedTier, sort, minPrice, maxPrice, pathname]);
-
-  const handleSearchSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setDebouncedSearch(searchInput.trim());
-  };
+  }, [debouncedSearch, selectedCategory, selectedTier, sort, appliedMinPrice, appliedMaxPrice, pathname]);
 
   const handleResetFilters = () => {
-    setSearchInput("");
     setDebouncedSearch("");
     setSelectedCategory("");
     setSelectedTier("");
@@ -190,8 +192,8 @@ export function CatalogListScreen({
     if (selectedTier === "STANDARD" || selectedTier === "PREFERRED" || selectedTier === "MALL") {
       params.shop_tier = selectedTier;
     }
-    if (minPrice.trim()) params.min_price = minPrice.trim();
-    if (maxPrice.trim()) params.max_price = maxPrice.trim();
+    if (appliedMinPrice.trim()) params.min_price = appliedMinPrice.trim();
+    if (appliedMaxPrice.trim()) params.max_price = appliedMaxPrice.trim();
 
     fetchProducts(params, true);
   };
@@ -214,7 +216,7 @@ export function CatalogListScreen({
 
   return (
     <div className="space-y-6">
-      {/* Header & Search Bar */}
+      {/* Page heading */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between pb-3 border-b border-[var(--border)]">
         <div>
           <h1 className="page-title text-2xl font-bold tracking-tight text-[var(--foreground)]">Khám Phá Sản Phẩm</h1>
@@ -223,20 +225,6 @@ export function CatalogListScreen({
           </p>
         </div>
 
-        <form onSubmit={handleSearchSubmit} className="relative flex-1 max-w-md">
-          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--subtext)] flex items-center justify-center">
-            <Icon name="search" className="w-4 h-4" />
-          </span>
-          <input
-            name="q"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            className="form-control pr-4"
-            style={{ paddingLeft: "42px" }}
-            placeholder="Tìm theo tên sản phẩm..."
-            aria-label="Tìm theo tên sản phẩm"
-          />
-        </form>
       </div>
 
       {/* Main 2-Column Commerce Layout (Phương án 2: Classic Commerce Split) */}
@@ -354,27 +342,48 @@ export function CatalogListScreen({
             <span className="text-xs font-bold uppercase tracking-wider text-[var(--subtext)] block">
               Khoảng giá (₫)
             </span>
-            <div className="flex items-center gap-1.5 text-xs">
-              <input
-                type="number"
-                min="0"
-                placeholder="Giá từ (₫)"
-                value={minPrice}
-                onChange={(e) => setMinPrice(e.target.value)}
-                className="form-control min-h-[44px] h-11 w-full text-xs px-2.5"
-                aria-label="Giá thấp nhất"
-              />
-              <span className="text-[var(--subtext)]">-</span>
-              <input
-                type="number"
-                min="0"
-                placeholder="Đến (₫)"
-                value={maxPrice}
-                onChange={(e) => setMaxPrice(e.target.value)}
-                className="form-control min-h-[44px] h-11 w-full text-xs px-2.5"
-                aria-label="Giá cao nhất"
-              />
-            </div>
+            <div className="price-range" aria-label="Chọn khoảng giá">
+              <div className="flex justify-between gap-3 text-xs font-semibold text-[var(--foreground)]">
+                <span>{vndFormatter.format(minPriceValue)} ₫</span>
+                <span>{vndFormatter.format(maxPriceValue)} ₫{maxPriceValue === PRICE_SLIDER_MAX ? "+" : ""}</span>
+              </div>
+              <div className="price-range__track">
+                <div
+                  className="price-range__fill"
+                  style={{
+                    left: `${(minPriceValue / PRICE_SLIDER_MAX) * 100}%`,
+                    width: `${((maxPriceValue - minPriceValue) / PRICE_SLIDER_MAX) * 100}%`,
+                  }}
+                />
+                <input
+                  className="price-range__input"
+                  type="range"
+                  min="0"
+                  max={PRICE_SLIDER_MAX}
+                  step={PRICE_SLIDER_STEP}
+                  value={minPriceValue}
+                  onChange={(event) => {
+                    const value = Math.min(Number(event.target.value), maxPriceValue);
+                    setMinPrice(value === 0 ? "" : String(value));
+                  }}
+                  style={{ zIndex: minPriceValue >= maxPriceValue - PRICE_SLIDER_STEP ? 4 : 2 }}
+                  aria-label="Giá thấp nhất"
+                />
+                <input
+                  className="price-range__input"
+                  type="range"
+                  min="0"
+                  max={PRICE_SLIDER_MAX}
+                  step={PRICE_SLIDER_STEP}
+                  value={maxPriceValue}
+                  onChange={(event) => {
+                    const value = Math.max(Number(event.target.value), minPriceValue);
+                    setMaxPrice(value === PRICE_SLIDER_MAX ? "" : String(value));
+                  }}
+                  style={{ zIndex: 3 }}
+                  aria-label="Giá cao nhất"
+                />
+              </div>
             {(minPrice || maxPrice) && (
               <button
                 type="button"
@@ -384,6 +393,7 @@ export function CatalogListScreen({
                 Xóa khoảng giá
               </button>
             )}
+            </div>
           </div>
         </aside>
 

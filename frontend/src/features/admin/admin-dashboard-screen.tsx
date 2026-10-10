@@ -293,19 +293,6 @@ export function AdminDashboardScreen() {
         {/* Page Header */}
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1.5 text-xs font-semibold">
-              <Link
-                href="/"
-                className="text-[var(--subtext)] hover:text-[var(--primary-active)] flex items-center gap-1 transition-colors"
-                title="Quay về trang chủ sàn"
-              >
-                <span>🏠 Quay về Trang chủ sàn</span>
-              </Link>
-              <span className="text-[var(--subtext)]">•</span>
-              <span className="eyebrow m-0 text-[11px] font-bold uppercase tracking-wider text-[var(--primary)]">
-                Dino Control Center (A-704)
-              </span>
-            </div>
             <h1 className="page-title text-2xl sm:text-3xl font-bold tracking-tight text-[var(--foreground)]">
               Bảng điều khiển quản trị sàn (A-704)
             </h1>

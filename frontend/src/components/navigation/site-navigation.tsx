@@ -77,7 +77,7 @@ export function SiteHeader({ role = null, isSellerArea = false }: SiteHeaderProp
         <Link className="brand-lockup" href="/" aria-label="Dino - trang chủ">
           <span>Dino</span>
         </Link>
-        <form className="header-search" action="/" role="search">
+        <form className="header-search" action="/products" role="search">
           <Icon name="search" className="header-search__icon" />
           <input className="form-control" type="search" name="q" placeholder="Tìm sản phẩm..." aria-label="Tìm sản phẩm" />
         </form>

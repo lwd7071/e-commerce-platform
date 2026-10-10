@@ -44,10 +44,10 @@ export function SellerHeaderNav() {
               key={tab.href}
               href={tab.href}
               aria-current={active ? "page" : undefined}
-              className={`inline-flex items-center min-h-[44px] px-3 sm:px-1 py-2.5 text-sm font-semibold transition-colors border-b-2 whitespace-nowrap ${
+              className={`inline-flex items-center min-h-[44px] px-3 sm:px-2 py-2.5 text-sm font-semibold transition-colors border-2 rounded-lg whitespace-nowrap ${
                 active
-                  ? "border-[var(--primary-active)] text-[var(--primary-active)] font-bold"
-                  : "border-transparent text-[var(--subtext)] hover:text-[var(--foreground)] hover:border-[var(--border)]"
+                  ? "border-transparent text-[var(--primary-active)] font-bold"
+                  : "border-transparent text-[var(--subtext)] hover:text-[var(--foreground)] hover:border-[var(--foreground)]"
               }`}
             >
               {tab.label}
