@@ -61,6 +61,7 @@ export function CheckoutScreen() {
   const [newAddrProvinceCode, setNewAddrProvinceCode] = useState("");
   const [newAddrWard, setNewAddrWard] = useState("");
   const [newAddrWardCode, setNewAddrWardCode] = useState("");
+  const [newAddrDistrict, setNewAddrDistrict] = useState("");
   const [newAddrDetail, setNewAddrDetail] = useState("");
   const [newAddrDefault, setNewAddrDefault] = useState(false);
   const [addrFormErrors, setAddrFormErrors] = useState<Record<string, string>>({});
@@ -309,6 +310,7 @@ export function CheckoutScreen() {
       province_code: newAddrProvinceCode,
       ward: newAddrWard.trim(),
       ward_code: newAddrWardCode,
+      district: newAddrDistrict.trim(),
       detail_address: newAddrDetail.trim(),
       is_default: newAddrDefault,
     };
@@ -325,6 +327,7 @@ export function CheckoutScreen() {
       setNewAddrProvinceCode("");
       setNewAddrWard("");
       setNewAddrWardCode("");
+      setNewAddrDistrict("");
       setNewAddrDetail("");
       setNewAddrDefault(false);
     } catch {
@@ -644,7 +647,7 @@ export function CheckoutScreen() {
               {currentAddress.detailAddress}
             </p>
             <p className="text-xs text-[var(--subtext)]">
-              {currentAddress.ward}, {currentAddress.district}, {currentAddress.province}
+              {[currentAddress.district, currentAddress.ward, currentAddress.province].filter(Boolean).join(', ')}
             </p>
           </div>
         ) : (
@@ -964,7 +967,7 @@ export function CheckoutScreen() {
                   </div>
                   <p className="text-xs text-[var(--foreground)] mt-1">{addr.detailAddress}</p>
                   <p className="text-[11px] text-[var(--subtext)]">
-                    {[addr.ward, addr.district, addr.province].filter(Boolean).join(', ')}
+                    {[addr.district, addr.ward, addr.province].filter(Boolean).join(', ')}
                   </p>
                 </div>
               </div>
@@ -1038,9 +1041,13 @@ export function CheckoutScreen() {
           <div className="grid grid-cols-1 gap-3">
             <AdministrativeAddressFields
               provinceCode={newAddrProvinceCode}
+              provinceName={newAddrProvince}
               wardCode={newAddrWardCode}
-              onProvinceChange={(code, name) => { setNewAddrProvinceCode(code); setNewAddrProvince(name); setNewAddrWardCode(""); setNewAddrWard(""); }}
-              onWardChange={(code, name) => { setNewAddrWardCode(code); setNewAddrWard(name); }}
+              wardName={newAddrWard}
+              locality={newAddrDistrict}
+              onLocalityChange={setNewAddrDistrict}
+              onProvinceChange={(code, name) => { setNewAddrProvinceCode(code); setNewAddrProvince(name); setNewAddrWardCode(""); setNewAddrWard(""); setNewAddrDistrict(""); }}
+              onWardChange={(code, name) => { setNewAddrWardCode(code); setNewAddrWard(name); setNewAddrDistrict(""); }}
             />
             {(addrFormErrors.province || addrFormErrors.ward) && <p className="text-sm text-[var(--danger)]" role="alert">{addrFormErrors.province ?? addrFormErrors.ward}</p>}
           </div>
