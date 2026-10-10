@@ -54,3 +54,9 @@ Kết quả PostgreSQL 11/11 và UI mock 3/3 ghi trong báo cáo trước là k�
 - Backend lint, typecheck, build và Prisma validate PASS. Bổ sung endpoint evaluate-tiers có sẵn vào OpenAPI và generated frontend types. Test Groq chọn model rõ ràng; test Seller hoàn tất đơn dùng mã lỗi hiện hành. Cờ mock false của frontend được giữ đúng cả khi chưa có URL Auth.
 - Draft PR #14 vào dev đã mở và giải quyết xung đột. Run CI đầu tiên thất bại tại lint hai phía; các sửa lỗi được đẩy để chạy lại, chưa suy ra CI PASS từ kết quả local.
 - Đã tạo tổ chức Free `Dino E2E Test` và chuẩn bị form project `dino-mall-e2e-test`. Đang chờ chủ tài khoản tự nhập credential database mới và tạo project; chưa có đích database test để chạy migration/seed/live E2E. Trạng thái vẫn nghiệm thu từng phần.
+
+### Kết quả CI và project test mới
+
+Run [38071586895](https://github.com/lwd7071/e-commerce-platform/actions/runs/38071586895) cho commit e733a18: frontend quality PASS. Backend migration, lint, typecheck, build và native tests đã qua; Vitest chạy trên PostgreSQL/Redis riêng của GitHub Actions có **414 PASS, 3 FAIL**. Seller Mall database suite **11/11 PASS**, Tiering & Loyalty **17/17 PASS**. Ba lỗi còn lại là danh sách bảng mong đợi trong schema acceptance/smoke/rebuild chưa có `shop_mall_requests` và `shop_chat_presence`; cập nhật danh sách feature tables theo migrations có sẵn, giữ nguyên Schema Freeze và migrations.
+
+Chủ tài khoản đã tạo project riêng `tejmnwemsnosolidkvqb`, tên hiển thị `NVCuong3112's Project`, trong tổ chức `Dino E2E Test`, khu vực Sydney. Dashboard Healthy, chưa có migrations. Cấu hình test nằm ngoài Git; cần mật khẩu database và Secret key của chính project này trước khi kết nối. Bằng chứng CI database không thay thế ba hành trình browser live.
