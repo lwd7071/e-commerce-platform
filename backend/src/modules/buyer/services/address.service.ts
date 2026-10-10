@@ -89,7 +89,7 @@ export class AddressService {
       phone: validated.phone ?? address.phone,
       province: validated.province ?? address.province,
       provinceCode: validated.provinceCode ?? address.provinceCode ?? null,
-      district: validated.provinceCode !== undefined ? null : validated.district ?? address.district,
+      district: validated.district !== undefined ? validated.district : (validated.provinceCode !== undefined ? null : address.district),
       ward: validated.ward ?? address.ward,
       wardCode: validated.wardCode ?? address.wardCode ?? null,
       detailAddress: validated.detailAddress ?? address.detailAddress,

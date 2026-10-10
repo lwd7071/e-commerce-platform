@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
 import { walletApi, type ShopWallet, type WalletTransaction, type WithdrawalRequest } from "@/lib/api/wallet.api";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
 import { Button } from "@/components/ui/button";
@@ -100,9 +99,6 @@ export function SellerWalletScreen() {
   return (
     <main className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6">
       <header className="space-y-2">
-        <Link href="/seller" className="text-sm font-medium text-[var(--primary)] hover:underline inline-flex items-center gap-1">
-          ← Kênh người bán
-        </Link>
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-[var(--foreground)]">Ví người bán (Escrow & Wallet)</h1>

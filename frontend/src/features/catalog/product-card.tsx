@@ -5,6 +5,7 @@ import Link from "next/link";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
 import type { WireCatalogProductItem } from "@/lib/api/catalog.api";
 import { TierBadge } from "@/components/ui/tier-badge";
+import { Icon } from "@/components/ui/icon";
 import { getQueryClient } from "@/lib/query/query-client";
 import { queryKeys } from "@/lib/query/query-keys";
 import { repositories } from "@/lib/repositories/repository-factory";
@@ -21,8 +22,7 @@ export function ProductCard({ product, categoryName }: ProductCardProps) {
     ? moneyAdapter.formatVND(product.min_price)
     : `${moneyAdapter.formatVND(product.min_price)} - ${moneyAdapter.formatVND(product.max_price)}`;
 
-  const fallbackImage = "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600";
-  const imageUrl = product.image_url && product.image_url.trim() !== "" ? product.image_url : fallbackImage;
+  const imageUrl = product.image_url?.trim();
 
   const handlePrefetch = () => {
     try {
@@ -39,7 +39,7 @@ export function ProductCard({ product, categoryName }: ProductCardProps) {
 
   return (
     <article
-      className="surface-card group flex flex-col overflow-hidden transition-shadow duration-200 hover:shadow-md"
+      className="product-card group"
       onMouseEnter={handlePrefetch}
       onFocus={handlePrefetch}
     >
@@ -48,31 +48,37 @@ export function ProductCard({ product, categoryName }: ProductCardProps) {
         className="block focus-visible:outline-none"
         aria-label={`Chi tiết sản phẩm ${product.product_name}`}
       >
-        <div className="relative aspect-square w-full overflow-hidden bg-[var(--card-muted)]">
-          <Image
-            src={imageUrl}
-            alt={product.product_name}
-            fill
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-            className="object-cover transition-transform duration-300 group-hover:scale-105"
-            loading="lazy"
-          />
+        <div className="product-card__media">
+          {imageUrl ? (
+            <Image
+              src={imageUrl}
+              alt={product.product_name}
+              fill
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              className="product-card__image"
+              loading="lazy"
+            />
+          ) : (
+            <div className="product-card__image-placeholder" aria-hidden="true">
+              <Icon name="bag" className="h-9 w-9" />
+            </div>
+          )}
           {isOutOfStock && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
-              <span className="rounded-full bg-[var(--danger)] px-3 py-1 text-xs font-bold text-white shadow-sm">
+              <span className="product-card__stock-badge">
                 Hết hàng
               </span>
             </div>
           )}
           {categoryName && (
-            <span className="absolute top-2.5 left-2.5 rounded-md bg-[var(--card)]/90 px-2 py-0.5 text-[11px] font-semibold text-[var(--subtext)] shadow-xs backdrop-blur-xs">
+            <span className="product-card__category">
               {categoryName}
             </span>
           )}
         </div>
       </Link>
 
-      <div className="flex flex-1 flex-col justify-between p-4">
+      <div className="product-card__body">
         <div>
           {product.shop_tier && product.shop_tier !== 'STANDARD' && (
             <div className="mb-1.5 flex items-center">
@@ -86,12 +92,12 @@ export function ProductCard({ product, categoryName }: ProductCardProps) {
           </h3>
         </div>
 
-        <div className="mt-3 flex items-baseline justify-between gap-2 border-t border-[var(--border)] pt-3">
+          <div className="product-card__footer">
           <div>
-            <div className="text-base font-bold text-[var(--primary-active)]">
+            <div className="product-card__price">
               {displayPrice}
             </div>
-            <div className="text-xs text-[var(--subtext)]">
+            <div className="product-card__availability">
               {isOutOfStock ? "Tạm hết hàng" : `Còn ${product.total_stock} trong kho`}
             </div>
           </div>

@@ -127,6 +127,50 @@ function InnerProductDetailScreen({ productId }: Props) {
     }
   };
 
+  const handleBuyNow = async () => {
+    if (!selectedVariant) return;
+
+    if (!user) {
+      showToast("Vui lòng đăng nhập để mua hàng", "info", "Yêu cầu đăng nhập");
+      const returnUrl = encodeURIComponent(pathname);
+      router.push(`/login?returnTo=${returnUrl}`);
+      return;
+    }
+
+    if (selectedVariant.stock_quantity <= 0) {
+      showToast("Biến thể này hiện đã hết hàng", "error", "Hết hàng");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await repositories.buyer().addToCart(selectedVariant.variant_id, quantity);
+      const cart = await repositories.buyer().getCart();
+      if (cart && Array.isArray(cart.items) && repositories.buyer().updateCartItem) {
+        await Promise.all(
+          cart.items.map((item) => {
+            const shouldSelect = item.variant_id === selectedVariant.variant_id;
+            if (item.is_selected !== shouldSelect) {
+              return repositories.buyer().updateCartItem!(item.cart_item_id, {
+                is_selected: shouldSelect,
+              });
+            }
+            return Promise.resolve();
+          })
+        );
+      }
+      if (user?.id) {
+        await getQueryClient().invalidateQueries({ queryKey: queryKeys.cart.items(user.id) });
+      }
+      router.push("/checkout");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Không thể tiếp tục đặt hàng. Vui lòng thử lại.";
+      showToast(msg, "error", "Lỗi đặt hàng");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -173,22 +217,21 @@ function InnerProductDetailScreen({ productId }: Props) {
     ? moneyAdapter.formatVND(selectedVariant.price)
     : "Đang cập nhật";
 
-  const fallbackImage = "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800";
-
   const reviewCount = reviews.length;
   const averageRating =
     reviewCount > 0
       ? Math.round((reviews.reduce((acc, r) => acc + r.rating, 0) / reviewCount) * 10) / 10
       : 0;
 
+  const primaryImage = product.image_url?.trim();
   const productImages =
     product.images && product.images.length > 0
       ? product.images.map((img) => img.image_url)
-      : product.image_url
-      ? [product.image_url]
-      : [fallbackImage];
+      : primaryImage
+      ? [primaryImage]
+      : [];
 
-  const currentDisplayImage = selectedImage || productImages[0] || fallbackImage;
+  const currentDisplayImage = selectedImage || productImages[0] || null;
 
   return (
     <div className="space-y-6">
@@ -213,14 +256,20 @@ function InnerProductDetailScreen({ productId }: Props) {
           {/* Image Showcase (B-105: stable dimensions, next/image, alt text) */}
           <div className="space-y-3">
             <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-[var(--card-muted)] border border-[var(--border)]">
-              <Image
-                src={currentDisplayImage}
-                alt={product.product_name}
-                fill
-                sizes="(max-width: 768px) 100vw, 50vw"
-                className="object-cover"
-                priority
-              />
+              {currentDisplayImage ? (
+                <Image
+                  src={currentDisplayImage}
+                  alt={product.product_name}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  className="object-cover"
+                  priority
+                />
+              ) : (
+                <div className="product-detail__no-image" role="img" aria-label="Sản phẩm chưa có hình ảnh">
+                  <Icon name="bag" className="h-10 w-10" />
+                </div>
+              )}
               {isOutOfStock && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
                   <span className="rounded-full bg-[var(--danger)] px-4 py-1.5 text-sm font-bold text-white shadow-md">
@@ -260,9 +309,6 @@ function InnerProductDetailScreen({ productId }: Props) {
             <div className="space-y-4">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="inline-block rounded-md bg-[var(--primary-surface)] px-2.5 py-1 text-xs font-semibold text-[var(--primary-active)]">
-                    Chính hãng Dino
-                  </span>
                   {product.shop_tier && product.shop_tier !== "STANDARD" && (
                     <TierBadge tier={product.shop_tier} />
                   )}
@@ -387,13 +433,22 @@ function InnerProductDetailScreen({ productId }: Props) {
             {/* Action Buttons */}
             <div className="pt-4 border-t border-[var(--border)] flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
               <Button
-                variant="primary"
+                variant="secondary"
                 disabled={isOutOfStock || isSubmitting}
                 onClick={handleAddToCart}
-                leadingIcon={!isSubmitting && !isOutOfStock ? <Icon name="bag" className="w-5 h-5 shrink-0" /> : undefined}
-                className="flex-1 h-12 text-sm font-bold shadow-sm hover:shadow active:scale-[0.99] transition-all whitespace-nowrap"
+                leadingIcon={!isSubmitting && !isOutOfStock ? <Icon name="bag" className="w-5 h-5 shrink-0 text-[var(--primary)]" /> : undefined}
+                className="flex-1 h-12 text-sm font-semibold border-2 border-[var(--primary)] text-[var(--primary)] hover:bg-[var(--primary-subtle)] active:scale-[0.99] transition-all whitespace-nowrap"
               >
                 {isSubmitting ? "Đang xử lý..." : isOutOfStock ? "Tạm Hết Hàng" : "Thêm Vào Giỏ Hàng"}
+              </Button>
+
+              <Button
+                variant="primary"
+                disabled={isOutOfStock || isSubmitting}
+                onClick={handleBuyNow}
+                className="flex-1 h-12 text-sm font-bold bg-[var(--primary)] text-white hover:opacity-90 shadow-sm active:scale-[0.99] transition-all whitespace-nowrap"
+              >
+                {isSubmitting ? "Đang xử lý..." : isOutOfStock ? "Tạm Hết Hàng" : "Mua Ngay"}
               </Button>
 
               <Button

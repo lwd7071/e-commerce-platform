@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { sellerVoucherApi, type SellerVoucher, type SellerVoucherInput } from '@/lib/api/seller-voucher.api';
 import { Button } from '@/components/ui/button';
 import { EmptyState, Skeleton } from '@/components/ui/data-states';
@@ -72,7 +71,6 @@ export function SellerVouchersScreen() {
 
   return <main className="mx-auto max-w-6xl space-y-7 px-4 py-8 sm:px-6">
     <header className="space-y-2">
-      <Link href="/seller" className="text-sm font-medium text-[var(--primary)]">← Kênh người bán</Link>
       <h1 className="text-2xl font-bold text-[var(--foreground)]">Voucher gian hàng</h1>
       <p className="text-sm text-[var(--subtext)]">Voucher được gắn với gian hàng hiện tại. Voucher đã có lượt sử dụng chỉ có thể bật hoặc tắt; muốn đổi điều kiện hãy tạo voucher mới.</p>
     </header>

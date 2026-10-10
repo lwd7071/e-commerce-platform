@@ -25,7 +25,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </main>
         </div>
       ) : (
-        <main className={`site-main${isAuthRoute ? " site-main--auth" : ""}`} id="main-content" tabIndex={-1}>
+        <main className={`site-main${isAuthRoute ? " site-main--auth" : ""}${pathname === "/" ? " site-main--home" : ""}`} id="main-content" tabIndex={-1}>
           {children}
         </main>
       )}

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { repositories } from '@/lib/repositories/repository-factory';
 import type { SellerRevenueReport } from '@/lib/api/seller-report.api';
 import { moneyAdapter } from '@/lib/adapters/money.adapter';
@@ -31,7 +30,7 @@ export function SellerReportsScreen() {
   }
 
   return <main className="mx-auto max-w-6xl space-y-7 px-4 py-8 sm:px-6">
-    <header className="space-y-2"><Link href="/seller" className="text-sm font-medium text-[var(--primary)]">← Kênh người bán</Link><h1 className="text-2xl font-bold text-[var(--foreground)]">Báo cáo doanh thu</h1><p className="text-sm text-[var(--subtext)]">Chỉ đơn đã hoàn tất được tính vào doanh thu theo QD19. Dữ liệu luôn lấy từ gian hàng của phiên đăng nhập.</p></header>
+    <header className="space-y-2"><h1 className="text-2xl font-bold text-[var(--foreground)]">Báo cáo doanh thu</h1><p className="text-sm text-[var(--subtext)]">Chỉ đơn đã hoàn tất được tính vào doanh thu theo QD19. Dữ liệu luôn lấy từ gian hàng của phiên đăng nhập.</p></header>
     <SellerHeaderNav />
     <form onSubmit={(event) => void load(event)} className="grid gap-4 rounded-xl border border-[var(--border)] bg-[var(--card)] p-5 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
       <FormField id="report-from" label="Từ ngày"><TextInput id="report-from" type="date" value={from} onChange={(event) => setFrom(event.target.value)} /></FormField>

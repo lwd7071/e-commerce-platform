@@ -99,7 +99,7 @@ export function NotificationsScreen({ production, repository = production ? apiN
             </div>
             <Button variant="secondary" disabled={unreadCount === 0} onClick={markVisibleRead}>Đánh dấu tối đa 20 đã đọc</Button>
           </div>
-          {visibleRows.length === 0 ? <EmptyState title="Bạn đã xem hết thông báo" description="Thông báo mới sẽ xuất hiện tại đây khi dịch vụ được bật." icon="bell" /> : (
+          {visibleRows.length === 0 ? <EmptyState title="Bạn đã xem hết thông báo" description="Thông báo mới sẽ xuất hiện tại đây khi có cập nhật về đơn hàng hoặc hoạt động mới." icon="bell" /> : (
             <ul className="notification-list" aria-live="polite">
               {visibleRows.map((row) => <li className={`notification-item${row.isRead ? "" : " notification-item--unread"}`} key={row.id}>
                 <span className="notification-icon"><Icon name="bell" /></span>
@@ -118,7 +118,8 @@ export function NotificationsScreen({ production, repository = production ? apiN
 
 export function NotificationsPageContent({ production }: { production: boolean }) {
   const { user } = useAuth();
-  const liveAvailable = Boolean(user) && process.env.NEXT_PUBLIC_NOTIFICATIONS_API === "live";
+  const isLiveBackend = process.env.NEXT_PUBLIC_USE_MOCK !== "true" || process.env.NEXT_PUBLIC_NOTIFICATIONS_API === "live";
+  const liveAvailable = Boolean(user) && isLiveBackend;
   const liveRepository = liveAvailable ? apiNotificationRepository : demoNotificationRepository;
   return <ProtectedPage allowedRoles={["BUYER", "SELLER"]}><NotificationsScreen production={production || liveAvailable} repository={liveRepository} liveAvailable={liveAvailable} /></ProtectedPage>;
 }
