@@ -139,7 +139,7 @@ export function SellerShopScreen() {
     setMallNotice(null);
     try {
       const cancelled = await sellerShopApi.cancelMallRequest(requestId);
-      setMallRequests(prev => prev.map(r => r.id === cancelled.id ? cancelled : r));
+      setMallRequests(prev => prev.map(r => ((r.request_id || r.id) === (cancelled?.request_id || cancelled?.id || requestId)) ? { ...r, ...cancelled, status: 'CANCELLED' } : r));
       setMallNotice('Đã hủy yêu cầu nâng hạng Dino Mall.');
     } catch (cause) {
       setMallError(cause instanceof Error ? cause.message : 'Không thể hủy yêu cầu nâng hạng.');

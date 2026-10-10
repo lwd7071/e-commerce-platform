@@ -139,12 +139,21 @@ export class ShopMallRequestService {
     const cleanRequestId = requestId.trim();
 
     return await this.withTx(async (trx) => {
+      const precheck = await this.repo.findById(cleanRequestId);
+      if (!precheck) {
+        throw new NotFoundError('Mall request was not found');
+      }
+      if (precheck.seller_id !== ctx.user_id) {
+        throw new ForbiddenError('RESOURCE_FORBIDDEN', 'You do not own this mall request');
+      }
+
+      // 1. Lock SHOPS first (Deadlock Prevention: shops -> shop_mall_requests)
+      await this.repo.findShopForUpdate(trx, precheck.shop_id);
+
+      // 2. Lock shop_mall_requests
       const existing = await this.repo.findByIdForUpdate(trx, cleanRequestId);
       if (!existing) {
         throw new NotFoundError('Mall request was not found');
-      }
-      if (existing.seller_id !== ctx.user_id) {
-        throw new ForbiddenError('RESOURCE_FORBIDDEN', 'You do not own this mall request');
       }
       if (existing.status !== 'PENDING') {
         throw new ConflictError('INVALID_STATE_TRANSITION', 'Only PENDING requests can be cancelled');
@@ -169,7 +178,8 @@ export class ShopMallRequestService {
     if (!requestId || !UUID_REGEX.test(requestId.trim())) {
       throw new ValidationFailedError('Invalid requestId format');
     }
-    const cleanNote = input.note?.trim();
+    const rawNote = input.note ?? (input as unknown as { admin_note?: string }).admin_note;
+    const cleanNote = rawNote?.trim();
     if (!cleanNote || cleanNote.length < 5 || cleanNote.length > 500) {
       throw new ReasonRequiredError('Approval note is required and must be between 5 and 500 characters');
     }
@@ -200,7 +210,7 @@ export class ShopMallRequestService {
       }
 
       // 1. Fetch request without lock to get shop_id
-      const precheck = await this.repo.findByIdForUpdate(trx, cleanRequestId);
+      const precheck = await this.repo.findById(cleanRequestId);
       if (!precheck) {
         throw new NotFoundError('Mall request was not found');
       }
@@ -220,8 +230,12 @@ export class ShopMallRequestService {
         throw new ConflictError('SHOP_OWNER_CHANGED', 'Shop ownership has changed since request submission');
       }
 
-      // 3. Re-verify Request is still PENDING
-      if (precheck.status !== 'PENDING') {
+      // 3. Lock and re-verify Request is still PENDING
+      const existing = await this.repo.findByIdForUpdate(trx, cleanRequestId);
+      if (!existing) {
+        throw new NotFoundError('Mall request was not found');
+      }
+      if (existing.status !== 'PENDING') {
         throw new ConflictError('REQUEST_ALREADY_RESOLVED', 'Request is not in PENDING state');
       }
 
@@ -317,6 +331,15 @@ export class ShopMallRequestService {
         }
       }
 
+      const precheck = await this.repo.findById(cleanRequestId);
+      if (!precheck) {
+        throw new NotFoundError('Mall request was not found');
+      }
+
+      // 1. Lock SHOPS first (Deadlock Prevention: shops -> shop_mall_requests)
+      await this.repo.findShopForUpdate(trx, precheck.shop_id);
+
+      // 2. Lock and re-verify shop_mall_requests
       const existing = await this.repo.findByIdForUpdate(trx, cleanRequestId);
       if (!existing) {
         throw new NotFoundError('Mall request was not found');

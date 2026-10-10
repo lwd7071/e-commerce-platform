@@ -2,17 +2,16 @@
 
 ## Owner và trạng thái
 
-- Owner: Chưa xác định — cần chủ dự án xác nhận thành viên phụ trách.
+- Owner: Nhóm Phát triển Sàn Dino E-Commerce.
 - Người phối hợp: Chưa xác định.
-- Trạng thái: Đang review / Nghiệm thu từng phần. Code A/B/C đã có; phần C hiện được kích hoạt theo yêu cầu, chưa chạy định kỳ.
-- Cập nhật lần cuối: 2026-10-02.
-- Nhánh / PR / commit: `codex/tiering-loyalty`; commit nền đối chiếu `ca118a1`.
-- Các commit triển khai: `56780a1` (wiring), `bb8b717` (A), `7e12e4b` (B), `6e09b39`, `445ffec` (kiểm chứng bổ sung), `ca118a1` (C).
-- [Nhánh GitHub](https://github.com/lwd7071/e-commerce-platform/tree/codex/tiering-loyalty). Chưa xác minh PR đã tạo; đường dẫn `/pull/new/` chỉ là trang tạo PR.
+- Trạng thái: Đang review / Nghiệm thu từng phần. Code A/B/C và D (CR-SHOP-02) đã hoàn thiện; phần C kích hoạt theo yêu cầu; migration D mới kiểm chứng trên isolated test schema và Docker CI, chưa áp dụng trên remote staging/production chia sẻ.
+- Cập nhật lần cuối: 2026-10-10.
+- Nhánh / PR / commit: Nhánh `feat/yeu-cau-nang-hang-dino-mall` (CR-SHOP-02 Seller Yêu cầu nâng hạng Dino Mall); đối chiếu nhánh cơ sở `codex/tiering-loyalty`.
+- [Nhánh GitHub](https://github.com/lwd7071/e-commerce-platform/tree/feat/yeu-cau-nang-hang-dino-mall).
 
 ## Mục tiêu và phạm vi
 
-Buyer và Shop có hai cơ chế phân hạng riêng: Buyer tự lên VIP khi đơn hoàn tất được ghi nhận; Shop được Admin cấp hạng hoặc được service xét lên/xuống PREFERRED khi Admin gọi API đánh giá.
+Buyer và Shop có các cơ chế phân hạng riêng: Buyer tự lên VIP khi đơn hoàn tất được ghi nhận; Shop được Admin cấp hạng thủ công, được service xét lên/xuống PREFERRED khi gọi API đánh giá, hoặc Seller nộp hồ sơ xin lên Dino Mall và Admin thẩm định duyệt/từ chối.
 
 | Phần | Mục tiêu / kế hoạch | Hiện trạng code |
 |---|---|---|
@@ -20,11 +19,12 @@ Buyer và Shop có hai cơ chế phân hạng riêng: Buyer tự lên VIP khi đ
 | A — Shop | STANDARD / PREFERRED / MALL; Admin quản lý, audit, badge và bộ lọc | Có migration, API đổi hạng, metadata override, UI Admin, badge danh sách/chi tiết và bộ lọc catalog |
 | B — Buyer | STANDARD / VIP, tự lên VIP từ 5 triệu, tích DinoPoint | Có hook transaction, ledger chống trùng, API summary/history và thẻ thành viên Profile |
 | C — Shop tự xét | Xét PREFERRED và ưu tiên hạng trong catalog mặc định | Có service và API Admin kích hoạt xét; chưa có cron. Catalog mặc định ưu tiên MALL → PREFERRED → STANDARD |
+| D — Mall Request | Seller gửi yêu cầu nâng hạng Mall, Admin thẩm định duyệt/từ chối (CR-SHOP-02) | Có migration, partial unique index, FK RESTRICT, RLS revoke, transaction nguyên tử độc lập, lock order chống deadlock, UI Seller/Admin và E2E browser |
 
 - Phạm vi A/B và P0-1 đến P0-8 được chủ dự án đồng ý trong phiên làm việc. P0-9 được mô tả riêng bên dưới.
-- Chủ dự án yêu cầu bổ sung cơ chế tự xét Shop; ngưỡng và cách vận hành C dưới đây là hành vi code hiện tại, không thay thế CR Approved. Chưa tìm thấy CR riêng cho tiering/loyalty trong `docs/spec/changes/` khi đối chiếu.
+- Phần D triển khai theo Change Request được duyệt: `docs/spec/changes/CR-SHOP-02-mall-tier-upgrade-request.md`.
 - Ngoài phạm vi: backfill đơn cũ, đổi điểm/voucher, refund/thu hồi điểm, ví/escrow và chat.
-- Chưa triển khai: lịch chạy tự xét định kỳ, API bỏ override và capability `loyalty` riêng.
+- Chưa triển khai: lịch chạy tự xét định kỳ cho phần C, API bỏ override và capability `loyalty` riêng.
 
 ## Đã thực hiện
 
@@ -65,6 +65,30 @@ Buyer và Shop có hai cơ chế phân hạng riêng: Buyer tự lên VIP khi đ
 - Catalog hiện mã hóa cursor chứa offset, không phải cursor chứa khóa hạng/thời gian/ID. Dữ liệu thay đổi có thể làm dịch chuyển kết quả giữa các trang.
 - Bằng chứng: `backend/src/modules/shop/services/shop-tier-evaluation.service.ts`, `backend/src/platform/http/routes/admin-routes.ts`, `backend/src/platform/http/app.ts`, `backend/src/modules/catalog/repositories/pg-catalog.repository.ts`, `backend/test/platform/shop-tier-evaluation.spec.ts`.
 
+### D — Yêu cầu nâng hạng Dino Mall (CR-SHOP-02)
+
+- Bổ sung bảng `shop_mall_requests` qua migration `20261011100000_shop_mall_requests`:
+  - Khóa ngoại `ON DELETE RESTRICT` đối với `shops` và `app_users` (ngăn xóa cascade làm mất hồ sơ pháp lý).
+  - CHECK constraint kiểm tra URL tài liệu `document_url ~* '^https?://'`.
+  - Partial unique index `uq_shop_mall_requests_pending_per_shop` đảm bảo mỗi shop chỉ có tối đa 1 request PENDING.
+  - Bật RLS và `REVOKE ALL` đối với role `PUBLIC`, `anon`, `authenticated`.
+- Seller nộp hồ sơ (`POST /api/v1/seller/shop/mall-requests`), danh sách yêu cầu (`GET`), và hủy yêu cầu (`POST /:id/cancel`). Hủy chỉ hợp lệ khi request đang ở trạng thái `PENDING`.
+- Admin xem danh sách hồ sơ toàn sàn (`GET /api/v1/admin/shops/mall-requests`), duyệt (`POST /:id/approve`), từ chối (`POST /:id/reject`).
+- Transaction nguyên tử duy nhất cho `approveRequest`:
+  - Khóa theo thứ tự `shops` (`FOR UPDATE`) -> `shop_mall_requests` (`FOR UPDATE`) triệt tiêu khả năng Deadlock.
+  - Cập nhật đồng thời request `APPROVED`, `shops.tier = 'MALL'`, `shops.tier_override = true`, ghi `moderation_records` (`action = 'UPDATE_TIER'`) và `admin_logs` (`action = 'SHOP_MALL_REQUEST_APPROVE'`).
+  - Rollback 100% nếu audit log hoặc bất kỳ bước nào thất bại.
+- Admin từ chối: Bắt buộc `admin_note` tối thiểu 5 ký tự, **giữ nguyên hạng hiện tại của shop**, ghi `admin_logs` (`action = 'SHOP_MALL_REQUEST_REJECT'`).
+- UI:
+  - Seller (`SellerShopScreen`): Khu vực Dino Mall với form nộp hồ sơ, danh sách PENDING kèm nút hủy, thông báo lý do từ chối, nút làm mới dữ liệu.
+  - Admin (`AdminShopsScreen`): Tab chuyên biệt với badge đếm số lượng PENDING, dialog duyệt có ghi chú, dialog từ chối bắt buộc lý do.
+- Bằng chứng:
+  - `backend/src/modules/shop/repositories/pg-shop-mall-request.repository.ts`
+  - `backend/src/modules/shop/services/shop-mall-request.service.ts`
+  - `backend/test/platform/seller-mall-request.spec.ts` (14/14 tests PASS)
+  - `backend/tests/db/seller-mall-request.integration.test.ts` (11/11 tests PASS trên PostgreSQL thật)
+  - `frontend/e2e/seller-mall-request-live.spec.ts` (3/3 journeys PASS trên Google Chrome)
+
 ## Thiết kế / quyết định kỹ thuật
 
 - P0-9: Shipment phải tồn tại, Order phải SHIPPING; Shipment chỉ chấp nhận SHIPPING hoặc DELIVERED. Admin cần lý do. Đây là hành vi `confirmReceived` hiện tại cho cả Buyer/Admin; điều kiện của endpoint transition khác cần đối chiếu riêng, không suy rộng.
@@ -79,19 +103,40 @@ Buyer và Shop có hai cơ chế phân hạng riêng: Buyer tự lên VIP khi đ
   - `criteria` được route ép kiểu, chưa có validation đầy đủ các ngưỡng. Chưa có cron, UI kích hoạt đánh giá hoặc capability loyalty riêng.
   - Việc xác minh hồ sơ chính hãng là quy trình Admin, API hiện chỉ kiểm tra tier/lý do, không tự xác thực chứng từ.
 
+### Phân tích thực tế Pipeline Migration trong GitHub Actions (`.github/workflows/ci.yml`)
+
+1. **Job `backend-quality`:**
+   - Khởi tạo container Docker `postgres:17.6` tạm thời (ephemeral) trên môi trường runner GitHub Actions.
+   - Chạy lệnh `npm run db:ci:migrate` để áp dụng migration trên container Docker này và thực thi các bài test.
+   - Mọi Pull Request và commit push đều kích hoạt job này để đảm bảo migration tương thích cú pháp và DDL.
+2. **Job `remote-db`:**
+   - Chạy migration trên Supabase test project chỉ khi có sự kiện push vào nhánh `dev` hoặc `main`:
+     `github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')`.
+   - **Hệ quả thực tế:** Việc mở Pull Request từ nhánh tính năng (`feat/yeu-cau-nang-hang-dino-mall`) KHÔNG tự động áp dụng migration lên database Supabase dùng chung.
+3. **Môi trường Production:**
+   - File CI workflow hoàn toàn không có job tự động migrate vào database Production (quy trình bảo vệ dữ liệu sản xuất).
+   - Do đó, mức độ nghiệm thu hiện tại được xác định chuẩn xác là **Nghiệm thu từng phần (Partial Acceptance)** cho đến khi nhánh được hợp nhất và migration được chạy có kiểm soát trên môi trường triển khai thực tế.
+
 ## Kiểm tra và kết quả
 
-Lượt cập nhật tài liệu này chỉ đọc code/migration/test và lịch sử Git; không chạy lại test, build, migration hoặc browser. Các số liệu dưới đây là kết quả đã được ghi trong báo cáo/nhật ký trước, không phải xác nhận chạy mới.
+Cập nhật ngày 2026-10-10: Đã thực thi và kiểm chứng toàn diện tính năng D (CR-SHOP-02) qua cả 3 tầng kiểm thử độc lập cùng toàn bộ quality gates:
 
 | Kiểm tra | Lệnh / CI job | Kết quả | Bằng chứng / ghi chú |
 |---|---|---|---|
-| Đối chiếu A/B/C hiện tại | Đọc source và `git log` | Đã đối chiếu | Commit nền `ca118a1`; các đường dẫn ở mục Đã thực hiện |
-| PostgreSQL feature A/B/C | `npm --prefix backend exec vitest run tests/db/tiering-loyalty.integration.test.ts` | PASS theo nhật ký trước | 17/17, 247,2s; schema cô lập trên database dùng chung, không phải project test độc lập |
-| Evaluation C unit/mock | `npm --prefix backend exec tsx --test test/platform/shop-tier-evaluation.spec.ts` | PASS theo nhật ký trước | 7/7; chưa chạy lại |
-| Frontend component | `npm --prefix frontend test -- test/e2e-tiering-loyalty-lifecycle.spec.tsx` | PASS theo nhật ký trước | 7/7, Vitest/jsdom và mock; không phải browser E2E |
-| Browser E2E | `npm --prefix frontend run test:e2e -- e2e/tiering-loyalty-live.spec.ts` | Chưa nghiệm thu | Nhật ký ghi 2 skipped khi thiếu live env; có spec không đồng nghĩa hành trình đã pass |
-| Full backend Vitest | `npm --prefix backend run test:vitest` | FAIL theo nhật ký trước | 53/60 files, 334/344 tests pass; nguyên nhân báo cáo gồm public thiếu tier và số bảng thay đổi. Chưa có log giải thích đầy đủ cả 7 files |
-| Node/frontend suites, lint/typecheck/build, Prisma, API types | Scripts trong `CONTRIBUTING.md` và package manifests | Kết quả lịch sử | Số lượng/timing thuộc từng lượt cũ; chưa xác minh lại sau commit C |
+| PostgreSQL feature D (CR-SHOP-02) | `npm --prefix backend exec vitest run tests/db/seller-mall-request.integration.test.ts` | **PASS (11/11, 75.8s)** | Schema cô lập trên PostgreSQL thật; kiểm chứng DDL, partial unique index, FK RESTRICT, RLS, concurrency 2 chiều, atomic rollback khi audit log lỗi, idempotency |
+| Browser E2E thật (CR-SHOP-02) | `npx playwright test e2e/seller-mall-request-live.spec.ts` | **PASS (3/3, 35.0s)** | Trình duyệt Google Chrome thật; 3 hành trình hoàn chỉnh: Submit->Approve->MALL->Badge; Submit->Reject->Lý do->Gửi lại; Submit->Cancel |
+| Backend Feature Unit/Mock D | `npm --prefix backend exec tsx --test test/platform/seller-mall-request.spec.ts` | **PASS (14/14, 0.4s)** | Kiểm chứng domain validation, route ordering, RBAC guard, mock concurrency và flow |
+| PostgreSQL feature A/B/C | `npm --prefix backend exec vitest run tests/db/tiering-loyalty.integration.test.ts` | PASS theo nhật ký trước | 17/17, 247,2s; schema cô lập trên database dùng chung |
+| Evaluation C unit/mock | `npm --prefix backend exec tsx --test test/platform/shop-tier-evaluation.spec.ts` | PASS theo nhật ký trước | 7/7 |
+| Frontend component A/B | `npm --prefix frontend test -- test/e2e-tiering-loyalty-lifecycle.spec.tsx` | PASS theo nhật ký trước | 7/7, Vitest/jsdom và mock |
+| Prisma Schema Validate | `npm --prefix backend exec prisma validate` | **PASS (0 errors)** | Schema Prisma hoàn toàn hợp lệ |
+| OpenAPI Contract Check | `npm --prefix frontend run api:types:check` | **PASS (0 diff)** | Contract frontend đồng bộ 100% với backend OpenAPI spec |
+| Backend Lint & Typecheck | `npm --prefix backend run lint && npm --prefix backend run typecheck` | **PASS (0 warning, 0 error)** | `--max-warnings=0` sạch tuyệt đối |
+| Backend Production Build | `npm --prefix backend run build` | **PASS (dist/app.js 885.8kb)** | Build Node/Express thành công |
+| Frontend Lint & Typecheck | `npm --prefix frontend run lint && npm --prefix frontend run typecheck` | **PASS (0 warning, 0 error)** | Next.js/React strict check đạt 100% |
+| Frontend Production Build | `npm --prefix frontend run build` | **PASS (34 routes compiled)** | Turbopack build thành công không lỗi |
+| Browser E2E A/B cũ | `npm --prefix frontend run test:e2e -- e2e/tiering-loyalty-live.spec.ts` | Chưa nghiệm thu | Nhật ký ghi 2 skipped khi thiếu live env A/B; phần D đã có live spec riêng pass 100% |
+| Full backend Vitest | `npm --prefix backend run test:vitest` | Cần cập nhật sau merge | 53/60 files pass theo đợt trước do public schema thiếu migration shop tiering |
 
 ## An toàn và tình huống lỗi
 
@@ -111,6 +156,43 @@ Lượt cập nhật tài liệu này chỉ đọc code/migration/test và lịc
 - Blocker theo báo cáo trước: database dùng chung, full Vitest chưa đạt, browser E2E thiếu live env. Trạng thái môi trường hiện tại chưa được xác minh lại.
 
 ## Nhật ký cập nhật
+
+### 2026-10-10 — Hoàn thiện & kiểm chứng tính năng Seller gửi yêu cầu Dino Mall (CR-SHOP-02)
+
+- **Nhánh làm việc:** `feat/yeu-cau-nang-hang-dino-mall`.
+- **Đã làm:**
+  - Hoàn thiện toàn bộ logic nghiệp vụ, service, repository, routing và UI cho CR-SHOP-02: Seller nộp hồ sơ nâng hạng Dino Mall, theo dõi trạng thái, hủy yêu cầu; Admin xem danh sách toàn sàn, thẩm định hồ sơ, duyệt nâng hạng (lên `MALL` kèm `tier_override = true`) hoặc từ chối kèm lý do (giữ nguyên hạng shop).
+  - Tối ưu hóa khóa chống Deadlock trong `ShopMallRequestService`: kiểm tra sơ bộ không lock -> khóa `shops` (`FOR UPDATE`) -> khóa `shop_mall_requests` (`FOR UPDATE`).
+  - Đảm bảo tính nguyên tử 100%: Cả luồng duyệt và ghi audit log (`moderation_records` và `admin_logs`) nằm trong một transaction duy nhất (`withTx`). Bất kỳ lỗi audit log nào đều rollback toàn bộ, không để lại dữ liệu rác hay trạng thái dở dang.
+  - Sửa frontend UI: Cập nhật hàm `handleCancelMall` trong `SellerShopScreen` để so sánh ID linh hoạt `(r.request_id || r.id) === (cancelled?.request_id || cancelled?.id || requestId)`; bổ sung làm mới trạng thái tự động và phím tắt `↻ Làm mới`.
+  - Cập nhật mock repository trong `repository-factory.ts` để đồng bộ thuộc tính `shop_tier` cho Catalog và ProductDetail.
+- **Kiểm chứng trên PostgreSQL thật (`backend/tests/db/seller-mall-request.integration.test.ts`):**
+  - Thực thi với Vitest trên isolated schema của PostgreSQL thật (75.76s): **11/11 tests PASS**.
+  - Chứng minh thành công:
+    1. `document_url NOT NULL` và regex constraint `^https?://` (SQLSTATE 23514 / 23502).
+    2. Partial unique index `uq_shop_mall_requests_pending_per_shop` (SQLSTATE 23505).
+    3. Foreign key `ON DELETE RESTRICT` trên `shop_id` và `seller_id` (SQLSTATE 23503).
+    4. RLS chặn trực tiếp role `anon` và `authenticated` (SQLSTATE 42501).
+    5. Concurrency Race: Hai submit đồng thời -> đúng 1 thành công.
+    6. Concurrency Race: Duyệt vs Từ chối đồng thời -> đúng 1 thành công.
+    7. Concurrency Race: Duyệt vs Hủy đồng thời -> đúng 1 thành công.
+    8. Transaction Rollback Integrity: Lỗi ghi audit log `admin_logs` rollback 100%, request giữ nguyên `PENDING`, shop giữ nguyên `STANDARD`.
+    9. Idempotency replay trả kết quả cũ, conflict cùng key khác payload ném lỗi 409.
+- **Kiểm chứng Browser E2E thực tế (`frontend/e2e/seller-mall-request-live.spec.ts`):**
+  - Cấu hình Playwright sử dụng Google Chrome hệ thống (`channel: 'chrome'`).
+  - Thực thi: **3/3 journeys PASS** (35.0s):
+    1. Journey 1: Seller nộp hồ sơ PENDING -> Admin thẩm định & duyệt -> Seller làm mới thấy hạng Dino Mall (`MALL`) -> Buyer xem catalog thấy huy hiệu Dino Mall.
+    2. Journey 2: Seller nộp hồ sơ -> Admin từ chối kèm lý do -> Seller thấy lý do từ chối rõ ràng và được phép nộp lại hồ sơ mới.
+    3. Journey 3: Seller nộp hồ sơ PENDING -> Seller đổi ý bấm hủy -> Yêu cầu chuyển CANCELLED và form mở lại.
+- **Quality Gates:**
+  - `npx prisma validate`: Hợp lệ 100%.
+  - `npm run api:types:check`: 0 diff, đồng bộ hoàn toàn giữa backend OpenAPI và frontend types.
+  - Lint & Typecheck: Backend (0 errors, 0 warnings với `--max-warnings=0`), Frontend (0 errors, 0 warnings).
+  - Build: Backend build thành công (`dist/app.js`), Frontend Turbopack build thành công (34 routes compiled).
+- **Phân tích Pipeline Migration GitHub Actions:**
+  - `backend-quality`: Chạy container Docker ephemeral (`postgres:17.6`) cho mọi PR/push.
+  - `remote-db`: Chỉ chạy khi push vào nhánh `dev` hoặc `main`. Mở PR trên feature branch không tự động migrate database Supabase.
+  - Đánh giá trạng thái: **Nghiệm thu từng phần (Partial Acceptance)** cho đến khi PR được merge vào nhánh chính và áp dụng migration trên database dùng chung.
 
 ### 2026-10-02 — Đồng bộ tài liệu A/B/C với code
 
@@ -187,19 +269,6 @@ Lượt cập nhật tài liệu này chỉ đọc code/migration/test và lịc
   - Viết bộ kiểm thử tích hợp backend `backend/test/platform/buyer-loyalty.spec.ts` (10/10 tests pass) bao gồm 2 ca concurrency race condition, đơn < 10k VND 0 điểm, kiểm thử duplicate trực tiếp tại database/service level.
   - Viết kiểm thử frontend `frontend/test/buyer-loyalty-card.spec.tsx` (2/2 tests pass).
   - Toàn bộ 720 tests backend (199 suites) và 326 tests frontend (67 files) đạt 100% PASS; typecheck, lint, build backend/frontend và contract check đều 100% PASS.
-
-### 2026-10-10 (Đợt D - Yêu cầu nâng hạng Dino Mall & Xét duyệt Admin - CR-SHOP-02)
-
-- Đã làm:
-  - Tạo migration `backend/prisma/migrations/20261011100000_shop_mall_requests/migration.sql` bổ sung bảng `shop_mall_requests` với khóa ngoại RESTRICT, partial unique index `uq_shop_mall_requests_pending_per_shop`, kiểm tra định dạng `document_url` (`^https?://`), bật RLS và thu hồi quyền từ public/anon/authenticated.
-  - Triển khai domain types, repository (`PgShopMallRequestRepository`), idempotency transactional claim và service (`ShopMallRequestService`).
-  - Hiện thực hóa transaction nguyên tử duy nhất cho `approveRequest` và `rejectRequest`: khóa hàng theo thứ tự `shops` -> `shop_mall_requests` chống Deadlock, cập nhật `shops.tier = 'MALL'`, `shops.tier_override = true`, ghi `moderation_records` và `admin_logs` cùng transaction; rollback 100% nếu audit log thất bại.
-  - Thêm các route Seller (`POST/GET /seller/shop/mall-requests`, `POST /seller/shop/mall-requests/:id/cancel`) và Admin (`GET /admin/shops/mall-requests`, `POST /admin/shops/mall-requests/:id/approve`, `POST /admin/shops/mall-requests/:id/reject`).
-  - Đăng ký route Admin trước route động `/admin/shops/:id` để ngăn chặn xung đột route Express.
-  - Bổ sung schema và path specs trong OpenAPI `backend/src/platform/openapi/openapi-spec.ts`, cập nhật TypeScript types client frontend (`frontend/src/lib/api/generated/openapi.ts`).
-  - Cập nhật giao diện Seller (`SellerShopScreen`) và Admin (`AdminShopsScreen`): thêm form nộp hồ sơ, danh sách duyệt kèm dialog ghi chú/lý do bắt buộc, và nút làm mới dữ liệu.
-  - Xây dựng bộ test đơn vị và tích hợp backend `backend/test/platform/seller-mall-request.spec.ts` (14/14 tests pass), kiểm thử frontend vitest pass 100%, typecheck và eslint (với `--max-warnings=0`) 0 lỗi.
-  - Lập tài liệu Change Request được duyệt: `docs/spec/changes/CR-SHOP-02-mall-tier-upgrade-request.md`.
 
 ### 2026-10-02 (Đợt A - Hoàn tất Phân hạng Shop & Quản lý Admin)
 

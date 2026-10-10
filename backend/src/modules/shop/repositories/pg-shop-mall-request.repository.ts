@@ -67,6 +67,17 @@ export class PgShopMallRequestRepository {
     };
   }
 
+  async findById(requestId: string): Promise<ShopMallRequest | null> {
+    const result = await this.pool.query(
+      `SELECT request_id, shop_id, seller_id, admin_id, reason, document_url, status,
+              admin_note, reviewed_at, cancelled_at, created_at, updated_at
+       FROM shop_mall_requests
+       WHERE request_id = $1`,
+      [requestId]
+    );
+    return result.rows[0] ? this.map(result.rows[0]) : null;
+  }
+
   async findByIdForUpdate(client: PoolClient, requestId: string): Promise<ShopMallRequest | null> {
     const result = await client.query(
       `SELECT request_id, shop_id, seller_id, admin_id, reason, document_url, status,

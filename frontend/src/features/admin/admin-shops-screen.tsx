@@ -397,7 +397,10 @@ export function AdminShopsScreen() {
           </button>
           <button
             type="button"
-            onClick={() => setMainTab("MALL_REQUESTS")}
+            onClick={() => {
+              setMainTab("MALL_REQUESTS");
+              void fetchMallRequests();
+            }}
             className={`pb-3 border-b-2 transition-colors flex items-center gap-1.5 ${
               mainTab === "MALL_REQUESTS"
                 ? "border-rose-600 text-rose-600 dark:text-rose-400"
@@ -741,10 +744,14 @@ export function AdminShopsScreen() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--border)]">
-                  {mallRequests.map((req) => (
-                    <tr key={req.id} className="hover:bg-[var(--card-hover)]">
+                  {mallRequests.map((req, index) => (
+                    <tr key={req.request_id || req.id || String(index)} className="hover:bg-[var(--card-hover)]">
                       <td className="px-4 py-3">
-                        <div className="font-mono text-xs font-semibold text-[var(--foreground)]">Shop: {req.shop_id}</div>
+                        <div className="font-mono text-xs font-semibold text-[var(--foreground)]">
+                          {(req as { shop_name?: string }).shop_name
+                            ? `${(req as { shop_name?: string }).shop_name} (${req.shop_id})`
+                            : `Shop: ${req.shop_id}`}
+                        </div>
                         <div className="font-mono text-[10px] text-[var(--subtext)]">Seller: {req.seller_id}</div>
                       </td>
                       <td className="px-4 py-3">

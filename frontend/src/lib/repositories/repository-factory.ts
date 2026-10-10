@@ -218,12 +218,35 @@ const mockCatalogRepository: ICatalogRepository = {
       };
     }
 
+    const getTier = (
+      shopId: string,
+      defaultTier?: "STANDARD" | "MALL" | "PREFERRED"
+    ): "STANDARD" | "MALL" | "PREFERRED" => {
+      if (typeof window !== "undefined") {
+        try {
+          const override =
+            window.sessionStorage?.getItem(`mock_mall_tier_${shopId}`) ||
+            window.localStorage?.getItem(`mock_mall_tier_${shopId}`);
+          if (override === "MALL" || override === "PREFERRED" || override === "STANDARD") {
+            return override;
+          }
+        } catch {
+          // fallback
+        }
+      }
+      const shop = mockAdminShopsStore.find((s) => s.shop_id === shopId);
+      const t = shop?.tier;
+      if (t === "MALL" || t === "PREFERRED" || t === "STANDARD") return t;
+      return defaultTier || "STANDARD";
+    };
+
     return {
       data: [
         {
           product_id: "00000000-0000-0000-0000-000000000101",
           product_name: "Serum Dưỡng Trắng & Cấp Ẩm Chuyên Sâu",
           shop_id: "00000000-0000-0000-0000-000000000001",
+          shop_tier: getTier("00000000-0000-0000-0000-000000000001"),
           category_id: "00000000-0000-0000-0000-000000000010",
           min_price: "280000.00",
           max_price: "350000.00",
@@ -235,6 +258,7 @@ const mockCatalogRepository: ICatalogRepository = {
           product_id: "00000000-0000-0000-0000-000000000102",
           product_name: "Kem Chống Nắng Phổ Rộng SPF 50+ PA++++",
           shop_id: "00000000-0000-0000-0000-000000000001",
+          shop_tier: getTier("00000000-0000-0000-0000-000000000001"),
           category_id: "00000000-0000-0000-0000-000000000010",
           min_price: "320000.00",
           max_price: "320000.00",

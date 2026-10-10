@@ -33,6 +33,8 @@ dbDescribe('Seller Shop profile REST runtime (real PostgreSQL)', () => {
     await pool.query(`CREATE TABLE ${schema}.auth_users (id uuid PRIMARY KEY)`);
     const initial = await readFile(new URL('../../prisma/migrations/20260916110000_initial_schema/migration.sql', import.meta.url), 'utf8');
     await pool.query(initial.replace('CREATE EXTENSION IF NOT EXISTS pgcrypto;', '').replaceAll('auth.users', `${schema}.auth_users`).replaceAll('public.', `${schema}.`));
+    const tieringSql = await readFile(new URL('../../prisma/migrations/20261003100000_shop_tiering/migration.sql', import.meta.url), 'utf8');
+    await pool.query(tieringSql);
     await applyShippingMigration(pool);
     sellerId = randomUUID(); adminId = randomUUID();
     await pool.query(`INSERT INTO ${schema}.auth_users (id) VALUES ($1),($2)`, [sellerId, adminId]);
