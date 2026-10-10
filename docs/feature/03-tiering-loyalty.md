@@ -4,10 +4,11 @@
 
 - Owner: Nhóm Phát triển Sàn Dino E-Commerce.
 - Người phối hợp: Chưa xác định.
-- Trạng thái: Đang review / Nghiệm thu từng phần. Code A/B/C và D (CR-SHOP-02) đã hoàn thiện; phần C kích hoạt theo yêu cầu; migration D mới kiểm chứng trên isolated test schema và Docker CI, chưa áp dụng trên remote staging/production chia sẻ.
-- Cập nhật lần cuối: 2026-10-10.
+- Trạng thái: Đang review / Nghiệm thu từng phần. Phần C kích hoạt theo yêu cầu, chưa có cron; D (CR-SHOP-02) đã kiểm chứng 3/3 live E2E và migration trên Supabase test riêng, chưa áp dụng trên staging/production chia sẻ. Đổi/thu hồi điểm còn ngoài phạm vi.
+- Cập nhật lần cuối: 2026-10-11.
 - Nhánh / PR / commit: Nhánh `feat/yeu-cau-nang-hang-dino-mall` (CR-SHOP-02 Seller Yêu cầu nâng hạng Dino Mall); đối chiếu nhánh cơ sở `codex/tiering-loyalty`.
 - [Nhánh GitHub](https://github.com/lwd7071/e-commerce-platform/tree/feat/yeu-cau-nang-hang-dino-mall).
+- Kiểm chứng mới: 22 migrations trên project test riêng; schema/Mall/loyalty database 32/32 PASS; ba hành trình Dino Mall live 3/3 PASS (không mock). CI backend/frontend quality PASS tại `490a3ed`; [bằng chứng và giới hạn](../test-mvp/dino-mall-live.md). [PR #14](https://github.com/lwd7071/e-commerce-platform/pull/14) vẫn draft, chưa merge.
 
 ## Mục tiêu và phạm vi
 

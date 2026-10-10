@@ -16,8 +16,8 @@ async function login(page: Page, email: string, password: string, destination: s
   await expect(page).toHaveURL(new RegExp(`${destination}(?:\\?|$)`));
 }
 async function submit(page: Page, reason: string): Promise<string> {
-  await page.getByLabel(/Đường dẫn hồ sơ chứng minh/).fill('https://example.com/mall-test-evidence');
-  await page.getByLabel(/Lý do \/ Giới thiệu/).fill(reason);
+  await page.getByRole('textbox', { name: 'Link hồ sơ chứng minh thương hiệu (PDF/Drive/Dropbox)', exact: true }).fill('https://example.com/mall-test-evidence');
+  await page.getByRole('textbox', { name: 'Lý do & Giới thiệu năng lực thương hiệu', exact: true }).fill(reason);
   const response = page.waitForResponse(r => r.url().endsWith('/seller/shop/mall-requests') && r.request().method() === 'POST');
   await page.getByRole('button', { name: /Gửi yêu cầu nâng hạng/ }).click();
   const result = await response;
@@ -101,5 +101,5 @@ test('Seller hủy yêu cầu PENDING qua xác nhận trình duyệt', async ({ 
   expect(result.status()).toBe(200);
   expect((await result.json()).data.status).toBe('CANCELLED');
   await expect(page.getByRole('button', { name: 'Hủy yêu cầu', exact: true })).toHaveCount(0);
-  await expect(page.getByLabel(/Đường dẫn hồ sơ chứng minh/)).toBeEnabled();
+  await expect(page.getByRole('textbox', { name: 'Link hồ sơ chứng minh thương hiệu (PDF/Drive/Dropbox)', exact: true })).toBeEnabled();
 });

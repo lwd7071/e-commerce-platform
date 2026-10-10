@@ -1,6 +1,22 @@
 # Kiểm chứng Dino Mall nối hệ thống thật
 
-## Trạng thái ngày 10/10/2026
+## Trạng thái hiện tại ngày 11/10/2026
+
+Project Supabase test riêng `tejmnwemsnosolidkvqb` đã xác minh và áp dụng đủ 22 migrations. Schema smoke, Seller Mall và Tiering & Loyalty chạy trên database này: **32/32 PASS**. Đăng nhập Supabase thật và API `/auth/me` trả 200, đúng vai trò SELLER. Secrets lưu ngoài Git. Live browser **3/3 PASS, 0 skipped** trên Chrome, frontend/backend local kết nối Supabase test thật, không mock Auth/API hoặc tier trong storage.
+
+| Hành trình live | Kết quả |
+| --- | --- |
+| Seller nộp → Admin duyệt → Seller thấy MALL → Buyer thấy badge đúng sản phẩm | PASS, 31.7 giây |
+| Seller nhận lý do từ chối → nộp hồ sơ mới với request ID khác | PASS, 20.9 giây |
+| Seller hủy PENDING qua xác nhận trình duyệt | PASS, 13.3 giây |
+
+Lệnh chạy từ frontend: `PLAYWRIGHT_CHANNEL=chrome npx playwright test e2e/seller-mall-request-connected-live.spec.ts` với môi trường test riêng đã nạp (PowerShell đặt biến qua `$env:PLAYWRIGHT_CHANNEL='chrome'`). Tổng 1.2 phút, exit code 0. Đã sửa selector ba ô hồ sơ theo accessible name của textbox; exact label trước đó bị dấu bắt buộc gây timeout. ESLint file E2E PASS. Các lần timeout trước là FAIL, không được tính vào lần PASS này. Fixture đã thay đổi trạng thái thật; cần tạo bộ fixture mới cho lần chạy sau.
+
+Phạm vi bằng chứng: ba hành trình Dino Mall và 32 ca database liên quan. Runtime local còn báo lỗi worker Flash Sale vì thiếu Redis; không suy ra Flash Sale local đã hoạt động. Các tính năng ngoài phạm vi như đổi/thu hồi điểm vẫn chưa triển khai. Giữ nghiệm thu từng phần của báo cáo tổng và chờ review PR; kết quả live Dino Mall đã được kiểm chứng.
+
+CI [38072400039](https://github.com/lwd7071/e-commerce-platform/actions/runs/38072400039) tại commit `490a3ed`: backend và frontend quality **PASS**; các job remote Supabase bị SKIPPED theo điều kiện workflow, không coi là PASS. PR #14 vẫn draft, chưa merge.
+
+## Lịch sử trạng thái ngày 10/10/2026
 
 Nghiệm thu từng phần. Chưa có project/database test riêng được chủ dự án xác nhận; chưa tạo tài khoản, chạy migration hoặc ghi dữ liệu vào database dùng chung. Máy hiện không tìm thấy Docker/PostgreSQL local qua công cụ và thư mục cài đặt đã kiểm tra. Live E2E vẫn **3 skipped**, không phải PASS.
 

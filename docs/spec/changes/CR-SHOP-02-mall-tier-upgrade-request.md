@@ -142,3 +142,7 @@ $$\text{Seller gửi yêu cầu kèm link hồ sơ} \longrightarrow \text{Hệ t
 Giữ nghiệm thu từng phần. Đã sửa truy vấn ngoài transaction và các lỗi trong live E2E (phiên đăng nhập, selector, native confirm, nộp lại và kiểm tra đúng sản phẩm). Guard cũ chỉ kiểm tra cờ đã được thay bằng đối chiếu URL/project/host/allowlist. UI Seller hiện dùng local state và hàm load đọc lại cả Shop/request; không mô tả thành TanStack invalidation nếu code chưa dùng.
 
 Kết quả mới và hướng dẫn thay thế thông tin cấu hình E2E cũ: [Dino Mall live](../../test-mvp/dino-mall-live.md). 15 backend + 10 frontend tests liên quan PASS; lint/typecheck/build, Prisma validate và api:types:check PASS. Live E2E 3 SKIPPED, PostgreSQL/full suites chưa chạy lại. Chưa có xác nhận database test riêng nên không migration/seed vào database dùng chung.
+
+## Kiểm chứng bổ sung ngày 11/10/2026
+
+Đã xác minh project Supabase test riêng `tejmnwemsnosolidkvqb`, áp dụng 22 migrations và tạo tài khoản thử nghiệm riêng. Database schema/Mall/loyalty **32/32 PASS**. Chrome nối Auth/API/database thật: **3/3 live E2E PASS, 0 skipped**, bao phủ duyệt và badge đúng sản phẩm, từ chối/nộp lại và hủy PENDING. Kết quả này thay thế trạng thái thiếu môi trường/3 SKIPPED của ngày 10/10. Full frontend 413/413, backend native 799/799 PASS; CI quality hai phía PASS tại `490a3ed`. Chi tiết, câu lệnh và giới hạn tại [báo cáo live](../../test-mvp/dino-mall-live.md). PR #14 còn draft và chưa merge; không tự đổi trạng thái CR phê duyệt hoặc tuyên bố nghiệm thu toàn dự án.
