@@ -55,7 +55,7 @@ describe('GroqChatClient Unit Tests (GroqCloud LPU Inference)', () => {
         );
       };
 
-      const client = new GroqChatClient({ apiKey: 'gsk_test_key_12345' });
+      const client = new GroqChatClient({ apiKey: 'gsk_test_key_12345', model: 'llama-3.3-70b-versatile' });
       assert.equal(client.isConfigured(), true);
 
       const result = await client.generateResponse('Còn size M không shop?', sampleProduct, defaultPermissions);

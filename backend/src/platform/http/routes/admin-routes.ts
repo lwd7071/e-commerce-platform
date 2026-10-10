@@ -9,7 +9,10 @@ import type { AdminReadService } from '../../../modules/moderation/services/admi
 import type { AdminVoucherService } from '../../../modules/voucher/services/admin-voucher.service.ts';
 import type { AdminNotificationCampaignService } from '../../../modules/moderation/services/admin-notification-campaign.service.ts';
 import type { OrderQueryService } from '../../../modules/order/services/order-query.service.ts';
+import type { ShopMallRequestService } from '../../../modules/shop/services/shop-mall-request.service.ts';
+import type { ShopMallRequestStatus } from '../../../modules/shop/domain/shop-mall-request.types.ts';
 import type { ShopTierEvaluationService, TierEvaluationCriteria } from '../../../modules/shop/services/shop-tier-evaluation.service.ts';
+import type { LoyaltyService } from '../../../modules/loyalty/services/loyalty.service.ts';
 
 type AsyncRoute = (req: Request, res: Response, next: NextFunction) => Promise<void>;
 
@@ -51,8 +54,15 @@ export function createAdminRouter(
   orderQueries?: OrderQueryService,
   orderTransition?: (ctx: RequestContext, orderId: string, input: Record<string, unknown>) => Promise<unknown>,
   tierEvaluator?: ShopTierEvaluationService,
+  mallRequestService?: Pick<ShopMallRequestService, 'listAdminRequests' | 'approveRequest' | 'rejectRequest'>,
+  loyaltyService?: LoyaltyService,
 ): Router {
   const router = Router();
+  router.post('/admin/orders/:id/loyalty-refunds', ...guards(auth, 'ADMIN'), asyncRoute(async (req, res) => {
+    if (!loyaltyService) throw new NotFoundError('Loyalty service is not configured');
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(req.params.id))) throw new ValidationFailedError('Invalid order ID');
+    res.json(buildSuccessEnvelope(await loyaltyService.recordConfirmedRefund(context(req).user_id, String(req.params.id).toLowerCase(), req.body ?? {}), requestId(req)));
+  }));
 
   router.get('/admin/stats', ...guards(auth, 'ADMIN'), asyncRoute(async (req, res) => {
     if (!reads) throw new NotFoundError('Admin reporting handler is not configured');
@@ -341,6 +351,46 @@ export function createAdminRouter(
         search: typeof search === 'string' ? search : undefined,
       });
       res.json(buildSuccessEnvelope(shops, requestId(req)));
+    })
+  );
+
+  // GET /admin/shops/mall-requests
+  router.get(
+    '/admin/shops/mall-requests',
+    ...guards(auth, 'ADMIN'),
+    asyncRoute(async (req, res) => {
+      if (!mallRequestService) throw new NotFoundError('Shop mall request service is not configured');
+      const status = typeof req.query.status === 'string' ? (req.query.status as ShopMallRequestStatus) : undefined;
+      const limit = req.query.limit ? Number(req.query.limit) : 20;
+      const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
+      const result = await mallRequestService.listAdminRequests({ status, limit, cursor });
+      res.json(buildPaginatedEnvelope(result.items, { next_cursor: result.next_cursor, has_more: result.has_more, limit }, requestId(req)));
+    })
+  );
+
+  // POST /admin/shops/mall-requests/:id/approve
+  router.post(
+    '/admin/shops/mall-requests/:id/approve',
+    ...guards(auth, 'ADMIN'),
+    asyncRoute(async (req, res) => {
+      if (!mallRequestService) throw new NotFoundError('Shop mall request service is not configured');
+      const ctx = context(req);
+      const idempotencyKey = typeof req.headers['idempotency-key'] === 'string' ? req.headers['idempotency-key'] : undefined;
+      const result = await mallRequestService.approveRequest(ctx.user_id, req.params.id, req.body, idempotencyKey);
+      res.json(buildSuccessEnvelope(result, requestId(req)));
+    })
+  );
+
+  // POST /admin/shops/mall-requests/:id/reject
+  router.post(
+    '/admin/shops/mall-requests/:id/reject',
+    ...guards(auth, 'ADMIN'),
+    asyncRoute(async (req, res) => {
+      if (!mallRequestService) throw new NotFoundError('Shop mall request service is not configured');
+      const ctx = context(req);
+      const idempotencyKey = typeof req.headers['idempotency-key'] === 'string' ? req.headers['idempotency-key'] : undefined;
+      const result = await mallRequestService.rejectRequest(ctx.user_id, req.params.id, req.body, idempotencyKey);
+      res.json(buildSuccessEnvelope(result, requestId(req)));
     })
   );
 

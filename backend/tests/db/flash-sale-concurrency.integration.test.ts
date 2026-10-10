@@ -1,7 +1,7 @@
 import '../../src/platform/config/load-root-env.ts';
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { createDatabasePool } from '../../db/client.ts';
-import { loadDatabaseConfig } from '../../db/config.ts';
+import { loadDatabaseConfig, parseRunRemoteDbTests } from '../../db/config.ts';
 import { getRedisClient, closeRedisClient } from '../../src/modules/flash-sale/infrastructure/redis.client.ts';
 import { FlashSaleService } from '../../src/modules/flash-sale/services/flash-sale.service.ts';
 import { FlashSaleLuaCode } from '../../src/modules/flash-sale/domain/flash-sale.types.ts';
@@ -9,7 +9,7 @@ import { ensureAuthUser, createFixtureUser } from './fixtures/database-fixtures.
 import type { Pool } from 'pg';
 import type { Redis } from 'ioredis';
 
-describe('Feature 05: Flash Sale & Concurrency Inventory Engine', () => {
+describe.skipIf(!parseRunRemoteDbTests(process.env))('Feature 05: Flash Sale & Concurrency Inventory Engine', () => {
   let pool: Pool;
   let redis: Redis;
   let service: FlashSaleService;

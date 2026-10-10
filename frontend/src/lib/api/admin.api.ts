@@ -71,4 +71,16 @@ export const adminApi = {
   async updateShopTier(shopId: string, tier: "STANDARD" | "PREFERRED" | "MALL", reason: string): Promise<void> {
     await apiClient.patch(`/admin/shops/${shopId}/tier`, { tier, reason });
   },
+
+  async getMallRequests(params?: { status?: string; limit?: number; cursor?: string }): Promise<import('./seller-shop.api').ShopMallRequest[]> {
+    return apiClient.get<import('./seller-shop.api').ShopMallRequest[]>("/admin/shops/mall-requests", { params });
+  },
+
+  async approveMallRequest(requestId: string, note: string): Promise<import('./seller-shop.api').ShopMallRequest> {
+    return apiClient.post<import('./seller-shop.api').ShopMallRequest>(`/admin/shops/mall-requests/${requestId}/approve`, { note });
+  },
+
+  async rejectMallRequest(requestId: string, reason: string): Promise<import('./seller-shop.api').ShopMallRequest> {
+    return apiClient.post<import('./seller-shop.api').ShopMallRequest>(`/admin/shops/mall-requests/${requestId}/reject`, { reason });
+  },
 };

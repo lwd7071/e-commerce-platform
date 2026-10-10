@@ -19,7 +19,7 @@ describe('PgAuthRepository', () => {
       },
     };
 
-    const repo = new PgAuthRepository(fakeDb as any);
+    const repo = new PgAuthRepository(fakeDb as unknown as ConstructorParameters<typeof PgAuthRepository>[0]);
     const user = await repo.findUserById('u-123');
     assert.equal(user?.id, 'u-123');
     assert.equal(user?.email, 'user@test.com');
@@ -44,7 +44,7 @@ describe('PgAuthRepository', () => {
       },
     };
 
-    const repo = new PgAuthRepository(fakeDb as any);
+    const repo = new PgAuthRepository(fakeDb as unknown as ConstructorParameters<typeof PgAuthRepository>[0]);
     const user = await repo.findUserById('google-u-456');
     assert.equal(user?.id, 'google-u-456');
     assert.equal(user?.email, 'google@test.com');
@@ -58,7 +58,7 @@ describe('PgAuthRepository', () => {
       },
     };
 
-    const repo = new PgAuthRepository(fakeDb as any);
+    const repo = new PgAuthRepository(fakeDb as unknown as ConstructorParameters<typeof PgAuthRepository>[0]);
     const user = await repo.findUserById('non-existent');
     assert.equal(user, null);
   });

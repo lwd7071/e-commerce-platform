@@ -28,7 +28,7 @@ describe("SiteHeader with new role-based UI", () => {
       user: { id: "seller-1", email: "seller@test.local", role: "SELLER" },
       logout: vi.fn(),
       isLoading: false,
-    } as any);
+    } as unknown as ReturnType<typeof useAuth>);
 
     render(<SiteHeader role="SELLER" />);
 
@@ -51,7 +51,7 @@ describe("SiteHeader with new role-based UI", () => {
       user: { id: "seller-1", email: "seller@test.local", role: "SELLER" },
       logout: vi.fn(),
       isLoading: false,
-    } as any);
+    } as unknown as ReturnType<typeof useAuth>);
 
     render(<SiteHeader role="SELLER" isSellerArea={true} />);
 

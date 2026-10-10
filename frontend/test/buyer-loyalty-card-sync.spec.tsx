@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { BuyerLoyaltyCard } from "@/features/profile/loyalty-card";
 import type { BuyerLoyaltyInfo, BuyerLoyaltyHistory } from "@/lib/api/buyer.api";
+vi.mock('@/lib/api/buyer.api', () => ({ buyerApi: { getLoyaltyRewards: vi.fn().mockResolvedValue([]) } }));
 
 describe("BuyerLoyaltyCard Synchronized Loading & UI tokens", () => {
   const mockLoyalty: BuyerLoyaltyInfo = {
@@ -29,7 +30,7 @@ describe("BuyerLoyaltyCard Synchronized Loading & UI tokens", () => {
     total: 1,
   };
 
-  it("renders instantly with synchronous props without triggering internal fetch waterfall", () => {
+  it("renders instantly with synchronous props without refetching balance or history", async () => {
     render(
       <BuyerLoyaltyCard
         initialLoyalty={mockLoyalty}
@@ -43,9 +44,10 @@ describe("BuyerLoyaltyCard Synchronized Loading & UI tokens", () => {
     expect(screen.getByText("250")).toBeTruthy();
     expect(screen.getByText("50%")).toBeTruthy();
     expect(screen.getByText("Hoàn tất đơn hàng")).toBeTruthy();
+    await act(async () => {});
   });
 
-  it("does not render raw emoji ⭐ and uses vector star icon", () => {
+  it("does not render raw emoji ⭐ and uses vector star icon", async () => {
     render(
       <BuyerLoyaltyCard
         initialLoyalty={mockLoyalty}
@@ -58,5 +60,6 @@ describe("BuyerLoyaltyCard Synchronized Loading & UI tokens", () => {
     expect(screen.queryByText("⭐")).toBeNull();
     // Badge điểm có chứa container dữ liệu
     expect(screen.getByTestId("loyalty-points-badge")).toBeTruthy();
+    await act(async () => {});
   });
 });

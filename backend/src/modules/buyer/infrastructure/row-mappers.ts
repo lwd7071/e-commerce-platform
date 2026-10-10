@@ -83,6 +83,7 @@ export function mapCartItem(row: Record<string, unknown>): CartItem {
 
 export function mapVoucher(row: Record<string, unknown>): Voucher {
   return {
+    loyaltyOwnerId: row.loyalty_owner_id == null ? null : String(row.loyalty_owner_id),
     voucherId: String(row.voucher_id),
     code: String(row.code),
     voucherName: String(row.voucher_name),

@@ -10,6 +10,8 @@ import { ShopTierEvaluationService } from '../../src/modules/shop/services/shop-
 import { PgProductRepository } from '../../src/modules/catalog/repositories/pg-catalog.repository.ts';
 import type { RequestContext } from '../../src/contracts/request-context.contract.ts';
 import { withTransaction } from '../../db/transaction.ts';
+import { PgVoucherRepository } from '../../src/modules/buyer/repositories/pg-buyer.repository.ts';
+import { VoucherPortService } from '../../src/modules/buyer/services/voucher-port.service.ts';
 import {
   createFixtureUser,
   createFixtureShop,
@@ -111,6 +113,7 @@ dbDescribe('Tiering & Loyalty Integration (Real PostgreSQL)', { timeout: 60_000,
       '20261003100000_shop_tiering',
       '20261003110000_buyer_loyalty',
       '20261003120000_secure_loyalty_ledger',
+      '20261011200000_loyalty_redemption_refunds',
     ];
 
     for (const migration of migrations) {
@@ -618,6 +621,107 @@ dbDescribe('Tiering & Loyalty Integration (Real PostgreSQL)', { timeout: 60_000,
         return Number(res.rows[0].count);
       });
       expect(historyRes).toBe(1);
+    });
+  });
+
+  describe('Approved redemption and confirmed refunds', () => {
+    async function admin() {
+      return runTx(async client => {
+        const id = randomUUID();
+        await client.query('INSERT INTO fixture_auth_users VALUES ($1)', [id]);
+        await createFixtureUser(client, { userId: id, role: 'ADMIN' });
+        return id;
+      });
+    }
+    async function completed(amount: string) {
+      const order = await createOrder({ status: 'COMPLETED', subtotal: amount, shippingFee: '0.00', discountAmount: '0.00', totalAmount: amount });
+      await runTx(client => loyaltyService.recordOrderCompleted(client, { order_id: order.orderId, buyer_id: buyerId, subtotal: amount, discount_amount: '0.00' }));
+      return order;
+    }
+    it('concurrent retries redeem once; distinct keys cannot overspend', async () => {
+      await completed('1000000.00');
+      const key = randomUUID();
+      const [first, retry] = await Promise.all([loyaltyService.redeem(buyerId, key), loyaltyService.redeem(buyerId, key)]);
+      expect(retry).toEqual(first);
+      expect((await getUser(buyerId)).loyalty_points).toBe(0);
+      expect(await loyaltyService.listRewards(buyerId)).toHaveLength(1);
+      await expect(loyaltyService.redeem(buyerId, randomUUID())).rejects.toMatchObject({ code: 'INSUFFICIENT_POINTS' });
+      await completed('1000000.00');
+      const competing = await Promise.allSettled([loyaltyService.redeem(buyerId, randomUUID()), loyaltyService.redeem(buyerId, randomUUID())]);
+      expect(competing.filter(row => row.status === 'fulfilled')).toHaveLength(1);
+      expect((await getUser(buyerId)).loyalty_points).toBe(0);
+      await pool.query("UPDATE app_users SET status='LOCKED',loyalty_points=100 WHERE user_id=$1", [buyerId]);
+      await expect(loyaltyService.redeem(buyerId, randomUUID())).rejects.toMatchObject({ code: 'RESOURCE_NOT_FOUND' });
+      expect((await getUser(buyerId)).loyalty_points).toBe(100);
+    });
+    it('private reward enforces ownership, minimum subtotal and one use', async () => {
+      await completed('1000000.00');
+      const reward = await loyaltyService.redeem(buyerId, randomUUID());
+      const vouchers = new VoucherPortService(new PgVoucherRepository(pool));
+      const input = { code: reward.code, buyerId, shopId, orderSubtotal: '100000.00' };
+      expect((await vouchers.evaluateVoucher(input)).isValid).toBe(true);
+      expect((await vouchers.evaluateVoucher({ ...input, buyerId: sellerId })).isValid).toBe(false);
+      expect((await vouchers.evaluateVoucher({ ...input, orderSubtotal: '99999.99' })).isValid).toBe(false);
+      const lifetime = await pool.query<{ seconds: string }>('SELECT EXTRACT(epoch FROM (end_at-start_at))::text AS seconds FROM vouchers WHERE voucher_id=$1', [reward.voucher_id]);
+      expect(Number(lifetime.rows[0].seconds)).toBe(30 * 24 * 60 * 60);
+      await pool.query('UPDATE vouchers SET max_discount=5000 WHERE voucher_id=$1', [reward.voucher_id]);
+      expect(await vouchers.evaluateVoucher(input)).toMatchObject({ isValid: true, discountAmount: '5000.00' });
+      await pool.query('UPDATE vouchers SET max_discount=NULL WHERE voucher_id=$1', [reward.voucher_id]);
+      expect(await new PgVoucherRepository(pool).listActive()).toHaveLength(0);
+      const order = await createOrder();
+      await runTx(client => new VoucherPortService(new PgVoucherRepository(client)).consumeVoucher({ voucherId: reward.voucher_id, orderId: order.orderId, buyerId, discountAmount: '10000.00' }));
+      expect((await vouchers.evaluateVoucher(input)).isValid).toBe(false);
+    });
+    it('ledger failure rolls back the voucher and points together', async () => {
+      await completed('1000000.00');
+      await pool.query("ALTER TABLE loyalty_point_transactions ADD CONSTRAINT test_no_redemption CHECK (reason <> 'POINTS_REDEEMED') NOT VALID");
+      try {
+        await expect(loyaltyService.redeem(buyerId, randomUUID())).rejects.toThrow();
+        expect((await getUser(buyerId)).loyalty_points).toBe(100);
+        expect(await loyaltyService.listRewards(buyerId)).toHaveLength(0);
+      } finally { await pool.query('ALTER TABLE loyalty_point_transactions DROP CONSTRAINT test_no_redemption'); }
+    });
+    it('partial refunds use cumulative rounding, retry once and reject excess/reference reuse', async () => {
+      const actor = await admin();
+      const order = await completed('35000.00');
+      const reference = `refund-${randomUUID()}`;
+      const input = { eligible_amount: '10000.00', reference, reason: 'Đã đối soát khoản hoàn thành công' };
+      expect(await loyaltyService.recordConfirmedRefund(actor, order.orderId, input)).toEqual({ points_delta: 0, inserted: true });
+      expect(await loyaltyService.recordConfirmedRefund(actor, order.orderId, input)).toEqual({ points_delta: 0, inserted: false });
+      await expect(loyaltyService.recordConfirmedRefund(actor, order.orderId, { ...input, eligible_amount: '10001.00' })).rejects.toMatchObject({ code: 'REFUND_REFERENCE_REUSED' });
+      expect((await loyaltyService.recordConfirmedRefund(actor, order.orderId, { ...input, reference: `refund-${randomUUID()}` })).points_delta).toBe(-1);
+      expect((await loyaltyService.recordConfirmedRefund(actor, order.orderId, { ...input, reference: `refund-${randomUUID()}`, eligible_amount: '15000.00' })).points_delta).toBe(-2);
+      expect(await getUser(buyerId)).toMatchObject({ total_spent: '0.00', loyalty_points: 0 });
+      await expect(loyaltyService.recordConfirmedRefund(actor, order.orderId, { ...input, reference: `refund-${randomUUID()}` })).rejects.toMatchObject({ code: 'REFUND_EXCEEDS_ELIGIBLE_AMOUNT' });
+    });
+    it('refund after redemption permits debt, retains VIP and future accrual repays debt', async () => {
+      const actor = await admin();
+      await pool.query("UPDATE app_users SET buyer_tier='VIP' WHERE user_id=$1", [buyerId]);
+      const order = await completed('1000000.00');
+      await loyaltyService.redeem(buyerId, randomUUID());
+      const input = { eligible_amount: '1000000.00', reference: `refund-${randomUUID()}`, reason: 'Hoàn thành công qua đối soát' };
+      const results = await Promise.all([loyaltyService.recordConfirmedRefund(actor, order.orderId, input), loyaltyService.recordConfirmedRefund(actor, order.orderId, input)]);
+      expect(results.filter(row => row.inserted)).toHaveLength(1);
+      expect(await getUser(buyerId)).toMatchObject({ total_spent: '0.00', loyalty_points: -100, buyer_tier: 'VIP' });
+      await expect(loyaltyService.redeem(buyerId, randomUUID())).rejects.toMatchObject({ code: 'INSUFFICIENT_POINTS' });
+      await completed('500000.00');
+      expect(await getUser(buyerId)).toMatchObject({ loyalty_points: 0, buyer_tier: 'VIP' });
+    });
+    it('audit failure rolls back refund ledger, spending and points', async () => {
+      const order = await completed('1000000.00');
+      await expect(loyaltyService.recordConfirmedRefund(randomUUID(), order.orderId, { eligible_amount: '1000000.00', reference: `refund-${randomUUID()}`, reason: 'Hoàn thành công qua đối soát' })).rejects.toThrow();
+      expect(await getUser(buyerId)).toMatchObject({ total_spent: '1000000.00', loyalty_points: 100 });
+      expect(await getTxCount(order.orderId)).toBe(1);
+    });
+    it('scheduler skips a concurrent database sweep and runs after lock release', async () => {
+      const lock = await pool.connect();
+      try {
+        await lock.query('BEGIN');
+        await lock.query('SELECT pg_advisory_xact_lock(73103,1)');
+        expect(await new ShopTierEvaluationService(pool).evaluateScheduled()).toBeNull();
+        await lock.query('COMMIT');
+        expect(await new ShopTierEvaluationService(pool).evaluateScheduled()).toMatchObject({ totalEvaluated: 1, unchangedCount: 1 });
+      } finally { await lock.query('ROLLBACK'); lock.release(); }
     });
   });
 

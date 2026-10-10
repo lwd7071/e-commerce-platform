@@ -23,7 +23,7 @@ beforeEach(() => {
     user: { id: "seller-1", email: "seller@test.local", role: "SELLER" },
     logout: vi.fn(),
     isLoading: false,
-  } as any);
+  } as unknown as ReturnType<typeof useAuth>);
 });
 
 describe("AppShell route layout separation", () => {
