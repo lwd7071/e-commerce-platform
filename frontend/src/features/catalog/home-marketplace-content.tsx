@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth/auth-context";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
@@ -8,7 +9,6 @@ import type { WireCatalogProductItem } from "@/lib/api/catalog.api";
 import type { WireVoucher } from "@/lib/api/voucher.api";
 import { repositories } from "@/lib/repositories/repository-factory";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/data-states";
-import { ProductCard } from "./product-card";
 
 function formatDiscount(voucher: WireVoucher) {
   if (voucher.discountType === "PERCENT") {
@@ -30,6 +30,7 @@ export function HomeMarketplaceContent() {
   const [vouchersError, setVouchersError] = useState(false);
   const isSeller = user?.role === "SELLER";
   const canViewVouchers = user?.role === "BUYER";
+  const visualProducts = products.slice(0, 4);
 
   const loadProducts = useCallback(async () => {
     try {
@@ -80,41 +81,82 @@ export function HomeMarketplaceContent() {
 
   return (
     <>
-      <section className="relative overflow-hidden rounded-2xl border border-[var(--primary-border)] bg-gradient-to-b from-[var(--primary-surface)] to-[var(--card)] p-8 text-center md:p-14">
-        <div className="mx-auto max-w-3xl space-y-4">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-[var(--primary-border)] bg-[var(--card)] px-3.5 py-1 text-xs font-bold text-[var(--primary-active)] shadow-xs">
-            ✨ Mua sắm thông minh cùng Dino
-          </span>
-          <h1 className="text-3xl font-black tracking-tight text-[var(--foreground)] sm:text-4xl md:text-5xl">
-            Khám phá hàng ngàn sản phẩm chất lượng cao
-          </h1>
-          <p className="mx-auto max-w-xl text-sm text-[var(--subtext)] md:text-base">
-            Hàng chính hãng từ các nhà bán uy tín, thanh toán an toàn và giao vận nhanh chóng toàn quốc.
+      <section className="market-hero" aria-labelledby="market-hero-title">
+        <div className="market-hero__copy">
+          <p className="market-hero__tag">Chọn gu của bạn <span aria-hidden="true">↗</span></p>
+          <h1 id="market-hero-title">Tìm món hay.<br />Mua sắm có gu.</h1>
+          <p className="market-hero__description">
+            Tìm món đồ bạn cần, xem giá và tình trạng hàng rõ ràng từ các gian hàng đang hoạt động.
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-            <Link href="/products" className="button button--primary h-11 px-6 text-sm font-bold shadow-md">
-              Xem tất cả sản phẩm
+          <div className="market-hero__actions">
+            <Link href="/products" className="button button--primary h-11 px-6 text-sm font-bold">
+              Khám phá sản phẩm
             </Link>
             {isSeller ? (
-              <Link href="/seller/products" className="button button--secondary h-11 px-6 text-sm font-semibold">
+              <Link href="/seller/products" className="button button--secondary h-11 px-5 text-sm font-semibold">
                 Kênh Người Bán
               </Link>
             ) : (
-              <a href="#uu-dai" className="button button--secondary h-11 px-6 text-sm font-semibold">
-                Khám phá ưu đãi
-              </a>
+              <a href="#uu-dai" className="market-hero__text-link">Xem ưu đãi đang có</a>
             )}
           </div>
+        </div>
+        <div className="market-hero__feature">
+          {productsLoading ? (
+            <div className="market-hero__mosaic market-hero__mosaic--loading" aria-label="Đang tải sản phẩm">
+              {[0, 1, 2, 3].map((item) => <Skeleton key={item} className="market-hero__tile-skeleton" />)}
+            </div>
+          ) : productsError ? (
+            <ErrorState title="Chưa tải được sản phẩm" description="Thử tải lại để xem sản phẩm từ gian hàng." onRetry={() => { setProductsLoading(true); setProductsError(false); void loadProducts(); }} />
+          ) : visualProducts.length ? (
+            <div className="market-hero__mosaic" aria-label="Một số sản phẩm mới">
+              {visualProducts.map((product, index) => {
+                const imageUrl = product.image_url?.trim();
+                return (
+                  <Link
+                    key={product.product_id}
+                    href={`/products/${product.product_id}`}
+                    className={`market-hero__tile market-hero__tile--${index + 1}`}
+                    aria-label={`Xem ${product.product_name}, giá từ ${moneyAdapter.formatVND(product.min_price)}`}
+                  >
+                    {imageUrl ? (
+                      <Image
+                        src={imageUrl}
+                        alt={product.product_name}
+                        fill
+                        sizes="(max-width: 767px) 42vw, (max-width: 1100px) 28vw, 20vw"
+                        className="market-hero__tile-image"
+                        priority={index === 0}
+                      />
+                    ) : (
+                      <span className="market-hero__tile-empty" aria-hidden="true" />
+                    )}
+                    <span className="market-hero__tile-caption">
+                      <strong>{product.product_name}</strong>
+                      <span>{moneyAdapter.formatVND(product.min_price)}</span>
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="market-hero__mosaic market-hero__mosaic--empty" aria-hidden="true">
+              <div className="market-hero__tile-empty" />
+              <div className="market-hero__tile-empty" />
+              <div className="market-hero__tile-empty" />
+              <div className="market-hero__tile-empty" />
+            </div>
+          )}
         </div>
       </section>
 
       <section id="uu-dai" className="scroll-mt-24 space-y-4" aria-labelledby="home-vouchers-title">
-        <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="voucher-heading">
           <div>
-            <p className="eyebrow">Ưu đãi Dino</p>
-            <h2 id="home-vouchers-title" className="text-2xl font-bold text-[var(--foreground)]">Ưu đãi đang áp dụng</h2>
+            <span className="voucher-heading__mark" aria-hidden="true">Dino / Ưu đãi</span>
+            <h2 id="home-vouchers-title">Mã tốt, giá dễ chịu</h2>
+            <p>Chọn mã phù hợp và nhập ở bước thanh toán.</p>
           </div>
-          {canViewVouchers && <p className="text-sm text-[var(--subtext)]">Nhập mã khi thanh toán</p>}
         </div>
 
         {isAuthLoading || (canViewVouchers && vouchersLoading) ? (
@@ -125,22 +167,25 @@ export function HomeMarketplaceContent() {
           vouchersError ? (
             <ErrorState title="Chưa tải được ưu đãi" description="Vui lòng thử tải lại danh sách voucher." onRetry={() => { setVouchersLoading(true); setVouchersError(false); void loadVouchers(); }} />
           ) : vouchers.length ? (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {vouchers.map((voucher) => (
-                <article key={voucher.voucherId} className="surface-card flex flex-col justify-between gap-4 border-dashed border-[var(--primary-border)] p-5">
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-wide text-[var(--primary-active)]">
+            <div className="voucher-grid">
+              {vouchers.map((voucher, index) => (
+                <article key={voucher.voucherId} className={`voucher-ticket${index === 0 ? " voucher-ticket--featured" : ""}`}>
+                  <div className="voucher-ticket__amount" aria-hidden="true">
+                    {voucher.discountType === "PERCENT" ? `${Number(voucher.discountValue)}%` : moneyAdapter.formatVND(voucher.discountValue)}
+                  </div>
+                  <div className="voucher-ticket__details">
+                    <p className="voucher-ticket__scope">
                       {voucher.scope === "PLATFORM" ? "Ưu đãi toàn sàn" : "Ưu đãi gian hàng"}
                     </p>
-                    <h3 className="mt-1 font-semibold text-[var(--foreground)]">{voucher.voucherName}</h3>
-                    <p className="mt-2 text-sm font-bold text-[var(--primary-active)]">{formatDiscount(voucher)}</p>
-                    <p className="mt-1 text-xs text-[var(--subtext)]">
-                      Đơn tối thiểu {moneyAdapter.formatVND(voucher.minOrderValue)}
+                    <h3>{voucher.voucherName}</h3>
+                    <p className="voucher-ticket__discount">{formatDiscount(voucher)}</p>
+                    <p className="voucher-ticket__minimum">
+                      Đơn từ {moneyAdapter.formatVND(voucher.minOrderValue)}
                     </p>
                   </div>
-                  <div className="flex items-center justify-between gap-3 border-t border-[var(--border)] pt-3">
-                    <span className="rounded-md bg-[var(--primary-surface)] px-2.5 py-1 font-mono text-sm font-bold text-[var(--primary-active)]">{voucher.code}</span>
-                    <span className="text-xs text-[var(--subtext)]">Dùng khi thanh toán</span>
+                  <div className="voucher-ticket__code">
+                    <span>Mã</span>
+                    <strong>{voucher.code}</strong>
                   </div>
                 </article>
               ))}
@@ -153,38 +198,17 @@ export function HomeMarketplaceContent() {
             Ưu đãi dành cho khách mua hàng sẽ được áp dụng ở bước thanh toán.
           </div>
         ) : (
-          <div className="surface-card flex flex-col items-start justify-between gap-4 p-5 sm:flex-row sm:items-center">
+          <div className="voucher-guest">
             <div>
-              <h3 className="font-semibold text-[var(--foreground)]">Đăng nhập để xem voucher đang áp dụng</h3>
-              <p className="mt-1 text-sm text-[var(--subtext)]">Mã ưu đãi có thể nhập khi thanh toán đơn hàng.</p>
+              <span className="voucher-heading__mark">Khu vực ưu đãi</span>
+              <h3>Đăng nhập để kiểm tra voucher hiện có</h3>
+              <p>Mã đang áp dụng sẽ hiện tại đây và có thể nhập khi thanh toán.</p>
             </div>
-            <Link href="/login" className="button button--secondary h-10 shrink-0 px-4 text-sm font-semibold">Đăng nhập</Link>
+            <Link href="/login" className="button button--primary h-11 shrink-0 px-5 text-sm font-semibold">Đăng nhập</Link>
           </div>
         )}
       </section>
 
-      <section className="space-y-4" aria-labelledby="home-new-products-title">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <p className="eyebrow">Vừa lên kệ</p>
-            <h2 id="home-new-products-title" className="text-2xl font-bold text-[var(--foreground)]">Sản phẩm mới</h2>
-          </div>
-          <Link href="/products" className="text-sm font-semibold text-[var(--primary-active)] hover:underline">Xem tất cả</Link>
-        </div>
-        {productsLoading ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4" aria-label="Đang tải sản phẩm">
-            {[0, 1, 2, 3].map((item) => <div key={item} className="surface-card space-y-3 p-3"><Skeleton height={150} className="rounded-lg" /><Skeleton height={18} className="w-3/4" /><Skeleton height={18} className="w-1/2" /></div>)}
-          </div>
-        ) : productsError ? (
-          <ErrorState title="Chưa tải được sản phẩm mới" description="Vui lòng thử tải lại danh sách sản phẩm." onRetry={() => { setProductsLoading(true); setProductsError(false); void loadProducts(); }} />
-        ) : products.length ? (
-          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-            {products.map((product) => <ProductCard key={product.product_id} product={product} />)}
-          </div>
-        ) : (
-          <EmptyState title="Chưa có sản phẩm mới" description="Sản phẩm đang bán sẽ xuất hiện tại đây." icon="bag" />
-        )}
-      </section>
     </>
   );
 }

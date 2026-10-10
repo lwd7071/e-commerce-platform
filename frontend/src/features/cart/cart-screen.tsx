@@ -212,7 +212,6 @@ export function CartScreen() {
       <div className="cart-page max-w-4xl mx-auto space-y-6" role="status" aria-busy="true" aria-label="Đang tải giỏ hàng">
         <header className="page-heading">
           <div>
-            <p className="eyebrow">Dino Shopping</p>
             <h1 className="page-title">Giỏ hàng của bạn</h1>
           </div>
         </header>
@@ -242,7 +241,6 @@ export function CartScreen() {
       <div className="cart-page max-w-4xl mx-auto">
         <header className="page-heading">
           <div>
-            <p className="eyebrow">Dino Shopping</p>
             <h1 className="page-title">Giỏ hàng của bạn</h1>
           </div>
         </header>
@@ -271,7 +269,6 @@ export function CartScreen() {
 
       <header className="page-heading">
         <div>
-          <p className="eyebrow">Dino Shopping</p>
           <h1 className="page-title">Giỏ hàng ({items.length} sản phẩm)</h1>
           <p className="page-description">
             Chọn sản phẩm bạn muốn đặt hàng. Giá và số lượng được cập nhật theo thời gian thực.

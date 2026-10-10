@@ -128,7 +128,7 @@ export class PgCartRepository implements ICartRepository {
     const result = await this.db.query<CartItemRow>(
       `INSERT INTO cart_items (cart_item_id,cart_id,variant_id,quantity,is_selected,created_at,updated_at)
        VALUES ($1,$2,$3,$4,$5,$6,$6)
-       ON CONFLICT (cart_id,variant_id) DO UPDATE SET quantity = cart_items.quantity + EXCLUDED.quantity, updated_at = now()
+       ON CONFLICT (cart_id,variant_id) DO UPDATE SET quantity = cart_items.quantity + EXCLUDED.quantity, is_selected = true, updated_at = now()
        RETURNING *`,
       [item.cartItemId, cartId, item.variantId, item.quantity, item.isSelected, item.createdAt],
     );

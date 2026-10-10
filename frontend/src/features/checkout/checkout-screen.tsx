@@ -26,6 +26,7 @@ import {
   clearIdempotencySnapshot,
 } from "./idempotency";
 import { classifyCheckoutError } from "./checkout-error-classifier";
+import { walletApi, type PayosLinkResult } from "@/lib/api/wallet.api";
 import { AdministrativeAddressFields } from "@/components/forms/administrative-address-fields";
 
 export function CheckoutPageContent() {
@@ -81,6 +82,9 @@ export function CheckoutScreen() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [postSubmitNavigationError, setPostSubmitNavigationError] = useState<string | null>(null);
   const [successResult, setSuccessResult] = useState<CheckoutResult | null>(null);
+  const [payosLink, setPayosLink] = useState<PayosLinkResult | null>(null);
+  const [loadingPayos, setLoadingPayos] = useState(false);
+  const [payosError, setPayosError] = useState<string | null>(null);
 
   const submittingRef = useRef(false);
   const progressTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -469,9 +473,20 @@ export function CheckoutScreen() {
       return;
     }
 
+    // 5. Mở Dialog đặt hàng thành công và tự động tạo mã VietQR nếu chọn ONLINE
     setSuccessResult(checkoutResult);
-    const orderIds = checkoutResult.orders.map((o) => o.order_id).join(",");
-    router.push(`/orders?created=${orderIds}`);
+
+    if (paymentMethod === "ONLINE" && checkoutResult.orders && checkoutResult.orders.length > 0) {
+      const firstOrderId = checkoutResult.orders[0].order_id;
+      setLoadingPayos(true);
+      setPayosError(null);
+      void walletApi.createPayosLink(firstOrderId)
+        .then((res) => setPayosLink(res))
+        .catch((err) => {
+          setPayosError(err instanceof Error ? err.message : "Không thể khởi tạo mã VietQR. Bạn có thể thanh toán trong trang Đơn hàng.");
+        })
+        .finally(() => setLoadingPayos(false));
+    }
   };
 
   if (loadingItems) {
@@ -479,7 +494,6 @@ export function CheckoutScreen() {
       <div className="checkout-page max-w-4xl mx-auto space-y-6">
         <header className="page-heading">
           <div>
-            <p className="eyebrow">Dino Checkout</p>
             <h1 className="page-title">Thanh toán đơn hàng</h1>
           </div>
         </header>
@@ -497,7 +511,6 @@ export function CheckoutScreen() {
       <div className="checkout-page max-w-4xl mx-auto space-y-6">
         <header className="page-heading">
           <div>
-            <p className="eyebrow">Dino Checkout</p>
             <h1 className="page-title">Thanh toán đơn hàng</h1>
           </div>
         </header>
@@ -515,7 +528,6 @@ export function CheckoutScreen() {
       <div className="checkout-page max-w-4xl mx-auto">
         <header className="page-heading">
           <div>
-            <p className="eyebrow">Dino Checkout</p>
             <h1 className="page-title">Thanh toán đơn hàng</h1>
           </div>
         </header>
@@ -537,7 +549,6 @@ export function CheckoutScreen() {
       {/* Page Heading & Stepper */}
       <header className="page-heading">
         <div>
-          <p className="eyebrow">Dino Checkout</p>
           <h1 className="page-title">Thanh toán đơn hàng</h1>
           <p className="page-description">
             Vui lòng kiểm tra địa chỉ nhận hàng, danh sách sản phẩm và ưu đãi trước khi đặt hàng.
@@ -1060,12 +1071,16 @@ export function CheckoutScreen() {
         </div>
       </Dialog>
 
-      {/* DIALOG: ORDER SUCCESSFUL */}
+      {/* DIALOG: ORDER SUCCESSFUL & VIETQR PAYMENT */}
       <Dialog
         open={successResult !== null}
         onOpenChange={() => {}}
-        title="Đặt hàng thành công!"
-        description="Đơn hàng của bạn đã được ghi nhận vào hệ thống Dino."
+        title={paymentMethod === "ONLINE" ? "Đặt hàng thành công! Quét mã VietQR để thanh toán" : "Đặt hàng thành công!"}
+        description={
+          paymentMethod === "ONLINE"
+            ? "Mở ứng dụng ngân hàng quét mã QR bên dưới để xác nhận đơn hàng lập tức."
+            : "Đơn hàng của bạn đã được ghi nhận vào hệ thống Dino."
+        }
         footer={
           <div className="flex justify-end gap-3 w-full">
             <Button
@@ -1094,30 +1109,99 @@ export function CheckoutScreen() {
         }
       >
         <div className="space-y-4 py-2 text-center">
-          <div className="w-16 h-16 mx-auto rounded-full bg-[var(--success-surface)] text-[var(--success)] flex items-center justify-center">
-            <Icon name="check" className="w-8 h-8" />
-          </div>
-
-          <div>
-            <p className="font-semibold text-base text-[var(--foreground)]">
-              Cảm ơn bạn đã mua hàng tại Dino!
-            </p>
-            <p className="text-xs text-[var(--subtext)] mt-1">
-              Mã đơn hàng và thông tin vận chuyển đã được chuyển tới người bán để chuẩn bị hàng.
-            </p>
-          </div>
-
-          {successResult && successResult.orders.length > 0 && (
-            <div className="p-3 bg-[var(--card-muted)] rounded-lg text-left text-xs space-y-1 border border-[var(--border)]">
-              {successResult.orders.map((ord) => (
-                <div key={ord.order_id} className="flex justify-between items-center py-1">
-                  <span>Mã đơn: <strong className="font-mono">{ord.order_id}</strong></span>
-                  <span className="font-semibold text-[var(--primary-active)] tabular-nums">
-                    {moneyAdapter.formatVND(ord.total_amount)}
-                  </span>
+          {paymentMethod === "ONLINE" ? (
+            <>
+              {loadingPayos && (
+                <div className="p-8 text-center space-y-2">
+                  <div className="w-8 h-8 mx-auto border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+                  <p className="text-xs text-[var(--subtext)]">Đang khởi tạo mã VietQR thanh toán...</p>
                 </div>
-              ))}
-            </div>
+              )}
+
+              {payosError && (
+                <div className="p-3 bg-[var(--danger-surface)] border border-[var(--danger-border)] rounded-lg text-xs text-[var(--danger-text)] text-left">
+                  {payosError}
+                </div>
+              )}
+
+              {payosLink && (
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold text-[var(--foreground)]">Mã VietQR thanh toán</p>
+                    <div className="flex justify-center p-3 bg-white rounded-2xl border border-[var(--border)] max-w-xs mx-auto shadow-sm">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={`https://img.vietqr.io/image/${payosLink.bin}-${payosLink.account_number}-compact.png?amount=${payosLink.amount}&addInfo=DINO%20DH%20${successResult?.orders?.[0]?.order_id.slice(0, 8) ?? ""}&accountName=${encodeURIComponent(payosLink.account_name)}`}
+                        alt="Mã VietQR thanh toán PayOS"
+                        className="w-56 h-56 object-contain"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl bg-[var(--card-muted)] p-3.5 text-xs text-left space-y-1.5 border border-[var(--border)]">
+                    <div className="flex justify-between">
+                      <span className="text-[var(--subtext)]">Chủ tài khoản:</span>
+                      <strong className="text-[var(--foreground)] uppercase">{payosLink.account_name}</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[var(--subtext)]">Số tài khoản:</span>
+                      <strong className="font-mono text-[var(--foreground)]">{payosLink.account_number}</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[var(--subtext)]">Số tiền:</span>
+                      <strong className="text-[var(--primary-active)]">{moneyAdapter.formatVND(payosLink.amount)}</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[var(--subtext)]">Nội dung chuyển khoản:</span>
+                      <strong className="font-mono text-[var(--foreground)]">DINO DH {successResult?.orders?.[0]?.order_id.slice(0, 8).toUpperCase() ?? ""}</strong>
+                    </div>
+                  </div>
+
+                  <div className="text-xs text-[var(--subtext)] italic text-left">
+                    Mở app ngân hàng quét mã QR trên. Sau khi chuyển tiền, hệ thống sẽ tự động xác nhận đơn hàng trong 1-3 giây.
+                  </div>
+
+                  <div className="pt-1 text-center">
+                    <a
+                      href={payosLink.checkout_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-bold text-[var(--primary)] hover:underline inline-flex items-center gap-1"
+                    >
+                      Mở cổng thanh toán PayOS web &rarr;
+                    </a>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="w-16 h-16 mx-auto rounded-full bg-[var(--success-surface)] text-[var(--success)] flex items-center justify-center">
+                <Icon name="check" className="w-8 h-8" />
+              </div>
+
+              <div>
+                <p className="font-semibold text-base text-[var(--foreground)]">
+                  Cảm ơn bạn đã mua hàng tại Dino!
+                </p>
+                <p className="text-xs text-[var(--subtext)] mt-1">
+                  Mã đơn hàng và thông tin vận chuyển đã được chuyển tới người bán để chuẩn bị hàng.
+                </p>
+              </div>
+
+              {successResult && successResult.orders.length > 0 && (
+                <div className="p-3 bg-[var(--card-muted)] rounded-lg text-left text-xs space-y-1 border border-[var(--border)]">
+                  {successResult.orders.map((ord) => (
+                    <div key={ord.order_id} className="flex justify-between items-center py-1">
+                      <span>Mã đơn: <strong className="font-mono">{ord.order_id}</strong></span>
+                      <span className="font-semibold text-[var(--primary-active)] tabular-nums">
+                        {moneyAdapter.formatVND(ord.total_amount)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       </Dialog>
