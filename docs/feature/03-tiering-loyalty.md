@@ -87,7 +87,8 @@ Buyer và Shop có các cơ chế phân hạng riêng: Buyer tự lên VIP khi �
   - `backend/src/modules/shop/services/shop-mall-request.service.ts`
   - `backend/test/platform/seller-mall-request.spec.ts` (14/14 tests PASS)
   - `backend/tests/db/seller-mall-request.integration.test.ts` (11/11 tests PASS trên PostgreSQL thật)
-  - `frontend/e2e/seller-mall-request-live.spec.ts` (3/3 journeys PASS trên Google Chrome)
+  - `frontend/e2e/seller-mall-request-live.spec.ts` (UI browser test với API mock, 3/3 journeys PASS)
+  - `frontend/e2e/seller-mall-request-connected-live.spec.ts` (Playwright live E2E nối thật, 3 skipped an toàn do thiếu môi trường live test database/backend riêng)
 
 ## Thiết kế / quyết định kỹ thuật
 
@@ -108,35 +109,37 @@ Buyer và Shop có các cơ chế phân hạng riêng: Buyer tự lên VIP khi �
 1. **Job `backend-quality`:**
    - Khởi tạo container Docker `postgres:17.6` tạm thời (ephemeral) trên môi trường runner GitHub Actions.
    - Chạy lệnh `npm run db:ci:migrate` để áp dụng migration trên container Docker này và thực thi các bài test.
-   - Mọi Pull Request và commit push đều kích hoạt job này để đảm bảo migration tương thích cú pháp và DDL.
+   - Mọi Pull Request và commit push vào `main` hoặc `dev` đều kích hoạt job này.
 2. **Job `remote-db`:**
    - Chạy migration trên Supabase test project chỉ khi có sự kiện push vào nhánh `dev` hoặc `main`:
      `github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')`.
-   - **Hệ quả thực tế:** Việc mở Pull Request từ nhánh tính năng (`feat/yeu-cau-nang-hang-dino-mall`) KHÔNG tự động áp dụng migration lên database Supabase dùng chung.
-3. **Môi trường Production:**
+3. **Hiện trạng kích hoạt CI trên nhánh tính năng:**
+   - Trình kích hoạt workflow (`ci.yml`) chỉ lắng nghe sự kiện push trên `main`, `dev` và pull_request vào `main`, `dev`.
+   - Do nhánh `feat/yeu-cau-nang-hang-dino-mall` chưa mở Pull Request vào `dev`/`main`, GitHub Actions **chưa có lượt chạy (workflow run)** nào cho commit của nhánh. Báo cáo không ghi nhận CI PASS từ xa khi chưa có kết quả run tương ứng từ GitHub Actions.
+4. **Môi trường Production:**
    - File CI workflow hoàn toàn không có job tự động migrate vào database Production (quy trình bảo vệ dữ liệu sản xuất).
-   - Do đó, mức độ nghiệm thu hiện tại được xác định chuẩn xác là **Nghiệm thu từng phần (Partial Acceptance)** cho đến khi nhánh được hợp nhất và migration được chạy có kiểm soát trên môi trường triển khai thực tế.
+   - Do đó, mức độ nghiệm thu hiện tại được xác định chuẩn xác là **Nghiệm thu từng phần (Partial Acceptance)**.
 
 ## Kiểm tra và kết quả
 
-Cập nhật ngày 2026-10-10: Đã thực thi và kiểm chứng toàn diện tính năng D (CR-SHOP-02) qua cả 3 tầng kiểm thử độc lập cùng toàn bộ quality gates:
+Cập nhật ngày 2026-10-10: Đã thực thi và kiểm chứng tính năng D (CR-SHOP-02) qua các tầng kiểm thử cụ thể:
 
 | Kiểm tra | Lệnh / CI job | Kết quả | Bằng chứng / ghi chú |
 |---|---|---|---|
 | PostgreSQL feature D (CR-SHOP-02) | `npm --prefix backend exec vitest run tests/db/seller-mall-request.integration.test.ts` | **PASS (11/11, 75.8s)** | Schema cô lập trên PostgreSQL thật; kiểm chứng DDL, partial unique index, FK RESTRICT, RLS, concurrency 2 chiều, atomic rollback khi audit log lỗi, idempotency |
-| Browser E2E thật (CR-SHOP-02) | `npx playwright test e2e/seller-mall-request-live.spec.ts` | **PASS (3/3, 35.0s)** | Trình duyệt Google Chrome thật; 3 hành trình hoàn chỉnh: Submit->Approve->MALL->Badge; Submit->Reject->Lý do->Gửi lại; Submit->Cancel |
+| UI Browser Test với API Mock (D) | `npx playwright test e2e/seller-mall-request-live.spec.ts` | **PASS (3/3, 32.7s)** | Trình duyệt Google Chrome thật; mô phỏng auth và API bằng `page.route()`, kiểm chứng tương tác form, dialog, UX state |
+| Playwright Live E2E Nối Thật (D) | `npx playwright test e2e/seller-mall-request-connected-live.spec.ts` | **3 SKIPPED** | Chặn an toàn: Không mock auth/API, không ghi storage; máy trạm chưa có backend live server, project test database riêng và tài khoản seed E2E |
 | Backend Feature Unit/Mock D | `npm --prefix backend exec tsx --test test/platform/seller-mall-request.spec.ts` | **PASS (14/14, 0.4s)** | Kiểm chứng domain validation, route ordering, RBAC guard, mock concurrency và flow |
 | PostgreSQL feature A/B/C | `npm --prefix backend exec vitest run tests/db/tiering-loyalty.integration.test.ts` | PASS theo nhật ký trước | 17/17, 247,2s; schema cô lập trên database dùng chung |
 | Evaluation C unit/mock | `npm --prefix backend exec tsx --test test/platform/shop-tier-evaluation.spec.ts` | PASS theo nhật ký trước | 7/7 |
 | Frontend component A/B | `npm --prefix frontend test -- test/e2e-tiering-loyalty-lifecycle.spec.tsx` | PASS theo nhật ký trước | 7/7, Vitest/jsdom và mock |
 | Prisma Schema Validate | `npm --prefix backend exec prisma validate` | **PASS (0 errors)** | Schema Prisma hoàn toàn hợp lệ |
-| OpenAPI Contract Check | `npm --prefix frontend run api:types:check` | **PASS (0 diff)** | Contract frontend đồng bộ 100% với backend OpenAPI spec |
-| Backend Lint & Typecheck | `npm --prefix backend run lint && npm --prefix backend run typecheck` | **PASS (0 warning, 0 error)** | `--max-warnings=0` sạch tuyệt đối |
+| OpenAPI Contract Check | `npm --prefix frontend run api:types:check` | **PASS (0 diff)** | Contract frontend đồng bộ với backend OpenAPI spec |
+| Backend Lint & Typecheck | `npm --prefix backend run lint && npm --prefix backend run typecheck` | **PASS (0 warning, 0 error)** | `--max-warnings=0` sạch lỗi |
 | Backend Production Build | `npm --prefix backend run build` | **PASS (dist/app.js 885.8kb)** | Build Node/Express thành công |
-| Frontend Lint & Typecheck | `npm --prefix frontend run lint && npm --prefix frontend run typecheck` | **PASS (0 warning, 0 error)** | Next.js/React strict check đạt 100% |
-| Frontend Production Build | `npm --prefix frontend run build` | **PASS (34 routes compiled)** | Turbopack build thành công không lỗi |
-| Browser E2E A/B cũ | `npm --prefix frontend run test:e2e -- e2e/tiering-loyalty-live.spec.ts` | Chưa nghiệm thu | Nhật ký ghi 2 skipped khi thiếu live env A/B; phần D đã có live spec riêng pass 100% |
-| Full backend Vitest | `npm --prefix backend run test:vitest` | Cần cập nhật sau merge | 53/60 files pass theo đợt trước do public schema thiếu migration shop tiering |
+| Frontend Lint & Typecheck | `npm --prefix frontend run lint && npm --prefix frontend run typecheck` | **PASS (0 warning, 0 error)** | Next.js/React strict check đạt |
+| Frontend Production Build | `npm --prefix frontend run build` | **PASS (34 routes compiled)** | Turbopack build thành công |
+| Remote GitHub Actions CI | Workflow `ci.yml` trên GitHub | **Chưa có run** | Chưa mở PR vào `dev`/`main`; workflow chỉ trigger trên push/PR vào `dev`/`main` |
 
 ## An toàn và tình huống lỗi
 
@@ -163,7 +166,7 @@ Cập nhật ngày 2026-10-10: Đã thực thi và kiểm chứng toàn diện t
 - **Đã làm:**
   - Hoàn thiện toàn bộ logic nghiệp vụ, service, repository, routing và UI cho CR-SHOP-02: Seller nộp hồ sơ nâng hạng Dino Mall, theo dõi trạng thái, hủy yêu cầu; Admin xem danh sách toàn sàn, thẩm định hồ sơ, duyệt nâng hạng (lên `MALL` kèm `tier_override = true`) hoặc từ chối kèm lý do (giữ nguyên hạng shop).
   - Tối ưu hóa khóa chống Deadlock trong `ShopMallRequestService`: kiểm tra sơ bộ không lock -> khóa `shops` (`FOR UPDATE`) -> khóa `shop_mall_requests` (`FOR UPDATE`).
-  - Đảm bảo tính nguyên tử 100%: Cả luồng duyệt và ghi audit log (`moderation_records` và `admin_logs`) nằm trong một transaction duy nhất (`withTx`). Bất kỳ lỗi audit log nào đều rollback toàn bộ, không để lại dữ liệu rác hay trạng thái dở dang.
+  - Đảm bảo tính nguyên tử của giao dịch: Cả luồng duyệt và ghi audit log (`moderation_records` và `admin_logs`) nằm trong một transaction duy nhất (`withTx`). Bất kỳ lỗi audit log nào đều rollback toàn bộ, không để lại dữ liệu dở dang.
   - Sửa frontend UI: Cập nhật hàm `handleCancelMall` trong `SellerShopScreen` để so sánh ID linh hoạt `(r.request_id || r.id) === (cancelled?.request_id || cancelled?.id || requestId)`; bổ sung làm mới trạng thái tự động và phím tắt `↻ Làm mới`.
   - Cập nhật mock repository trong `repository-factory.ts` để đồng bộ thuộc tính `shop_tier` cho Catalog và ProductDetail.
 - **Kiểm chứng trên PostgreSQL thật (`backend/tests/db/seller-mall-request.integration.test.ts`):**
@@ -176,22 +179,24 @@ Cập nhật ngày 2026-10-10: Đã thực thi và kiểm chứng toàn diện t
     5. Concurrency Race: Hai submit đồng thời -> đúng 1 thành công.
     6. Concurrency Race: Duyệt vs Từ chối đồng thời -> đúng 1 thành công.
     7. Concurrency Race: Duyệt vs Hủy đồng thời -> đúng 1 thành công.
-    8. Transaction Rollback Integrity: Lỗi ghi audit log `admin_logs` rollback 100%, request giữ nguyên `PENDING`, shop giữ nguyên `STANDARD`.
+    8. Transaction Rollback Integrity: Lỗi ghi audit log `admin_logs` rollback toàn bộ, request giữ nguyên `PENDING`, shop giữ nguyên `STANDARD`.
     9. Idempotency replay trả kết quả cũ, conflict cùng key khác payload ném lỗi 409.
-- **Kiểm chứng Browser E2E thực tế (`frontend/e2e/seller-mall-request-live.spec.ts`):**
-  - Cấu hình Playwright sử dụng Google Chrome hệ thống (`channel: 'chrome'`).
-  - Thực thi: **3/3 journeys PASS** (35.0s):
-    1. Journey 1: Seller nộp hồ sơ PENDING -> Admin thẩm định & duyệt -> Seller làm mới thấy hạng Dino Mall (`MALL`) -> Buyer xem catalog thấy huy hiệu Dino Mall.
-    2. Journey 2: Seller nộp hồ sơ -> Admin từ chối kèm lý do -> Seller thấy lý do từ chối rõ ràng và được phép nộp lại hồ sơ mới.
-    3. Journey 3: Seller nộp hồ sơ PENDING -> Seller đổi ý bấm hủy -> Yêu cầu chuyển CANCELLED và form mở lại.
+- **Kiểm chứng Browser Playwright:**
+  - **UI Browser Test với API Mock (`frontend/e2e/seller-mall-request-live.spec.ts`):**
+    - Chạy trình duyệt Google Chrome thật trên host; mô phỏng auth và API bằng `page.route()`.
+    - Kết quả: **3/3 journeys PASS** (32.7s): Submit -> Approve -> Shop MALL -> Catalog Badge; Submit -> Reject -> Lý do -> Gửi lại; Submit -> Cancel PENDING.
+  - **Playwright Live E2E Nối Thật (`frontend/e2e/seller-mall-request-connected-live.spec.ts`):**
+    - Nối frontend, backend API và database test thật; không mock auth/API; không ghi `mock_mall_tier` vào storage.
+    - Kết quả: **3 skipped** do cơ chế guard an toàn chặn lại khi môi trường máy trạm chưa khởi chạy backend live server (`http://localhost:3001`), chưa cấu hình database test riêng biệt đã migrate và chưa có thông tin tài khoản seed E2E (`E2E_SEED_PASSWORD`).
 - **Quality Gates:**
-  - `npx prisma validate`: Hợp lệ 100%.
+  - `npx prisma validate`: Hợp lệ.
   - `npm run api:types:check`: 0 diff, đồng bộ hoàn toàn giữa backend OpenAPI và frontend types.
   - Lint & Typecheck: Backend (0 errors, 0 warnings với `--max-warnings=0`), Frontend (0 errors, 0 warnings).
   - Build: Backend build thành công (`dist/app.js`), Frontend Turbopack build thành công (34 routes compiled).
-- **Phân tích Pipeline Migration GitHub Actions:**
-  - `backend-quality`: Chạy container Docker ephemeral (`postgres:17.6`) cho mọi PR/push.
+- **Phân tích Pipeline Migration & Trạng thái CI GitHub Actions:**
+  - `backend-quality`: Chạy container Docker ephemeral (`postgres:17.6`) cho mọi PR/push vào `main`/`dev`.
   - `remote-db`: Chỉ chạy khi push vào nhánh `dev` hoặc `main`. Mở PR trên feature branch không tự động migrate database Supabase.
+  - Trạng thái CI: Nhánh tính năng chưa tạo PR vào `dev` nên GitHub Actions chưa có workflow run cho commit; không ghi nhận CI PASS khi chưa có kết quả run tương ứng.
   - Đánh giá trạng thái: **Nghiệm thu từng phần (Partial Acceptance)** cho đến khi PR được merge vào nhánh chính và áp dụng migration trên database dùng chung.
 
 ### 2026-10-02 — Đồng bộ tài liệu A/B/C với code

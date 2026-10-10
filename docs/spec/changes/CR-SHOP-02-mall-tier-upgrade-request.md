@@ -3,9 +3,12 @@
 ## Trạng thái
 
 **Nghiệm thu từng phần (Partial Acceptance)** — 2026-10-10, triển khai và hoàn thiện trên nhánh `feat/yeu-cau-nang-hang-dino-mall`.
-- Logic mã nguồn và chất lượng (Quality Gates: Build, Lint, Typecheck, Prisma Validate, API Types Check) đã đạt 100%.
-- Kiểm chứng tích hợp trên PostgreSQL thật (11/11 tests PASS) và kiểm thử trình duyệt thực tế Playwright E2E (3/3 tests PASS).
-- **Lý do chưa nghiệm thu toàn bộ:** Migration `20261011100000_shop_mall_requests` chỉ mới kiểm chứng trên schema cô lập của PostgreSQL thật và ephemeral Docker CI; chưa được áp dụng trên cơ sở dữ liệu dùng chung (staging/production) do pipeline GitHub Actions chỉ áp dụng migration remote khi có sự kiện push vào nhánh `dev`/`main`.
+- Logic mã nguồn và các quality gates nội bộ (Build, Lint, Typecheck, Prisma Validate, API Types Check) đều đạt.
+- Đã kiểm chứng tích hợp trên schema cô lập của PostgreSQL thật (11/11 tests PASS) và kiểm thử UI trình duyệt Google Chrome với API mock (3/3 journeys PASS).
+- **Lý do duy trì trạng thái Nghiệm thu từng phần:**
+  1. **Migration Database dùng chung:** Migration `20261011100000_shop_mall_requests` chỉ mới kiểm chứng trên schema cô lập của PostgreSQL thật; chưa áp dụng trên database dùng chung (staging/production) do pipeline GitHub Actions chỉ áp dụng migration remote khi có sự kiện push vào nhánh `dev`/`main`.
+  2. **Playwright nối live thật:** Bộ test Playwright kết nối live thật (không mock auth, không mock API, không ghi `mock_mall_tier` vào storage) tại `frontend/e2e/seller-mall-request-connected-live.spec.ts` hiện ghi nhận **3 skipped** do môi trường máy trạm chưa được cấp project/database test riêng biệt, chưa khởi chạy backend live server và chưa có thông tin seed tài khoản E2E (`E2E_SEED_PASSWORD`).
+  3. **Kết quả CI GitHub Actions:** Pipeline `.github/workflows/ci.yml` chỉ kích hoạt khi có Push hoặc Pull Request vào nhánh `dev`/`main`. Nhánh tính năng chưa mở PR vào `dev` nên chưa có workflow run trên GitHub Actions; tài liệu không ghi nhận CI PASS khi chưa có kết quả run tương ứng.
 
 ## Owner và review
 
@@ -37,7 +40,7 @@ $$\text{Seller gửi yêu cầu kèm link hồ sơ} \longrightarrow \text{Hệ t
      1. Khóa bảng `shops` (`SELECT ... FROM shops WHERE shop_id = $1 FOR UPDATE`).
      2. Khóa bảng `shop_mall_requests` (`SELECT ... FROM shop_mall_requests WHERE request_id = $1 FOR UPDATE`).
    - Cập nhật đồng thời khi duyệt: request chuyển `APPROVED`, `shops.tier = 'MALL'`, `shops.tier_override = true`, ghi `moderation_records` (`action = 'UPDATE_TIER'`) và `admin_logs` (`action = 'SHOP_MALL_REQUEST_APPROVE'`).
-   - Rollback nguyên tử 100%: Bất kỳ thao tác nào thất bại (kể cả ghi audit log vào `admin_logs`) đều rollback toàn bộ transaction; trạng thái request và tier của shop giữ nguyên vẹn.
+   - Rollback nguyên tử: Bất kỳ thao tác nào thất bại (kể cả ghi audit log vào `admin_logs`) đều rollback toàn bộ transaction; trạng thái request và tier của shop giữ nguyên vẹn.
 
 3. **Luồng Từ chối (`reject`) và Hủy (`cancel`):**
    - Seller chỉ được hủy (`cancel`) khi yêu cầu còn ở trạng thái `PENDING`.
@@ -58,7 +61,7 @@ $$\text{Seller gửi yêu cầu kèm link hồ sơ} \longrightarrow \text{Hệ t
    - Kênh người bán (`SellerShopScreen`): Khu vực Dino Mall hiển thị hạng gian hàng hiện tại, form gửi link hồ sơ + lý do, trạng thái yêu cầu PENDING kèm nút hủy, hiển thị lý do từ chối nếu có, và nút `↻ Làm mới`.
    - Kênh quản trị (`AdminShopsScreen`): Tab chuyên biệt "Yêu cầu lên Dino Mall" kèm badge đếm số lượng PENDING, bảng danh sách hồ sơ với link tài liệu an toàn, Dialog duyệt bắt buộc ghi chú, và Dialog từ chối bắt buộc lý do.
 
-## Bằng chứng kiểm chứng (3 Tầng Kiểm thử Độc lập)
+## Bằng chứng kiểm chứng (Các Tầng Kiểm Thử Thực Tế)
 
 ### Tầng 1: Unit & Mock Integration Tests (Node Test Runner)
 - File: `backend/test/platform/seller-mall-request.spec.ts`
@@ -67,28 +70,43 @@ $$\text{Seller gửi yêu cầu kèm link hồ sơ} \longrightarrow \text{Hệ t
 
 ### Tầng 2: Kiểm thử Cơ sở dữ liệu PostgreSQL thật (Vitest)
 - File: `backend/tests/db/seller-mall-request.integration.test.ts`
-- Runner & Môi trường: Vitest chạy trên isolated schema PostgreSQL thật (75.76s).
+- Runner & Môi trường: Vitest chạy trên isolated schema của PostgreSQL thật (75.76s).
 - Kết quả: **11/11 tests PASS**
 - Các kịch bản đã chứng minh:
   1. `document_url NOT NULL` và CHECK constraint regex `^https?://` ngăn chặn dữ liệu không hợp lệ (SQLSTATE 23514 / 23502).
   2. Partial unique index `uq_shop_mall_requests_pending_per_shop` ngăn chặn shop nộp 2 request PENDING đồng thời (SQLSTATE 23505).
   3. Ràng buộc khóa ngoại `ON DELETE RESTRICT` ngăn xóa shop/seller khi đang có request liên quan (SQLSTATE 23503).
-  4. RLS kích hoạt và revoke toàn bộ quyền `SELECT/INSERT/UPDATE/DELETE` đối với role `anon` và `authenticated` (SQLSTATE 42501).
+  4. RLS kích hoạt và revoke quyền `SELECT/INSERT/UPDATE/DELETE` đối với role `anon` và `authenticated` (SQLSTATE 42501).
   5. Concurrency Race: Hai lệnh submit đồng thời từ cùng một shop -> đúng 1 lệnh thành công, 1 lệnh bị conflict.
   6. Concurrency Race: Admin Duyệt vs Admin Từ chối đồng thời -> đúng 1 lệnh thành công, lệnh sau nhận lỗi conflict.
   7. Concurrency Race: Admin Duyệt vs Seller Hủy đồng thời -> đúng 1 lệnh thành công, không có trạng thái mập mờ.
-  8. Atomic Transaction Rollback: Khi thao tác ghi audit log `admin_logs` bị lỗi (mô phỏng bảng audit khóa/lỗi), transaction rollback 100% -> request giữ nguyên `PENDING`, shop giữ nguyên `STANDARD`.
+  8. Atomic Transaction Rollback: Khi thao tác ghi audit log `admin_logs` bị lỗi (mô phỏng bảng audit khóa/lỗi), transaction rollback -> request giữ nguyên `PENDING`, shop giữ nguyên `STANDARD`.
   9. Idempotency: Gửi lại cùng key và payload trả về kết quả đã lưu; gửi cùng key nhưng khác payload trả lỗi 409 Conflict.
   10. Trạng thái không hợp lệ: Từ chối thao tác duyệt/từ chối trên request đã xử lý.
 
-### Tầng 3: Kiểm thử Trình duyệt Thực tế Playwright E2E
+### Tầng 3: UI Browser Test với API Mock (Playwright trên Google Chrome thật)
 - File: `frontend/e2e/seller-mall-request-live.spec.ts`
-- Runner & Môi trường: Playwright Browser Runner trên Google Chrome (35.0s).
+- Runner & Môi trường: Playwright Browser Runner điều khiển Google Chrome thật trên host (32.7s).
+- Đặc điểm: Chạy trình duyệt thật nhưng mô phỏng xác thực và các API endpoint bằng `page.route()` để kiểm chứng chính xác DOM tương tác, UX state, dialog và phản ứng của form.
 - Kết quả: **3/3 journeys PASS**
 - Các hành trình đã chứng minh:
   1. **Hành trình 1 (Duyệt thành công):** Seller nộp hồ sơ nâng hạng PENDING -> Admin nhận thông báo và duyệt kèm ghi chú -> Seller làm mới thấy hạng gian hàng chuyển sang Dino Mall (`MALL`) -> Buyer truy cập catalog thấy badge Dino Mall trên sản phẩm của Shop.
   2. **Hành trình 2 (Từ chối & nộp lại):** Seller nộp hồ sơ -> Admin từ chối kèm lý do thẩm định -> Seller nhận trạng thái REJECTED và thấy rõ lý do từ chối -> Seller được phép nộp lại hồ sơ mới.
   3. **Hành trình 3 (Seller hủy yêu cầu):** Seller nộp yêu cầu PENDING -> Đổi ý bấm "Hủy yêu cầu" -> Trạng thái chuyển CANCELLED và form nộp hồ sơ mở lại.
+
+### Tầng 4: Playwright E2E Thực Tế Nối Thật (Frontend + Backend + Real Test DB)
+- File: `frontend/e2e/seller-mall-request-connected-live.spec.ts`
+- Runner: Playwright Browser Runner trên Google Chrome.
+- Tiêu chí thiết kế:
+  - **Không mock auth**, sử dụng phiên đăng nhập người dùng thật.
+  - **Không mock API**, toàn bộ request `/seller/shop/mall-requests`, `/admin/shops/mall-requests`, `/products` gọi trực tiếp vào backend server.
+  - **Không ghi `mock_mall_tier` vào storage**, badge của shop trên catalog bắt buộc phải đọc từ backend/database thật.
+  - Kiểm tra an toàn trước khi chạy: Bắt buộc xác minh môi trường test riêng (`DATABASE_ENVIRONMENT=test`, `E2E_SEED_PASSWORD`, backend API healthy) để ngăn chặn tuyệt đối việc chạy nhầm vào database production hay database dùng chung.
+- Kết quả chạy thực tế: **3 skipped**
+- **Chi tiết các blocker môi trường:**
+  1. Máy trạm local chưa khởi chạy Backend API server (`http://localhost:3001`).
+  2. Chưa cấu hình biến môi trường `E2E_SEED_PASSWORD` (hoặc `E2E_SELLER_PASSWORD` / `E2E_ADMIN_PASSWORD`) cho tài khoản test thật.
+  3. Chưa có project/database test độc lập riêng biệt (`DATABASE_ENVIRONMENT=test`) đã chạy migration `20261011100000_shop_mall_requests`.
 
 ## Hướng dẫn Vận hành và Sử dụng
 

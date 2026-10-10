@@ -1,15 +1,17 @@
 import { expect, test } from "@playwright/test";
 
 /**
- * Playwright Browser E2E: Quy trình Nâng Hạng Dino Mall
+ * UI Browser Test với API Mock: Quy trình Nâng Hạng Dino Mall (Playwright)
  *
- * Kiểm thử luồng giao diện người dùng trên trình duyệt thật (Chrome/Chromium):
- * 1. Hành trình 1: Seller gửi hồ sơ -> Admin duyệt -> Seller làm mới cả Shop và request, thấy MALL -> Buyer đọc lại catalog thấy badge.
+ * Kiểm thử luồng giao diện người dùng trên trình duyệt Google Chrome thật bằng Playwright
+ * nhưng các endpoint HTTP (/api/v1/...) và xác thực Auth được mô phỏng bằng page.route()
+ * để cô lập hành vi DOM/UX và không yêu cầu backend runtime:
+ * 1. Hành trình 1: Seller gửi hồ sơ -> Admin duyệt -> Seller làm mới thấy MALL -> Buyer đọc lại catalog thấy badge.
  * 2. Hành trình 2: Seller gửi -> Admin từ chối -> Seller thấy lý do -> gửi yêu cầu mới.
  * 3. Hành trình 3: Seller hủy yêu cầu PENDING.
  */
 
-test.describe("Seller Dino Mall Upgrade E2E Real Browser Journeys", () => {
+test.describe("Seller Dino Mall Upgrade — UI Browser Test với API Mock", () => {
   let shopState = {
     shop_id: "shop-e2e-mall-001",
     shop_name: "Dino Tech Store",
