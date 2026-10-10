@@ -101,7 +101,7 @@ $$\text{Seller gửi yêu cầu kèm link hồ sơ} \longrightarrow \text{Hệ t
   - **Không mock auth**, sử dụng phiên đăng nhập người dùng thật.
   - **Không mock API**, toàn bộ request `/seller/shop/mall-requests`, `/admin/shops/mall-requests`, `/products` gọi trực tiếp vào backend server.
   - **Không ghi `mock_mall_tier` vào storage**, badge của shop trên catalog bắt buộc phải đọc từ backend/database thật.
-  - Kiểm tra an toàn trước khi chạy: Bắt buộc xác minh môi trường test riêng (`DATABASE_ENVIRONMENT=test`, `E2E_SEED_PASSWORD`, backend API healthy) để ngăn chặn tuyệt đối việc chạy nhầm vào database production hay database dùng chung.
+  - Preflight đối chiếu URL/project/host và allowlist; một cờ môi trường không đủ xác minh đích. Khởi chạy backend bằng cùng cấu hình test đã được chủ dự án xác nhận. Xem hướng dẫn cập nhật bên dưới.
 - Kết quả chạy thực tế: **3 skipped**
 - **Chi tiết các blocker môi trường:**
   1. Máy trạm local chưa khởi chạy Backend API server (`http://localhost:3001`).
@@ -135,3 +135,10 @@ $$\text{Seller gửi yêu cầu kèm link hồ sơ} \longrightarrow \text{Hệ t
 - **Cơ chế cập nhật trạng thái:** Hệ thống hiện tại sử dụng polling/invalidation qua TanStack Query kết hợp nút làm mới chủ động trên giao diện; chưa có WebSocket push thông báo tức thì đến Seller.
 - **Áp dụng Migration:** Migration DDL `20261011100000_shop_mall_requests` chỉ được chạy trên staging/production sau khi PR được merge vào nhánh `dev`/`main`. Trong thời gian ở nhánh tính năng, cần đảm bảo database mục tiêu đã chạy migration này trước khi test thủ công.
 
+
+
+## Kiểm chứng bổ sung ngày 10/10/2026
+
+Giữ nghiệm thu từng phần. Đã sửa truy vấn ngoài transaction và các lỗi trong live E2E (phiên đăng nhập, selector, native confirm, nộp lại và kiểm tra đúng sản phẩm). Guard cũ chỉ kiểm tra cờ đã được thay bằng đối chiếu URL/project/host/allowlist. UI Seller hiện dùng local state và hàm load đọc lại cả Shop/request; không mô tả thành TanStack invalidation nếu code chưa dùng.
+
+Kết quả mới và hướng dẫn thay thế thông tin cấu hình E2E cũ: [Dino Mall live](../../test-mvp/dino-mall-live.md). 15 backend + 10 frontend tests liên quan PASS; lint/typecheck/build, Prisma validate và api:types:check PASS. Live E2E 3 SKIPPED, PostgreSQL/full suites chưa chạy lại. Chưa có xác nhận database test riêng nên không migration/seed vào database dùng chung.

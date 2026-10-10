@@ -306,3 +306,12 @@ Cập nhật ngày 2026-10-10: Đã thực thi và kiểm chứng tính năng D 
   - Tạo nhánh làm việc `codex/tiering-loyalty`.
   - Hoàn thiện kế hoạch chi tiết, loại bỏ floating point, thiết kế transaction nguyên tử chống duplicate bằng `ON CONFLICT DO NOTHING RETURNING`, đối soát state machine và lập bảng 9 quyết định P0.
   - Khởi tạo file báo cáo tiến độ `docs/feature/03-tiering-loyalty.md`.
+
+
+## CR-SHOP-02 — Tiếp quản kiểm chứng ngày 10/10/2026
+
+Trạng thái hiện tại: **nghiệm thu từng phần**. [Báo cáo và hướng dẫn live E2E cập nhật](../test-mvp/dino-mall-live.md) thay thế mô tả guard chỉ dựa vào cờ và cấu hình tài khoản live cũ.
+
+Đã sửa truy vấn đọc request/PENDING dùng cùng transaction client, thêm test pool không có kết nối rảnh; sửa live E2E tách phiên Seller/Admin/Buyer, đăng nhập mỗi hành trình, native confirm, nộp lại thật và badge đúng sản phẩm. Playwright không ép Chrome toàn cục. Seller screen thực tế dùng local state và load/refetch thủ công, không phải TanStack Query invalidation.
+
+Lần này: backend feature 15/15, frontend liên quan 10/10 PASS; lint/typecheck/build hai phía, Prisma validate, api:types:check PASS. Live E2E **3 SKIPPED**. Chưa chạy lại PostgreSQL/full suites vì chưa có database test riêng được xác minh. Không coi số liệu lịch sử là lần kiểm chứng mới; CI theo kết quả run của draft PR, chưa được mặc định PASS.

@@ -237,6 +237,19 @@ function createSellerCtx() {
 }
 
 describe('Seller Mall Request Domain & Atomic Service Tests', () => {
+  it('completes submit, cancel, reject and approve without borrowing another pool connection', async () => {
+    const { pool, targetLookup, auditPort } = createMockPool('STANDARD');
+    // A transaction may own the last available connection. Pool-level reads would wait forever.
+    pool.query = (() => { throw new Error('No spare pool connection'); }) as typeof pool.query;
+    const service = new ShopMallRequestService(pool, new PgShopMallRequestRepository(pool), targetLookup, auditPort);
+    const input = { reason: 'Hồ sơ kiểm chứng kết nối giao dịch', document_url: 'https://example.com/evidence' };
+    const cancelled = await service.submitRequest(createSellerCtx(), input);
+    assert.equal((await service.cancelRequest(createSellerCtx(), cancelled.request_id)).status, 'CANCELLED');
+    const rejected = await service.submitRequest(createSellerCtx(), input);
+    assert.equal((await service.rejectRequest(ADMIN_ID, rejected.request_id, { reason: 'Hồ sơ cần bổ sung' })).status, 'REJECTED');
+    const approved = await service.submitRequest(createSellerCtx(), input);
+    assert.equal((await service.approveRequest(ADMIN_ID, approved.request_id, { note: 'Hồ sơ đã kiểm tra' })).status, 'APPROVED');
+  });
   it('submits a new mall upgrade request successfully when eligible', async () => {
     const { pool, getRequests, targetLookup, auditPort } = createMockPool('STANDARD');
     const repo = new PgShopMallRequestRepository(pool);

@@ -67,8 +67,8 @@ export class PgShopMallRequestRepository {
     };
   }
 
-  async findById(requestId: string): Promise<ShopMallRequest | null> {
-    const result = await this.pool.query(
+  async findById(requestId: string, client: Pool | PoolClient = this.pool): Promise<ShopMallRequest | null> {
+    const result = await client.query(
       `SELECT request_id, shop_id, seller_id, admin_id, reason, document_url, status,
               admin_note, reviewed_at, cancelled_at, created_at, updated_at
        FROM shop_mall_requests
@@ -90,8 +90,8 @@ export class PgShopMallRequestRepository {
     return result.rows[0] ? this.map(result.rows[0]) : null;
   }
 
-  async findPendingByShopId(shopId: string): Promise<ShopMallRequest | null> {
-    const result = await this.pool.query(
+  async findPendingByShopId(shopId: string, client: Pool | PoolClient = this.pool): Promise<ShopMallRequest | null> {
+    const result = await client.query(
       `SELECT request_id, shop_id, seller_id, admin_id, reason, document_url, status,
               admin_note, reviewed_at, cancelled_at, created_at, updated_at
        FROM shop_mall_requests

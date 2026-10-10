@@ -110,7 +110,7 @@ export class ShopMallRequestService {
       }
 
       // Check pending request
-      const pending = await this.repo.findPendingByShopId(ctx.shop_id!);
+      const pending = await this.repo.findPendingByShopId(ctx.shop_id!, trx);
       if (pending) {
         throw new ConflictError('PENDING_REQUEST_EXISTS', 'Shop already has a pending mall upgrade request');
       }
@@ -139,7 +139,7 @@ export class ShopMallRequestService {
     const cleanRequestId = requestId.trim();
 
     return await this.withTx(async (trx) => {
-      const precheck = await this.repo.findById(cleanRequestId);
+      const precheck = await this.repo.findById(cleanRequestId, trx);
       if (!precheck) {
         throw new NotFoundError('Mall request was not found');
       }
@@ -210,7 +210,7 @@ export class ShopMallRequestService {
       }
 
       // 1. Fetch request without lock to get shop_id
-      const precheck = await this.repo.findById(cleanRequestId);
+      const precheck = await this.repo.findById(cleanRequestId, trx);
       if (!precheck) {
         throw new NotFoundError('Mall request was not found');
       }
@@ -331,7 +331,7 @@ export class ShopMallRequestService {
         }
       }
 
-      const precheck = await this.repo.findById(cleanRequestId);
+      const precheck = await this.repo.findById(cleanRequestId, trx);
       if (!precheck) {
         throw new NotFoundError('Mall request was not found');
       }
