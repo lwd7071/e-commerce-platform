@@ -11,6 +11,9 @@ vi.mock('@/lib/api/seller-shop.api', () => ({
     get: vi.fn(),
     update: vi.fn(),
     updateLogo: vi.fn(),
+    getMallRequests: vi.fn().mockResolvedValue([]),
+    submitMallRequest: vi.fn().mockResolvedValue({}),
+    cancelMallRequest: vi.fn().mockResolvedValue({}),
   },
 }));
 
