@@ -1,4 +1,6 @@
 import type { Pool, PoolClient } from 'pg';
+import { withTransaction } from '../../../../db/transaction.ts';
+import { ValidationFailedError } from '../../../platform/errors/app-error.ts';
 
 export interface TierEvaluationCriteria {
   readonly minCompletedOrders: number;
@@ -11,6 +13,17 @@ export const DEFAULT_TIER_CRITERIA: TierEvaluationCriteria = {
   minAverageRating: 4.5,
   minVisibleReviews: 5,
 };
+
+function resolveCriteria(criteria: Partial<TierEvaluationCriteria>): TierEvaluationCriteria {
+  const value = { ...DEFAULT_TIER_CRITERIA, ...criteria };
+  if (!Number.isSafeInteger(value.minCompletedOrders) || value.minCompletedOrders < 0
+    || !Number.isSafeInteger(value.minVisibleReviews) || value.minVisibleReviews < 0
+    || typeof value.minAverageRating !== 'number' || !Number.isFinite(value.minAverageRating)
+    || value.minAverageRating < 0 || value.minAverageRating > 5) {
+    throw new ValidationFailedError('Invalid Shop tier evaluation criteria.');
+  }
+  return value;
+}
 
 export type ShopEvaluationStatus =
   | 'SKIPPED_MALL'
@@ -60,10 +73,10 @@ export class ShopTierEvaluationService {
     shopId: string,
     criteria: Partial<TierEvaluationCriteria> = {},
   ): Promise<ShopEvaluationResult | null> {
-    const activeCriteria: TierEvaluationCriteria = {
-      ...DEFAULT_TIER_CRITERIA,
-      ...criteria,
-    };
+    if (!('release' in clientOrPool)) {
+      return withTransaction(clientOrPool as Pool, client => this.evaluateShop(client, shopId, criteria));
+    }
+    const activeCriteria = resolveCriteria(criteria);
 
     const shopRes = await clientOrPool.query<{
       shop_id: string;
@@ -74,7 +87,7 @@ export class ShopTierEvaluationService {
       status: string;
     }>(
       `SELECT shop_id, shop_name, COALESCE(tier, 'STANDARD') as tier, COALESCE(tier_override, false) as tier_override, tier_override_reason, status
-       FROM shops WHERE shop_id = $1`,
+       FROM shops WHERE shop_id = $1 AND status = 'ACTIVE' FOR UPDATE`,
       [shopId],
     );
 
@@ -194,9 +207,11 @@ export class ShopTierEvaluationService {
 
   public async evaluateAllActiveShops(
     criteria: Partial<TierEvaluationCriteria> = {},
+    client: Queryable = this.pool,
   ): Promise<ShopTierEvaluationSummary> {
-    const shopsRes = await this.pool.query<{ shop_id: string }>(
-      "SELECT shop_id FROM shops WHERE status = 'ACTIVE' ORDER BY created_at ASC",
+    criteria = resolveCriteria(criteria);
+    const shopsRes = await client.query<{ shop_id: string }>(
+      "SELECT shop_id FROM shops WHERE status = 'ACTIVE' ORDER BY shop_id ASC",
     );
 
     const results: ShopEvaluationResult[] = [];
@@ -206,7 +221,7 @@ export class ShopTierEvaluationService {
     let skippedCount = 0;
 
     for (const row of shopsRes.rows) {
-      const res = await this.evaluateShop(this.pool, row.shop_id, criteria);
+      const res = await this.evaluateShop(client, row.shop_id, criteria);
       if (!res) continue;
       results.push(res);
       if (res.status === 'PROMOTED') promotedCount += 1;
@@ -223,5 +238,17 @@ export class ShopTierEvaluationService {
       skippedCount,
       results,
     };
+  }
+
+  /** Database lock also excludes overlapping ticks from another API instance. */
+  public async evaluateScheduled(): Promise<ShopTierEvaluationSummary | null> {
+    return withTransaction(this.pool, async client => {
+      const lock = await client.query<{ acquired: boolean }>(
+        "SELECT pg_try_advisory_xact_lock(73103, 1) AS acquired",
+      );
+      if (!lock.rows[0]?.acquired) return null;
+      // ponytail: one transaction for the sweep; batch by shop if lock duration becomes material.
+      return this.evaluateAllActiveShops({}, client);
+    });
   }
 }

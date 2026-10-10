@@ -41,6 +41,7 @@ import { PgBuyerHttpService } from '../../modules/buyer/services/pg-buyer-http.s
 import { createSellerShopRouter } from './routes/seller-shop-routes.ts';
 import { SellerShopService } from '../../modules/shop/services/seller-shop.service.ts';
 import { ShopTierEvaluationService } from '../../modules/shop/services/shop-tier-evaluation.service.ts';
+import { startShopTierWorker } from '../../modules/shop/services/shop-tier-worker.ts';
 import { PgSellerShopRepository } from '../../modules/shop/repositories/pg-seller-shop.repository.ts';
 import { ShopMallRequestService } from '../../modules/shop/services/shop-mall-request.service.ts';
 import { PgShopMallRequestRepository } from '../../modules/shop/repositories/pg-shop-mall-request.repository.ts';
@@ -167,6 +168,7 @@ export function createApp(applications: PlatformApplications = {}): Application 
     orderServices?.transitionOrder,
     tierEvaluator,
     applications.mallRequestService,
+    applications.buyerServices?.loyaltyService,
   ));
   app.use('/api/v1', createMediaRouter(
     auth,
@@ -197,9 +199,14 @@ export interface RuntimeApp {
 /** Runtime composition: one pool, one auth repository and a non-stub JWT verifier. */
 export function createRuntimeApp(
   environment: NodeJS.ProcessEnv = process.env,
-  runtimeOverrides: { pool?: Pool; tokenVerifier?: ITokenVerifier } = {},
+  runtimeOverrides: { pool?: Pool; tokenVerifier?: ITokenVerifier; startShopTierWorker?: boolean } = {},
 ): RuntimeApp {
   const envConfig = validateEnvConfig(environment);
+  const tierInterval = Number(environment.SHOP_TIER_INTERVAL_MS ?? 86_400_000);
+  if (runtimeOverrides.startShopTierWorker && environment.SHOP_TIER_WORKER_ENABLED !== 'false'
+    && (!Number.isSafeInteger(tierInterval) || tierInterval < 1_000 || tierInterval > 2_147_483_647)) {
+    throw new AuthConfigurationError('SHOP_TIER_INTERVAL_MS must be an integer between 1000 and 2147483647');
+  }
   const config = loadDatabaseConfig(environment);
   const ownsPool = runtimeOverrides.pool === undefined;
   const pool = runtimeOverrides.pool ?? createDatabasePool(config);
@@ -244,6 +251,9 @@ export function createRuntimeApp(
   });
   const flashSaleService = new FlashSaleService(pool, getRedisClient());
   flashSaleService.startWorker();
+  const stopShopTierWorker = runtimeOverrides.startShopTierWorker && environment.SHOP_TIER_WORKER_ENABLED !== 'false'
+    ? startShopTierWorker(new ShopTierEvaluationService(pool), tierInterval)
+    : undefined;
 
   const retryEscrowOperation = async <T>(
     operation: () => Promise<T>,
@@ -335,6 +345,7 @@ export function createRuntimeApp(
     }),
     eventPort: sharedEventPort,
     close: async () => {
+      await stopShopTierWorker?.();
       stopAdminCampaignWorker();
       flashSaleService.stopWorker();
       if (ownsPool) await closeDatabasePool(pool);

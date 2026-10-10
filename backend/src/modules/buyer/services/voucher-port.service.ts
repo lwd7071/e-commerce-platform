@@ -50,6 +50,10 @@ export class VoucherPortService implements IVoucherPort {
     buyerId: UUID;
     discountAmount: DecimalString;
   }): Promise<VoucherUsage> {
+    const voucher = await this.voucherRepo.findById(params.voucherId);
+    if (voucher?.loyaltyOwnerId && voucher.loyaltyOwnerId !== params.buyerId) {
+      throw new VoucherNotApplicableError('Voucher DinoPoint chỉ dành cho người đã đổi điểm.');
+    }
     // 1. Giảm số lượt phát hành
     const decremented = await this.voucherRepo.decrementQuantity(params.voucherId);
     if (!decremented) {

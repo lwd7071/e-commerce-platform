@@ -1,5 +1,6 @@
 import { ValidationError, VoucherNotApplicableError } from './errors';
 import type { Voucher, UUID } from './types';
+import { formatCents, parseCents } from '../../loyalty/domain/loyalty.types.ts';
 
 /**
  * [RB-LTT03] start_at < end_at
@@ -125,6 +126,9 @@ export function evaluateVoucher(
   voucher: Voucher,
   context: EvaluateVoucherParams
 ): { isValid: true; voucherId: UUID; discountAmount: string } {
+  if (voucher.loyaltyOwnerId && voucher.loyaltyOwnerId !== context.buyerId) {
+    throw new VoucherNotApplicableError('Voucher DinoPoint chỉ dành cho người đã đổi điểm.');
+  }
   // Validate orderSubtotal trước tiên (RB-MG09)
   if (typeof context.orderSubtotal !== 'string' || !DECIMAL_REGEX.test(context.orderSubtotal.trim())) {
     throw new ValidationError('Giá trị đơn hàng (orderSubtotal) không đúng định dạng số hợp lệ (RB-MG09).', {
@@ -175,12 +179,12 @@ export function evaluateVoucher(
   }
 
   // 6. Tính discountAmount
-  const discountAmount = calculateDiscountAmount(
-    voucher.discountType,
-    voucher.discountValue,
-    voucher.maxDiscount,
-    context.orderSubtotal
-  );
+  const discountAmount = voucher.loyaltyOwnerId && voucher.discountType === 'FIXED'
+    ? formatCents([
+        parseCents(voucher.discountValue), parseCents(context.orderSubtotal),
+        ...(voucher.maxDiscount === null ? [] : [parseCents(voucher.maxDiscount)]),
+      ].reduce((minimum, value) => value < minimum ? value : minimum))
+    : calculateDiscountAmount(voucher.discountType, voucher.discountValue, voucher.maxDiscount, context.orderSubtotal);
 
   return {
     isValid: true,

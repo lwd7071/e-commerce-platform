@@ -3,7 +3,7 @@ import './platform/config/load-root-env.ts';
 
 import { createRuntimeApp } from './platform/http/app.ts';
 
-const runtime = createRuntimeApp(process.env);
+const runtime = createRuntimeApp(process.env, { startShopTierWorker: true });
 const port = Number(process.env.PORT) || 3001;
 const app = runtime.app;
 console.log('[Server] Initialized with PostgreSQL database pool and Supabase auth.');

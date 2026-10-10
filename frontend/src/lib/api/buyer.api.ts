@@ -115,7 +115,11 @@ export const buyerApi = {
   // Loyalty & DinoPoint operations
   getLoyalty: () => apiClient.get<BuyerLoyaltyInfo>("/buyer/loyalty"),
   getLoyaltyHistory: (params?: { page?: number; limit?: number }) => apiClient.get<BuyerLoyaltyHistory>("/buyer/loyalty/history", { params }),
+  getLoyaltyRewards: () => apiClient.get<LoyaltyReward[]>("/buyer/loyalty/rewards"),
+  redeemLoyalty: (key: string) => apiClient.post<Omit<LoyaltyReward, 'quantity'>>("/buyer/loyalty/redeem", { idempotency_key: key }),
 };
+
+export interface LoyaltyReward { voucher_id: string; code: string; end_at: string; quantity: number; expired?: boolean }
 
 export interface BuyerLoyaltyInfo {
   tier: "STANDARD" | "VIP";

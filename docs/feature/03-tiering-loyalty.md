@@ -2,13 +2,13 @@
 
 ## Owner và trạng thái
 
-- Owner: Nhóm Phát triển Sàn Dino E-Commerce.
-- Người phối hợp: Chưa xác định.
-- Trạng thái: Đang review / Nghiệm thu từng phần. Phần C kích hoạt theo yêu cầu, chưa có cron; D (CR-SHOP-02) đã kiểm chứng 3/3 live E2E và migration trên Supabase test riêng, chưa áp dụng trên staging/production chia sẻ. Đổi/thu hồi điểm còn ngoài phạm vi.
+- Owner: NVCuong3112 — Phân hạng Shop/Buyer và DinoPoint.
+- Người phối hợp: Tri Nguyen khi kết nối sự kiện hoàn tiền finance/PayOS.
+- Trạng thái: Đang review / Nghiệm thu từng phần. C có worker định kỳ 24 giờ; D (Dino Mall) và E (đổi/thu hồi điểm, CR-LOYALTY-03) đã có browser live PASS trên Supabase test riêng. Chưa merge/deploy production; thu hồi sau hoàn tiền hiện do Admin ghi nhận đối soát, chưa có callback PayOS cho đơn COMPLETED.
 - Cập nhật lần cuối: 2026-10-11.
 - Nhánh / PR / commit: Nhánh `feat/yeu-cau-nang-hang-dino-mall` (CR-SHOP-02 Seller Yêu cầu nâng hạng Dino Mall); đối chiếu nhánh cơ sở `codex/tiering-loyalty`.
 - [Nhánh GitHub](https://github.com/lwd7071/e-commerce-platform/tree/feat/yeu-cau-nang-hang-dino-mall).
-- Kiểm chứng mới: 22 migrations trên project test riêng; schema/Mall/loyalty database 32/32 PASS; ba hành trình Dino Mall live 3/3 PASS (không mock). CI backend/frontend quality PASS tại `490a3ed`; [bằng chứng và giới hạn](../test-mvp/dino-mall-live.md). [PR #14](https://github.com/lwd7071/e-commerce-platform/pull/14) vẫn draft, chưa merge.
+- Kiểm chứng mới: 23 migrations trên project test riêng; schema/Mall/loyalty database 39/39 PASS; thêm ca browser đổi/thu hồi điểm cùng ba ca Dino Mall không mock. Frontend 416/416, backend native 801/801 PASS. CI trước lượt bổ sung PASS tại `83aa931`; không suy ra PASS cho commit mới. [Bằng chứng và giới hạn](../test-mvp/dino-loyalty-extension-live.md). [PR #14](https://github.com/lwd7071/e-commerce-platform/pull/14) vẫn draft, chưa merge.
 
 ## Mục tiêu và phạm vi
 
@@ -19,13 +19,14 @@ Buyer và Shop có các cơ chế phân hạng riêng: Buyer tự lên VIP khi �
 | Bước 0 | Nối xác nhận nhận hàng và kiểm tra Shipment | Handler đã nối trong runtime; yêu cầu Order SHIPPING, Shipment tồn tại và có trạng thái SHIPPING hoặc DELIVERED |
 | A — Shop | STANDARD / PREFERRED / MALL; Admin quản lý, audit, badge và bộ lọc | Có migration, API đổi hạng, metadata override, UI Admin, badge danh sách/chi tiết và bộ lọc catalog |
 | B — Buyer | STANDARD / VIP, tự lên VIP từ 5 triệu, tích DinoPoint | Có hook transaction, ledger chống trùng, API summary/history và thẻ thành viên Profile |
-| C — Shop tự xét | Xét PREFERRED và ưu tiên hạng trong catalog mặc định | Có service và API Admin kích hoạt xét; chưa có cron. Catalog mặc định ưu tiên MALL → PREFERRED → STANDARD |
+| C — Shop tự xét | Xét PREFERRED và ưu tiên hạng trong catalog mặc định | Service/API Admin, worker lúc khởi động và mỗi 24 giờ; khóa Shop và advisory lock chống sweep trùng. Catalog mặc định ưu tiên MALL → PREFERRED → STANDARD |
 | D — Mall Request | Seller gửi yêu cầu nâng hạng Mall, Admin thẩm định duyệt/từ chối (CR-SHOP-02) | Có migration, partial unique index, FK RESTRICT, RLS revoke, transaction nguyên tử độc lập, lock order chống deadlock, UI Seller/Admin và E2E browser |
+| E — Đổi/thu hồi điểm | 100 điểm đổi voucher 10.000đ; thu hồi sau hoàn tiền thành công | Voucher riêng một lần/30 ngày/đơn từ 100.000đ; API/UI Buyer và Admin, idempotency, rollback/audit, điểm âm và giữ VIP; không chuyển tiền |
 
 - Phạm vi A/B và P0-1 đến P0-8 được chủ dự án đồng ý trong phiên làm việc. P0-9 được mô tả riêng bên dưới.
 - Phần D triển khai theo Change Request được duyệt: `docs/spec/changes/CR-SHOP-02-mall-tier-upgrade-request.md`.
-- Ngoài phạm vi: backfill đơn cũ, đổi điểm/voucher, refund/thu hồi điểm, ví/escrow và chat.
-- Chưa triển khai: lịch chạy tự xét định kỳ cho phần C, API bỏ override và capability `loyalty` riêng.
+- Ngoài phạm vi: backfill đơn cũ, chuyển tiền hoàn qua provider, ví/escrow và chat.
+- Chưa triển khai: API bỏ override, capability `loyalty` riêng và callback thu hồi tự động từ provider. Quy tắc E và lịch C đã được chủ dự án duyệt bổ sung ngày 11/10/2026 tại [CR-LOYALTY-03](../spec/changes/CR-LOYALTY-03-redemption-refunds-scheduler.md).
 
 ## Đã thực hiện
 
@@ -56,12 +57,13 @@ Buyer và Shop có các cơ chế phân hạng riêng: Buyer tự lên VIP khi �
 - Profile Buyer có `BuyerLoyaltyCard`. Frontend types có tại `frontend/src/lib/api/generated/openapi.ts`.
 - Bằng chứng: `backend/src/modules/loyalty/domain/loyalty.types.ts`, `backend/src/modules/loyalty/services/loyalty.service.ts`, `backend/src/platform/http/routes/buyer-routes.ts`, `frontend/src/features/profile/loyalty-card.tsx`.
 
-### C — Xét PREFERRED theo yêu cầu và ưu tiên catalog
+### C — Xét PREFERRED theo yêu cầu/định kỳ và ưu tiên catalog
 
 - `ShopTierEvaluationService` dùng mặc định: ≥20 đơn COMPLETED, rating trung bình ≥4,5 và ≥5 review VISIBLE. Thống kê toàn bộ dữ liệu, không giới hạn 30 ngày.
 - Đủ cả ba điều kiện: STANDARD → PREFERRED. Không đủ: PREFERRED → STANDARD ngay khi xét; chưa có ngưỡng hạ 4,0 hoặc thời gian chờ.
-- Bỏ qua Shop MALL và `tier_override = true` khi đọc Shop. Batch chỉ chọn ACTIVE; xét một Shop theo ID chưa kiểm tra ACTIVE.
-- `POST /api/v1/admin/shops/evaluate-tiers` yêu cầu ADMIN. Body có thể chứa `shop_id` và `criteria`; không có `shop_id` thì xét toàn bộ ACTIVE. Không có scheduler hoặc hook tự chạy sau đơn/review.
+- Bỏ qua Shop MALL và `tier_override = true` sau khi khóa Shop FOR UPDATE trong transaction. Batch và single-Shop chỉ xét ACTIVE, không ghi đè thay đổi hạng Admin đồng thời.
+- `POST /api/v1/admin/shops/evaluate-tiers` yêu cầu ADMIN. Body có thể chứa `shop_id` và `criteria`; không có `shop_id` thì xét toàn bộ ACTIVE. Ngưỡng được kiểm tra kiểu/phạm vi. Server bật worker lúc khởi động và mỗi 24 giờ, không phải hook sau mỗi đơn/review hoặc cron cố định 00:00.
+- Worker chống chồng lượt trong tiến trình và giữa các tiến trình bằng advisory transaction lock; rollback sweep khi lỗi, retry lượt sau; shutdown chờ sweep đang chạy. Biến `SHOP_TIER_WORKER_ENABLED=false` tắt; `SHOP_TIER_INTERVAL_MS` đổi chu kỳ. Chỉ chạy khi backend hoạt động.
 - Catalog mặc định xếp MALL → PREFERRED → STANDARD, tiếp theo `created_at DESC`, `product_id ASC`. Sort tường minh giữ thứ tự theo giá/mới nhất.
 - Catalog hiện mã hóa cursor chứa offset, không phải cursor chứa khóa hạng/thời gian/ID. Dữ liệu thay đổi có thể làm dịch chuyển kết quả giữa các trang.
 - Bằng chứng: `backend/src/modules/shop/services/shop-tier-evaluation.service.ts`, `backend/src/platform/http/routes/admin-routes.ts`, `backend/src/platform/http/app.ts`, `backend/src/modules/catalog/repositories/pg-catalog.repository.ts`, `backend/test/platform/shop-tier-evaluation.spec.ts`.
@@ -98,11 +100,11 @@ Buyer và Shop có các cơ chế phân hạng riêng: Buyer tự lên VIP khi �
 - DEFAULT giúp insert/dữ liệu cũ nhận hạng mặc định, nhưng không chứng minh toàn bộ tương thích: truy vấn mới cần migration trước khi chạy. Không backfill tổng/điểm từ đơn cũ.
 - Migration forward-only; chưa xác minh lại trạng thái apply database ở lượt cập nhật tài liệu này.
 - Khác biệt cần theo dõi so với kế hoạch:
-  - Ledger thực tế chỉ lưu user, điểm, order tham chiếu, reason và thời gian; chưa có `eligible_amount`/`multiplier` để đối soát độc lập.
+  - Ledger có snapshot eligible_spent_amount cho đơn hoàn tất mới, operation_key/voucher_id và refunded_eligible_amount theo CR-LOYALTY-03. Không lưu multiplier riêng; điểm gốc lấy trực tiếp từ ledger đã thưởng.
   - FK ledger hiện dùng CASCADE với user và SET NULL với order; chưa phải RESTRICT như thiết kế mong muốn. Chưa có constraint bắt buộc order cho ORDER_COMPLETED hoặc giới hạn reason.
   - API đổi hạng chưa hỗ trợ `clear_override`; không mô tả chức năng bỏ override là đã có.
-  - Evaluation C dùng nhiều query qua pool, chưa có transaction/audit nguyên tử hoặc khóa Shop; không khẳng định bảo vệ MALL/override trước mọi race condition.
-  - `criteria` được route ép kiểu, chưa có validation đầy đủ các ngưỡng. Chưa có cron, UI kích hoạt đánh giá hoặc capability loyalty riêng.
+  - Evaluation C có transaction và khóa Shop; sweep định kỳ có advisory lock. Chưa có bảng audit riêng cho thay đổi hạng tự động; audit hạng thủ công vẫn theo service Admin hiện có.
+  - `criteria` được service kiểm tra số nguyên cho counts và rating hữu hạn 0–5. Đã có worker định kỳ; chưa có UI kích hoạt thủ công hoặc capability loyalty riêng.
   - Việc xác minh hồ sơ chính hãng là quy trình Admin, API hiện chỉ kiểm tra tier/lý do, không tự xác thực chứng từ.
 
 ### Phân tích thực tế Pipeline Migration trong GitHub Actions (`.github/workflows/ci.yml`)
@@ -116,12 +118,14 @@ Buyer và Shop có các cơ chế phân hạng riêng: Buyer tự lên VIP khi �
      `github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')`.
 3. **Hiện trạng kích hoạt CI trên nhánh tính năng:**
    - Trình kích hoạt workflow (`ci.yml`) chỉ lắng nghe sự kiện push trên `main`, `dev` và pull_request vào `main`, `dev`.
-   - Do nhánh `feat/yeu-cau-nang-hang-dino-mall` chưa mở Pull Request vào `dev`/`main`, GitHub Actions **chưa có lượt chạy (workflow run)** nào cho commit của nhánh. Báo cáo không ghi nhận CI PASS từ xa khi chưa có kết quả run tương ứng từ GitHub Actions.
+   - Draft PR #14 đã mở vào dev, CI đã có các lượt chạy. Kết quả phải gắn đúng commit/run; không suy ra PASS của commit mới từ run cũ. Theo [báo cáo kiểm chứng bổ sung](../test-mvp/dino-loyalty-extension-live.md).
 4. **Môi trường Production:**
    - File CI workflow hoàn toàn không có job tự động migrate vào database Production (quy trình bảo vệ dữ liệu sản xuất).
    - Do đó, mức độ nghiệm thu hiện tại được xác định chuẩn xác là **Nghiệm thu từng phần (Partial Acceptance)**.
 
-## Kiểm tra và kết quả
+## Kiểm tra và kết quả lịch sử trước lần bổ sung 11/10/2026
+
+Kết quả hiện tại của C/E và chạy lại D nằm trong [báo cáo đổi/thu hồi điểm](../test-mvp/dino-loyalty-extension-live.md); bảng dưới lưu kết quả đợt trước, không thay thế lượt chạy mới.
 
 Cập nhật ngày 2026-10-10: Đã thực thi và kiểm chứng tính năng D (CR-SHOP-02) qua các tầng kiểm thử cụ thể:
 
@@ -145,19 +149,20 @@ Cập nhật ngày 2026-10-10: Đã thực thi và kiểm chứng tính năng D 
 ## An toàn và tình huống lỗi
 
 - API loyalty lấy user từ auth context; endpoint Admin có RBAC. Seller không được sửa tier qua endpoint hồ sơ Shop.
-- Ledger có partial unique index và RLS/revoke. Nhật ký trước ghi test quyền anon/authenticated; lượt này không kết nối database để xác nhận môi trường triển khai.
+- Ledger có partial unique index, operation key unique và RLS/revoke. Quyền anon/authenticated được kiểm chứng trên PostgreSQL test riêng.
 - Khi lỗi loyalty trong transaction hoàn tất đơn, transaction phải rollback cả Order/Shipment/lịch sử/số dư/ledger; test PostgreSQL có kịch bản này.
-- Chưa có hoàn/thu hồi điểm khi refund. Chưa có cơ chế đổi điểm.
-- Rủi ro C cần review: race giữa Admin đổi hạng và evaluation; chưa audit thao tác evaluation; single-shop không guard ACTIVE; ngưỡng tùy chỉnh chưa validation đầy đủ; offset pagination trên dữ liệu biến động.
+- Đổi điểm và thu hồi theo khoản hoàn đã thành công có transaction/idempotency/audit; điểm âm được phép, chi tiêu không âm, VIP đã đạt được giữ. Chưa có callback chuyển tiền/hoàn tiền tự động từ PayOS.
+- Giới hạn C: sweep một transaction có thể giữ khóa lâu; chưa audit riêng cho từng thay đổi tự động; offset pagination trên dữ liệu biến động. MALL/override và ACTIVE đã được bảo vệ trong transaction, criteria đã validation.
 
 ## Việc còn lại và blocker
 
-- [ ] Hoàn thiện/ghi nhận CR và tiêu chí C được duyệt, đối chiếu các khác biệt schema/API ở trên — Owner: Chưa xác định — Dự kiến: Chưa xác định.
-- [ ] Chốt C chỉ kích hoạt theo yêu cầu hay chạy định kỳ; nếu định kỳ cần lịch và cơ chế vận hành — Owner: Chưa xác định — Dự kiến: Chưa xác định.
+- [x] Ghi nhận CR-LOYALTY-03 và quy tắc bổ sung được duyệt; đồng bộ schema/API/types/UI/tài liệu.
+- [x] Chốt C chạy định kỳ: bật lúc server khởi động và mỗi 24 giờ; có cấu hình tắt/đổi chu kỳ, retry và shutdown.
 - [ ] Review bảo vệ hạng thủ công, validation, audit và concurrency của evaluation — Owner: Chưa xác định — Dự kiến: Chưa xác định.
-- [ ] Cung cấp database test độc lập và migration tương ứng trước nghiệm thu toàn bộ — Owner: Chưa xác định — Dự kiến: Chưa xác định.
-- [ ] Chạy hai hành trình Playwright thật, không skip; chạy lại gates trên phiên bản cuối — Owner: Chưa xác định — Dự kiến: Chưa xác định.
-- Blocker theo báo cáo trước: database dùng chung, full Vitest chưa đạt, browser E2E thiếu live env. Trạng thái môi trường hiện tại chưa được xác minh lại.
+- [x] Supabase test riêng và migrations đã xác minh; không tác động database dùng chung.
+- [x] Ba ca Dino Mall live và một ca đổi/thu hồi điểm live PASS; theo báo cáo bổ sung để đối chiếu lượt chạy/gates cuối.
+- [ ] Kết nối sự kiện hoàn tiền thành công từ finance/PayOS khi provider có hợp đồng cho đơn COMPLETED — Owner phối hợp: Tri Nguyen và NVCuong3112 — Dự kiến: Chờ chốt hợp đồng.
+- Blocker môi trường test Dino Mall cũ đã xử lý. PR còn draft; migration chưa áp dụng staging/production; không coi việc kiểm chứng test riêng là đã phát hành.
 
 ## Nhật ký cập nhật
 

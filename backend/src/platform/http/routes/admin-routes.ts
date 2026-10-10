@@ -12,6 +12,7 @@ import type { OrderQueryService } from '../../../modules/order/services/order-qu
 import type { ShopMallRequestService } from '../../../modules/shop/services/shop-mall-request.service.ts';
 import type { ShopMallRequestStatus } from '../../../modules/shop/domain/shop-mall-request.types.ts';
 import type { ShopTierEvaluationService, TierEvaluationCriteria } from '../../../modules/shop/services/shop-tier-evaluation.service.ts';
+import type { LoyaltyService } from '../../../modules/loyalty/services/loyalty.service.ts';
 
 type AsyncRoute = (req: Request, res: Response, next: NextFunction) => Promise<void>;
 
@@ -54,8 +55,14 @@ export function createAdminRouter(
   orderTransition?: (ctx: RequestContext, orderId: string, input: Record<string, unknown>) => Promise<unknown>,
   tierEvaluator?: ShopTierEvaluationService,
   mallRequestService?: Pick<ShopMallRequestService, 'listAdminRequests' | 'approveRequest' | 'rejectRequest'>,
+  loyaltyService?: LoyaltyService,
 ): Router {
   const router = Router();
+  router.post('/admin/orders/:id/loyalty-refunds', ...guards(auth, 'ADMIN'), asyncRoute(async (req, res) => {
+    if (!loyaltyService) throw new NotFoundError('Loyalty service is not configured');
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(req.params.id))) throw new ValidationFailedError('Invalid order ID');
+    res.json(buildSuccessEnvelope(await loyaltyService.recordConfirmedRefund(context(req).user_id, String(req.params.id).toLowerCase(), req.body ?? {}), requestId(req)));
+  }));
 
   router.get('/admin/stats', ...guards(auth, 'ADMIN'), asyncRoute(async (req, res) => {
     if (!reads) throw new NotFoundError('Admin reporting handler is not configured');

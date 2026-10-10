@@ -295,6 +295,25 @@ export function generateOpenApiSpec(): OpenApiSpec {
           },
         },
       },
+      '/buyer/loyalty/rewards': {
+        get: { summary: 'List the authenticated Buyer’s redeemed vouchers', security: [{ BearerAuth: [] }],
+          responses: { '200': successResponse('Private reward vouchers'), '401': errorResponse('Authentication required'), '403': errorResponse('Buyer role required') } },
+      },
+      '/buyer/loyalty/redeem': {
+        post: { summary: 'Redeem 100 DinoPoint for one private 10,000 VND voucher; retries reuse the UUID key', security: [{ BearerAuth: [] }],
+          requestBody: jsonRequest({ type: 'object', required: ['idempotency_key'], additionalProperties: false, properties: { idempotency_key: { type: 'string', format: 'uuid' } } }),
+          responses: { '201': successResponse('Redeemed voucher'), '401': errorResponse('Authentication required'), '403': errorResponse('Buyer role required'), '409': errorResponse('Insufficient points'), '422': errorResponse('Invalid key') } },
+      },
+      '/admin/orders/{id}/loyalty-refunds': {
+        post: { summary: 'Record an already successful refund and atomically reverse loyalty; does not transfer money', security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: jsonRequest({ type: 'object', required: ['eligible_amount', 'reference', 'reason'], additionalProperties: false, properties: {
+            eligible_amount: { type: 'string', description: 'Refunded eligible goods amount after discounts, excluding shipping; incremental amount, decimal VND' },
+            reference: { type: 'string', minLength: 5, maxLength: 160, description: 'Unique reference for the successful refund; retries must retain amount and order' },
+            reason: { type: 'string', minLength: 5, maxLength: 1000 },
+          } }),
+          responses: { '200': successResponse('Loyalty adjustment, negative points_delta and inserted flag'), '401': errorResponse('Authentication required'), '403': errorResponse('Admin role required'), '404': errorResponse('Order not found'), '409': errorResponse('Refund exceeds accrual or reference conflicts'), '422': errorResponse('Invalid refund evidence') } },
+      },
       '/buyer/loyalty/history': {
         get: {
           summary: 'Get paginated buyer DinoPoint transaction history',

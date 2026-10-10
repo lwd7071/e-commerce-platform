@@ -478,6 +478,14 @@ export function createBuyerDomainRouter(
 
   router.get('/buyer/loyalty', ...guards(auth, 'BUYER'), handleGetLoyalty);
   router.get('/buyer/loyalty/history', ...guards(auth, 'BUYER'), handleGetLoyaltyHistory);
+  router.get('/buyer/loyalty/rewards', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
+    if (!loyaltyService) throw new NotImplementedError('Loyalty service is not configured');
+    res.json(buildSuccessEnvelope(await loyaltyService.listRewards(context(req).user_id), requestId(req)));
+  }));
+  router.post('/buyer/loyalty/redeem', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
+    if (!loyaltyService) throw new NotImplementedError('Loyalty service is not configured');
+    res.status(201).json(buildSuccessEnvelope(await loyaltyService.redeem(context(req).user_id, req.body?.idempotency_key), requestId(req)));
+  }));
 
   return router;
 }

@@ -1,6 +1,6 @@
 # Kiểm chứng Dino Mall nối hệ thống thật
 
-## Trạng thái hiện tại ngày 11/10/2026
+## Kết quả Dino Mall ngày 11/10/2026 trước lượt bổ sung loyalty
 
 Project Supabase test riêng `tejmnwemsnosolidkvqb` đã xác minh và áp dụng đủ 22 migrations. Schema smoke, Seller Mall và Tiering & Loyalty chạy trên database này: **32/32 PASS**. Đăng nhập Supabase thật và API `/auth/me` trả 200, đúng vai trò SELLER. Secrets lưu ngoài Git. Live browser **3/3 PASS, 0 skipped** trên Chrome, frontend/backend local kết nối Supabase test thật, không mock Auth/API hoặc tier trong storage.
 
@@ -12,7 +12,7 @@ Project Supabase test riêng `tejmnwemsnosolidkvqb` đã xác minh và áp dụn
 
 Lệnh chạy từ frontend: `PLAYWRIGHT_CHANNEL=chrome npx playwright test e2e/seller-mall-request-connected-live.spec.ts` với môi trường test riêng đã nạp (PowerShell đặt biến qua `$env:PLAYWRIGHT_CHANNEL='chrome'`). Tổng 1.2 phút, exit code 0. Đã sửa selector ba ô hồ sơ theo accessible name của textbox; exact label trước đó bị dấu bắt buộc gây timeout. ESLint file E2E PASS. Các lần timeout trước là FAIL, không được tính vào lần PASS này. Fixture đã thay đổi trạng thái thật; cần tạo bộ fixture mới cho lần chạy sau.
 
-Phạm vi bằng chứng: ba hành trình Dino Mall và 32 ca database liên quan. Runtime local còn báo lỗi worker Flash Sale vì thiếu Redis; không suy ra Flash Sale local đã hoạt động. Các tính năng ngoài phạm vi như đổi/thu hồi điểm vẫn chưa triển khai. Giữ nghiệm thu từng phần của báo cáo tổng và chờ review PR; kết quả live Dino Mall đã được kiểm chứng.
+Phạm vi bằng chứng tại lượt chạy này: ba hành trình Dino Mall và 32 ca database liên quan. Runtime local còn báo lỗi worker Flash Sale vì thiếu Redis; không suy ra Flash Sale local đã hoạt động. Đổi/thu hồi điểm và lịch PREFERRED đã được triển khai trong lượt bổ sung tiếp theo, xem [báo cáo mới](dino-loyalty-extension-live.md). Giữ nghiệm thu từng phần của báo cáo tổng và chờ review PR; kết quả live Dino Mall đã được kiểm chứng.
 
 CI [38072400039](https://github.com/lwd7071/e-commerce-platform/actions/runs/38072400039) tại commit `490a3ed`: backend và frontend quality **PASS**; các job remote Supabase bị SKIPPED theo điều kiện workflow, không coi là PASS. PR #14 vẫn draft, chưa merge.
 

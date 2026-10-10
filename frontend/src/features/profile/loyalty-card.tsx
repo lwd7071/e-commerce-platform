@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { buyerApi, type BuyerLoyaltyInfo, type BuyerLoyaltyHistory } from "@/lib/api/buyer.api";
+import React, { useEffect, useRef, useState } from "react";
+import { buyerApi, type BuyerLoyaltyInfo, type BuyerLoyaltyHistory, type LoyaltyReward } from "@/lib/api/buyer.api";
+import { Button } from "@/components/ui/button";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
 import { TierBadge } from "@/components/ui/tier-badge";
 import { Icon } from "@/components/ui/icon";
@@ -23,6 +24,30 @@ export function BuyerLoyaltyCard({
   const [selfHistory, setSelfHistory] = useState<BuyerLoyaltyHistory | null>(null);
   const [selfLoading, setSelfLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [fresh, setFresh] = useState<{ source: BuyerLoyaltyInfo | null | undefined } | null>(null);
+  const [rewards, setRewards] = useState<LoyaltyReward[]>([]);
+  const [redeeming, setRedeeming] = useState(false);
+  const [rewardError, setRewardError] = useState<string | null>(null);
+  const redeemKey = useRef<string | null>(null);
+  useEffect(() => {
+    if (typeof buyerApi.getLoyaltyRewards !== 'function') return;
+    let active = true;
+    buyerApi.getLoyaltyRewards().then(rows => { if (active) setRewards(rows); })
+      .catch(() => { if (active) setRewardError('Không tải được voucher đã đổi. Hãy tải lại trang để thử lại.'); });
+    return () => { active = false; };
+  }, []);
+  const redeem = async () => {
+    if (redeeming) return;
+    setRedeeming(true); setRewardError(null);
+    redeemKey.current ??= crypto.randomUUID();
+    try {
+      await buyerApi.redeemLoyalty(redeemKey.current);
+      const [info, transactions, vouchers] = await Promise.all([buyerApi.getLoyalty(), buyerApi.getLoyaltyHistory(), buyerApi.getLoyaltyRewards()]);
+      setSelfLoyalty(info); setSelfHistory(transactions); setRewards(vouchers); setFresh({ source: initialLoyalty });
+      redeemKey.current = null;
+    } catch (cause) { setRewardError(cause instanceof Error ? cause.message : 'Không đổi được voucher.'); }
+    finally { setRedeeming(false); }
+  };
 
   useEffect(() => {
     // Nếu dữ liệu đã được cung cấp từ tầng điều phối trang thì không fetch lại
@@ -50,8 +75,9 @@ export function BuyerLoyaltyCard({
     return () => { active = false; };
   }, [hasExternalData]);
 
-  const loyalty = hasExternalData ? (initialLoyalty ?? null) : selfLoyalty;
-  const history = hasExternalData ? (initialHistory ?? null) : selfHistory;
+  const useExternal = hasExternalData && (fresh === null || fresh.source !== initialLoyalty);
+  const loyalty = useExternal ? (initialLoyalty ?? null) : selfLoyalty;
+  const history = useExternal ? (initialHistory ?? null) : selfHistory;
   const isLoading = hasExternalData ? Boolean(externalLoading) : selfLoading;
 
 
@@ -131,6 +157,16 @@ export function BuyerLoyaltyCard({
         </p>
       </div>
 
+      <section className="space-y-3" aria-label="Đổi DinoPoint">
+        <h3 className="font-semibold">Đổi điểm lấy voucher</h3>
+        <p className="text-sm text-[var(--subtext)]">100 DinoPoint đổi voucher giảm 10.000đ cho đơn từ 100.000đ. Dùng một lần, hạn 30 ngày, chỉ dành cho bạn.</p>
+        <Button onClick={() => void redeem()} disabled={redeeming || loyalty.loyalty_points < 100}>{redeeming ? 'Đang đổi…' : 'Đổi 100 điểm lấy voucher'}</Button>
+        {loyalty.loyalty_points < 0 && <p className="text-sm">Điểm đã thu hồi sau hoàn tiền. Điểm tích lũy mới sẽ bù số dư này; hiện chưa thể đổi thưởng.</p>}
+        {rewardError && <p role="alert" className="text-sm text-[var(--danger)]">{rewardError}</p>}
+        <ul className="space-y-2">{rewards.map(reward => <li key={reward.voucher_id} className="rounded-lg border border-[var(--border)] p-3 text-sm break-all">
+          <code>{reward.code}</code> · {reward.quantity === 0 ? 'Đã sử dụng' : reward.expired ? 'Hết hạn' : 'Chưa sử dụng'} · Hạn {new Date(reward.end_at).toLocaleDateString('vi-VN')}
+        </li>)}</ul>
+      </section>
       {/* Points History Ledger */}
       <div className="space-y-3 pt-2">
         <h3 className="font-semibold text-base text-[var(--foreground)]">Lịch sử tích điểm gần đây</h3>
@@ -162,13 +198,13 @@ export function BuyerLoyaltyCard({
                       })}
                     </td>
                     <td className="py-2.5 px-3 font-medium text-[var(--foreground)]">
-                      {item.reason === "ORDER_COMPLETED" ? "Hoàn tất đơn hàng" : item.reason}
+                      {item.reason === "ORDER_COMPLETED" ? "Hoàn tất đơn hàng" : item.reason === 'ORDER_REFUND' ? 'Thu hồi sau hoàn tiền' : item.reason === 'POINTS_REDEEMED' ? 'Đổi voucher' : item.reason}
                     </td>
                     <td className="py-2.5 px-3 font-mono text-xs text-[var(--subtext)]">
                       {item.reference_order_id ? `#${item.reference_order_id.slice(0, 8)}` : "—"}
                     </td>
-                    <td className="py-2.5 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                      +{item.points_delta}
+                    <td className={`py-2.5 px-3 text-right font-bold whitespace-nowrap ${item.points_delta < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                      {item.points_delta > 0 ? '+' : ''}{item.points_delta}
                     </td>
                   </tr>
                 ))}
