@@ -20,7 +20,7 @@ Frontend/backend local, NEXT_PUBLIC_USE_MOCK=false, Chrome thật. Tài khoản 
 | Live Dino Mall regression (lượt cuối) | 3/3 PASS: 22,9 giây; 21,9 giây; 13,7 giây |
 | Live đổi điểm → Admin ghi nhận hoàn → Buyer điểm âm (lượt cuối) | 1/1 PASS, 24,4 giây; tổng cùng Dino Mall 4/4 PASS, 0 skipped, 1,5 phút, exit 0 |
 | Lint/typecheck/build hai phía, Prisma validate, API types check | PASS |
-| CI | Run 38074500929 PASS tại 83aa931 trước lượt bổ sung; theo PR để xem đúng commit mới, không suy ra PASS từ run cũ |
+| CI | Run 38074500929 PASS tại 83aa931 trước lượt bổ sung. Lượt 38076880019 tại 15b999d lỗi typecheck trong assertion voucher mới; đã sửa assertion kiểm tra cả isValid/discountAmount, chạy lại typecheck/lint local. Theo PR để xem kết quả đúng commit sửa, không suy ra PASS từ run cũ |
 
 Lượt database đầu có 38 PASS, 1 FAIL: giá trị -0 tại ca hoàn một phần. Đã sửa tính delta để trả 0 chuẩn; ca này chạy riêng lại PASS (23 ca khác không được chọn). Sau đó chạy lại cả bộ; không che lần FAIL thành PASS. Lượt browser đầu ca loyalty FAIL do selector tìm riêng “100” thay vì text thật “100 điểm”; sau sửa ca chạy thật PASS. Ba ca Dino Mall trong lượt đầu đều PASS.
 

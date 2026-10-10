@@ -665,7 +665,7 @@ dbDescribe('Tiering & Loyalty Integration (Real PostgreSQL)', { timeout: 60_000,
       const lifetime = await pool.query<{ seconds: string }>('SELECT EXTRACT(epoch FROM (end_at-start_at))::text AS seconds FROM vouchers WHERE voucher_id=$1', [reward.voucher_id]);
       expect(Number(lifetime.rows[0].seconds)).toBe(30 * 24 * 60 * 60);
       await pool.query('UPDATE vouchers SET max_discount=5000 WHERE voucher_id=$1', [reward.voucher_id]);
-      expect((await vouchers.evaluateVoucher(input)).discountAmount).toBe('5000.00');
+      expect(await vouchers.evaluateVoucher(input)).toMatchObject({ isValid: true, discountAmount: '5000.00' });
       await pool.query('UPDATE vouchers SET max_discount=NULL WHERE voucher_id=$1', [reward.voucher_id]);
       expect(await new PgVoucherRepository(pool).listActive()).toHaveLength(0);
       const order = await createOrder();
