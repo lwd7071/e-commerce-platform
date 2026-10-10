@@ -24,6 +24,7 @@
     "db:ci:migrate": "tsx scripts/deploy-migrations.ts",
     "db:seed:dev-categories": "tsx scripts/seed-development-categories.ts",
     "db:seed:demo-products": "tsx scripts/seed-demo-products.ts",
+    "db:seed:comprehensive": "tsx scripts/seed-comprehensive-demo.ts",
     "db:e2e:reset": "tsx scripts/reset-e2e-fixtures.ts",
     "db:media:cleanup": "tsx scripts/cleanup-expired-media.ts",
     "db:storage:deploy": "tsx scripts/deploy-storage-policies.ts",

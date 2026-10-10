@@ -15,7 +15,7 @@ import {
 } from "./catalog-query-engine";
 
 type SortOption = "created_at_desc" | "price_asc" | "price_desc";
-const PRICE_SLIDER_MAX = 500_000_000;
+const PRICE_SLIDER_MAX = 100_000_000;
 const PRICE_SLIDER_STEP = 100_000;
 const vndFormatter = new Intl.NumberFormat("vi-VN");
 
@@ -384,7 +384,39 @@ export function CatalogListScreen({
                   aria-label="Giá cao nhất"
                 />
               </div>
-            {(minPrice || maxPrice) && (
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <label className="field-stack text-xs">
+                  <span className="field-label text-xs">Giá từ (₫)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={minPrice}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setMinPrice(value);
+                      if (value && maxPrice && Number(value) > Number(maxPrice)) setMaxPrice(value);
+                    }}
+                    className="form-control min-h-[44px] h-11 px-2.5 text-xs"
+                    aria-label="Giá thấp nhất"
+                  />
+                </label>
+                <label className="field-stack text-xs">
+                  <span className="field-label text-xs">Đến (₫)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={maxPrice}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setMaxPrice(value);
+                      if (value && minPrice && Number(value) < Number(minPrice)) setMinPrice(value);
+                    }}
+                    className="form-control min-h-[44px] h-11 px-2.5 text-xs"
+                    aria-label="Giá cao nhất"
+                  />
+                </label>
+              </div>
+              {(minPrice || maxPrice) && (
               <button
                 type="button"
                 onClick={() => { setMinPrice(""); setMaxPrice(""); }}
