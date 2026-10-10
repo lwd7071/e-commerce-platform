@@ -188,6 +188,19 @@ Lượt cập nhật tài liệu này chỉ đọc code/migration/test và lịc
   - Viết kiểm thử frontend `frontend/test/buyer-loyalty-card.spec.tsx` (2/2 tests pass).
   - Toàn bộ 720 tests backend (199 suites) và 326 tests frontend (67 files) đạt 100% PASS; typecheck, lint, build backend/frontend và contract check đều 100% PASS.
 
+### 2026-10-10 (Đợt D - Yêu cầu nâng hạng Dino Mall & Xét duyệt Admin - CR-SHOP-02)
+
+- Đã làm:
+  - Tạo migration `backend/prisma/migrations/20261011100000_shop_mall_requests/migration.sql` bổ sung bảng `shop_mall_requests` với khóa ngoại RESTRICT, partial unique index `uq_shop_mall_requests_pending_per_shop`, kiểm tra định dạng `document_url` (`^https?://`), bật RLS và thu hồi quyền từ public/anon/authenticated.
+  - Triển khai domain types, repository (`PgShopMallRequestRepository`), idempotency transactional claim và service (`ShopMallRequestService`).
+  - Hiện thực hóa transaction nguyên tử duy nhất cho `approveRequest` và `rejectRequest`: khóa hàng theo thứ tự `shops` -> `shop_mall_requests` chống Deadlock, cập nhật `shops.tier = 'MALL'`, `shops.tier_override = true`, ghi `moderation_records` và `admin_logs` cùng transaction; rollback 100% nếu audit log thất bại.
+  - Thêm các route Seller (`POST/GET /seller/shop/mall-requests`, `POST /seller/shop/mall-requests/:id/cancel`) và Admin (`GET /admin/shops/mall-requests`, `POST /admin/shops/mall-requests/:id/approve`, `POST /admin/shops/mall-requests/:id/reject`).
+  - Đăng ký route Admin trước route động `/admin/shops/:id` để ngăn chặn xung đột route Express.
+  - Bổ sung schema và path specs trong OpenAPI `backend/src/platform/openapi/openapi-spec.ts`, cập nhật TypeScript types client frontend (`frontend/src/lib/api/generated/openapi.ts`).
+  - Cập nhật giao diện Seller (`SellerShopScreen`) và Admin (`AdminShopsScreen`): thêm form nộp hồ sơ, danh sách duyệt kèm dialog ghi chú/lý do bắt buộc, và nút làm mới dữ liệu.
+  - Xây dựng bộ test đơn vị và tích hợp backend `backend/test/platform/seller-mall-request.spec.ts` (14/14 tests pass), kiểm thử frontend vitest pass 100%, typecheck và eslint (với `--max-warnings=0`) 0 lỗi.
+  - Lập tài liệu Change Request được duyệt: `docs/spec/changes/CR-SHOP-02-mall-tier-upgrade-request.md`.
+
 ### 2026-10-02 (Đợt A - Hoàn tất Phân hạng Shop & Quản lý Admin)
 
 - Đã làm:
