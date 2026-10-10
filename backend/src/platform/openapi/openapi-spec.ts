@@ -1353,6 +1353,32 @@ export function generateOpenApiSpec(): OpenApiSpec {
           },
         },
       },
+      '/admin/shops/evaluate-tiers': {
+        post: {
+          summary: 'Evaluate STANDARD/PREFERRED shop tiers; preserve MALL and manual overrides',
+          security: [{ BearerAuth: [] }],
+          requestBody: jsonRequest({
+            type: 'object',
+            properties: {
+              shop_id: { type: 'string', description: 'Evaluate one shop; omit to evaluate all active shops' },
+              criteria: {
+                type: 'object',
+                properties: {
+                  minCompletedOrders: { type: 'number', default: 20 },
+                  minAverageRating: { type: 'number', default: 4.5 },
+                  minVisibleReviews: { type: 'number', default: 5 },
+                },
+              },
+            },
+          }),
+          responses: {
+            '200': successResponse('Single shop evaluation or batch evaluation summary'),
+            '401': errorResponse('Authentication required'),
+            '403': errorResponse('Admin role required'),
+            '404': errorResponse('Shop or evaluator service not found'),
+          },
+        },
+      },
       '/admin/shops/{id}/tier': {
         patch: {
           summary: 'Update shop tier', security: [{ BearerAuth: [] }],

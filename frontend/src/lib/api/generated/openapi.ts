@@ -3481,6 +3481,84 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/shops/evaluate-tiers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Evaluate STANDARD/PREFERRED shop tiers; preserve MALL and manual overrides */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** @description Evaluate one shop; omit to evaluate all active shops */
+                        shop_id?: string;
+                        criteria?: {
+                            /** @default 20 */
+                            minCompletedOrders?: number;
+                            /** @default 4.5 */
+                            minAverageRating?: number;
+                            /** @default 5 */
+                            minVisibleReviews?: number;
+                        };
+                    };
+                };
+            };
+            responses: {
+                /** @description Single shop evaluation or batch evaluation summary */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SuccessEnvelope"];
+                    };
+                };
+                /** @description Authentication required */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorEnvelope"];
+                    };
+                };
+                /** @description Admin role required */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorEnvelope"];
+                    };
+                };
+                /** @description Shop or evaluator service not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorEnvelope"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/shops/{id}/tier": {
         parameters: {
             query?: never;

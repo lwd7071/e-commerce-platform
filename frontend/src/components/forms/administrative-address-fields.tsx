@@ -32,13 +32,16 @@ function LocationAutocomplete({
 }) {
   const id = useId();
   const [query, setQuery] = useState(value);
+  const [previousValue, setPreviousValue] = useState(value);
+  if (previousValue !== value) {
+    setPreviousValue(value);
+    setQuery(value);
+  }
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const filtered = query.trim()
     ? options.filter(option => normalize(option.name).includes(normalize(query))).slice(0, 8)
     : options.slice(0, 8);
-
-  useEffect(() => setQuery(value), [value]);
 
   const choose = (option: AdministrativeLocation) => {
     setQuery(option.name);
@@ -115,9 +118,8 @@ export function AdministrativeAddressFields({
   }, []);
 
   useEffect(() => {
-    if (!provinceCode) { setWardCatalog({ provinceCode: '', wards: [] }); return; }
+    if (!provinceCode) return;
     let active = true;
-    setWardCatalog({ provinceCode, wards: [] });
     void locationsApi.wards(provinceCode).then(value => { if (active) setWardCatalog({ provinceCode, wards: value }); }).catch(() => { if (active) setError('Không tải được danh mục phường/xã.'); });
     return () => { active = false; };
   }, [provinceCode]);

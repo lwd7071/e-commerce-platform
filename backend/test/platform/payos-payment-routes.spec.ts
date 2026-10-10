@@ -24,7 +24,7 @@ describe('PayOS Payment Routes', () => {
     const executedQueries: string[] = [];
 
     const mockPool = {
-      query: async (sql: string, params: unknown[] = []) => {
+      query: async (sql: string) => {
         executedQueries.push(sql);
 
         if (sql.includes('SELECT order_id, buyer_id')) {

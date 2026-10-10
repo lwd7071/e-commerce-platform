@@ -45,3 +45,12 @@ Suite ghi dữ liệu thật vào đích test và không tự xóa lịch sử. 
 | GitHub Actions | Theo run của draft PR; không suy ra PASS từ cấu hình workflow |
 
 Kết quả PostgreSQL 11/11 và UI mock 3/3 ghi trong báo cáo trước là kết quả lịch sử của người triển khai trước, không phải lần chạy lại của lần tiếp quản này. ChatGPT Web chưa tham gia review độc lập vì workspace chưa có Project/chat được ghép.
+
+## Cập nhật ngày 11/10/2026 sau đồng bộ dev
+
+- Full frontend: 94 file, **413/413 PASS**; lint, typecheck, build và API types check PASS.
+- Backend native: **799/799 PASS**. Test runtime đóng worker trong cleanup, tránh giữ tiến trình và cố gọi Redis sau khi kết thúc test.
+- Backend Vitest khi `RUN_REMOTE_DB_TESTS=false`: **185 PASS, 232 SKIPPED**; các ca PostgreSQL chưa được kiểm chứng. Ba suite database trước đó thiếu opt-in đã dùng cùng parser của dự án, để cờ false thực sự ngăn kết nối/ghi dữ liệu.
+- Backend lint, typecheck, build và Prisma validate PASS. Bổ sung endpoint evaluate-tiers có sẵn vào OpenAPI và generated frontend types. Test Groq chọn model rõ ràng; test Seller hoàn tất đơn dùng mã lỗi hiện hành. Cờ mock false của frontend được giữ đúng cả khi chưa có URL Auth.
+- Draft PR #14 vào dev đã mở và giải quyết xung đột. Run CI đầu tiên thất bại tại lint hai phía; các sửa lỗi được đẩy để chạy lại, chưa suy ra CI PASS từ kết quả local.
+- Đã tạo tổ chức Free `Dino E2E Test` và chuẩn bị form project `dino-mall-e2e-test`. Đang chờ chủ tài khoản tự nhập credential database mới và tạo project; chưa có đích database test để chạy migration/seed/live E2E. Trạng thái vẫn nghiệm thu từng phần.

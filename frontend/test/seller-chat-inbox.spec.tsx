@@ -119,6 +119,7 @@ describe('SellerChatInboxScreen Component', () => {
     await waitFor(() => {
       expect(sendMock).toHaveBeenCalledWith('conv-1', {
         content: 'Dạ shop có thể gửi hỏa tốc qua GrabExpress ngay nhé!',
+        sender_role: 'SELLER',
       });
     });
 

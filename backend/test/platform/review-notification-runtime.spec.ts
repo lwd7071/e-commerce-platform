@@ -238,7 +238,7 @@ describe('Review and Notification Runtime Wiring (C-201, C-202, C-203, C-301, C-
     assert.strictEqual(res.body.rating_summary.average, '4.5');
   });
 
-  it('createRuntimeApp wires singleton eventPort and returns valid runtime', async () => {
+  it('createRuntimeApp wires singleton eventPort and returns valid runtime', async (t) => {
     const mockPool = {
       query: async () => ({ rows: [], rowCount: 0 }),
     } as unknown as Pool;
@@ -257,6 +257,7 @@ describe('Review and Notification Runtime Wiring (C-201, C-202, C-203, C-301, C-
       tokenVerifier: new StubTokenVerifier(),
     });
 
+    t.after(() => runtime.close());
     assert.ok(runtime.app);
     assert.ok(runtime.eventPort);
     assert.strictEqual(typeof runtime.close, 'function');

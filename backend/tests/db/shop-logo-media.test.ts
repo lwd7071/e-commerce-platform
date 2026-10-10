@@ -2,12 +2,12 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import pg from 'pg';
-import { loadDatabaseConfig } from '../../db/config.ts';
+import { loadDatabaseConfig, parseRunRemoteDbTests } from '../../db/config.ts';
 import { registerPresignedMedia } from '../../db/media-lifecycle.ts';
 import { STORAGE_BUCKETS, buildShopLogoPath } from '../../db/storage.ts';
 import { createFixtureUser, createFixtureShop } from './fixtures/database-fixtures.ts';
 
-describe('Shop Logo Media Constraint & Ownership (real PostgreSQL)', () => {
+describe.skipIf(!parseRunRemoteDbTests(process.env))('Shop Logo Media Constraint & Ownership (real PostgreSQL)', () => {
   const schema = `shop_logo_${randomUUID().replaceAll('-', '')}`;
   let pool: pg.Pool;
   let sellerA: string;
