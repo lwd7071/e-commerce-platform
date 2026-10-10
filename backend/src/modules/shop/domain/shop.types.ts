@@ -2,6 +2,8 @@ import type { RequestContext } from '../../../platform/context/request-context.t
 
 export type SellerShopStatus = 'PENDING' | 'ACTIVE' | 'SUSPENDED' | 'LOCKED';
 
+export type ShopTier = 'STANDARD' | 'PREFERRED' | 'MALL';
+
 export interface SellerShop {
   shop_id: string;
   shop_name: string;
@@ -14,6 +16,8 @@ export interface SellerShop {
   pickup_detail_address?: string | null;
   contact_phone: string | null;
   status: SellerShopStatus;
+  tier?: ShopTier;
+  tier_override?: boolean;
   updated_at: string;
 }
 

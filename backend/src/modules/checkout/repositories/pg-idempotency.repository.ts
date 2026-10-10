@@ -1,6 +1,5 @@
 import type { PoolClient } from 'pg';
 import { createHash } from 'node:crypto';
-import type { CheckoutResult } from '../contracts/checkout-result.ts';
 import type { IdempotencyScope } from '../contracts/idempotency.port.ts';
 
 export type TransactionalIdempotencyClaim<T> =
@@ -59,7 +58,7 @@ export class PgIdempotencyRepository {
       : { kind: 'conflict' };
   }
 
-  async complete(scope: IdempotencyScope, fingerprint: string, result: CheckoutResult, expiresAt: string): Promise<void> {
+  async complete<T = unknown>(scope: IdempotencyScope, fingerprint: string, result: T, expiresAt: string): Promise<void> {
     await this.client.query(
       `INSERT INTO api_idempotency_records
         (user_id, endpoint, idempotency_key, fingerprint, result, expires_at)

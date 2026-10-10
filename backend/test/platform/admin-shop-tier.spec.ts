@@ -223,12 +223,13 @@ function createMockPool(initialTier = 'STANDARD') {
 }
 
 describe('Admin Shop Tiering & Moderation Flow (Batch A)', () => {
-  it('Admin updates shop tier to MALL with valid reason -> 200, updates tier and logs audit', async () => {
+  it('Admin updates shop tier to MALL with valid reason -> 200, updates tier and logs audit', async (t) => {
     const { pool, auditLogs, getShop } = createMockPool('STANDARD');
     const runtime = createRuntimeApp(testEnv, {
       pool,
       tokenVerifier: new StubTokenVerifier(),
     });
+    t.after(() => runtime.close());
 
     const res = await request(runtime.app)
       .patch(`/api/v1/admin/shops/${SHOP_ID}/tier`)
@@ -256,12 +257,13 @@ describe('Admin Shop Tiering & Moderation Flow (Batch A)', () => {
     assert.match(auditLogs[0].reason, /Được chứng nhận đại lý phân phối chính hãng/);
   });
 
-  it('Admin updates shop tier to PREFERRED with valid reason -> 200', async () => {
+  it('Admin updates shop tier to PREFERRED with valid reason -> 200', async (t) => {
     const { pool, auditLogs } = createMockPool('STANDARD');
     const runtime = createRuntimeApp(testEnv, {
       pool,
       tokenVerifier: new StubTokenVerifier(),
     });
+    t.after(() => runtime.close());
 
     const res = await request(runtime.app)
       .patch(`/api/v1/admin/shops/${SHOP_ID}/tier`)
@@ -277,12 +279,13 @@ describe('Admin Shop Tiering & Moderation Flow (Batch A)', () => {
     assert.equal(auditLogs[0].action, 'SHOP_TIER_UPDATE');
   });
 
-  it('Admin updates shop tier without reason -> 422 REASON_REQUIRED', async () => {
+  it('Admin updates shop tier without reason -> 422 REASON_REQUIRED', async (t) => {
     const { pool, auditLogs } = createMockPool('STANDARD');
     const runtime = createRuntimeApp(testEnv, {
       pool,
       tokenVerifier: new StubTokenVerifier(),
     });
+    t.after(() => runtime.close());
 
     const res = await request(runtime.app)
       .patch(`/api/v1/admin/shops/${SHOP_ID}/tier`)
@@ -297,12 +300,13 @@ describe('Admin Shop Tiering & Moderation Flow (Batch A)', () => {
     assert.equal(auditLogs.length, 0);
   });
 
-  it('Admin updates shop tier with invalid tier value -> 422 VALIDATION_FAILED', async () => {
+  it('Admin updates shop tier with invalid tier value -> 422 VALIDATION_FAILED', async (t) => {
     const { pool, auditLogs } = createMockPool('STANDARD');
     const runtime = createRuntimeApp(testEnv, {
       pool,
       tokenVerifier: new StubTokenVerifier(),
     });
+    t.after(() => runtime.close());
 
     const res = await request(runtime.app)
       .patch(`/api/v1/admin/shops/${SHOP_ID}/tier`)
@@ -317,12 +321,13 @@ describe('Admin Shop Tiering & Moderation Flow (Batch A)', () => {
     assert.equal(auditLogs.length, 0);
   });
 
-  it('Seller cannot update tier via /admin/shops/:id/tier -> 403 FORBIDDEN', async () => {
+  it('Seller cannot update tier via /admin/shops/:id/tier -> 403 FORBIDDEN', async (t) => {
     const { pool } = createMockPool('STANDARD');
     const runtime = createRuntimeApp(testEnv, {
       pool,
       tokenVerifier: new StubTokenVerifier(),
     });
+    t.after(() => runtime.close());
 
     const res = await request(runtime.app)
       .patch(`/api/v1/admin/shops/${SHOP_ID}/tier`)
@@ -335,12 +340,13 @@ describe('Admin Shop Tiering & Moderation Flow (Batch A)', () => {
     assert.equal(res.status, 403);
   });
 
-  it('Buyer cannot update tier via /admin/shops/:id/tier -> 403 FORBIDDEN', async () => {
+  it('Buyer cannot update tier via /admin/shops/:id/tier -> 403 FORBIDDEN', async (t) => {
     const { pool } = createMockPool('STANDARD');
     const runtime = createRuntimeApp(testEnv, {
       pool,
       tokenVerifier: new StubTokenVerifier(),
     });
+    t.after(() => runtime.close());
 
     const res = await request(runtime.app)
       .patch(`/api/v1/admin/shops/${SHOP_ID}/tier`)
@@ -353,12 +359,13 @@ describe('Admin Shop Tiering & Moderation Flow (Batch A)', () => {
     assert.equal(res.status, 403);
   });
 
-  it('Unauthenticated user cannot update tier -> 401 UNAUTHORIZED', async () => {
+  it('Unauthenticated user cannot update tier -> 401 UNAUTHORIZED', async (t) => {
     const { pool } = createMockPool('STANDARD');
     const runtime = createRuntimeApp(testEnv, {
       pool,
       tokenVerifier: new StubTokenVerifier(),
     });
+    t.after(() => runtime.close());
 
     const res = await request(runtime.app)
       .patch(`/api/v1/admin/shops/${SHOP_ID}/tier`)
@@ -370,12 +377,13 @@ describe('Admin Shop Tiering & Moderation Flow (Batch A)', () => {
     assert.equal(res.status, 401);
   });
 
-  it('Seller cannot update tier or metadata override via /seller/shop -> 422 ValidationFailedError', async () => {
+  it('Seller cannot update tier or metadata override via /seller/shop -> 422 ValidationFailedError', async (t) => {
     const { pool } = createMockPool('STANDARD');
     const runtime = createRuntimeApp(testEnv, {
       pool,
       tokenVerifier: new StubTokenVerifier(),
     });
+    t.after(() => runtime.close());
 
     const res = await request(runtime.app)
       .patch('/api/v1/seller/shop')
@@ -389,12 +397,13 @@ describe('Admin Shop Tiering & Moderation Flow (Batch A)', () => {
     assert.match(res.body.error.message, /Unknown field: tier/i);
   });
 
-  it('Public catalog GET /products?shop_tier=MALL filters and returns shop_tier', async () => {
+  it('Public catalog GET /products?shop_tier=MALL filters and returns shop_tier', async (t) => {
     const { pool } = createMockPool('MALL');
     const runtime = createRuntimeApp(testEnv, {
       pool,
       tokenVerifier: new StubTokenVerifier(),
     });
+    t.after(() => runtime.close());
 
     const res = await request(runtime.app)
       .get('/api/v1/products?shop_tier=MALL');
@@ -405,12 +414,13 @@ describe('Admin Shop Tiering & Moderation Flow (Batch A)', () => {
     assert.equal(res.body.data[0].shop_tier, 'MALL');
   });
 
-  it('Public catalog GET /products?shop_tier=INVALID returns 422 validation error', async () => {
+  it('Public catalog GET /products?shop_tier=INVALID returns 422 validation error', async (t) => {
     const { pool } = createMockPool('STANDARD');
     const runtime = createRuntimeApp(testEnv, {
       pool,
       tokenVerifier: new StubTokenVerifier(),
     });
+    t.after(() => runtime.close());
 
     const res = await request(runtime.app)
       .get('/api/v1/products?shop_tier=GOLD');

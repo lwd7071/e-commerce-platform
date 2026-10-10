@@ -50,7 +50,7 @@ test('[QD12/QD13] Actors can only transition Orders within their ownership and r
   }).to, 'COMPLETED');
   assert.throws(() => transitionOrder({ ...order, status: 'SHIPPING' }, {
     to: 'COMPLETED', actor: { kind: 'SELLER', userId: 'seller-a', shopId: 'shop-a' }, shipmentStatus: 'DELIVERED',
-  }), { code: 'RESOURCE_FORBIDDEN' });
+  }), { code: 'SELLER_CANNOT_COMPLETE_ORDER' });
   assert.throws(() => transitionOrder(order, {
     to: 'CONFIRMED', actor: { kind: 'SHIPMENT_INTEGRATION' }, processingEligible: true,
   }), { code: 'RESOURCE_FORBIDDEN' });

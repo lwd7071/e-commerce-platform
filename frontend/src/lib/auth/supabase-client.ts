@@ -12,7 +12,7 @@ export function getSupabaseClient(): SupabaseClient | null {
     return supabaseInstance;
   }
 
-  const { supabaseUrl, supabaseAnonKey, useMock } = envConfig;
+  const { supabaseUrl, supabaseAnonKey } = envConfig;
 
   if (!supabaseUrl || !supabaseAnonKey) {
     return null;

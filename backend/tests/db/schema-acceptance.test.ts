@@ -16,7 +16,7 @@ const featureTables = [
   'chat_conversations', 'chat_messages',
   'flash_sale_sessions', 'flash_sale_items', 'flash_sale_compensation_logs',
   'shop_wallets', 'escrow_records', 'wallet_transactions', 'withdrawal_requests',
-  'loyalty_point_transactions',
+  'loyalty_point_transactions', 'shop_mall_requests', 'shop_chat_presence',
 ];
 const supportTables = ['_prisma_migrations'];
 const remoteDescribe = parseRunRemoteDbTests(process.env) ? describe : describe.skip;

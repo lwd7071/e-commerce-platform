@@ -90,7 +90,7 @@ async function runSeed() {
       const existingId = existingAuthMap.get(target.email.toLowerCase());
       if (existingId) {
         // Cập nhật lại mật khẩu và metadata
-        const { data, error } = await supabaseAdmin.auth.admin.updateUserById(existingId, {
+        const { error } = await supabaseAdmin.auth.admin.updateUserById(existingId, {
           password: SHARED_PASSWORD,
           email_confirm: true,
           user_metadata: { full_name: target.fullName, demo_seed: 'dino-2026' },
@@ -158,7 +158,6 @@ async function runSeed() {
     `);
 
     // Xóa các user test/mồ côi khỏi app_users (chỉ giữ lại 26 tài khoản demo và tài khoản admin chính chủ nếu có)
-    const preserveUserIds = Array.from(userUuidMap.values());
     await client.query(
       `DELETE FROM app_users 
        WHERE email LIKE '%test.com' 
