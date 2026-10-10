@@ -1,5 +1,9 @@
 # Kiểm chứng Dino Mall nối hệ thống thật
 
+## Trạng thái mới nhất ngày 11/10/2026
+
+Sau lượt bổ sung loyalty: 23 migrations trên Supabase test riêng; database schema/Mall/loyalty 39/39 PASS; browser live 4/4 PASS, 0 skipped (Mall 3 ca và loyalty 1 ca). [CI 38077071273](https://github.com/lwd7071/e-commerce-platform/actions/runs/38077071273) tại `70a9338`: Backend/Frontend quality PASS, ba job remote Supabase SKIPPED. Xem [báo cáo bổ sung](dino-loyalty-extension-live.md) để đối chiếu phạm vi và giới hạn. PR #14 còn draft, chưa merge/deploy production; các phần bên dưới giữ nhật ký các lượt trước.
+
 ## Kết quả Dino Mall ngày 11/10/2026 trước lượt bổ sung loyalty
 
 Project Supabase test riêng `tejmnwemsnosolidkvqb` đã xác minh và áp dụng đủ 22 migrations. Schema smoke, Seller Mall và Tiering & Loyalty chạy trên database này: **32/32 PASS**. Đăng nhập Supabase thật và API `/auth/me` trả 200, đúng vai trò SELLER. Secrets lưu ngoài Git. Live browser **3/3 PASS, 0 skipped** trên Chrome, frontend/backend local kết nối Supabase test thật, không mock Auth/API hoặc tier trong storage.

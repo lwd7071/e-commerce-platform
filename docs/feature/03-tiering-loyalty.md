@@ -8,11 +8,11 @@
 - Cập nhật lần cuối: 2026-10-11.
 - Nhánh / PR / commit: Nhánh `feat/yeu-cau-nang-hang-dino-mall` (CR-SHOP-02 Seller Yêu cầu nâng hạng Dino Mall); đối chiếu nhánh cơ sở `codex/tiering-loyalty`.
 - [Nhánh GitHub](https://github.com/lwd7071/e-commerce-platform/tree/feat/yeu-cau-nang-hang-dino-mall).
-- Kiểm chứng mới: 23 migrations trên project test riêng; schema/Mall/loyalty database 39/39 PASS; thêm ca browser đổi/thu hồi điểm cùng ba ca Dino Mall không mock. Frontend 416/416, backend native 801/801 PASS. CI trước lượt bổ sung PASS tại `83aa931`; không suy ra PASS cho commit mới. [Bằng chứng và giới hạn](../test-mvp/dino-loyalty-extension-live.md). [PR #14](https://github.com/lwd7071/e-commerce-platform/pull/14) vẫn draft, chưa merge.
+- Kiểm chứng mới: 23 migrations trên project test riêng; schema/Mall/loyalty database 39/39 PASS; browser live 4/4 PASS, 0 skipped (ba ca Dino Mall và một ca đổi/thu hồi điểm). Frontend 416/416, backend native 801/801 PASS. [CI 38077071273](https://github.com/lwd7071/e-commerce-platform/actions/runs/38077071273) tại `70a9338`: Backend quality và Frontend quality PASS; ba job remote Supabase SKIPPED, không phải PASS. [Bằng chứng và giới hạn](../test-mvp/dino-loyalty-extension-live.md). [PR #14](https://github.com/lwd7071/e-commerce-platform/pull/14) vẫn draft, chưa merge.
 
 ## Mục tiêu và phạm vi
 
-Buyer và Shop có các cơ chế phân hạng riêng: Buyer tự lên VIP khi đơn hoàn tất được ghi nhận; Shop được Admin cấp hạng thủ công, được service xét lên/xuống PREFERRED khi gọi API đánh giá, hoặc Seller nộp hồ sơ xin lên Dino Mall và Admin thẩm định duyệt/từ chối.
+Buyer và Shop có các cơ chế phân hạng riêng: Buyer tự lên VIP khi đơn hoàn tất được ghi nhận và giữ VIP sau hoàn tiền; Shop được Admin cấp hạng thủ công, được service xét lên/xuống PREFERRED khi gọi API đánh giá hoặc qua worker định kỳ, hoặc Seller nộp hồ sơ xin lên Dino Mall và Admin thẩm định duyệt/từ chối.
 
 | Phần | Mục tiêu / kế hoạch | Hiện trạng code |
 |---|---|---|
@@ -64,9 +64,11 @@ Buyer và Shop có các cơ chế phân hạng riêng: Buyer tự lên VIP khi �
 - Bỏ qua Shop MALL và `tier_override = true` sau khi khóa Shop FOR UPDATE trong transaction. Batch và single-Shop chỉ xét ACTIVE, không ghi đè thay đổi hạng Admin đồng thời.
 - `POST /api/v1/admin/shops/evaluate-tiers` yêu cầu ADMIN. Body có thể chứa `shop_id` và `criteria`; không có `shop_id` thì xét toàn bộ ACTIVE. Ngưỡng được kiểm tra kiểu/phạm vi. Server bật worker lúc khởi động và mỗi 24 giờ, không phải hook sau mỗi đơn/review hoặc cron cố định 00:00.
 - Worker chống chồng lượt trong tiến trình và giữa các tiến trình bằng advisory transaction lock; rollback sweep khi lỗi, retry lượt sau; shutdown chờ sweep đang chạy. Biến `SHOP_TIER_WORKER_ENABLED=false` tắt; `SHOP_TIER_INTERVAL_MS` đổi chu kỳ. Chỉ chạy khi backend hoạt động.
+- Shop vừa đủ điều kiện không được nâng ngay tại thời điểm hoàn tất đơn/review: phải chờ lượt xét kế tiếp hoặc Admin gọi API đánh giá. Khi backend dừng, lịch dừng; khởi động lại sẽ xét ngay và bắt đầu chu kỳ mới. Lịch này độc lập với VIP Buyer được xét khi ghi nhận đơn hoàn tất.
 - Catalog mặc định xếp MALL → PREFERRED → STANDARD, tiếp theo `created_at DESC`, `product_id ASC`. Sort tường minh giữ thứ tự theo giá/mới nhất.
 - Catalog hiện mã hóa cursor chứa offset, không phải cursor chứa khóa hạng/thời gian/ID. Dữ liệu thay đổi có thể làm dịch chuyển kết quả giữa các trang.
 - Bằng chứng: `backend/src/modules/shop/services/shop-tier-evaluation.service.ts`, `backend/src/platform/http/routes/admin-routes.ts`, `backend/src/platform/http/app.ts`, `backend/src/modules/catalog/repositories/pg-catalog.repository.ts`, `backend/test/platform/shop-tier-evaluation.spec.ts`.
+- Bằng chứng worker: `backend/src/modules/shop/services/shop-tier-worker.ts`, `backend/src/server.ts`, `backend/tests/db/shop-tier-worker.test.ts`.
 
 ### D — Yêu cầu nâng hạng Dino Mall (CR-SHOP-02)
 
@@ -91,14 +93,23 @@ Buyer và Shop có các cơ chế phân hạng riêng: Buyer tự lên VIP khi �
   - `backend/test/platform/seller-mall-request.spec.ts` (14/14 tests PASS)
   - `backend/tests/db/seller-mall-request.integration.test.ts` (11/11 tests PASS trên PostgreSQL thật)
   - `frontend/e2e/seller-mall-request-live.spec.ts` (UI browser test với API mock, 3/3 journeys PASS)
-  - `frontend/e2e/seller-mall-request-connected-live.spec.ts` (Playwright live E2E nối thật, 3 skipped an toàn do thiếu môi trường live test database/backend riêng)
+  - `frontend/e2e/seller-mall-request-connected-live.spec.ts` (Playwright live E2E nối thật, 3/3 PASS trên Supabase test riêng ngày 11/10/2026; kết quả 3 skipped trước đó chỉ thuộc lịch sử)
+
+### E — Đổi và thu hồi DinoPoint (CR-LOYALTY-03)
+
+- Buyer ACTIVE đổi 100 điểm lấy một voucher PLATFORM giảm 10.000đ, tiền hàng tối thiểu 100.000đ, hạn 30 ngày, dùng một lần. Voucher chỉ dành cho Buyer đã đổi và không xuất hiện trong danh sách voucher chung.
+- `GET /api/v1/buyer/loyalty/rewards` trả voucher riêng; `POST /api/v1/buyer/loyalty/redeem` yêu cầu UUID `idempotency_key`. Khóa Buyer và unique operation key bảo đảm retry không phát hành/trừ điểm lại, các key khác không tiêu vượt số dư. Ledger, voucher và số dư cùng transaction.
+- `POST /api/v1/admin/orders/:id/loyalty-refunds` dành cho Admin ghi nhận khoản hoàn đã xác minh thành công của đơn COMPLETED có ledger. Bắt buộc mã đối soát duy nhất, lý do/bằng chứng và số tiền hàng đủ điều kiện tăng thêm; không gồm shipping. API không chuyển tiền, gọi PayOS hoặc thay đổi payment/escrow.
+- Thu hồi điểm theo tỷ lệ tiền hoàn lũy kế với điểm gốc, làm tròn xuống rồi trừ phần tăng thêm. Ledger, giảm chi tiêu/điểm và audit Admin cùng transaction; retry cùng mã/đơn/tiền không trừ lại, vượt hạn mức hoặc đổi dữ liệu cùng mã trả 409.
+- Điểm có thể âm nếu đã đổi thưởng; dưới 100 điểm không đổi được, điểm mới bù nợ. Giữ VIP đã đạt, không tự hủy voucher đã phát hành và không trả điểm khi voucher hết hạn.
+- Profile có nút đổi, danh sách voucher và lịch sử thu hồi; Admin Order detail có form ghi nhận hoàn. Bằng chứng: `backend/src/modules/loyalty/services/loyalty.service.ts`, `frontend/src/features/profile/loyalty-card.tsx`, `frontend/e2e/loyalty-redemption-connected-live.spec.ts` và [CR-LOYALTY-03](../spec/changes/CR-LOYALTY-03-redemption-refunds-scheduler.md).
 
 ## Thiết kế / quyết định kỹ thuật
 
 - P0-9: Shipment phải tồn tại, Order phải SHIPPING; Shipment chỉ chấp nhận SHIPPING hoặc DELIVERED. Admin cần lý do. Đây là hành vi `confirmReceived` hiện tại cho cả Buyer/Admin; điều kiện của endpoint transition khác cần đối chiếu riêng, không suy rộng.
 - VIP tự nâng theo tổng chi tiêu đơn được ghi nhận, không tự hạ theo thời gian. Shop MALL do Admin cấp; hệ thống đánh giá không tự cấp MALL.
 - DEFAULT giúp insert/dữ liệu cũ nhận hạng mặc định, nhưng không chứng minh toàn bộ tương thích: truy vấn mới cần migration trước khi chạy. Không backfill tổng/điểm từ đơn cũ.
-- Migration forward-only; chưa xác minh lại trạng thái apply database ở lượt cập nhật tài liệu này.
+- Migration forward-only; đã xác minh đủ 23 migrations trên Supabase test riêng, gồm `20261011200000_loyalty_redemption_refunds`. Chưa áp dụng staging/production.
 - Khác biệt cần theo dõi so với kế hoạch:
   - Ledger có snapshot eligible_spent_amount cho đơn hoàn tất mới, operation_key/voucher_id và refunded_eligible_amount theo CR-LOYALTY-03. Không lưu multiplier riêng; điểm gốc lấy trực tiếp từ ledger đã thưởng.
   - FK ledger hiện dùng CASCADE với user và SET NULL với order; chưa phải RESTRICT như thiết kế mong muốn. Chưa có constraint bắt buộc order cho ORDER_COMPLETED hoặc giới hạn reason.
