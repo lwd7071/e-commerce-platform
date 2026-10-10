@@ -65,6 +65,7 @@ export function CatalogListScreen({
   const [appliedMaxPrice, setAppliedMaxPrice] = useState(initialMaxPrice);
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
   const coordinatorRef = useRef(createCatalogQueryCoordinator());
   const [, startTransition] = useTransition();
@@ -214,6 +215,183 @@ export function CatalogListScreen({
     debouncedSearch
   );
 
+  const filterPanel = (
+    <div className="space-y-5">
+      {/* 1. Danh mục ngành hàng */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold uppercase tracking-wider text-[var(--subtext)]">
+            Danh mục
+          </span>
+          <span className="text-[11px] text-[var(--subtext)] font-medium">({displayCategories.length})</span>
+        </div>
+        <div className="space-y-1 max-h-64 overflow-y-auto pr-1">
+          <button
+            type="button"
+            onClick={() => setSelectedCategory("")}
+            className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-between min-h-[38px] ${
+              selectedCategory === ""
+                ? "bg-[var(--primary-active)] text-white font-bold"
+                : "text-[var(--foreground)] hover:bg-[var(--card-muted)]"
+            }`}
+          >
+            <span>Tất cả</span>
+            {selectedCategory === "" && <Icon name="check" className="w-3.5 h-3.5 shrink-0 ml-1" />}
+          </button>
+
+          {displayCategories.map((cat) => (
+            <button
+              key={cat.id}
+              type="button"
+              onClick={() => setSelectedCategory(cat.id)}
+              className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-between min-h-[38px] ${
+                selectedCategory === cat.id
+                  ? "bg-[var(--primary-active)] text-white font-bold"
+                  : "text-[var(--foreground)] hover:bg-[var(--card-muted)]"
+              }`}
+            >
+              <span className="truncate">{cat.name}</span>
+              {selectedCategory === cat.id && <Icon name="check" className="w-3.5 h-3.5 shrink-0 ml-1" />}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 2. Nơi bán / Phân hạng shop */}
+      <div className="space-y-2 pt-3 border-t border-[var(--border)]">
+        <span className="text-xs font-bold uppercase tracking-wider text-[var(--subtext)] block">
+          Hạng gian hàng
+        </span>
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Lọc theo hạng shop">
+          <button
+            type="button"
+            onClick={() => setSelectedTier("")}
+            className={`min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
+              selectedTier === ""
+                ? "bg-[var(--primary-active)] text-white"
+                : "bg-[var(--card-muted)] text-[var(--subtext)] hover:text-[var(--foreground)]"
+            }`}
+          >
+            Tất cả shop
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedTier("MALL")}
+            className={`min-h-[44px] inline-flex items-center gap-1.5 justify-center rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
+              selectedTier === "MALL"
+                ? "bg-[var(--danger)] text-white"
+                : "bg-[var(--card-muted)] text-[var(--subtext)] hover:text-[var(--foreground)]"
+            }`}
+          >
+            Dino Mall
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedTier("PREFERRED")}
+            className={`min-h-[44px] inline-flex items-center gap-1.5 justify-center rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
+              selectedTier === "PREFERRED"
+                ? "bg-amber-600 text-white"
+                : "bg-[var(--card-muted)] text-[var(--subtext)] hover:text-[var(--foreground)]"
+            }`}
+          >
+            Shop Yêu thích
+          </button>
+        </div>
+      </div>
+
+      {/* 3. Khoảng giá */}
+      <div className="space-y-2 pt-3 border-t border-[var(--border)]">
+        <span className="text-xs font-bold uppercase tracking-wider text-[var(--subtext)] block">
+          Khoảng giá (₫)
+        </span>
+        <div className="price-range" aria-label="Chọn khoảng giá">
+          <div className="flex justify-between gap-3 text-xs font-semibold text-[var(--foreground)]">
+            <span>{vndFormatter.format(minPriceValue)} ₫</span>
+            <span>{vndFormatter.format(maxPriceValue)} ₫{maxPriceValue === PRICE_SLIDER_MAX ? "+" : ""}</span>
+          </div>
+          <div className="price-range__track">
+            <div
+              className="price-range__fill"
+              style={{
+                left: `${(minPriceValue / PRICE_SLIDER_MAX) * 100}%`,
+                width: `${((maxPriceValue - minPriceValue) / PRICE_SLIDER_MAX) * 100}%`,
+              }}
+            />
+            <input
+              className="price-range__input"
+              type="range"
+              min="0"
+              max={PRICE_SLIDER_MAX}
+              step={PRICE_SLIDER_STEP}
+              value={minPriceValue}
+              onChange={(event) => {
+                const value = Math.min(Number(event.target.value), maxPriceValue);
+                setMinPrice(value === 0 ? "" : String(value));
+              }}
+              style={{ zIndex: minPriceValue >= maxPriceValue - PRICE_SLIDER_STEP ? 4 : 2 }}
+              aria-label="Giá thấp nhất"
+            />
+            <input
+              className="price-range__input"
+              type="range"
+              min="0"
+              max={PRICE_SLIDER_MAX}
+              step={PRICE_SLIDER_STEP}
+              value={maxPriceValue}
+              onChange={(event) => {
+                const value = Math.max(Number(event.target.value), minPriceValue);
+                setMaxPrice(value === PRICE_SLIDER_MAX ? "" : String(value));
+              }}
+              style={{ zIndex: 3 }}
+              aria-label="Giá cao nhất"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <label className="field-stack text-xs">
+              <span className="field-label text-xs">Giá từ (₫)</span>
+              <input
+                type="number"
+                min="0"
+                value={minPrice}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setMinPrice(value);
+                  if (value && maxPrice && Number(value) > Number(maxPrice)) setMaxPrice(value);
+                }}
+                className="form-control min-h-[44px] h-11 px-2.5 text-xs"
+                aria-label="Giá thấp nhất"
+              />
+            </label>
+            <label className="field-stack text-xs">
+              <span className="field-label text-xs">Đến (₫)</span>
+              <input
+                type="number"
+                min="0"
+                value={maxPrice}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setMaxPrice(value);
+                  if (value && minPrice && Number(value) < Number(minPrice)) setMinPrice(value);
+                }}
+                className="form-control min-h-[44px] h-11 px-2.5 text-xs"
+                aria-label="Giá cao nhất"
+              />
+            </label>
+          </div>
+          {(minPrice || maxPrice) && (
+            <button
+              type="button"
+              onClick={() => { setMinPrice(""); setMaxPrice(""); }}
+              className="text-[11px] text-[var(--primary-active)] hover:underline block pt-1"
+            >
+              Xóa khoảng giá
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       {/* Page heading */}
@@ -229,11 +407,11 @@ export function CatalogListScreen({
 
       {/* Main 2-Column Commerce Layout (Phương án 2: Classic Commerce Split) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Sidebar Filters (Cột trái ~260px) */}
+        {/* Sidebar Filters (Desktop lg:col-span-3, ẩn trên mobile) */}
         <aside
           role="complementary"
           aria-label="Bộ lọc tìm kiếm"
-          className="lg:col-span-3 surface-card p-4 rounded-xl border border-[var(--border)] space-y-5 lg:sticky lg:top-24"
+          className="hidden lg:block lg:col-span-3 surface-card p-4 rounded-xl border border-[var(--border)] space-y-5 lg:sticky lg:top-24"
         >
           {/* Header Sidebar */}
           <div className="flex items-center justify-between pb-3 border-b border-[var(--border)]">
@@ -255,185 +433,30 @@ export function CatalogListScreen({
             )}
           </div>
 
-          {/* 1. Danh mục ngành hàng */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-[var(--subtext)]">
-                Danh mục
-              </span>
-              <span className="text-[11px] text-[var(--subtext)] font-medium">({displayCategories.length})</span>
-            </div>
-            <div className="space-y-1 max-h-64 overflow-y-auto pr-1">
-              <button
-                type="button"
-                onClick={() => setSelectedCategory("")}
-                className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-between min-h-[38px] ${
-                  selectedCategory === ""
-                    ? "bg-[var(--primary-active)] text-white font-bold"
-                    : "text-[var(--foreground)] hover:bg-[var(--card-muted)]"
-                }`}
-              >
-                <span>Tất cả</span>
-                {selectedCategory === "" && <Icon name="check" className="w-3.5 h-3.5 shrink-0 ml-1" />}
-              </button>
-
-              {displayCategories.map((cat) => (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => setSelectedCategory(cat.id)}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-between min-h-[38px] ${
-                    selectedCategory === cat.id
-                      ? "bg-[var(--primary-active)] text-white font-bold"
-                      : "text-[var(--foreground)] hover:bg-[var(--card-muted)]"
-                  }`}
-                >
-                  <span className="truncate">{cat.name}</span>
-                  {selectedCategory === cat.id && <Icon name="check" className="w-3.5 h-3.5 shrink-0 ml-1" />}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 2. Nơi bán / Phân hạng shop */}
-          <div className="space-y-2 pt-3 border-t border-[var(--border)]">
-            <span className="text-xs font-bold uppercase tracking-wider text-[var(--subtext)] block">
-              Hạng gian hàng
-            </span>
-            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Lọc theo hạng shop">
-              <button
-                type="button"
-                onClick={() => setSelectedTier("")}
-                className={`min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
-                  selectedTier === ""
-                    ? "bg-[var(--primary-active)] text-white"
-                    : "bg-[var(--card-muted)] text-[var(--subtext)] hover:text-[var(--foreground)]"
-                }`}
-              >
-                Tất cả shop
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedTier("MALL")}
-                className={`min-h-[44px] inline-flex items-center gap-1.5 justify-center rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
-                  selectedTier === "MALL"
-                    ? "bg-[var(--danger)] text-white"
-                    : "bg-[var(--card-muted)] text-[var(--subtext)] hover:text-[var(--foreground)]"
-                }`}
-              >
-                Dino Mall
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedTier("PREFERRED")}
-                className={`min-h-[44px] inline-flex items-center gap-1.5 justify-center rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
-                  selectedTier === "PREFERRED"
-                    ? "bg-amber-600 text-white"
-                    : "bg-[var(--card-muted)] text-[var(--subtext)] hover:text-[var(--foreground)]"
-                }`}
-              >
-                Shop Yêu thích
-              </button>
-            </div>
-          </div>
-
-          {/* 3. Khoảng giá */}
-          <div className="space-y-2 pt-3 border-t border-[var(--border)]">
-            <span className="text-xs font-bold uppercase tracking-wider text-[var(--subtext)] block">
-              Khoảng giá (₫)
-            </span>
-            <div className="price-range" aria-label="Chọn khoảng giá">
-              <div className="flex justify-between gap-3 text-xs font-semibold text-[var(--foreground)]">
-                <span>{vndFormatter.format(minPriceValue)} ₫</span>
-                <span>{vndFormatter.format(maxPriceValue)} ₫{maxPriceValue === PRICE_SLIDER_MAX ? "+" : ""}</span>
-              </div>
-              <div className="price-range__track">
-                <div
-                  className="price-range__fill"
-                  style={{
-                    left: `${(minPriceValue / PRICE_SLIDER_MAX) * 100}%`,
-                    width: `${((maxPriceValue - minPriceValue) / PRICE_SLIDER_MAX) * 100}%`,
-                  }}
-                />
-                <input
-                  className="price-range__input"
-                  type="range"
-                  min="0"
-                  max={PRICE_SLIDER_MAX}
-                  step={PRICE_SLIDER_STEP}
-                  value={minPriceValue}
-                  onChange={(event) => {
-                    const value = Math.min(Number(event.target.value), maxPriceValue);
-                    setMinPrice(value === 0 ? "" : String(value));
-                  }}
-                  style={{ zIndex: minPriceValue >= maxPriceValue - PRICE_SLIDER_STEP ? 4 : 2 }}
-                  aria-label="Giá thấp nhất"
-                />
-                <input
-                  className="price-range__input"
-                  type="range"
-                  min="0"
-                  max={PRICE_SLIDER_MAX}
-                  step={PRICE_SLIDER_STEP}
-                  value={maxPriceValue}
-                  onChange={(event) => {
-                    const value = Math.max(Number(event.target.value), minPriceValue);
-                    setMaxPrice(value === PRICE_SLIDER_MAX ? "" : String(value));
-                  }}
-                  style={{ zIndex: 3 }}
-                  aria-label="Giá cao nhất"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <label className="field-stack text-xs">
-                  <span className="field-label text-xs">Giá từ (₫)</span>
-                  <input
-                    type="number"
-                    min="0"
-                    value={minPrice}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      setMinPrice(value);
-                      if (value && maxPrice && Number(value) > Number(maxPrice)) setMaxPrice(value);
-                    }}
-                    className="form-control min-h-[44px] h-11 px-2.5 text-xs"
-                    aria-label="Giá thấp nhất"
-                  />
-                </label>
-                <label className="field-stack text-xs">
-                  <span className="field-label text-xs">Đến (₫)</span>
-                  <input
-                    type="number"
-                    min="0"
-                    value={maxPrice}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      setMaxPrice(value);
-                      if (value && minPrice && Number(value) < Number(minPrice)) setMinPrice(value);
-                    }}
-                    className="form-control min-h-[44px] h-11 px-2.5 text-xs"
-                    aria-label="Giá cao nhất"
-                  />
-                </label>
-              </div>
-              {(minPrice || maxPrice) && (
-              <button
-                type="button"
-                onClick={() => { setMinPrice(""); setMaxPrice(""); }}
-                className="text-[11px] text-[var(--primary-active)] hover:underline block pt-1"
-              >
-                Xóa khoảng giá
-              </button>
-            )}
-            </div>
-          </div>
+          {filterPanel}
         </aside>
 
         {/* Main Products Area (Cột phải lg:col-span-9) */}
         <div className="lg:col-span-9 space-y-4">
           {/* Quick Sort Strip */}
           <div className="surface-card flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl border border-[var(--border)]">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5">
+              {/* Nút Bộ lọc trên Mobile (3 gạch ngang) */}
+              <button
+                type="button"
+                onClick={() => setIsMobileFilterOpen(true)}
+                className="lg:hidden inline-flex items-center gap-2 px-3 py-2 min-h-[44px] rounded-lg border border-[var(--border)] bg-[var(--card)] text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--card-muted)] transition-colors shadow-xs shrink-0"
+                aria-label="Mở bộ lọc tìm kiếm"
+              >
+                <svg aria-hidden="true" className="w-4 h-4 text-[var(--primary-active)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+                <span>Bộ lọc</span>
+                {hasActiveFilters && (
+                  <span className="w-2 h-2 rounded-full bg-[var(--primary-active)] shrink-0" />
+                )}
+              </button>
+
               <label htmlFor="catalog-sort" className="text-xs font-medium text-[var(--subtext)] shrink-0">
                 Sắp xếp:
               </label>
@@ -508,7 +531,7 @@ export function CatalogListScreen({
               }}
             />
           ) : isLoading && products.length === 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
               {Array.from({ length: 8 }).map((_, i) => (
                 <div key={i} className="surface-card flex flex-col p-4 space-y-3">
                   <Skeleton height={200} className="w-full rounded-lg" />
@@ -530,7 +553,7 @@ export function CatalogListScreen({
             />
           ) : (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
                 {products.map((product) => (
                   <ProductCard
                     key={product.product_id}
@@ -556,6 +579,73 @@ export function CatalogListScreen({
           )}
         </div>
       </div>
+
+      {/* Mobile Filter Drawer (Mở khi bấm nút ☰ Bộ lọc trên mobile) */}
+      {isMobileFilterOpen && (
+        <div
+          className="fixed inset-0 z-50 lg:hidden flex"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Bộ lọc tìm kiếm trên di động"
+        >
+          {/* Backdrop mờ */}
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity"
+            onClick={() => setIsMobileFilterOpen(false)}
+            aria-hidden="true"
+          />
+
+          {/* Drawer trượt vào từ bên phải */}
+          <div className="relative ml-auto w-full max-w-xs sm:max-w-sm h-full bg-[var(--card)] shadow-2xl flex flex-col z-10 animate-in slide-in-from-right duration-200">
+            {/* Header Drawer */}
+            <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
+              <span className="text-base font-bold text-[var(--foreground)] flex items-center gap-2">
+                <svg aria-hidden="true" className="w-5 h-5 text-[var(--primary-active)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
+                Bộ lọc tìm kiếm
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsMobileFilterOpen(false)}
+                className="p-2 -mr-2 rounded-lg text-[var(--subtext)] hover:text-[var(--foreground)] hover:bg-[var(--card-muted)] transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+                aria-label="Đóng bộ lọc"
+              >
+                <svg aria-hidden="true" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Body Drawer (Scrollable) */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-5">
+              {filterPanel}
+            </div>
+
+            {/* Footer Drawer */}
+            <div className="p-4 border-t border-[var(--border)] bg-[var(--card)] flex gap-2">
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleResetFilters();
+                  }}
+                  className="flex-1 min-h-[44px] px-3 py-2 rounded-lg border border-[var(--border)] text-xs font-semibold text-[var(--foreground)] hover:bg-[var(--card-muted)] transition-colors"
+                >
+                  Xóa tất cả
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsMobileFilterOpen(false)}
+                className="flex-1 min-h-[44px] px-4 py-2 rounded-lg bg-[var(--primary-active)] text-white text-xs font-semibold hover:opacity-95 transition-opacity"
+              >
+                Áp dụng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
