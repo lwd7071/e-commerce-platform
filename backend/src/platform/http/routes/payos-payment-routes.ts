@@ -4,6 +4,7 @@ import { DependencyUnavailableError, NotFoundError, UnauthorizedError, Validatio
 import { buildSuccessEnvelope } from '../envelope.ts';
 import type { PayosService } from '../../../modules/wallet/services/payos.service.ts';
 import type { EscrowService } from '../../../modules/wallet/services/escrow.service.ts';
+import { paymentWsManager } from '../../websocket/payment-websocket.ts';
 
 function asyncRoute(handler: (req: Request, res: import('express').Response) => Promise<void>): RequestHandler {
   return (req, res, next) => { void handler(req, res).catch(next); };
@@ -149,6 +150,11 @@ export function createPayosPaymentRouter(
         }
 
         await client.query('COMMIT');
+
+        // Broadcast realtime payment confirmation to connected buyer clients
+        paymentWsManager.broadcastOrderPaid(payment.order_id, {
+          amount: Number(payment.amount),
+        });
       } catch (err) {
         await client.query('ROLLBACK');
         throw err;
