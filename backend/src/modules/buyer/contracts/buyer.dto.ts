@@ -164,7 +164,7 @@ export interface UpdateAddressDTO {
   phone?: string;
   province?: string;
   provinceCode?: string;
-  district?: string;
+  district?: string | null;
   ward?: string;
   wardCode?: string;
   detailAddress?: string;
@@ -221,12 +221,12 @@ export function validateUpdateAddressDTO(rawDto: unknown): UpdateAddressDTO {
   }
 
   const rawDistrict = dto.district;
-  let district: string | undefined;
+  let district: string | null | undefined;
   if (rawDistrict !== undefined) {
-    if (typeof rawDistrict !== 'string' || rawDistrict.trim() === '') {
+    if (typeof rawDistrict !== 'string') {
       throw new ValidationError("Trường 'district' không được để trống.", { field: 'district' });
     }
-    district = rawDistrict.trim();
+    district = rawDistrict.trim() || null;
   }
 
   const rawWard = canonicalLabels?.ward ?? dto.ward;

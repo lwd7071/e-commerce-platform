@@ -67,12 +67,17 @@ export function SiteHeader({ role = null, isSellerArea = false }: SiteHeaderProp
 
   // Header thông thường cho Người mua / Khách
   return (
-    <header className="site-header">
+    <header className={`site-header${pathname === "/" ? " site-header--home" : ""}`}>
+        {pathname === "/" && (
+          <div className="site-header__announcement">
+            <span>Khám phá món hay từ các gian hàng đang hoạt động</span>
+          </div>
+        )}
       <div className="site-header__inner">
         <Link className="brand-lockup" href="/" aria-label="Dino - trang chủ">
           <span>Dino</span>
         </Link>
-        <form className="header-search" action="/" role="search">
+        <form className="header-search" action="/products" role="search">
           <Icon name="search" className="header-search__icon" />
           <input className="form-control" type="search" name="q" placeholder="Tìm sản phẩm..." aria-label="Tìm sản phẩm" />
         </form>

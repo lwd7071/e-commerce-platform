@@ -74,7 +74,7 @@ export class PgBuyerHttpService {
     return withTransaction(this.pool, async (client) => {
       const repo = new PgCartRepository(client); let cart = await repo.findByBuyerId(context.user_id);
       if (!cart) cart = await repo.createCart({ cartId: crypto.randomUUID(), buyerId: context.user_id, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
-      const item = await repo.addItem(cart.cartId, { cartItemId: crypto.randomUUID(), cartId: cart.cartId, variantId: validated.variantId, quantity: validated.quantity, isSelected: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+      const item = await repo.addItem(cart.cartId, { cartItemId: crypto.randomUUID(), cartId: cart.cartId, variantId: validated.variantId, quantity: validated.quantity, isSelected: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
       return { cart_item_id: item.cartItemId, variant_id: item.variantId, quantity: item.quantity, is_selected: item.isSelected };
     });
   }

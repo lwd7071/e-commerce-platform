@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useRef } from 'react';
-import Link from 'next/link';
 import { sellerShopApi, type SellerShopProfile, type UpdateSellerShop, type ShopMallRequest } from '@/lib/api/seller-shop.api';
 import { uploadMediaAsset } from '@/lib/api/media.api';
 import { Button } from '@/components/ui/button';
@@ -90,6 +89,10 @@ export function SellerShopScreen() {
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!form.pickup_province_code || !form.pickup_ward_code) {
+      setError('Vui lòng chọn tỉnh/thành phố và phường/xã từ danh sách gợi ý.');
+      return;
+    }
     setSaving(true);
     setError(null);
     setNotice(null);
@@ -159,7 +162,6 @@ export function SellerShopScreen() {
   return (
     <main className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6">
       <header className="space-y-2">
-        <Link href="/seller" className="text-sm font-medium text-[var(--primary)]">← Kênh người bán</Link>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-[var(--foreground)]">Hồ sơ gian hàng</h1>
@@ -342,7 +344,7 @@ export function SellerShopScreen() {
         <FormField id="shop-name" label="Tên gian hàng" required><TextInput id="shop-name" required minLength={2} maxLength={150} value={form.shop_name ?? ''} onChange={(event) => setForm({ ...form, shop_name: event.target.value })} disabled={!canEdit || saving} /></FormField>
         <FormField id="shop-description" label="Mô tả"><TextArea id="shop-description" rows={4} value={form.description ?? ''} onChange={(event) => setForm({ ...form, description: event.target.value })} disabled={!canEdit || saving} /></FormField>
         <FormField id="pickup-address" label="Địa chỉ shop" required helpText="Dùng làm địa chỉ lấy hàng cho các đơn thuộc gian hàng này."><TextInput id="pickup-address" required maxLength={255} autoComplete="street-address" value={form.pickup_address ?? ''} onChange={(event) => setForm({ ...form, pickup_address: event.target.value })} disabled={!canEdit || saving} /></FormField>
-        <AdministrativeAddressFields provinceCode={form.pickup_province_code ?? ''} wardCode={form.pickup_ward_code ?? ''} onProvinceChange={(code, name) => setForm(prev => ({ ...prev, pickup_province_code: code, pickup_province: name, pickup_ward_code: '', pickup_ward: '' }))} onWardChange={(code, name) => setForm(prev => ({ ...prev, pickup_ward_code: code, pickup_ward: name }))} />
+        <AdministrativeAddressFields provinceCode={form.pickup_province_code ?? ''} provinceName={form.pickup_province ?? ''} wardCode={form.pickup_ward_code ?? ''} wardName={form.pickup_ward ?? ''} onProvinceChange={(code, name) => setForm(prev => ({ ...prev, pickup_province_code: code, pickup_province: name, pickup_ward_code: '', pickup_ward: '' }))} onWardChange={(code, name) => setForm(prev => ({ ...prev, pickup_ward_code: code, pickup_ward: name }))} />
         <FormField id="contact-phone" label="Số điện thoại liên hệ" required><TextInput id="contact-phone" required maxLength={20} type="tel" autoComplete="tel" value={form.contact_phone ?? ''} onChange={(event) => setForm({ ...form, contact_phone: event.target.value })} disabled={!canEdit || saving} /></FormField>
         {canEdit && <div className="flex justify-end"><Button type="submit" disabled={saving}>{saving ? 'Đang lưu…' : 'Lưu hồ sơ'}</Button></div>}
       </form>

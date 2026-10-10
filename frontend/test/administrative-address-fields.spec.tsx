@@ -62,31 +62,26 @@ function ControlledAddressWrapper() {
 }
 
 describe('AdministrativeAddressFields', () => {
-  it('allows user to select a province and then a ward without resetting state', async () => {
+  it('suggests provinces and wards while typing, including unaccented Vietnamese', async () => {
     const user = userEvent.setup();
     render(<ControlledAddressWrapper />);
 
     // Chờ danh sách tỉnh tải xong
-    const provinceSelect = await screen.findByRole('combobox', { name: 'Tỉnh/thành phố' });
-    expect(provinceSelect).toBeTruthy();
+    const provinceInput = await screen.findByRole('combobox', { name: 'Tỉnh/thành phố' });
 
-    // Chọn Hà Nội (code 01)
-    await user.selectOptions(provinceSelect, '01');
+    await user.type(provinceInput, 'ha noi');
+    await user.keyboard('{ArrowDown}{Enter}');
 
-    // Kiểm tra state và select đã cập nhật
     expect(screen.getByTestId('selected-province').textContent).toBe('01 - Hà Nội');
-    expect((provinceSelect as HTMLSelectElement).value).toBe('01');
 
-    // Chờ danh sách phường/xã của Hà Nội tải về
-    const wardSelect = await screen.findByRole('combobox', { name: 'Phường/xã' });
+    const wardInput = await screen.findByRole('combobox', { name: 'Phường/xã' });
     await waitFor(() => {
-      expect((wardSelect as HTMLSelectElement).disabled).toBe(false);
+      expect((wardInput as HTMLInputElement).disabled).toBe(false);
     });
 
-    // Chọn Ba Đình (code 00004)
-    await user.selectOptions(wardSelect, '00004');
+    await user.type(wardInput, 'ba dinh');
+    await user.keyboard('{ArrowDown}{Enter}');
 
     expect(screen.getByTestId('selected-ward').textContent).toBe('00004 - Ba Đình');
-    expect((wardSelect as HTMLSelectElement).value).toBe('00004');
   });
 });

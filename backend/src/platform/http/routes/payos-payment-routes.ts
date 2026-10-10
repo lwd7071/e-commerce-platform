@@ -39,11 +39,8 @@ export function createPayosPaymentRouter(
       throw new UnauthorizedError('Bạn không có quyền thanh toán đơn hàng này');
     }
 
-    // Generate deterministic integer order code within safe integer range
-    // PayOS requires integer orderCode, max 9007199254740991
-    const orderCode = Math.abs(
-      parseInt(orderId.replace(/-/g, '').slice(0, 12), 16) % 900000000 + 100000000,
-    );
+    // Generate unique integer order code within safe integer range (PayOS max 9007199254740991)
+    const orderCode = Date.now();
     const amount = Math.round(Number(order.total_amount));
     const description = `DINO DH ${orderId.slice(0, 8).toUpperCase()}`;
 
@@ -56,13 +53,22 @@ export function createPayosPaymentRouter(
       returnUrl: `${host}/orders/${orderId}?status=success`,
     });
 
-    // Record or update payment record
-    await pool.query(
-      `INSERT INTO payments (payment_id, order_id, transaction_code, method, amount, status, note)
-       VALUES (gen_random_uuid(), $1, $2, 'ONLINE', $3, 'PENDING', $4)
-       ON CONFLICT (transaction_code) DO NOTHING`,
-      [orderId, `PAYOS_${orderCode}`, amount, linkResult.checkoutUrl],
+    // Cập nhật payment PENDING hiện có (nếu có từ bước checkout)
+    const updateResult = await pool.query(
+      `UPDATE payments SET transaction_code = $2, note = $3, method = 'ONLINE'
+       WHERE order_id = $1 AND status = 'PENDING' AND transaction_code IS NULL`,
+      [orderId, `PAYOS_${orderCode}`, linkResult.checkoutUrl],
     );
+
+    // Nếu chưa có payment record nào thì INSERT mới
+    if (updateResult.rowCount === 0) {
+      await pool.query(
+        `INSERT INTO payments (payment_id, order_id, transaction_code, method, amount, status, note)
+         VALUES (gen_random_uuid(), $1, $2, 'ONLINE', $3, 'PENDING', $4)
+         ON CONFLICT (transaction_code) WHERE transaction_code IS NOT NULL DO NOTHING`,
+        [orderId, `PAYOS_${orderCode}`, amount, linkResult.checkoutUrl],
+      );
+    }
 
     res.json(buildSuccessEnvelope({
       order_id: orderId,

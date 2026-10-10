@@ -2,17 +2,27 @@
 
 ## Trạng thái hiện tại
 
-- Phase/ticket: Feature 4 (Buyer-Seller Chat, AI Bot Assistant & Seller Live Chat) [x], Core & Acceptance [x]
+- Phase/ticket: Storefront visual redesign (2026-10-10)
 - Owner: thangdanglk-ui (Người 3)
-- Cập nhật lần cuối: 2026-10-03
-- Trạng thái: Hoàn thành 100% (Đã khắc phục 3/3 lỗi auditor & cập nhật tài liệu kiểm thử, merged vào `dev` tại commit `3c14703`)
-- Nhánh/PR: `feat/fe-nguoi-3-catalog` -> Merged vào `dev`
-- Bị block bởi: Không (0 blocker)
+- Cập nhật lần cuối: 2026-10-10
+- Đang làm: Hoàn tất lượt redesign storefront Dino theo hướng marketplace giàu hình ảnh; giữ API, dữ liệu, thương hiệu và luồng mua hàng hiện có.
+- Trạng thái: Hoàn thành trong phạm vi buyer storefront.
+- Nhánh/PR: Chưa có.
+- Bị block bởi: Không.
 - Người phối hợp:
   - Người 1 (Auth & User Platform): Xác thực JWT / Supabase Auth (`buyer_id`, `seller_id`), phân quyền RBAC (`BUYER`, `SELLER`).
   - Người 2 (Shop & Seller Operations): Xác thực quyền sở hữu Shop (`shop.owner_id`) và tích hợp menu điều hướng Seller Dashboard (`/seller/chat`).
 
 ## Nhật ký theo ngày
+
+### 2026-10-10 — Storefront visual redesign
+
+- Đã làm: Làm mới trang chủ, catalog, product card và product detail; tinh chỉnh cart/checkout. Thay hero một ảnh thành mosaic bốn sản phẩm thật từ API, voucher thành phiếu mã có một ưu đãi nổi bật dựa trên dữ liệu thật, bỏ section sản phẩm lặp với catalog; giữ loading/error/retry và empty states.
+- Quyết định UI/contract: Giữ wordmark Dino, palette, API, filter, checkout, auth và dữ liệu hiện hành. Không thêm khuyến mãi, cam kết, sản phẩm hoặc category giả. Hỗ trợ reduced motion bằng quy tắc toàn cục hiện có.
+- Test/kiểm tra: `npm run typecheck` PASS; `npm run build` PASS; Vitest tuần tự PASS (89 files, 399 tests); ESLint source trang chủ PASS. Lint toàn repo còn 3 lỗi `no-explicit-any` và 1 cảnh báo unused trong 3 test files có sẵn. Browser smoke trên app panel hẹp: không thấy lỗi console nghiêm trọng; API local không khả dụng nên sản phẩm hiện trạng thái retry, chưa thể kiểm tra ảnh/voucher thật.
+- Handoff: Cần Người 2 review các thay đổi shared CSS/header trước khi merge; chưa bàn giao.
+- Blocker: Context command của skill impeccable không chạy vì engine chưa cài và cần network/quyền ghi cache ngoài workspace; đọc reference và project design system để tiếp tục.
+- Còn lại: Xác nhận lại storefront với API/backend hoạt động để kiểm tra ảnh sản phẩm và voucher thật; review shared styles trước khi merge.
 
 ### 2026-10-03 — Khắc phục Triệt để Defect Review: Concurrency SKU Lock, QD05 Price Validation, Shop Chat Presence API & Test Docs Re-alignment
 
