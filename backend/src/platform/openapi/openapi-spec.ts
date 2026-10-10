@@ -163,6 +163,48 @@ export function generateOpenApiSpec(): OpenApiSpec {
           cart_item_id: { type: 'string', format: 'uuid' }, variant_id: { type: 'string', format: 'uuid' }, product_id: { type: 'string', format: 'uuid' }, product_name: { type: 'string' }, variant_name: { type: 'string' }, price: { type: 'string', pattern: '^\\d+\\.\\d{2}$' }, stock_quantity: { type: 'integer', minimum: 0 }, shop_id: { type: 'string', format: 'uuid' }, shop_name: { type: 'string' }, image_url: { type: ['string', 'null'], format: 'uri' }, product_status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] }, variant_status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] }, shop_status: { type: 'string' }, is_available: { type: 'boolean' }, quantity: { type: 'integer', minimum: 1 }, is_selected: { type: 'boolean' },
         } },
         CartSuccessEnvelope: { type: 'object', required: ['data', 'request_id'], properties: { data: { type: 'object', required: ['cart_id', 'buyer_id', 'items'], properties: { cart_id: { type: ['string', 'null'], format: 'uuid' }, buyer_id: { type: 'string', format: 'uuid' }, items: { type: 'array', items: { $ref: '#/components/schemas/CartItemReadDTO' } } } }, request_id: { type: 'string' } } },
+        ShopMallRequestDTO: {
+          type: 'object',
+          required: ['id', 'shop_id', 'status', 'document_url', 'created_at', 'updated_at'],
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            shop_id: { type: 'string', format: 'uuid' },
+            seller_id: { type: 'string', format: 'uuid' },
+            status: { type: 'string', enum: ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'] },
+            document_url: { type: 'string', format: 'uri' },
+            contact_phone: { type: ['string', 'null'] },
+            description: { type: ['string', 'null'] },
+            admin_note: { type: ['string', 'null'] },
+            admin_id: { type: ['string', 'null'], format: 'uuid' },
+            reviewed_at: { type: ['string', 'null'], format: 'date-time' },
+            created_at: { type: 'string', format: 'date-time' },
+            updated_at: { type: 'string', format: 'date-time' },
+          },
+        },
+        ShopMallRequestEnvelope: {
+          type: 'object',
+          required: ['data', 'request_id'],
+          properties: {
+            data: { $ref: '#/components/schemas/ShopMallRequestDTO' },
+            request_id: { type: 'string' },
+          },
+        },
+        ShopMallRequestListEnvelope: {
+          type: 'object',
+          required: ['data', 'meta', 'request_id'],
+          properties: {
+            data: { type: 'array', items: { $ref: '#/components/schemas/ShopMallRequestDTO' } },
+            meta: {
+              type: 'object',
+              required: ['limit'],
+              properties: {
+                limit: { type: 'integer' },
+                next_cursor: { type: ['string', 'null'] },
+              },
+            },
+            request_id: { type: 'string' },
+          },
+        },
       },
     },
     paths: {
@@ -1251,6 +1293,66 @@ export function generateOpenApiSpec(): OpenApiSpec {
           responses: { '200': successResponse('Shops list retrieved'), '403': errorResponse('Admin role required') },
         },
       },
+      '/admin/shops/mall-requests': {
+        get: {
+          summary: 'List mall upgrade requests for Admin review',
+          security: [{ BearerAuth: [] }],
+          parameters: [
+            { name: 'status', in: 'query', required: false, schema: { type: 'string', enum: ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'] } },
+            { name: 'limit', in: 'query', required: false, schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 } },
+            { name: 'cursor', in: 'query', required: false, schema: { type: 'string' } },
+          ],
+          responses: {
+            '200': successResponse('Mall requests retrieved', '#/components/schemas/ShopMallRequestListEnvelope'),
+            '401': errorResponse('Authentication required'),
+            '403': errorResponse('Admin role required'),
+          },
+        },
+      },
+      '/admin/shops/mall-requests/{id}/approve': {
+        post: {
+          summary: 'Approve a pending mall upgrade request',
+          security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: jsonRequest({
+            type: 'object',
+            required: ['note'],
+            properties: {
+              note: { type: 'string', minLength: 1, maxLength: 1000 },
+            },
+          }),
+          responses: {
+            '200': successResponse('Mall request approved and shop upgraded', '#/components/schemas/ShopMallRequestEnvelope'),
+            '401': errorResponse('Authentication required'),
+            '403': errorResponse('Admin role required'),
+            '404': errorResponse('Request not found'),
+            '409': errorResponse('Request not in PENDING status'),
+            '422': errorResponse('Admin note is required'),
+          },
+        },
+      },
+      '/admin/shops/mall-requests/{id}/reject': {
+        post: {
+          summary: 'Reject a pending mall upgrade request',
+          security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          requestBody: jsonRequest({
+            type: 'object',
+            required: ['reason'],
+            properties: {
+              reason: { type: 'string', minLength: 1, maxLength: 1000 },
+            },
+          }),
+          responses: {
+            '200': successResponse('Mall request rejected', '#/components/schemas/ShopMallRequestEnvelope'),
+            '401': errorResponse('Authentication required'),
+            '403': errorResponse('Admin role required'),
+            '404': errorResponse('Request not found'),
+            '409': errorResponse('Request not in PENDING status'),
+            '422': errorResponse('Rejection reason is required'),
+          },
+        },
+      },
       '/admin/shops/{id}/tier': {
         patch: {
           summary: 'Update shop tier', security: [{ BearerAuth: [] }],
@@ -1433,6 +1535,55 @@ export function generateOpenApiSpec(): OpenApiSpec {
             '403': errorResponse('Seller role required or shop profile is read-only'),
             '404': errorResponse('Seller shop not found'),
             '422': errorResponse('Invalid media_id or media upload not finalized for shop logo'),
+          },
+        },
+      },
+      '/seller/shop/mall-requests': {
+        post: {
+          summary: 'Submit a request to upgrade shop to Dino Mall',
+          security: [{ BearerAuth: [] }],
+          requestBody: jsonRequest({
+            type: 'object',
+            required: ['document_url'],
+            properties: {
+              document_url: { type: 'string', format: 'uri' },
+              contact_phone: { type: ['string', 'null'], maxLength: 20 },
+              description: { type: ['string', 'null'], maxLength: 1000 },
+            },
+          }),
+          responses: {
+            '201': successResponse('Mall request submitted', '#/components/schemas/ShopMallRequestEnvelope'),
+            '401': errorResponse('Authentication required'),
+            '403': errorResponse('Seller role required or shop not active'),
+            '409': errorResponse('Shop is already Mall or has a pending request'),
+            '422': errorResponse('Invalid document_url or request parameters'),
+          },
+        },
+        get: {
+          summary: 'List mall upgrade requests for current seller shop',
+          security: [{ BearerAuth: [] }],
+          parameters: [
+            { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 50, default: 20 } },
+            { name: 'cursor', in: 'query', schema: { type: 'string' } },
+          ],
+          responses: {
+            '200': successResponse('Mall upgrade requests retrieved', '#/components/schemas/ShopMallRequestListEnvelope'),
+            '401': errorResponse('Authentication required'),
+            '403': errorResponse('Seller role required'),
+          },
+        },
+      },
+      '/seller/shop/mall-requests/{id}/cancel': {
+        post: {
+          summary: 'Cancel a pending mall upgrade request',
+          security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            '200': successResponse('Mall request cancelled', '#/components/schemas/ShopMallRequestEnvelope'),
+            '401': errorResponse('Authentication required'),
+            '403': errorResponse('Forbidden'),
+            '404': errorResponse('Mall request not found'),
+            '409': errorResponse('Request is not in PENDING status'),
           },
         },
       },

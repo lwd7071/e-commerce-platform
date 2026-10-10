@@ -42,6 +42,8 @@ import { createSellerShopRouter } from './routes/seller-shop-routes.ts';
 import { SellerShopService } from '../../modules/shop/services/seller-shop.service.ts';
 import { ShopTierEvaluationService } from '../../modules/shop/services/shop-tier-evaluation.service.ts';
 import { PgSellerShopRepository } from '../../modules/shop/repositories/pg-seller-shop.repository.ts';
+import { ShopMallRequestService } from '../../modules/shop/services/shop-mall-request.service.ts';
+import { PgShopMallRequestRepository } from '../../modules/shop/repositories/pg-shop-mall-request.repository.ts';
 import { createSellerAnalyticsRouter } from './routes/seller-analytics-routes.ts';
 import { SellerKpiService } from '../../modules/reporting/services/seller-kpi.service.ts';
 import { PgSellerKpiRepository } from '../../modules/reporting/repositories/pg-seller-kpi.repository.ts';
@@ -98,6 +100,7 @@ export interface PlatformApplications extends T1RouteApplications {
   sellerRevenue?: Pick<SellerRevenueService, 'get'>;
   sellerWallet?: ShopWalletService;
   adminFinance?: AdminFinanceService;
+  mallRequestService?: ShopMallRequestService;
   payosService?: PayosService;
   escrowService?: EscrowService;
   adminCampaigns?: AdminNotificationCampaignService;
@@ -133,7 +136,7 @@ export function createApp(applications: PlatformApplications = {}): Application 
   const auth = applications.auth;
   app.use('/api/v1', createIdentityRouter(applications.authRepository, applications.onboardingService, auth));
   app.use('/api/v1', createCatalogRouter(applications.catalog, auth));
-  app.use('/api/v1', createSellerShopRouter(applications.sellerShop, auth));
+  app.use('/api/v1', createSellerShopRouter(applications.sellerShop, auth, applications.mallRequestService));
   app.use('/api/v1', createSellerAnalyticsRouter(applications.sellerKpi, auth));
   app.use('/api/v1', createSellerVoucherRouter(applications.sellerVouchers, auth));
   app.use('/api/v1', createSellerReportingRouter(applications.sellerRevenue, auth));
@@ -163,6 +166,7 @@ export function createApp(applications: PlatformApplications = {}): Application 
     adminOrderQueries,
     orderServices?.transitionOrder,
     tierEvaluator,
+    applications.mallRequestService,
   ));
   app.use('/api/v1', createMediaRouter(
     auth,
@@ -282,6 +286,12 @@ export function createRuntimeApp(
       adminFinance,
       payosService,
       escrowService,
+      mallRequestService: new ShopMallRequestService(
+        pool,
+        new PgShopMallRequestRepository(pool),
+        new PgModerationTargetRepository(pool),
+        new PgAuditRepository(pool),
+      ),
       catalog: new PgCatalogHttpService(pool),
       chatService: new PgChatService(pool),
       buyerServices: {
