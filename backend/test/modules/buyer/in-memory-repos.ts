@@ -1,5 +1,5 @@
-import type { Cart, CartItem, Voucher, VoucherUsage, UUID } from '../src/modules/buyer/domain/types.ts';
-import type { ICartRepository, IVoucherRepository } from '../src/modules/buyer/domain/repositories.ts';
+import type { Cart, CartItem, Voucher, VoucherUsage, Review, UUID } from '../../../src/modules/buyer/domain/types';
+import type { ICartRepository, IVoucherRepository, IReviewRepository } from '../../../src/modules/buyer/domain/repositories';
 
 export class InMemoryCartRepository implements ICartRepository {
   private carts: Map<UUID, Cart> = new Map();
@@ -79,8 +79,46 @@ export class InMemoryVoucherRepository implements IVoucherRepository {
     return true;
   }
 
+  async incrementQuantity(voucherId: UUID): Promise<boolean> {
+    const v = this.vouchers.get(voucherId);
+    if (!v) return false;
+    v.quantity += 1;
+    return true;
+  }
+
   async recordUsage(usage: VoucherUsage): Promise<VoucherUsage> {
     this.usages.set(usage.usageId, usage);
     return usage;
   }
 }
+
+export class InMemoryReviewRepository implements IReviewRepository {
+  private reviews: Map<UUID, Review> = new Map();
+  private reviewImages: Map<UUID, string[]> = new Map();
+
+  async findById(reviewId: UUID): Promise<Review | null> {
+    return this.reviews.get(reviewId) ?? null;
+  }
+
+  async findByOrderItemId(orderItemId: UUID): Promise<Review | null> {
+    for (const r of this.reviews.values()) {
+      if (r.orderItemId === orderItemId) return r;
+    }
+    return null;
+  }
+
+  async findByProductId(productId: UUID): Promise<Review[]> {
+    return Array.from(this.reviews.values()).filter(
+      r => r.productId === productId && r.status === 'VISIBLE'
+    );
+  }
+
+  async create(review: Review, images?: string[]): Promise<Review> {
+    this.reviews.set(review.reviewId, review);
+    if (images) {
+      this.reviewImages.set(review.reviewId, images);
+    }
+    return review;
+  }
+}
+

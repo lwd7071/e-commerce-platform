@@ -4,7 +4,9 @@
 
 Nội dung nghiệp vụ gốc nằm trong [`../../spec/schema-freeze-v1.md`](../../spec/schema-freeze-v1.md). File này ánh xạ từng QD và RBTV sang thời điểm kiểm tra, tầng thực thi, error code và loại test. Khi mô tả khác nhau, Schema Freeze và CR Approved có ưu tiên cao hơn.
 
-## 2. QD01-QD20
+## 2. Business rules gốc và rule bổ sung đã duyệt
+
+QD01-QD20 thuộc Schema Freeze v1. Các rule bổ sung chỉ áp dụng khi được CR Approved; QD21 bên dưới được thêm theo CR-SELLER-01 và không sửa nội dung Schema Freeze.
 
 | Rule | Thời điểm | Tầng thực thi | Error code | Test bắt buộc |
 |---|---|---|---|---|
@@ -28,6 +30,11 @@ Nội dung nghiệp vụ gốc nằm trong [`../../spec/schema-freeze-v1.md`](..
 | QD18 Không lưu dữ liệu thẻ thật | Payment request/log/storage | API + security policy | `PAYMENT_DATA_NOT_ALLOWED` | Payload chứa PAN/CVV bị từ chối; log redaction |
 | QD19 Doanh thu chỉ tính Order hợp lệ/completed | Reporting query | Reporting service | `REPORT_FILTER_INVALID` | Không tính cancelled/failed/pending |
 | QD20 Admin action quan trọng phải có log | Admin transaction | Service + append log | `AUDIT_WRITE_FAILED` | Action và AdminLog commit/rollback cùng nhau |
+| QD21 Shop phải có địa chỉ nhận hàng và điện thoại liên hệ trước khi duyệt; Seller `PENDING` được sửa hồ sơ | Seller shop profile / Admin approve | Shop service + moderation transaction | `VALIDATION_FAILED` | Seller chỉ sửa Shop của mình; hồ sơ thiếu trường không được kích hoạt hoặc ghi audit |
+
+QD21 được bổ sung theo [CR-SELLER-01](../../spec/changes/CR-SELLER-01-full-seller-operations.md) (Approved 2026-10-01).
+
+Theo CR-SHIPPING-01, sản phẩm có trọng lượng nguyên dương theo gram; địa chỉ mới chọn cặp tỉnh/thành và phường/xã theo danh mục 2026. Phí quote tính riêng theo Shop trên tổng `weight_grams × quantity`. GHTK chỉ dùng để tính phí; mock là mặc định, và lỗi GHTK không được thay bằng mock. Checkout tính lại trước transaction; nếu quote đã đổi thì trả `SHIPPING_QUOTE_CHANGED` và chưa tạo Order. Giao hàng MVP mô phỏng: Seller bàn giao, Buyer xác nhận nhận hàng để hoàn tất.
 
 ## 3. Phân bổ RBTV
 
@@ -125,6 +132,7 @@ FK violation do client gây ra được chuyển thành `RESOURCE_NOT_FOUND` ho�
 | RB-LQH08 Revenue từ Order hợp lệ/completed | Chạy report | Reporting service | Không tính trạng thái khác |
 
 ## 4. Nguyên tắc lỗi và test
+
 
 - Validation lặp ở client không thay thế Service/DB validation.
 - Mỗi domain error trong bảng trên phải tồn tại trong [`error-observability.md`](error-observability.md).

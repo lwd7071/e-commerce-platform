@@ -16,6 +16,7 @@ export interface Shop {
   pickupAddress: string;
   contactPhone: string;
   status: ShopStatus;
+  tier?: 'STANDARD' | 'PREFERRED' | 'MALL';
   createdAt: string;
   updatedAt: string;
 }
@@ -36,6 +37,7 @@ export interface Product {
   categoryId: UUID;
   productName: string;
   description: string | null;
+  weightGrams?: number;
   status: ProductStatus;
   createdAt: string;
   updatedAt: string;
@@ -52,12 +54,14 @@ export interface ProductVariant {
   variantId: UUID;
   productId: UUID;
   variantName: string;
-  variantValue: string;
+  variantValue: string | null;
   sku: string;
   price: DecimalString;
-  salePrice?: DecimalString | null;
   stockQuantity: number;
   status: VariantStatus;
   createdAt: string;
   updatedAt: string;
+  productName?: string;
+  shopId?: UUID;
+  shopOwnerId?: UUID;
 }

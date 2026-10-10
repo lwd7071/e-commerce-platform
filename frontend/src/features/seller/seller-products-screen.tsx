@@ -1,0 +1,578 @@
+"use client";
+
+import { useEffect, useState, useMemo, useCallback } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { repositories } from "@/lib/repositories/repository-factory";
+import { moneyAdapter } from "@/lib/adapters/money.adapter";
+import type { WireCatalogProductItem, WireCatalogProductDetail, WireProductVariant } from "@/lib/api/catalog.api";
+import { AppError } from "@/lib/api/app-error";
+import { useAuth } from "@/lib/auth/auth-context";
+import { validateStockQuantityInput } from "@/features/catalog/catalog-query-engine";
+import { useToast } from "@/components/ui/toast";
+import { Skeleton, EmptyState, ErrorState } from "@/components/ui/data-states";
+import { Dialog } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { FormField, TextInput } from "@/components/ui/form-controls";
+import { Icon } from "@/components/ui/icon";
+import { SellerHeaderNav } from "./seller-header-nav";
+
+export function SellerProductsScreen() {
+  const router = useRouter();
+  const showToast = useToast();
+  const { user } = useAuth();
+
+  const [products, setProducts] = useState<WireCatalogProductItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Search, filter, and pagination states (O-508)
+  const [searchQuery, setSearchQuery] = useState("");
+  const [stockFilter, setStockFilter] = useState<"all" | "in_stock" | "out_of_stock">("all");
+  const [page, setPage] = useState(1);
+  const [cursor, setCursor] = useState<string | undefined>();
+  const [cursorHistory, setCursorHistory] = useState<string[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const itemsPerPage = 10;
+
+  // Edit stock dialog state (O-509)
+  const [activeProduct, setActiveProduct] = useState<WireCatalogProductItem | null>(null);
+  const [productDetail, setProductDetail] = useState<WireCatalogProductDetail | null>(null);
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const [editingVariant, setEditingVariant] = useState<WireProductVariant | null>(null);
+  const [stockInput, setStockInput] = useState<string>("0");
+  const [isUpdatingStock, setIsUpdatingStock] = useState(false);
+
+  const loadPage = useCallback((params: { cursor?: string; search?: string } = {}) => {
+    setIsLoading(true);
+    setError(null);
+    repositories.catalog().getSellerProductsPaginated({ limit: itemsPerPage, ...params })
+      .then((result) => {
+        setProducts(result.data);
+        setNextCursor(result.meta.next_cursor ?? null);
+        setCursor(params.cursor);
+        setIsLoading(false);
+      })
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : "Không thể tải danh sách sản phẩm.");
+        setIsLoading(false);
+      });
+  }, []);
+
+  const handleRetry = () => {
+    loadPage({ cursor, search: searchQuery || undefined });
+  };
+
+  // Scope products strictly to seller context (O-508)
+  const isShopPending = user?.role === "SELLER" && user?.shopStatus === "PENDING";
+
+  // Apply search query and stock availability filter
+  const filteredProducts = useMemo(() => products.filter((item) => {
+      if (stockFilter === "in_stock" && item.total_stock <= 0) return false;
+      if (stockFilter === "out_of_stock" && item.total_stock > 0) return false;
+      return true;
+    }), [products, stockFilter]);
+
+  const paginatedProducts = filteredProducts;
+  const currentPage = page;
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setPage(1);
+      setCursor(undefined);
+      setCursorHistory([]);
+      loadPage({ search: searchQuery.trim() || undefined });
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery, loadPage]);
+
+  const handleOpenStockDialog = async (prod: WireCatalogProductItem) => {
+    if (isShopPending) return;
+    setActiveProduct(prod);
+    setIsLoadingDetail(true);
+    try {
+      const detail = await repositories.catalog().getSellerProductById!(prod.product_id);
+      setProductDetail(detail);
+      if (detail.variants && detail.variants.length > 0) {
+        setEditingVariant(detail.variants[0]);
+        setStockInput(String(detail.variants[0].stock_quantity));
+      }
+    } catch {
+      showToast("Không thể tải thông tin biến thể sản phẩm", "error");
+    } finally {
+      setIsLoadingDetail(false);
+    }
+  };
+
+  const handleSelectVariantForEdit = (variant: WireProductVariant) => {
+    setEditingVariant(variant);
+    setStockInput(String(variant.stock_quantity));
+  };
+
+  const handleSaveStock = async () => {
+    if (isShopPending) {
+      showToast("Gian hàng đang chờ duyệt. Không thể thay đổi tồn kho.", "error");
+      return;
+    }
+    const catalogRepo = repositories.catalog();
+    if (!editingVariant || !catalogRepo.updateStock) return;
+
+    // Strict validation to avoid float truncation or negative values (O-509)
+    const valid = validateStockQuantityInput(stockInput);
+    if (!valid.valid || valid.value === undefined) {
+      showToast(valid.error || "Vui lòng nhập số lượng tồn kho hợp lệ", "error");
+      return;
+    }
+
+    setIsUpdatingStock(true);
+    try {
+      await catalogRepo.updateStock(editingVariant.variant_id, valid.value);
+      showToast(`Đã cập nhật tồn kho thành ${valid.value}`, "success", "Cập nhật thành công");
+
+      // Update local detail state
+      if (productDetail) {
+        const updatedVariants = productDetail.variants.map((v) =>
+          v.variant_id === editingVariant.variant_id ? { ...v, stock_quantity: valid.value! } : v
+        );
+        setProductDetail({ ...productDetail, variants: updatedVariants });
+        setEditingVariant({ ...editingVariant, stock_quantity: valid.value });
+      }
+
+      // Refresh list
+      handleRetry();
+      setActiveProduct(null);
+    } catch (err: unknown) {
+      // Granular ownership & concurrency error handling (O-509)
+      if (err instanceof AppError) {
+        if (err.status === 403) {
+          showToast("Bạn không có quyền cập nhật tồn kho cho sản phẩm này (403 Forbidden).", "error", "Truy cập bị từ chối");
+          return;
+        }
+        if (err.status === 404) {
+          showToast("Không tìm thấy sản phẩm hoặc biến thể trên hệ thống (404 Not Found).", "error", "Không tồn tại");
+          return;
+        }
+        if (err.status === 409) {
+          showToast("Dữ liệu tồn kho vừa thay đổi ở phiên khác (409 Conflict). Đang đồng bộ lại...", "info", "Xung đột dữ liệu");
+          if (activeProduct) {
+            handleOpenStockDialog(activeProduct);
+          }
+          handleRetry();
+          return;
+        }
+      }
+      const msg = err instanceof Error ? err.message : "Cập nhật tồn kho thất bại";
+      showToast(msg, "error");
+    } finally {
+      setIsUpdatingStock(false);
+    }
+  };
+
+  const [isTogglingStatus, setIsTogglingStatus] = useState<string | null>(null);
+
+  const handleToggleProductStatus = async (item: WireCatalogProductItem) => {
+    const currentStatus = item.status || "ACTIVE";
+    if (currentStatus === "HIDDEN") {
+      showToast("Sản phẩm đang bị Admin ẩn. Liên hệ hỗ trợ để được xem xét.", "error");
+      return;
+    }
+    const nextStatus = currentStatus === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+    setIsTogglingStatus(item.product_id);
+    try {
+      if (repositories.catalog().updateProductStatus) {
+        await repositories.catalog().updateProductStatus!(item.product_id, nextStatus);
+      }
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.product_id === item.product_id ? { ...p, status: nextStatus } : p
+        )
+      );
+      showToast(
+        nextStatus === "ACTIVE"
+          ? `Đã hiển thị sản phẩm "${item.product_name}"`
+          : `Đã ẩn sản phẩm "${item.product_name}" khỏi gian hàng`,
+        "success"
+      );
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Đổi trạng thái thất bại", "error");
+    } finally {
+      setIsTogglingStatus(null);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="eyebrow">Kênh người bán</p>
+          <h1 className="page-title">Quản Lý Sản Phẩm</h1>
+          <p className="page-description">
+            Theo dõi danh mục hàng hóa, trạng thái hiển thị và điều chỉnh tồn kho nhanh.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {isShopPending ? (
+            <Button
+              variant="secondary"
+              disabled
+              title="Gian hàng đang chờ Admin duyệt"
+              className="h-10 px-4 text-xs font-bold opacity-60 cursor-not-allowed"
+              data-testid="add-product-btn-disabled"
+            >
+              + Thêm sản phẩm mới (Chờ duyệt)
+            </Button>
+          ) : (
+            <Link
+              href="/seller/products/new"
+              className="button button--primary h-10 px-4 text-xs font-bold shadow-xs"
+              data-testid="add-product-btn"
+            >
+              + Thêm sản phẩm mới
+            </Link>
+          )}
+        </div>
+      </div>
+
+      {/* Shop Pending Warning Banner (A-103) */}
+      {isShopPending && (
+        <div className="notice notice--warning" role="alert" data-testid="shop-pending-banner">
+          <Icon name="info" />
+          <div>
+            <strong>Gian hàng đang chờ duyệt:</strong> Gian hàng của bạn đang ở trạng thái chờ Admin duyệt. Bạn chưa thể tạo sản phẩm hoặc thay đổi tồn kho cho đến khi được kích hoạt.
+          </div>
+        </div>
+      )}
+
+      {/* Seller Channel Integration Notice */}
+      <div className="notice notice--info" role="status">
+        <Icon name="info" />
+        <div>
+          <strong>Kênh quản lý sản phẩm gian hàng:</strong> Dữ liệu được máy chủ giới hạn theo gian hàng của bạn; tại đây bạn có thể cập nhật tồn kho và trạng thái sản phẩm.
+        </div>
+      </div>
+      {/* Sub-navigation tabs across all seller features */}
+      <SellerHeaderNav />
+
+      {isLoading ? (
+        <div className="space-y-3 surface-card p-6">
+          <Skeleton height={28} className="w-1/4" />
+          <Skeleton height={40} className="w-full" />
+          <Skeleton height={40} className="w-full" />
+          <Skeleton height={40} className="w-full" />
+        </div>
+      ) : error ? (
+        <ErrorState
+          title="Không thể tải sản phẩm của gian hàng"
+          description={error}
+          onRetry={handleRetry}
+        />
+      ) : products.length === 0 ? (
+        <EmptyState
+          icon="bag"
+          title={isShopPending ? "Gian hàng đang chờ duyệt" : "Gian hàng chưa có sản phẩm nào"}
+          description={
+            isShopPending
+              ? "Gian hàng đang chờ Admin xét duyệt. Bạn sẽ có thể tạo sản phẩm mới ngay khi được kích hoạt."
+              : "Hãy tạo sản phẩm đầu tiên để bắt đầu bán hàng trên Dino."
+          }
+          action={
+            isShopPending
+              ? undefined
+              : {
+                  label: "Thêm sản phẩm",
+                  onClick: () => {
+                    router.push("/seller/products/new");
+                  },
+                }
+          }
+        />
+      ) : (
+        <div className="space-y-4">
+          {/* Controls: Search and Filter (O-508) */}
+          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+            <div className="flex flex-1 flex-wrap items-center gap-3">
+              <div className="w-full sm:w-72">
+                <TextInput
+                  id="seller-product-search"
+                  placeholder="Tìm theo tên hoặc ID sản phẩm..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setPage(1);
+                  }}
+                />
+              </div>
+
+              <div className="flex items-center gap-2 text-xs">
+                <label htmlFor="stock-filter" className="font-semibold text-[var(--subtext)] whitespace-nowrap">
+                  Tồn kho:
+                </label>
+                <select
+                  id="stock-filter"
+                  value={stockFilter}
+                  onChange={(e) => {
+                    setStockFilter(e.target.value as "all" | "in_stock" | "out_of_stock");
+                    setPage(1);
+                  }}
+                  className="rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-xs text-[var(--foreground)]"
+                >
+                  <option value="all">Tất cả trong trang ({products.length})</option>
+                  <option value="in_stock">Còn hàng</option>
+                  <option value="out_of_stock">Hết hàng</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="text-xs text-[var(--subtext)]">
+              Tìm thấy <strong className="text-[var(--foreground)]">{filteredProducts.length}</strong> sản phẩm
+            </div>
+          </div>
+
+          {filteredProducts.length === 0 ? (
+            <div className="surface-card p-8 text-center text-sm text-[var(--subtext)]">
+              Không tìm thấy sản phẩm phù hợp với điều kiện tìm kiếm.
+            </div>
+          ) : (
+            <div className="surface-card overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-[var(--border)] bg-[var(--card-muted)] text-xs font-bold text-[var(--subtext)]">
+                      <th className="py-3.5 px-4">Sản phẩm</th>
+                      <th className="py-3.5 px-4">Giá bán</th>
+                      <th className="py-3.5 px-4 text-center">Tổng tồn kho</th>
+                      <th className="py-3.5 px-4 text-center">Trạng thái</th>
+                      <th className="py-3.5 px-4 text-center">Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border)]">
+                    {paginatedProducts.map((item) => {
+                      const priceStr =
+                        item.min_price === item.max_price
+                          ? moneyAdapter.formatVND(item.min_price)
+                          : `${moneyAdapter.formatVND(item.min_price)} - ${moneyAdapter.formatVND(item.max_price)}`;
+                      const isItemActive = ((item as { status?: string }).status || "ACTIVE") === "ACTIVE";
+
+                      return (
+                        <tr key={item.product_id} className="hover:bg-[var(--card-muted)]/50 transition-colors">
+                          <td className="py-3.5 px-4">
+                            <div className="font-semibold text-[var(--foreground)]">
+                              {item.product_name}
+                            </div>
+                            <div className="text-xs text-[var(--subtext)] font-mono">
+                              ID: {item.product_id}
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 font-semibold text-[var(--primary-active)]">
+                            {priceStr}
+                          </td>
+                          <td className="py-3.5 px-4 text-center">
+                            <span
+                              className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                                item.total_stock > 10
+                                  ? "bg-[var(--success-surface)] text-[var(--success-text)] border-[var(--success-border)]"
+                                  : item.total_stock > 0
+                                  ? "bg-[var(--warning-surface)] text-[var(--warning-text)] border-[var(--warning-border)]"
+                                  : "bg-[var(--danger-surface)] text-[var(--danger-text)] border-[var(--danger-border)]"
+                              }`}
+                            >
+                              {item.total_stock > 0 ? item.total_stock : "Hết hàng"}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 text-center">
+                            <span
+                              className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                                isItemActive
+                                  ? "bg-[var(--success-surface)] text-[var(--success-text)] border-[var(--success-border)]"
+                                  : "bg-[var(--card-muted)] text-[var(--subtext)] border-[var(--border)]"
+                              }`}
+                            >
+                              {isItemActive ? "Đang bán" : "Đã ẩn"}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              {!isShopPending && <Link
+                                href={`/seller/products/${item.product_id}/edit`}
+                                aria-label={`Sửa ${item.product_name}`}
+                                className="button button--secondary h-8 px-3 text-xs"
+                              >Sửa</Link>}
+                              <Button
+                                variant="secondary"
+                                onClick={() => handleOpenStockDialog(item)}
+                                disabled={isShopPending}
+                                title={isShopPending ? "Gian hàng đang chờ duyệt" : undefined}
+                                className="h-8 px-3 text-xs"
+                              >
+                                Chỉnh tồn kho
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                onClick={() => handleToggleProductStatus(item)}
+                                loading={isTogglingStatus === item.product_id}
+                                disabled={item.status === "HIDDEN"}
+                                className="h-8 px-2.5 text-xs text-[var(--subtext)] hover:text-[var(--foreground)]"
+                                title={item.status === "HIDDEN" ? "Sản phẩm do Admin ẩn" : isItemActive ? "Ẩn khỏi gian hàng" : "Hiện sản phẩm"}
+                              >
+                                {item.status === "HIDDEN" ? "Admin đã ẩn" : isItemActive ? "Ẩn" : "Hiện"}
+                              </Button>
+                              <Link
+                                href={`/products/${item.product_id}`}
+                                className="button button--ghost h-8 px-2 text-xs"
+                                target="_blank"
+                                title="Xem trang sản phẩm"
+                              >
+                                <Icon name="search" className="h-4 w-4" />
+                              </Link>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination bar (O-508) */}
+              <div className="flex items-center justify-between border-t border-[var(--border)] px-4 py-3 bg-[var(--card-muted)]/30 text-xs">
+                <span className="text-[var(--subtext)]">
+                  Trang {currentPage}: {filteredProducts.length} sản phẩm đang hiển thị
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      const previous = cursorHistory[cursorHistory.length - 1];
+                      if (cursorHistory.length > 0) {
+                        setCursorHistory((history) => history.slice(0, -1));
+                        setPage((value) => Math.max(1, value - 1));
+                        loadPage({ cursor: previous || undefined, search: searchQuery || undefined });
+                      }
+                    }}
+                    disabled={cursorHistory.length === 0}
+                    className="h-7 px-2.5 text-xs"
+                  >
+                    Trước
+                  </Button>
+                  <span className="font-semibold text-[var(--foreground)] px-1">
+                    {currentPage}
+                  </span>
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      if (nextCursor) {
+                        setCursorHistory((history) => [...history, cursor ?? ""]);
+                        setPage((value) => value + 1);
+                        loadPage({ cursor: nextCursor, search: searchQuery || undefined });
+                      }
+                    }}
+                    disabled={!nextCursor}
+                    className="h-7 px-2.5 text-xs"
+                  >
+                    Sau
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Stock Edit Dialog (O-509) */}
+      <Dialog
+        open={Boolean(activeProduct)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setActiveProduct(null);
+            setProductDetail(null);
+            setEditingVariant(null);
+          }
+        }}
+        title="Cập nhật số lượng tồn kho"
+        description={activeProduct ? activeProduct.product_name : undefined}
+        footer={
+          <div className="flex items-center gap-3">
+            <Button
+              variant="secondary"
+              onClick={() => setActiveProduct(null)}
+              disabled={isUpdatingStock}
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleSaveStock}
+              disabled={isUpdatingStock || isLoadingDetail || !editingVariant}
+            >
+              {isUpdatingStock ? "Đang lưu..." : "Lưu thay đổi"}
+            </Button>
+          </div>
+        }
+      >
+        {isLoadingDetail ? (
+          <div className="space-y-4 py-4">
+            <Skeleton height={20} className="w-1/2" />
+            <Skeleton height={40} className="w-full" />
+          </div>
+        ) : productDetail ? (
+          <div className="space-y-5 py-2">
+            {/* Variant selector */}
+            <div className="space-y-2">
+              <span className="block text-xs font-semibold text-[var(--foreground)]">
+                Chọn biến thể để cập nhật:
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {productDetail.variants.map((v) => {
+                  const isSelected = editingVariant?.variant_id === v.variant_id;
+                  const label = v.variant_value ? `${v.variant_name}: ${v.variant_value}` : v.variant_name;
+                  return (
+                    <button
+                      key={v.variant_id}
+                      type="button"
+                      onClick={() => handleSelectVariantForEdit(v)}
+                      className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all ${
+                        isSelected
+                          ? "border-[var(--primary-active)] bg-[var(--primary-surface)] text-[var(--primary-active)]"
+                          : "border-[var(--border)] bg-[var(--card)] text-[var(--foreground)] hover:border-[var(--primary-border)]"
+                      }`}
+                    >
+                      {label} ({v.stock_quantity})
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {editingVariant && (
+              <div className="space-y-4 rounded-xl bg-[var(--card-muted)] p-4">
+                <div className="flex items-center justify-between text-xs text-[var(--subtext)]">
+                  <span>Mã SKU: <strong className="font-mono text-[var(--foreground)]">{editingVariant.sku}</strong></span>
+                  <span>Giá bán: <strong className="text-[var(--primary-active)]">{moneyAdapter.formatVND(editingVariant.price)}</strong></span>
+                </div>
+
+                <FormField
+                  id="variant-stock-input"
+                  label="Số lượng tồn kho mới"
+                  helpText="Nhập số lượng thực tế trong kho sẵn sàng để giao bán (số nguyên không âm)."
+                  required
+                >
+                  <TextInput
+                    id="variant-stock-input"
+                    type="number"
+                    step="1"
+                    min="0"
+                    value={stockInput}
+                    onChange={(e) => setStockInput(e.target.value)}
+                  />
+                </FormField>
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="text-xs text-[var(--subtext)]">Không tìm thấy chi tiết sản phẩm.</p>
+        )}
+      </Dialog>
+    </div>
+  );
+}

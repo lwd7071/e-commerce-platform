@@ -18,8 +18,8 @@
 | `AUTH_INVALID_TOKEN` | 401 | Token hỏng, hết hạn, sai issuer/audience |
 | `AUTH_CONFIGURATION_ERROR` | 500 | Cấu hình Auth phía server sai |
 | `USER_LOCKED` | 403 | Tài khoản nghiệp vụ bị khóa |
-| `RESOURCE_FORBIDDEN` | 403 | Thiếu role hoặc ownership |
-| `RESOURCE_NOT_FOUND` | 404 | Không tồn tại hoặc được che giấu vì không thuộc quyền |
+| `RESOURCE_FORBIDDEN` | 403 | Thiếu role/ownership và endpoint công khai việc từ chối quyền |
+| `RESOURCE_NOT_FOUND` | 404 | Không tồn tại hoặc endpoint che giấu resource private không thuộc quyền |
 
 ### Validation và conflict chung
 
@@ -32,6 +32,8 @@
 | `IDEMPOTENCY_KEY_REUSED` | 409 | Cùng key nhưng khác payload |
 | `REQUEST_IN_PROGRESS` | 409 | Request cùng key đang xử lý |
 | `RESOURCE_DELETE_NOT_ALLOWED` | 409 | Dữ liệu lịch sử chỉ được đổi trạng thái |
+| `SHIPPING_QUOTE_CHANGED` | 409 | Phí vận chuyển backend vừa tính khác quote buyer xác nhận |
+| `RATE_LIMIT_EXCEEDED` | 429 | Vượt rate limit |
 
 ### Identity, Shop, Cart và catalog
 
@@ -56,6 +58,7 @@
 | `ORDER_CANCELLATION_NOT_ALLOWED` | 409 | Actor/trạng thái không cho phép hủy |
 | `VOUCHER_NOT_APPLICABLE` | 422 | Voucher không đáp ứng điều kiện |
 | `VOUCHER_CODE_CONFLICT` | 409 | Mã Voucher đã tồn tại |
+| `VOUCHER_ALREADY_USED` | 409 | Voucher đã được sử dụng; điều kiện không thể sửa, chỉ bật/tắt |
 | `VOUCHER_ALREADY_APPLIED` | 409 | Order đã có VoucherUsage |
 | `VOUCHER_DISCOUNT_MISMATCH` | 500 | VoucherUsage và Order không khớp |
 | `PAYMENT_AMOUNT_INVALID` | 422 | Amount không bằng TotalAmount hoặc không dương |

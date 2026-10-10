@@ -1,0 +1,247 @@
+import { Router, type Request, type Response, type NextFunction, type RequestHandler } from 'express';
+import { buildPaginatedEnvelope, buildSuccessEnvelope } from '../envelope.ts';
+import { DependencyUnavailableError, ForbiddenError, NotFoundError, UnauthorizedError, ValidationFailedError } from '../../errors/app-error.ts';
+import { parseCheckoutCommand } from '../../../modules/checkout/contracts/checkout-command.ts';
+import type { RequestContext } from '../../context/request-context.ts';
+
+type AsyncRoute = (req: Request, res: Response, next: NextFunction) => Promise<void>;
+type Role = 'BUYER' | 'SELLER' | 'ADMIN';
+
+export interface CatalogHttpApplication {
+  listCategories?(): Promise<unknown[]>;
+  listProducts(input: Record<string, unknown>): Promise<{ items: unknown[]; next_cursor: string | null; has_more: boolean; limit: number }>;
+  getProduct(productId: string): Promise<unknown>;
+  createProduct(context: RequestContext, input: Record<string, unknown>): Promise<unknown>;
+  updateVariantStock(context: RequestContext, variantId: string, input: Record<string, unknown>): Promise<unknown>;
+  listSellerProducts?(context: RequestContext, input: Record<string, unknown>): Promise<unknown>;
+  getSellerProduct?(context: RequestContext, productId: string): Promise<unknown>;
+  updateSellerProduct?(context: RequestContext, productId: string, input: Record<string, unknown>): Promise<unknown>;
+  updateProductStatus?(context: RequestContext, productId: string, status: string): Promise<unknown>;
+  listAllCategories?(): Promise<unknown[]>;
+  createCategory?(input: Record<string, unknown>): Promise<unknown>;
+  updateCategory?(categoryId: string, input: Record<string, unknown>): Promise<unknown>;
+  updateCategoryStatus?(categoryId: string, status: string): Promise<unknown>;
+}
+
+export interface BuyerHttpApplication {
+  listAddresses(context: RequestContext): Promise<unknown[]>;
+  createAddress(context: RequestContext, input: Record<string, unknown>): Promise<unknown>;
+  getCart(context: RequestContext): Promise<unknown>;
+  addCartItem(context: RequestContext, input: Record<string, unknown>): Promise<unknown>;
+  updateCartItem(context: RequestContext, itemId: string, input: Record<string, unknown>): Promise<unknown>;
+  deleteCartItem(context: RequestContext, itemId: string): Promise<void>;
+  clearSelectedCartItems(context: RequestContext): Promise<void>;
+  applicableVouchers(context: RequestContext, input: Record<string, unknown>): Promise<unknown[]>;
+  evaluateVoucher(context: RequestContext, input: Record<string, unknown>): Promise<unknown>;
+}
+
+export interface OrderHttpApplication {
+  quoteShipping?(context: RequestContext, input: Record<string, unknown>): Promise<unknown>;
+  createOrder(context: RequestContext, command: ReturnType<typeof parseCheckoutCommand>): Promise<unknown>;
+  cancelOrder(context: RequestContext, orderId: string, input: Record<string, unknown>): Promise<unknown>;
+  confirmOrder(context: RequestContext, orderId: string, reason?: string): Promise<unknown>;
+  confirmReceived?(context: RequestContext, orderId: string, reason?: string): Promise<unknown>;
+  transitionOrder(context: RequestContext, orderId: string, input: Record<string, unknown>): Promise<unknown>;
+  retryPayment(context: RequestContext, orderId: string, input: Record<string, unknown>): Promise<unknown>;
+}
+
+import type { IModerationService } from '../../../modules/moderation/domain/moderation.types.ts';
+
+export interface T1RouteApplications {
+  auth?: RequestHandler;
+  catalog?: CatalogHttpApplication;
+  buyer?: BuyerHttpApplication;
+  orders?: OrderHttpApplication;
+  moderation?: IModerationService;
+}
+
+function guards(auth: RequestHandler | undefined, ...roles: Role[]): RequestHandler[] {
+  return auth ? [auth, requireRole(...roles)] : [requireRole(...roles)];
+}
+
+function context(req: Request): RequestContext {
+  if (!req.context) throw new UnauthorizedError();
+  return req.context;
+}
+
+function requireRole(...roles: Role[]): (req: Request, _res: Response, next: NextFunction) => void {
+  return (req, _res, next) => {
+    try {
+      const requestContext = context(req);
+      if (!roles.includes(requestContext.role as Role)) {
+        throw new ForbiddenError('ROLE_REQUIRED', `Required role: ${roles.join(' or ')}`);
+      }
+      if (requestContext.role === 'SELLER' && roles.includes('SELLER') && requestContext.shop_status !== 'ACTIVE') {
+        throw new ForbiddenError('SHOP_NOT_ACTIVE', 'Seller shop must be active before using seller operations');
+      }
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
+}
+
+function implementation<T extends (...args: never[]) => Promise<unknown>>(method: T | undefined, receiver?: unknown): T {
+  if (method) return receiver === undefined ? method : method.bind(receiver) as T;
+  return (async () => {
+    throw new NotFoundError('T1 application handler is not configured');
+  }) as unknown as T;
+}
+
+function rejectUnknown(input: Record<string, unknown>, allowed: readonly string[]): void {
+  const unknown = Object.keys(input).find((key) => !allowed.includes(key));
+  if (unknown) throw new ValidationFailedError(`Unknown field: ${unknown}`, { field: unknown });
+}
+
+function requestId(req: Request): string {
+  return req.requestId ?? 'req_unknown';
+}
+
+export function createCatalogRouter(application?: CatalogHttpApplication, auth?: RequestHandler): Router {
+  const router = Router();
+  router.get('/categories', asyncRoute(async (req, res) => {
+    if (!application?.listCategories) throw new DependencyUnavailableError('Category reads are not configured');
+    res.json(buildSuccessEnvelope(await application.listCategories(), requestId(req)));
+  }));
+  router.get('/products', asyncRoute(async (req, res) => {
+    const allowed = ['category_id', 'search', 'min_price', 'max_price', 'sort', 'limit', 'cursor', 'shop_tier'];
+    const input = req.query as Record<string, unknown>;
+    rejectUnknown(input, allowed);
+    const result = await implementation(application?.listProducts, application)(input);
+    res.json(buildPaginatedEnvelope(result.items, {
+      next_cursor: result.next_cursor,
+      has_more: result.has_more,
+      limit: result.limit,
+    }, requestId(req)));
+  }));
+  router.get('/products/:product_id', asyncRoute(async (req, res) => {
+    const result = await implementation(application?.getProduct, application)(req.params.product_id);
+    res.json(buildSuccessEnvelope(result, requestId(req)));
+  }));
+  router.post('/products', ...guards(auth, 'SELLER'), asyncRoute(async (req, res) => {
+    const input = req.body as Record<string, unknown>;
+    rejectUnknown(input, ['product_id', 'category_id', 'product_name', 'description', 'weight_grams', 'variants', 'images']);
+    const result = await implementation(application?.createProduct, application)(context(req), input);
+    res.status(201).json(buildSuccessEnvelope(result, requestId(req)));
+  }));
+  router.patch('/product-variants/:variant_id/stock', ...guards(auth, 'SELLER'), asyncRoute(async (req, res) => {
+    const input = req.body as Record<string, unknown>;
+    rejectUnknown(input, ['quantity']);
+    const result = await implementation(application?.updateVariantStock, application)(context(req), req.params.variant_id, input);
+    res.json(buildSuccessEnvelope(result, requestId(req)));
+  }));
+  router.get('/seller/products', ...guards(auth, 'SELLER'), asyncRoute(async (req, res) => {
+    const allowed = ['search', 'status', 'limit', 'cursor'];
+    const input = req.query as Record<string, unknown>;
+    rejectUnknown(input, allowed);
+    const result = await implementation(application?.listSellerProducts, application)(context(req), input) as {
+      items: unknown[]; next_cursor: string | null; has_more: boolean; limit: number;
+    };
+    res.json(buildPaginatedEnvelope(result.items, {
+      next_cursor: result.next_cursor, has_more: result.has_more, limit: result.limit,
+    }, requestId(req)));
+  }));
+  router.get('/seller/products/:id', ...guards(auth, 'SELLER'), asyncRoute(async (req, res) => {
+    const result = await implementation(application?.getSellerProduct, application)(context(req), req.params.id);
+    res.json(buildSuccessEnvelope(result, requestId(req)));
+  }));
+  router.patch('/seller/products/:id', ...guards(auth, 'SELLER'), asyncRoute(async (req, res) => {
+    const input = req.body as Record<string, unknown>;
+    rejectUnknown(input, ['product_name', 'description', 'weight_grams', 'category_id', 'variants', 'images']);
+    const result = await implementation(application?.updateSellerProduct, application)(context(req), req.params.id, input);
+    res.json(buildSuccessEnvelope(result, requestId(req)));
+  }));
+  router.patch('/seller/products/:id/status', ...guards(auth, 'SELLER'), asyncRoute(async (req, res) => {
+    const input = req.body as Record<string, unknown>;
+    rejectUnknown(input, ['status']);
+    const status = String(input.status);
+    if (status !== 'ACTIVE' && status !== 'INACTIVE') {
+      throw new ValidationFailedError('Status must be ACTIVE or INACTIVE', { field: 'status' });
+    }
+    const result = await implementation(application?.updateProductStatus, application)(context(req), req.params.id, status);
+    res.json(buildSuccessEnvelope(result, requestId(req)));
+  }));
+  router.patch('/products/:product_id/status', ...guards(auth, 'SELLER'), asyncRoute(async (req, res) => {
+    const input = req.body as Record<string, unknown>;
+    rejectUnknown(input, ['status']);
+    const status = String(input.status);
+    if (status !== 'ACTIVE' && status !== 'INACTIVE') {
+      throw new ValidationFailedError('Status must be ACTIVE or INACTIVE', { field: 'status' });
+    }
+    const result = await implementation(application?.updateProductStatus, application)(context(req), req.params.product_id, status);
+    res.json(buildSuccessEnvelope(result, requestId(req)));
+  }));
+  return router;
+}
+
+export function createBuyerRouter(application?: BuyerHttpApplication, auth?: RequestHandler): Router {
+  const router = Router();
+  router.get('/addresses', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
+    res.json(buildSuccessEnvelope(await implementation(application?.listAddresses, application)(context(req)), requestId(req)));
+  }));
+  router.post('/addresses', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
+    const input = req.body as Record<string, unknown>;
+    rejectUnknown(input, ['recipient_name', 'phone', 'province', 'province_code', 'district', 'ward', 'ward_code', 'detail_address', 'is_default']);
+    res.status(201).json(buildSuccessEnvelope(await implementation(application?.createAddress, application)(context(req), input), requestId(req)));
+  }));
+  router.get('/cart', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
+    res.json(buildSuccessEnvelope(await implementation(application?.getCart, application)(context(req)), requestId(req)));
+  }));
+  router.post('/cart/items', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
+    const input = req.body as Record<string, unknown>;
+    rejectUnknown(input, ['variant_id', 'quantity']);
+    res.status(201).json(buildSuccessEnvelope(await implementation(application?.addCartItem, application)(context(req), input), requestId(req)));
+  }));
+  router.patch('/cart/items/:cart_item_id', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
+    const input = req.body as Record<string, unknown>;
+    rejectUnknown(input, ['quantity', 'is_selected']);
+    res.json(buildSuccessEnvelope(await implementation(application?.updateCartItem, application)(context(req), req.params.cart_item_id, input), requestId(req)));
+  }));
+  router.delete('/cart/items/:cart_item_id', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
+    await implementation(application?.deleteCartItem, application)(context(req), req.params.cart_item_id);
+    res.status(204).send();
+  }));
+  router.delete('/cart/selected', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
+    await implementation(application?.clearSelectedCartItems, application)(context(req));
+    res.status(204).send();
+  }));
+  router.get('/vouchers/applicable', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
+    res.json(buildSuccessEnvelope(await implementation(application?.applicableVouchers, application)(context(req), req.query as Record<string, unknown>), requestId(req)));
+  }));
+  router.post('/vouchers/evaluate', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
+    res.json(buildSuccessEnvelope(await implementation(application?.evaluateVoucher, application)(context(req), req.body as Record<string, unknown>), requestId(req)));
+  }));
+  return router;
+}
+
+export function createOrderRouter(application?: OrderHttpApplication, auth?: RequestHandler): Router {
+  const router = Router();
+  router.post('/orders', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
+    const command = parseCheckoutCommand(req.body, req.header('Idempotency-Key'));
+    res.status(201).json(buildSuccessEnvelope(await implementation(application?.createOrder, application)(context(req), command), requestId(req)));
+  }));
+  router.post('/orders/:order_id/cancel', ...guards(auth, 'BUYER', 'SELLER', 'ADMIN'), asyncRoute(async (req, res) => {
+    res.json(buildSuccessEnvelope(await implementation(application?.cancelOrder, application)(context(req), req.params.order_id, req.body as Record<string, unknown>), requestId(req)));
+  }));
+  router.post('/orders/:order_id/confirm', ...guards(auth, 'SELLER', 'ADMIN'), asyncRoute(async (req, res) => {
+    res.json(buildSuccessEnvelope(await implementation(application?.confirmOrder, application)(context(req), req.params.order_id), requestId(req)));
+  }));
+  router.post('/orders/:order_id/confirm-received', ...guards(auth, 'BUYER', 'ADMIN'), asyncRoute(async (req, res) => {
+    const rawReason = req.body?.reason;
+    const reason = typeof rawReason === 'string' ? rawReason.trim() : undefined;
+    res.json(buildSuccessEnvelope(await implementation(application?.confirmReceived, application)(context(req), req.params.order_id, reason), requestId(req)));
+  }));
+  router.post('/orders/:order_id/transition', ...guards(auth, 'SELLER', 'ADMIN'), asyncRoute(async (req, res) => {
+    res.json(buildSuccessEnvelope(await implementation(application?.transitionOrder, application)(context(req), req.params.order_id, req.body as Record<string, unknown>), requestId(req)));
+  }));
+  router.post('/orders/:order_id/payments', ...guards(auth, 'BUYER'), asyncRoute(async (req, res) => {
+    res.json(buildSuccessEnvelope(await implementation(application?.retryPayment, application)(context(req), req.params.order_id, req.body as Record<string, unknown>), requestId(req)));
+  }));
+  return router;
+}
+
+function asyncRoute(handler: AsyncRoute): AsyncRoute {
+  return async (req, res, next) => {
+    try { await handler(req, res, next); } catch (error) { next(error); }
+  };
+}

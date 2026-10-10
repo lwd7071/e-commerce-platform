@@ -1,0 +1,69 @@
+"use client";
+
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Icon } from "./icon";
+import { createToastTimerManager, type ToastTimerManager } from "./toast-timer-manager";
+
+type ToastKind = "success" | "error" | "info";
+type ToastMessage = { id: number; title?: string; message: string; kind: ToastKind };
+type ToastContextValue = { showToast: (message: string, kind?: ToastKind, title?: string) => void };
+const ToastContext = createContext<ToastContextValue | null>(null);
+
+export function ToastProvider({ children }: { children: ReactNode }) {
+  const [items, setItems] = useState<ToastMessage[]>([]);
+  const [timerManager] = useState<ToastTimerManager>(() =>
+    createToastTimerManager(globalThis.setTimeout, globalThis.clearTimeout),
+  );
+  useEffect(() => () => timerManager.dispose(), [timerManager]);
+
+  const dismissToast = useCallback((id: number) => {
+    timerManager.cancel(String(id));
+    setItems((current) => current.filter((item) => item.id !== id));
+  }, [timerManager]);
+
+  const showToast = useCallback((message: string, kind: ToastKind = "info", title?: string) => {
+    const id = Date.now() + Math.random();
+    setItems((current) => [...current.slice(-2), { id, message, kind, title }]);
+    timerManager.schedule(String(id), () => dismissToast(id), 5000);
+  }, [dismissToast, timerManager]);
+  const value = useMemo(() => ({ showToast }), [showToast]);
+
+  return (
+    <ToastContext.Provider value={value}>
+      {children}
+      <div className="toast-region" role="region" aria-label="Thông báo" aria-live="polite" aria-atomic="false">
+        {items.map((item) => (
+          <div
+            className={`toast toast--${item.kind}${item.title ? " toast--with-title" : ""}`}
+            key={item.id}
+            role={item.kind === "error" ? "alert" : "status"}
+            aria-live={item.kind === "error" ? "assertive" : "polite"}
+          >
+            <Icon
+              name={item.kind === "success" ? "check" : item.kind === "error" ? "warning" : "info"}
+              className="toast__icon"
+            />
+            <div className="toast__message">
+              {item.title && <span className="toast__title">{item.title}</span>}
+              <span className="toast__text">{item.message}</span>
+            </div>
+            <button
+              className="toast__close"
+              type="button"
+              aria-label="Đóng thông báo"
+              onClick={() => dismissToast(item.id)}
+            >
+              <Icon name="close" className="toast__close-icon" />
+            </button>
+          </div>
+        ))}
+      </div>
+    </ToastContext.Provider>
+  );
+}
+
+export function useToast() {
+  const context = useContext(ToastContext);
+  if (!context) throw new Error("useToast must be used inside ToastProvider");
+  return context.showToast;
+}

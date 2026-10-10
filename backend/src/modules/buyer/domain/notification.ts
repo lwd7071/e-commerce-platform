@@ -1,4 +1,4 @@
-import type { Notification } from './types.ts';
+import type { Notification } from './types';
 
 /**
  * [RB-LTT07] Notification.IsRead = TRUE -> ReadAt IS NOT NULL

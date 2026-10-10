@@ -1,9 +1,9 @@
 import { describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { CartPortService } from '../../../src/modules/buyer/services/cart-port.service.ts';
-import { VoucherPortService } from '../../../src/modules/buyer/services/voucher-port.service.ts';
-import { InMemoryCartRepository, InMemoryVoucherRepository } from './in-memory-repos.ts';
-import { mockBuyerId, mockShopId, mockOtherShopId, mockPlatformVoucher, mockShopVoucher } from './fixtures.ts';
+import { CartPortService } from '../../../src/modules/buyer/services/cart-port.service';
+import { VoucherPortService } from '../../../src/modules/buyer/services/voucher-port.service';
+import { InMemoryCartRepository, InMemoryVoucherRepository } from './in-memory-repos';
+import { mockBuyerId, mockShopId, mockPlatformVoucher, mockShopVoucher } from './fixtures';
 
 describe('Buyer Ports Contract Tests (Bàn giao cho Người 5 - Transaction Core)', () => {
 
@@ -91,6 +91,26 @@ describe('Buyer Ports Contract Tests (Bàn giao cho Người 5 - Transaction Cor
       }
     });
 
+    it('evaluateVoucher: checks expiry against the current time when caller omits now', async () => {
+      await voucherRepo.create({
+        ...mockPlatformVoucher,
+        voucherId: 'expired-now-voucher',
+        code: 'EXPIREDNOW',
+        startAt: '2020-01-01T00:00:00.000Z',
+        endAt: '2020-01-02T00:00:00.000Z',
+      });
+
+      const result = await voucherPort.evaluateVoucher({
+        code: 'EXPIREDNOW',
+        buyerId: mockBuyerId,
+        shopId: mockShopId,
+        orderSubtotal: '100000.00',
+      });
+
+      assert.equal(result.isValid, false);
+      if (!result.isValid) assert.equal(result.errorCode, 'VOUCHER_NOT_APPLICABLE');
+    });
+
     it('evaluateVoucher: mã không tồn tại -> trả về isValid: false kèm VOUCHER_NOT_APPLICABLE', async () => {
       const result = await voucherPort.evaluateVoucher({
         code: 'NON_EXISTING',
@@ -120,6 +140,34 @@ describe('Buyer Ports Contract Tests (Bàn giao cho Người 5 - Transaction Cor
       // Kiểm tra tồn lượt của voucher đã giảm 1
       const updatedVoucher = await voucherRepo.findById(mockPlatformVoucher.voucherId);
       assert.equal(updatedVoucher?.quantity, 49);
+    });
+
+    it('[RB-LQH03, Concurrency] consumeVoucher: khi recordUsage thất bại -> kích hoạt rollback incrementQuantity và bảo toàn quantity', async () => {
+      const voucher = await voucherRepo.create({
+        ...mockPlatformVoucher,
+        voucherId: 'test-voucher-rollback-id',
+        code: 'ROLLBACK50',
+        quantity: 5,
+      });
+
+      // Giả lập recordUsage ném lỗi CSDL
+      voucherRepo.recordUsage = async () => {
+        throw new Error('Database transaction failure during recordUsage');
+      };
+
+      await assert.rejects(
+        () => voucherPort.consumeVoucher({
+          voucherId: voucher.voucherId,
+          orderId: 'order-fail-999',
+          buyerId: mockBuyerId,
+          discountAmount: '20000.00',
+        }),
+        (err: unknown) => (err instanceof Error) && err.message.includes('Database transaction failure')
+      );
+
+      // Kiểm tra số lượng voucher: phải được hoàn lại 5 nguyên vẹn
+      const reloaded = await voucherRepo.findById(voucher.voucherId);
+      assert.equal(reloaded?.quantity, 5, 'Số lượng voucher phải giữ nguyên 5 sau khi recordUsage thất bại');
     });
   });
 

@@ -1,0 +1,41 @@
+name: Scheduled media cleanup
+
+on:
+  schedule:
+    - cron: '30 3 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: scheduled-media-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      NODE_ENV: production
+      DATABASE_ENVIRONMENT: production
+      ALLOW_MEDIA_CLEANUP: 'true'
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      EXPECTED_SUPABASE_PROJECT_REF: ${{ vars.MEDIA_CLEANUP_EXPECTED_PROJECT_REF }}
+      MEDIA_CLEANUP_ALLOWED_PROJECT_REFS: ${{ vars.MEDIA_CLEANUP_ALLOWED_PROJECT_REFS }}
+      EXPECTED_DATABASE_HOST: ${{ vars.MEDIA_CLEANUP_EXPECTED_DATABASE_HOST }}
+      MEDIA_CLEANUP_ALLOWED_DATABASE_HOSTS: ${{ vars.MEDIA_CLEANUP_ALLOWED_DATABASE_HOSTS }}
+      MEDIA_CLEANUP_BATCH_SIZE: '100'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.15.0
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run db:media:cleanup

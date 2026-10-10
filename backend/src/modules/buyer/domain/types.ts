@@ -20,8 +20,10 @@ export interface Address {
   recipientName: string; // VARCHAR(150) NOT NULL
   phone: string; // VARCHAR(20) NOT NULL
   province: string; // VARCHAR(100) NOT NULL
-  district: string; // VARCHAR(100) NOT NULL
+  provinceCode?: string | null;
+  district: string | null; // legacy snapshot-compatible value
   ward: string; // VARCHAR(100) NOT NULL
+  wardCode?: string | null;
   detailAddress: string; // VARCHAR(255) NOT NULL
   isDefault: boolean; // BOOLEAN, default false (RB-LB05 max 1 default/user)
   createdAt: ISOTimestamp;

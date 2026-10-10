@@ -1,0 +1,385 @@
+name: Repository Quality Gates
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-quality:
+    name: Backend quality
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DATABASE_URL: postgresql://postgres.localtest:localtest@localhost:5432/postgres
+      SUPABASE_URL: https://localtest.supabase.co
+      DIRECT_URL: postgresql://postgres.localtest:localtest@localhost:5432/postgres
+      DATABASE_ENVIRONMENT: test
+      EXPECTED_SUPABASE_PROJECT_REF: localtest
+      ALLOW_MIGRATION_DEPLOY: "true"
+      RUN_REMOTE_DB_TESTS: "true"
+      REDIS_URL: redis://localhost:6379
+    services:
+      postgres:
+        image: postgres:17.6
+        env:
+          POSTGRES_USER: postgres.localtest
+          POSTGRES_PASSWORD: localtest
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres.localtest -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24.15.0
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Pin npm
+        run: npm install --global npm@11.12.1
+
+      - name: Verify runtime
+        run: |
+          test "$(node --version)" = "v24.15.0"
+          test "$(npm --version)" = "11.12.1"
+
+      - name: Install backend dependencies
+        run: npm ci
+
+      - name: Verify backend lockfile is clean
+        run: git diff --exit-code -- package-lock.json
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Prisma validate
+        run: npx prisma validate
+
+      - name: Bootstrap local Supabase-compatible auth schema
+        run: npm run db:ci:bootstrap
+
+      - name: Deploy migrations to clean PostgreSQL 17.6
+        run: npm run db:ci:migrate
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Native tests
+        run: npm run test:node
+
+      - name: Vitest tests
+        run: npm run test:vitest
+
+  frontend-quality:
+    name: Frontend quality
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24.15.0
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Pin npm
+        run: npm install --global npm@11.12.1
+
+      - name: Verify runtime
+        run: |
+          test "$(node --version)" = "v24.15.0"
+          test "$(npm --version)" = "11.12.1"
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install backend OpenAPI generator dependencies
+        run: npm ci --prefix ../backend
+
+      - name: Check generated API types
+        run: npm run api:types:check
+
+      - name: Verify frontend lockfile is clean
+        run: git diff --exit-code -- package-lock.json
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  remote-db:
+    name: Remote database quality
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')
+    needs: backend-quality
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_TEST_URL }}
+      DATABASE_URL: ${{ secrets.SUPABASE_TEST_DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.SUPABASE_TEST_DIRECT_URL }}
+      DATABASE_ENVIRONMENT: test
+      RUN_REMOTE_DB_TESTS: "true"
+      ALLOW_MIGRATION_DEPLOY: "true"
+      REDIS_URL: redis://localhost:6379
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Verify required remote database secrets exist
+        run: |
+          test -n "$SUPABASE_URL"
+          test -n "$DATABASE_URL"
+          test -n "$DIRECT_URL"
+
+      - name: Verify test database project references
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from 'node:fs';
+
+          const supabaseUrl = new URL(process.env.SUPABASE_URL);
+          const databaseUrl = new URL(process.env.DATABASE_URL);
+          const directUrl = new URL(process.env.DIRECT_URL);
+          const projectRef = supabaseUrl.hostname.split('.')[0];
+          const databaseUsers = [databaseUrl.username, directUrl.username].map(decodeURIComponent);
+
+          if (!projectRef || !databaseUsers.every((username) => username.endsWith(`.${projectRef}`))) {
+            throw new Error('Supabase test URLs and database credentials must target the same project');
+          }
+
+          appendFileSync(process.env.GITHUB_ENV, `EXPECTED_SUPABASE_PROJECT_REF=${projectRef}\n`);
+          NODE
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24.15.0
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Pin npm
+        run: npm install --global npm@11.12.1
+
+      - name: Verify runtime
+        run: |
+          test "$(node --version)" = "v24.15.0"
+          test "$(npm --version)" = "11.12.1"
+
+      - name: Install backend dependencies
+        run: npm ci
+
+      - name: Verify backend lockfile is clean
+        run: git diff --exit-code -- package-lock.json
+
+      - name: Deploy repository migrations to test project
+        run: npm run db:ci:migrate
+
+      - name: Run remote DB suite with zero skipped tests
+        run: |
+          set +e
+          npx vitest run tests/db --testTimeout=30000 --hookTimeout=45000 --reporter=verbose --reporter=json --outputFile=remote-db-results.json
+          test_status=$?
+          set -e
+          if [ "$test_status" -ne 0 ]; then
+            jq -r '.testResults[] | select(.assertionResults[]?.status == "failed") | .name as $file | .assertionResults[] | select(.status == "failed") | "FAILED \($file):\(.fullName)\n\(.failureMessages | join("\n"))"' remote-db-results.json || true
+          fi
+          test "$test_status" = "0"
+          test "$(jq -r '.numPendingTests // 0' remote-db-results.json)" = "0"
+
+  remote-auth:
+    name: Remote Supabase auth smoke
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')
+    needs: remote-db
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_TEST_URL }}
+      DATABASE_URL: ${{ secrets.SUPABASE_TEST_DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.SUPABASE_TEST_DIRECT_URL }}
+      SUPABASE_TEST_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_TEST_PUBLISHABLE_KEY }}
+      SUPABASE_TEST_SECRET_KEY: ${{ secrets.SUPABASE_TEST_SECRET_KEY }}
+      SUPABASE_TEST_JWKS_URL: ${{ secrets.SUPABASE_TEST_JWKS_URL }}
+      SUPABASE_JWKS_URL: ${{ secrets.SUPABASE_TEST_JWKS_URL }}
+      DATABASE_ENVIRONMENT: test
+      ALLOW_SUPABASE_AUTH_SMOKE: "true"
+      RUN_REMOTE_DB_TESTS: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Verify required auth smoke secrets exist
+        run: |
+          test -n "$SUPABASE_URL"
+          test -n "$DATABASE_URL"
+          test -n "$DIRECT_URL"
+          test -n "$SUPABASE_TEST_PUBLISHABLE_KEY"
+          test -n "$SUPABASE_TEST_SECRET_KEY"
+          test -n "$SUPABASE_TEST_JWKS_URL"
+
+      - name: Verify auth smoke test project reference
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from 'node:fs';
+
+          const supabaseUrl = new URL(process.env.SUPABASE_URL);
+          const directUrl = new URL(process.env.DIRECT_URL);
+          const urlProjectRef = supabaseUrl.hostname.split('.')[0];
+          const directDatabaseUser = decodeURIComponent(directUrl.username);
+          const directUserProjectRef = directDatabaseUser.match(/\.([a-z0-9]+)$/i)?.[1];
+
+          if (!urlProjectRef || directUserProjectRef !== urlProjectRef) {
+            throw new Error('Supabase test URL and direct database project reference do not match');
+          }
+
+          appendFileSync(process.env.GITHUB_ENV, `EXPECTED_SUPABASE_PROJECT_REF=${urlProjectRef}\n`);
+          NODE
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24.15.0
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Pin npm
+        run: npm install --global npm@11.12.1
+
+      - name: Verify runtime
+        run: |
+          test "$(node --version)" = "v24.15.0"
+          test "$(npm --version)" = "11.12.1"
+
+      - name: Install backend dependencies
+        run: npm ci
+
+      - name: Run Supabase auth smoke
+        run: npm run test:auth-smoke
+
+  remote-storage:
+    name: Remote Supabase storage policy smoke
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main')
+    needs: remote-auth
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_TEST_URL }}
+      DATABASE_URL: ${{ secrets.SUPABASE_TEST_DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.SUPABASE_TEST_DIRECT_URL }}
+      SUPABASE_TEST_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_TEST_PUBLISHABLE_KEY }}
+      SUPABASE_TEST_SECRET_KEY: ${{ secrets.SUPABASE_TEST_SECRET_KEY }}
+      DATABASE_ENVIRONMENT: test
+      RUN_REMOTE_DB_TESTS: "true"
+      ALLOW_STORAGE_POLICY_DEPLOY: "true"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Verify required storage secrets exist
+        run: |
+          test -n "$SUPABASE_URL"
+          test -n "$DATABASE_URL"
+          test -n "$DIRECT_URL"
+          test -n "$SUPABASE_TEST_PUBLISHABLE_KEY"
+          test -n "$SUPABASE_TEST_SECRET_KEY"
+
+      - name: Verify test project reference
+        run: |
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from 'node:fs';
+
+          const supabaseUrl = new URL(process.env.SUPABASE_URL);
+          const directUrl = new URL(process.env.DIRECT_URL);
+          const urlProjectRef = supabaseUrl.hostname.split('.')[0];
+          const directDatabaseUser = decodeURIComponent(directUrl.username);
+          const directUserProjectRef = directDatabaseUser.match(/\.([a-z0-9]+)$/i)?.[1];
+
+          if (!urlProjectRef || directUserProjectRef !== urlProjectRef) {
+            throw new Error('Supabase test URL and direct database project reference do not match');
+          }
+
+          appendFileSync(process.env.GITHUB_ENV, `SUPABASE_PROJECT_REF=${urlProjectRef}\nEXPECTED_SUPABASE_PROJECT_REF=${directUserProjectRef}\n`);
+          NODE
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24.15.0
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Pin npm
+        run: npm install --global npm@11.12.1
+
+      - name: Verify runtime
+        run: |
+          test "$(node --version)" = "v24.15.0"
+          test "$(npm --version)" = "11.12.1"
+
+      - name: Install backend dependencies
+        run: npm ci
+
+      - name: Deploy and verify Storage policies on test project
+        run: |
+          npm run db:storage:deploy
+          npm run test:storage

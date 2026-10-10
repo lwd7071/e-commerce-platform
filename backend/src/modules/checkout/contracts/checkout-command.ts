@@ -3,6 +3,7 @@ export interface CheckoutCommand {
   readonly address_id: string;
   readonly payment_method: 'COD' | 'ONLINE';
   readonly vouchers: readonly { readonly shop_id: string; readonly code: string }[];
+  readonly expected_shipping_fees?: readonly { readonly shop_id: string; readonly fee: string }[];
   readonly idempotency_key: string;
 }
 
@@ -27,7 +28,7 @@ export function parseCheckoutCommand(body: unknown, idempotencyKey: unknown): Ch
     throw Object.assign(new Error('Idempotency-Key must have 16–128 characters.'), { code: 'VALIDATION_FAILED' });
   }
   const input = record(body);
-  if (Object.keys(input).some(key => !['address_id', 'payment_method', 'vouchers'].includes(key))) invalid();
+  if (Object.keys(input).some(key => !['address_id', 'payment_method', 'vouchers', 'expected_shipping_fees'].includes(key))) invalid();
   if (!uuid(input.address_id) || (input.payment_method !== 'COD' && input.payment_method !== 'ONLINE')) invalid();
   const rawVouchers = input.vouchers === undefined ? [] : input.vouchers;
   if (!Array.isArray(rawVouchers)) invalid();
@@ -40,10 +41,21 @@ export function parseCheckoutCommand(body: unknown, idempotencyKey: unknown): Ch
     shops.add(voucher.shop_id);
     return { shop_id: voucher.shop_id, code: voucher.code };
   });
+  const rawShippingFees = input.expected_shipping_fees === undefined ? [] : input.expected_shipping_fees;
+  if (!Array.isArray(rawShippingFees)) invalid();
+  const shippingShops = new Set<string>();
+  const expected_shipping_fees = rawShippingFees.map(raw => {
+    const quote = record(raw);
+    if (Object.keys(quote).some(key => !['shop_id', 'fee'].includes(key))) invalid();
+    if (!uuid(quote.shop_id) || typeof quote.fee !== 'string' || !/^\d+(?:\.\d{1,2})?$/.test(quote.fee) || shippingShops.has(quote.shop_id)) invalid();
+    shippingShops.add(quote.shop_id);
+    return { shop_id: quote.shop_id, fee: Number(quote.fee).toFixed(2) };
+  });
   return {
     address_id: input.address_id,
     payment_method: input.payment_method,
     vouchers,
+    expected_shipping_fees,
     idempotency_key: idempotencyKey,
   };
 }

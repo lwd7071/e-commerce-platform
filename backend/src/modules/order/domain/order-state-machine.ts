@@ -23,20 +23,30 @@ export function transitionOrder(
     if (actor.userId !== order.buyerId) {
       throw new OrderDomainError('RESOURCE_NOT_FOUND', 'Order was not found.');
     }
-    if (command.to !== 'CANCELLED') {
+    if (command.to === 'CANCELLED') {
+      if (order.status !== 'PENDING_CONFIRMATION') {
+        throw new OrderDomainError('ORDER_CANCELLATION_NOT_ALLOWED', 'Buyer cannot cancel this Order.');
+      }
+    } else if (command.to === 'COMPLETED') {
+      if (order.status !== 'SHIPPING') {
+        throw new OrderDomainError('ORDER_INVALID_TRANSITION', 'Buyer can only confirm receipt for shipping orders.');
+      }
+    } else {
       throw new OrderDomainError('RESOURCE_FORBIDDEN', 'Buyer cannot perform this transition.');
     }
-    if (order.status !== 'PENDING_CONFIRMATION') {
-      throw new OrderDomainError('ORDER_CANCELLATION_NOT_ALLOWED', 'Buyer cannot cancel this Order.');
-    }
   } else if (actor.kind === 'SELLER') {
-    if (actor.shopId !== order.shopId || command.to === 'COMPLETED' || command.to === 'DELIVERY_FAILED') {
+    if (command.to === 'COMPLETED') {
+      throw new OrderDomainError('SELLER_CANNOT_COMPLETE_ORDER', 'Sellers cannot complete orders; completion requires buyer confirmation or administrative proof.');
+    }
+    if (actor.shopId !== order.shopId || command.to === 'DELIVERY_FAILED') {
       throw new OrderDomainError('RESOURCE_FORBIDDEN', 'Seller cannot perform this transition.');
     }
   } else if (actor.kind === 'SHIPMENT_INTEGRATION') {
     if (command.to !== 'COMPLETED' && command.to !== 'DELIVERY_FAILED') {
       throw new OrderDomainError('RESOURCE_FORBIDDEN', 'Shipment integration cannot perform this transition.');
     }
+  } else if (actor.kind !== 'ADMIN') {
+    throw new OrderDomainError('RESOURCE_FORBIDDEN', 'Actor cannot perform this transition.');
   }
   if (!transitions[order.status].includes(command.to)) {
     throw new OrderDomainError('ORDER_INVALID_TRANSITION', 'Order transition is not allowed.');
@@ -47,10 +57,11 @@ export function transitionOrder(
   if (order.status === 'PREPARING' && command.to === 'CANCELLED' && command.exceptionalCancellation !== true) {
     throw new OrderDomainError('ORDER_CANCELLATION_NOT_ALLOWED', 'Exceptional cancellation eligibility is required.');
   }
-  if (command.to === 'SHIPPING' && command.shipmentStatus !== 'HANDED_OVER' && command.shipmentStatus !== 'SHIPPING') {
+  const effectiveShipmentStatus = command.shipmentStatus;
+  if (command.to === 'SHIPPING' && effectiveShipmentStatus !== 'HANDED_OVER' && effectiveShipmentStatus !== 'SHIPPING') {
     throw new OrderDomainError('ORDER_INVALID_TRANSITION', 'Shipment has not been handed over.');
   }
-  if (command.to === 'COMPLETED' && command.shipmentStatus !== 'DELIVERED') {
+  if (command.to === 'COMPLETED' && actor.kind !== 'BUYER' && command.shipmentStatus !== 'DELIVERED') {
     throw new OrderDomainError('ORDER_INVALID_TRANSITION', 'Shipment has not been delivered.');
   }
   if (command.to === 'DELIVERY_FAILED' && command.shipmentStatus !== 'FAILED') {
