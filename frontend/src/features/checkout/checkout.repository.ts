@@ -196,7 +196,7 @@ export class MockCheckoutRepository implements ICheckoutRepository {
       orders: [
         {
           order_id: `ord_${Date.now()}`,
-          shop_id: payload.vouchers[0]?.shop_id || "00000000-0000-0000-0000-000000000001",
+          shop_id: payload.vouchers[0]?.shop_id || payload.expected_shipping_fees?.[0]?.shop_id || "00000000-0000-0000-0000-000000000001",
           status: "PENDING_CONFIRMATION",
           total_amount: "579000.00",
           payment_id: `pay_${Date.now()}`,
@@ -210,6 +210,7 @@ export class MockCheckoutRepository implements ICheckoutRepository {
         shop_id: o.shop_id,
         status: "PENDING_CONFIRMATION",
         total_amount: o.total_amount,
+        shipping_fee: payload.expected_shipping_fees?.find((quote) => quote.shop_id === o.shop_id)?.fee,
       });
     }
 
@@ -342,6 +343,7 @@ export class ApiCheckoutRepository implements ICheckoutRepository {
           shop_id: o.shop_id,
           status: "PENDING_CONFIRMATION",
           total_amount: o.total_amount,
+          shipping_fee: payload.expected_shipping_fees?.find((quote) => quote.shop_id === o.shop_id)?.fee,
         });
       }
     }

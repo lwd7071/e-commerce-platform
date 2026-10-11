@@ -59,6 +59,8 @@ describe('Checkout shipping quote flow', () => {
 
     expect(await screen.findByText('Giao từ Shop Linen')).toBeTruthy();
     expect(await screen.findByText(/Vận chuyển \(10\.000/)).toBeTruthy();
+    expect(screen.getAllByText('10.000 ₫').length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText('0 ₫ Miễn phí vận chuyển')).toBeNull();
     expect(screen.getByText('Phí vận chuyển mô phỏng.')).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: /Đặt hàng ngay/ }));

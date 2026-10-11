@@ -63,6 +63,8 @@ describe('OrderCard PayOS VietQR Payment Flow', () => {
   it('renders "Thanh toán VietQR" button when order is in PENDING_CONFIRMATION', () => {
     render(<OrderCard order={mockOrder} onCancel={vi.fn()} />);
     expect(screen.getByRole('button', { name: /Thanh toán VietQR/ })).toBeTruthy();
+    expect(screen.getByText('30.000 ₫')).toBeTruthy();
+    expect(screen.queryByText('0 ₫ (Miễn phí)')).toBeNull();
   });
 
   it('opens PayOS VietQR dialog and displays payment details on click', async () => {

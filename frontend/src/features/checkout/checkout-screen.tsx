@@ -670,6 +670,7 @@ export function CheckoutScreen() {
         {groupedCart.map((group) => {
           const shopDiscount = appliedVouchers[group.shopId]?.discountAmount || 0;
           const shopCode = appliedVouchers[group.shopId]?.code;
+          const shopShippingQuote = shippingQuotes.find((quote) => quote.shop_id === group.shopId);
 
           return (
             <div
@@ -739,7 +740,13 @@ export function CheckoutScreen() {
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-[var(--foreground)]">Vận chuyển:</span>
                     <span className="bg-[var(--success-surface)] text-[var(--success)] font-bold px-2 py-0.5 rounded border border-[var(--border)]">
-                      0 ₫ Miễn phí vận chuyển
+                      {shippingQuoteLoading
+                        ? 'Đang tính…'
+                        : !shopShippingQuote
+                          ? 'Chưa có báo giá'
+                          : moneyAdapter.toInteger(shopShippingQuote.fee) > 0
+                            ? moneyAdapter.formatVND(shopShippingQuote.fee)
+                            : '0 ₫ Miễn phí vận chuyển'}
                     </span>
                   </div>
 
@@ -907,7 +914,7 @@ export function CheckoutScreen() {
             loading={isSubmitting}
             disabled={isSubmitting || !selectedAddressId || items.length === 0 || shippingQuoteLoading || !!shippingQuoteError || shippingQuotes.length === 0}
             onClick={handlePlaceOrder}
-            className="w-full sm:w-auto px-8 py-3 text-base"
+            className="w-full sm:w-auto px-8 py-3 text-base leading-none"
           >
             Đặt hàng ngay ({moneyAdapter.formatVND(totalAmount)})
           </Button>

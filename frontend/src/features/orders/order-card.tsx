@@ -213,7 +213,11 @@ export function OrderCard({
         <div className="text-xs text-[var(--subtext)] space-y-0.5">
           <div className="flex items-center gap-2">
             <span>Vận chuyển:</span>
-            <span className="text-[var(--success)] font-semibold">0 ₫ (Miễn phí)</span>
+            <span className="text-[var(--success)] font-semibold">
+              {moneyAdapter.toInteger(order.shipping_fee) > 0
+                ? moneyAdapter.formatVND(order.shipping_fee)
+                : '0 ₫ (Miễn phí)'}
+            </span>
             {moneyAdapter.toInteger(order.discount_amount) > 0 && (
               <>
                 <span>•</span>
