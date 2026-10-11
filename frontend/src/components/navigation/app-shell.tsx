@@ -11,7 +11,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const role = user?.role ?? null;
   const isAuthRoute = pathname === "/login" || pathname === "/register";
-  const isSellerRoute = pathname === "/seller" || pathname.startsWith("/seller/");
+  const isSellerRoute = pathname === "/seller" || pathname.startsWith("/seller/") || (role === "SELLER" && pathname === "/notifications");
 
   return (
     <>

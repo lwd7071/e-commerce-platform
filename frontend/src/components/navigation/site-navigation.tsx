@@ -6,6 +6,8 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { Icon } from "../ui/icon";
 import { getTopNavItems, type AppRole } from "./navigation-items";
 import { UserDropdown } from "./user-dropdown";
+import { NotificationPopover } from "@/features/notifications/notification-popover";
+import { apiNotificationRepository, demoNotificationRepository } from "@/features/notifications/notification-repository";
 
 function isCurrent(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
@@ -20,6 +22,11 @@ export function SiteHeader({ role = null, isSellerArea = false }: SiteHeaderProp
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
+  const liveNotificationsAvailable = process.env.NEXT_PUBLIC_USE_MOCK !== "true" || process.env.NEXT_PUBLIC_NOTIFICATIONS_API === "live";
+  const notificationRepository = liveNotificationsAvailable ? apiNotificationRepository : demoNotificationRepository;
+  const notifications = user && (user.role === "BUYER" || user.role === "SELLER")
+    ? <NotificationPopover production={process.env.NODE_ENV === "production"} liveAvailable={liveNotificationsAvailable} repository={notificationRepository} />
+    : null;
 
   const handleLogout = async () => {
     await logout();
@@ -50,14 +57,7 @@ export function SiteHeader({ role = null, isSellerArea = false }: SiteHeaderProp
               <span className="hidden sm:inline">Quay lại mua sắm</span>
             </Link>
 
-            <Link
-              href="/notifications"
-              className="p-2 text-[var(--subtext)] hover:text-[var(--foreground)] hover:bg-[var(--card-muted)] rounded-full transition-colors relative"
-              aria-label="Thông báo người bán"
-            >
-              <Icon name="bell" className="w-5 h-5" />
-            </Link>
-
+            {notifications}
             <UserDropdown user={user} onLogout={handleLogout} />
           </div>
         </div>
@@ -89,6 +89,7 @@ export function SiteHeader({ role = null, isSellerArea = false }: SiteHeaderProp
           ))}
         </nav>
         <div className="header-actions flex items-center gap-2">
+          {notifications}
           {user ? (
             <UserDropdown user={user} onLogout={handleLogout} />
           ) : (

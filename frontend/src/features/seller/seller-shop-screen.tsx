@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { FormField, TextArea, TextInput } from '@/components/ui/form-controls';
 import { ErrorState, Skeleton } from '@/components/ui/data-states';
 import { AdministrativeAddressFields } from '@/components/forms/administrative-address-fields';
-import { SellerHeaderNav } from './seller-header-nav';
 
 export function SellerShopScreen() {
   const [shop, setShop] = useState<SellerShopProfile | null>(null);
@@ -195,7 +194,6 @@ export function SellerShopScreen() {
           </div>
         </div>
       </header>
-      <SellerHeaderNav />
       {shop.status === 'PENDING' && <p className="notice notice--warning" role="status">Hãy điền địa chỉ shop và số điện thoại liên hệ để Admin có thể duyệt gian hàng.</p>}
       {!canEdit && <p className="notice" role="status">Hồ sơ đang ở chế độ chỉ xem trong trạng thái hiện tại.</p>}
       {error && <div className="notice notice--error" role="alert">{error}</div>}
@@ -212,15 +210,15 @@ export function SellerShopScreen() {
             </div>
           </div>
           {shop.tier === 'MALL' ? (
-            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-rose-500/10 text-rose-600 border border-rose-500/20">
-              ✓ Đã là Dino Mall
+            <span className="inline-flex items-center gap-1 whitespace-nowrap px-3 py-1 rounded-full text-xs font-bold bg-rose-500/10 text-rose-600 border border-rose-500/20">
+              Dino Mall
             </span>
           ) : pendingMallRequest ? (
             <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">
               ⏳ Đang chờ duyệt
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-[var(--muted)] text-[var(--subtext)] border border-[var(--border)]">
+            <span className="inline-flex items-center gap-1 whitespace-nowrap px-3 py-1 rounded-full text-xs font-semibold bg-[var(--muted)] text-[var(--subtext)] border border-[var(--border)]">
               Chưa đăng ký Mall
             </span>
           )}

@@ -32,13 +32,13 @@ describe("RouteGuards & Open Redirect Protection (F-106)", () => {
     expect(reviewRule?.allowedRoles).toEqual(["BUYER"]);
 
     const notificationsRule = matchRouteRule("/notifications");
-    expect(notificationsRule?.allowedRoles).toEqual(["BUYER"]);
+    expect(notificationsRule?.allowedRoles).toEqual(["BUYER", "SELLER"]);
 
     const loginRule = matchRouteRule("/login");
     expect(loginRule?.requireAuth).toBe(false);
   });
 
-  it("strictly restricts /orders, subroutes (/orders/[id]/review), and /notifications to BUYER only", () => {
+  it("restricts buyer order routes to BUYER and allows both buyer and seller notifications", () => {
     // Orders root
     const ordersRule = matchRouteRule("/orders");
     expect(ordersRule?.requireAuth).toBe(true);
@@ -54,8 +54,7 @@ describe("RouteGuards & Open Redirect Protection (F-106)", () => {
     // Notifications
     const notifRule = matchRouteRule("/notifications");
     expect(notifRule?.requireAuth).toBe(true);
-    expect(notifRule?.allowedRoles).toEqual(["BUYER"]);
-    expect(notifRule?.allowedRoles).not.toContain("SELLER");
+    expect(notifRule?.allowedRoles).toEqual(["BUYER", "SELLER"]);
     expect(notifRule?.allowedRoles).not.toContain("ADMIN");
   });
 });
