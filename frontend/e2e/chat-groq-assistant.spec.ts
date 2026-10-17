@@ -38,7 +38,7 @@ test.describe("Kiểm tra Trợ lý AI Sản Phẩm (Groq LLM Assistant)", () =>
     // 1. Đăng nhập tài khoản Buyer với returnTo=/products
     await page.goto("/login?returnTo=%2Fproducts");
     await page.getByLabel("Địa chỉ Email").fill("buyer@dino-e2e.test");
-    await page.getByLabel("Mật khẩu").fill(process.env.E2E_SEED_PASSWORD || "Password123!");
+    await page.getByLabel("Mật khẩu", { exact: true }).fill(process.env.E2E_SEED_PASSWORD || "Password123!");
     await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
     await expect(page).toHaveURL(/\/products$/, { timeout: 15000 });
 
@@ -60,11 +60,8 @@ test.describe("Kiểm tra Trợ lý AI Sản Phẩm (Groq LLM Assistant)", () =>
     await expect(chatInput).toBeVisible({ timeout: 10000 });
     await chatInput.fill("Sản phẩm này còn hàng không?");
     const sendBtn = page.getByRole("button", { name: "Gửi" });
-    if (await sendBtn.isEnabled()) {
-      await sendBtn.click();
-    } else {
-      await chatInput.press("Enter");
-    }
+    await expect(sendBtn).toBeEnabled({ timeout: 5000 });
+    await sendBtn.click();
 
     // 6. Tin nhắn người dùng xuất hiện
     await expect(page.getByText(/Sản phẩm này còn hàng không\?/i).first()).toBeVisible({ timeout: 10000 });

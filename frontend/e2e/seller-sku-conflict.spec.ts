@@ -78,7 +78,7 @@ test.describe("Kiểm tra chống trùng mã SKU (Seller Product Create)", () =>
     // 1. Đăng nhập với tài khoản người bán
     await page.goto("/login?returnTo=%2Fseller%2Fproducts%2Fnew");
     await page.getByLabel("Địa chỉ Email").fill("seller-active@dino-e2e.test");
-    await page.getByLabel("Mật khẩu").fill(process.env.E2E_SEED_PASSWORD || "Password123!");
+    await page.getByLabel("Mật khẩu", { exact: true }).fill(process.env.E2E_SEED_PASSWORD || "Password123!");
     await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
 
     // 2. Chờ chuyển hướng đến trang tạo sản phẩm

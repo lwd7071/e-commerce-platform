@@ -86,7 +86,7 @@ describe("Catalog Split Sidebar UI (Phương án 2 - Classic Commerce Split)", (
     expect(drawer).toBeTruthy();
 
     // Bấm nút Áp dụng để đóng drawer
-    const applyBtn = screen.getByRole("button", { name: /Áp dụng/i });
+    const applyBtn = screen.getByRole("button", { name: /^Áp dụng$/i });
     await userEvent.click(applyBtn);
 
     // Drawer đã được đóng
