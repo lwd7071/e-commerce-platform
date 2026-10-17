@@ -29,10 +29,10 @@ describe("role-based navigation matrix", () => {
 
   it("shows buyer, seller and admin destinations only to their role", () => {
     expect(getNavigationItems("BUYER").map((item) => item.href)).toEqual([
-      "/", "/cart", "/orders", "/notifications", "/profile",
+      "/", "/cart", "/orders", "/profile",
     ]);
     expect(getNavigationItems("SELLER").map((item) => item.href)).toEqual([
-      "/", "/seller", "/seller/wallet", "/notifications", "/profile",
+      "/", "/seller", "/seller/wallet", "/profile",
     ]);
     expect(getNavigationItems("ADMIN").map((item) => item.href)).toEqual([
       "/", "/admin", "/profile",

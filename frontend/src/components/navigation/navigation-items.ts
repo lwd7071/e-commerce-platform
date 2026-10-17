@@ -11,7 +11,6 @@ const items: NavItem[] = [
   { href: "/seller/wallet", label: "Ví người bán", icon: "bag", roles: ["SELLER"] },
   { href: "/cart", label: "Giỏ hàng", icon: "bag", roles: ["BUYER"] },
   { href: "/orders", label: "Đơn hàng", icon: "bag", roles: ["BUYER"] },
-  { href: "/notifications", label: "Thông báo", icon: "bell", roles: ["BUYER", "SELLER"] },
   { href: "/profile", label: "Tài khoản", icon: "user", roles: ["BUYER", "SELLER", "ADMIN"] },
 ];
 
@@ -44,7 +43,6 @@ export function getTopNavItems(role: AppRole): NavItem[] {
   if (role === "SELLER") {
     return [
       { href: "/", label: "Khám phá", icon: "home", roles: ["SELLER"] },
-      { href: "/notifications", label: "Thông báo", icon: "bell", roles: ["SELLER"] },
     ];
   }
 
@@ -52,7 +50,6 @@ export function getTopNavItems(role: AppRole): NavItem[] {
     return [
       { href: "/", label: "Khám phá", icon: "home", roles: ["BUYER"] },
       { href: "/cart", label: "Giỏ hàng", icon: "bag", roles: ["BUYER"] },
-      { href: "/notifications", label: "Thông báo", icon: "bell", roles: ["BUYER"] },
     ];
   }
 
@@ -82,6 +79,11 @@ export function getSellerSidebarGroups(): SellerNavGroup[] {
       title: "Sản phẩm",
       icon: "bag",
       href: "/seller/products",
+    },
+    {
+      title: "Ví người bán",
+      icon: "bag",
+      href: "/seller/wallet",
     },
     {
       title: "Marketing",

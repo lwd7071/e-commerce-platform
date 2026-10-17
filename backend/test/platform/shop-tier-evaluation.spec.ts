@@ -43,6 +43,7 @@ function createMockDb(
   const shops = [...initialShops];
 
   const pool = {
+    async connect() { return { query: pool.query.bind(pool), release() {} }; },
     async query(sql: string, params?: unknown[]) {
       const normalizedSql = sql.replaceAll('\n', ' ').trim();
 

@@ -7,7 +7,6 @@ import type { ProductBotPermissions, WireChatConversation, WireChatMessage } fro
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { useToast } from "@/components/ui/toast";
-import { SellerHeaderNav } from "./seller-header-nav";
 
 export function SellerChatInboxScreen() {
   const showToast = useToast();
@@ -186,9 +185,6 @@ export function SellerChatInboxScreen() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
-      {/* Sub-navigation tabs across all seller features */}
-      <SellerHeaderNav />
-
       {/* Page Title */}
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>

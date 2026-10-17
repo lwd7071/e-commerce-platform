@@ -10,6 +10,8 @@ import { Dialog } from "../../components/ui/dialog";
 import { Skeleton, ErrorState, EmptyState } from "../../components/ui/data-states";
 import { useToast } from "../../components/ui/toast";
 import { AdminHeaderNav } from "./admin-header-nav";
+import { adminApi } from "../../lib/api/admin.api";
+import { type ShopMallRequest } from "../../lib/api/seller-shop.api";
 
 export function AdminShopsScreen() {
   const showToast = useToast();
@@ -52,6 +54,80 @@ export function AdminShopsScreen() {
   // Detail dialog
   const [detailShop, setDetailShop] = useState<AdminShopItem | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+
+  // Main Tab
+  const [mainTab, setMainTab] = useState<"SHOPS" | "MALL_REQUESTS">("SHOPS");
+
+  // Mall Requests State
+  const [mallRequests, setMallRequests] = useState<ShopMallRequest[]>([]);
+  const [mallStatusFilter, setMallStatusFilter] = useState<string>("ALL");
+  const [isLoadingMall, setIsLoadingMall] = useState(false);
+  const [pendingMallCount, setPendingMallCount] = useState(0);
+
+  // Mall Approval / Rejection dialog state
+  const [approveMallTarget, setApproveMallTarget] = useState<ShopMallRequest | null>(null);
+  const [approveMallNote, setApproveMallNote] = useState("");
+  const [isApprovingMall, setIsApprovingMall] = useState(false);
+
+  const [rejectMallTarget, setRejectMallTarget] = useState<ShopMallRequest | null>(null);
+  const [rejectMallReason, setRejectMallReason] = useState("");
+  const [isRejectingMall, setIsRejectingMall] = useState(false);
+
+  const fetchMallRequests = useCallback(async (status = mallStatusFilter) => {
+    setIsLoadingMall(true);
+    try {
+      const data = await adminApi.getMallRequests({
+        status: status !== "ALL" ? status : undefined,
+      });
+      setMallRequests(data);
+      const pendingData = await adminApi.getMallRequests({ status: "PENDING" }).catch(() => []);
+      setPendingMallCount(pendingData.length);
+    } catch {
+      // fallback
+    } finally {
+      setIsLoadingMall(false);
+    }
+  }, [mallStatusFilter]);
+
+  const handleConfirmApproveMall = async () => {
+    if (!approveMallTarget) return;
+    if (!approveMallNote.trim()) {
+      showToast("Vui lòng nhập ghi chú phê duyệt bắt buộc", "error");
+      return;
+    }
+    setIsApprovingMall(true);
+    try {
+      await adminApi.approveMallRequest(approveMallTarget.request_id || approveMallTarget.id!, approveMallNote.trim());
+      showToast("Đã phê duyệt yêu cầu nâng hạng Dino Mall thành công!", "success");
+      setApproveMallTarget(null);
+      setApproveMallNote("");
+      await Promise.all([fetchMallRequests(), fetchShops(), fetchCounts()]);
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Phê duyệt thất bại", "error");
+    } finally {
+      setIsApprovingMall(false);
+    }
+  };
+
+  const handleConfirmRejectMall = async () => {
+    if (!rejectMallTarget) return;
+    if (!rejectMallReason.trim()) {
+      showToast("Vui lòng nhập lý do từ chối bắt buộc", "error");
+      return;
+    }
+    setIsRejectingMall(true);
+    try {
+      await adminApi.rejectMallRequest(rejectMallTarget.request_id || rejectMallTarget.id!, rejectMallReason.trim());
+      showToast("Đã từ chối yêu cầu nâng hạng Dino Mall", "success");
+      setRejectMallTarget(null);
+      setRejectMallReason("");
+      await fetchMallRequests();
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : "Từ chối thất bại", "error");
+    } finally {
+      setIsRejectingMall(false);
+    }
+  };
 
   const fetchCounts = useCallback(async () => {
     try {
@@ -108,6 +184,12 @@ export function AdminShopsScreen() {
       fetchCounts();
     });
   }, [fetchCounts]);
+
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      fetchMallRequests(mallStatusFilter);
+    });
+  }, [mallStatusFilter, fetchMallRequests]);
 
   const handleLoadMore = async () => {
     if (!nextCursor || isLoadingMore) return;
@@ -297,10 +379,14 @@ export function AdminShopsScreen() {
       {/* Tabs */}
       <nav aria-label="Điều hướng quản trị" className="border-b border-[var(--border)]">
         <div className="flex gap-6 text-sm font-semibold">
-          <Link
-            href="/admin/shops"
-            className="pb-3 border-b-2 border-[var(--primary-active)] text-[var(--primary-active)]"
-            aria-current="page"
+          <button
+            type="button"
+            onClick={() => setMainTab("SHOPS")}
+            className={`pb-3 border-b-2 transition-colors ${
+              mainTab === "SHOPS"
+                ? "border-[var(--primary-active)] text-[var(--primary-active)]"
+                : "border-transparent text-[var(--subtext)] hover:text-[var(--foreground)]"
+            }`}
           >
             Duyệt gian hàng (Shop)
             {pendingCount > 0 && (
@@ -308,7 +394,26 @@ export function AdminShopsScreen() {
                 {pendingCount}
               </span>
             )}
-          </Link>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMainTab("MALL_REQUESTS");
+              void fetchMallRequests();
+            }}
+            className={`pb-3 border-b-2 transition-colors flex items-center gap-1.5 ${
+              mainTab === "MALL_REQUESTS"
+                ? "border-rose-600 text-rose-600 dark:text-rose-400"
+                : "border-transparent text-[var(--subtext)] hover:text-[var(--foreground)]"
+            }`}
+          >
+            <span>🏆 Yêu cầu lên Dino Mall</span>
+            {pendingMallCount > 0 && (
+              <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400">
+                {pendingMallCount}
+              </span>
+            )}
+          </button>
           <Link
             href="/admin/categories"
             className="pb-3 border-b-2 border-transparent text-[var(--subtext)] hover:text-[var(--foreground)]"
@@ -318,6 +423,8 @@ export function AdminShopsScreen() {
         </div>
       </nav>
 
+      {mainTab === "SHOPS" ? (
+        <>
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <button
@@ -580,6 +687,145 @@ export function AdminShopsScreen() {
           )}
         </div>
       )}
+        </>
+      ) : (
+        /* Giao diện Xét duyệt Yêu cầu Dino Mall */
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+            <div className="flex items-center gap-2 text-xs">
+              <label htmlFor="mall-status-filter" className="font-semibold text-[var(--subtext)]">
+                Trạng thái duyệt:
+              </label>
+              <select
+                id="mall-status-filter"
+                value={mallStatusFilter}
+                onChange={(e) => setMallStatusFilter(e.target.value)}
+                className="rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-xs text-[var(--foreground)]"
+              >
+                <option value="ALL">Tất cả yêu cầu</option>
+                <option value="PENDING">Chờ duyệt (PENDING - {pendingMallCount})</option>
+                <option value="APPROVED">Đã phê duyệt (APPROVED)</option>
+                <option value="REJECTED">Đã từ chối (REJECTED)</option>
+                <option value="CANCELLED">Đã hủy (CANCELLED)</option>
+              </select>
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => void fetchMallRequests()}
+              disabled={isLoadingMall}
+              className="text-xs"
+            >
+              ↻ Làm mới danh sách
+            </Button>
+          </div>
+
+          {isLoadingMall ? (
+            <div className="space-y-2">
+              <Skeleton height={50} />
+              <Skeleton height={200} />
+            </div>
+          ) : mallRequests.length === 0 ? (
+            <EmptyState
+              title="Không có yêu cầu nâng hạng nào"
+              description="Hiện tại chưa có gian hàng nào nộp yêu cầu nâng hạng lên Dino Mall phù hợp với bộ lọc."
+            />
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--card)]">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-[var(--card-muted)] text-xs text-[var(--subtext)] uppercase border-b border-[var(--border)]">
+                  <tr>
+                    <th className="px-4 py-3">Mã Shop / Seller</th>
+                    <th className="px-4 py-3">Hồ sơ xác thực</th>
+                    <th className="px-4 py-3">Liên hệ & Ghi chú</th>
+                    <th className="px-4 py-3">Ngày gửi</th>
+                    <th className="px-4 py-3">Trạng thái</th>
+                    <th className="px-4 py-3 text-right">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border)]">
+                  {mallRequests.map((req, index) => (
+                    <tr key={req.request_id || req.id || String(index)} className="hover:bg-[var(--card-hover)]">
+                      <td className="px-4 py-3">
+                        <div className="font-mono text-xs font-semibold text-[var(--foreground)]">
+                          {(req as { shop_name?: string }).shop_name
+                            ? `${(req as { shop_name?: string }).shop_name} (${req.shop_id})`
+                            : `Shop: ${req.shop_id}`}
+                        </div>
+                        <div className="font-mono text-[10px] text-[var(--subtext)]">Seller: {req.seller_id}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <a
+                          href={req.document_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-[var(--primary)] underline hover:opacity-80 max-w-[200px] truncate block"
+                          title={req.document_url}
+                        >
+                          📄 Xem tài liệu
+                        </a>
+                      </td>
+                      <td className="px-4 py-3 text-xs">
+                        <div className="text-[var(--subtext)] italic truncate max-w-[200px]" title={req.reason}>{req.reason}</div>
+                        {req.admin_note && <div className="text-xs text-amber-600 dark:text-amber-400 mt-1">Ghi chú duyệt: {req.admin_note}</div>}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-[var(--subtext)] font-mono">
+                        {new Date(req.created_at).toLocaleDateString("vi-VN")}
+                      </td>
+                      <td className="px-4 py-3">
+                        {req.status === "PENDING" ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                            ⏳ Chờ duyệt
+                          </span>
+                        ) : req.status === "APPROVED" ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                            ✓ Đã duyệt
+                          </span>
+                        ) : req.status === "REJECTED" ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/10 text-rose-600 border border-rose-500/20">
+                            ✕ Từ chối
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[var(--muted)] text-[var(--subtext)]">
+                            Đã hủy
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {req.status === "PENDING" && (
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              type="button"
+                              onClick={() => {
+                                setApproveMallTarget(req);
+                                setApproveMallNote("Hồ sơ thương hiệu hợp lệ, đủ điều kiện Dino Mall.");
+                              }}
+                              className="text-xs px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                            >
+                              Duyệt Mall
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              onClick={() => {
+                                setRejectMallTarget(req);
+                                setRejectMallReason("");
+                              }}
+                              className="text-xs px-2.5 py-1 text-rose-600 hover:text-rose-700 border-rose-200"
+                            >
+                              Từ chối
+                            </Button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Modal: Xác nhận duyệt shop */}
       <Dialog
@@ -779,6 +1025,89 @@ export function AdminShopsScreen() {
             <div className="flex justify-end pt-2">
               <Button variant="secondary" onClick={() => setDetailShop(null)}>
                 Đóng
+              </Button>
+            </div>
+          </div>
+        </Dialog>
+      )}
+
+      {/* Modal: Duyệt yêu cầu Dino Mall */}
+      {approveMallTarget && (
+        <Dialog
+          open
+          onOpenChange={(isOpen) => !isApprovingMall && !isOpen && setApproveMallTarget(null)}
+          title="Phê duyệt nâng hạng Dino Mall"
+        >
+          <div className="space-y-4 text-sm">
+            <p className="text-[var(--subtext)]">
+              Khi phê duyệt, gian hàng sẽ được nâng lên hạng <strong>DINO MALL</strong> ngay lập tức. Hành động này ghi nhận nhật ký kiểm duyệt hệ thống.
+            </p>
+            <div className="p-3 rounded-lg bg-[var(--card-muted)] text-xs space-y-1">
+              <div>Mã shop: <strong className="font-mono">{approveMallTarget.shop_id}</strong></div>
+              <div>Tài liệu: <a href={approveMallTarget.document_url} target="_blank" rel="noopener noreferrer" className="text-[var(--primary)] underline">{approveMallTarget.document_url}</a></div>
+            </div>
+            <div>
+              <label htmlFor="approve-mall-note" className="block text-xs font-semibold mb-1">
+                Ghi chú phê duyệt (Bắt buộc):
+              </label>
+              <TextArea
+                id="approve-mall-note"
+                rows={3}
+                required
+                placeholder="Nhập ghi chú hoặc căn cứ phê duyệt..."
+                value={approveMallNote}
+                onChange={(e) => setApproveMallNote(e.target.value)}
+                disabled={isApprovingMall}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="secondary" onClick={() => setApproveMallTarget(null)} disabled={isApprovingMall}>
+                Hủy
+              </Button>
+              <Button onClick={() => void handleConfirmApproveMall()} disabled={isApprovingMall || !approveMallNote.trim()}>
+                {isApprovingMall ? "Đang xử lý..." : "Xác nhận duyệt Mall"}
+              </Button>
+            </div>
+          </div>
+        </Dialog>
+      )}
+
+      {/* Modal: Từ chối yêu cầu Dino Mall */}
+      {rejectMallTarget && (
+        <Dialog
+          open
+          onOpenChange={(isOpen) => !isRejectingMall && !isOpen && setRejectMallTarget(null)}
+          title="Từ chối yêu cầu nâng hạng Dino Mall"
+        >
+          <div className="space-y-4 text-sm">
+            <p className="text-[var(--subtext)]">
+              Vui lòng nêu rõ lý do từ chối để Người bán nắm rõ thông tin và bổ sung tài liệu hợp lệ.
+            </p>
+            <div>
+              <label htmlFor="reject-mall-reason" className="block text-xs font-semibold mb-1">
+                Lý do từ chối (Bắt buộc):
+              </label>
+              <TextArea
+                id="reject-mall-reason"
+                rows={3}
+                required
+                placeholder="Ví dụ: Giấy ủy quyền đã hết hạn, vui lòng nộp bản công chứng mới nhất..."
+                value={rejectMallReason}
+                onChange={(e) => setRejectMallReason(e.target.value)}
+                disabled={isRejectingMall}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="secondary" onClick={() => setRejectMallTarget(null)} disabled={isRejectingMall}>
+                Hủy
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => void handleConfirmRejectMall()}
+                disabled={isRejectingMall || !rejectMallReason.trim()}
+                className="text-rose-600 hover:text-rose-700 border-rose-300"
+              >
+                {isRejectingMall ? "Đang xử lý..." : "Xác nhận từ chối"}
               </Button>
             </div>
           </div>

@@ -4,12 +4,15 @@ import { apiClient } from "@/lib/api/client";
 import { AppError } from "@/lib/api/app-error";
 import type { CheckoutPayload, CreateAddressInput } from "@/features/checkout/checkout.types";
 
+const mocks = vi.hoisted(() => ({ registerCreatedOrder: vi.fn() }));
+
 vi.mock("@/lib/api/client", () => ({
   apiClient: {
     get: vi.fn(),
     post: vi.fn(),
   },
 }));
+vi.mock("@/lib/repositories/repository-factory", () => ({ registerCreatedOrder: mocks.registerCreatedOrder }));
 
 describe("ApiCheckoutRepository without silent mock fallbacks", () => {
   let repo: ApiCheckoutRepository;
@@ -145,5 +148,26 @@ describe("ApiCheckoutRepository without silent mock fallbacks", () => {
     );
     // Verify body definitely does NOT contain shipping_fee
     expect(payload).not.toHaveProperty("shipping_fee");
+  });
+
+  it("keeps each shop's confirmed shipping quote on the locally registered order", async () => {
+    const payload: CheckoutPayload = {
+      address_id: "addr_real_1",
+      payment_method: "COD",
+      vouchers: [],
+      expected_shipping_fees: [{ shop_id: "shop_01", fee: "25000.00" }],
+    };
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      orders: [{ order_id: "order-1", shop_id: "shop_01", status: "PENDING_CONFIRMATION", total_amount: "715000.00", payment_id: "payment-1" }],
+    });
+
+    await repo.submitCheckout(payload, "test-uuid-key-12345678");
+
+    expect(mocks.registerCreatedOrder).toHaveBeenCalledWith(expect.objectContaining({
+      id: "order-1",
+      shop_id: "shop_01",
+      total_amount: "715000.00",
+      shipping_fee: "25000.00",
+    }));
   });
 });

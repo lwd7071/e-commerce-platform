@@ -39,6 +39,7 @@ interface CartItemRow {
 }
 
 interface VoucherRow {
+  loyalty_owner_id?: string | null;
   voucher_id: string;
   code: string;
   voucher_name: string;
@@ -77,6 +78,7 @@ const mapItem = (row: CartItemRow): CartItem => ({
   isSelected: row.is_selected, createdAt: iso(row.created_at), updatedAt: iso(row.updated_at),
 });
 const mapVoucher = (row: VoucherRow): Voucher => ({
+  loyaltyOwnerId: row.loyalty_owner_id ?? null,
   voucherId: row.voucher_id, code: row.code, voucherName: row.voucher_name, scope: row.scope, shopId: row.shop_id,
   discountType: row.discount_type, discountValue: String(row.discount_value), maxDiscount: row.max_discount == null ? null : String(row.max_discount),
   minOrderValue: String(row.min_order_value), quantity: Number(row.quantity), startAt: iso(row.start_at), endAt: iso(row.end_at),
@@ -152,7 +154,7 @@ export class PgVoucherRepository implements IVoucherRepository {
     const args: unknown[] = []; const where = ["status='ACTIVE'", 'start_at <= now()', 'end_at >= now()', 'quantity > 0'];
     if (scope) { args.push(scope); where.push(`scope=$${args.length}`); }
     if (shopId) { args.push(shopId); where.push(`(scope='PLATFORM' OR shop_id=$${args.length})`); }
-    const r = await this.db.query<VoucherRow>(`SELECT * FROM vouchers WHERE ${where.join(' AND ')} ORDER BY end_at ASC`, args); return r.rows.map(mapVoucher);
+    const r = await this.db.query<VoucherRow>(`SELECT * FROM vouchers WHERE ${where.join(' AND ')} ORDER BY end_at ASC`, args); return r.rows.map(mapVoucher).filter(v => !v.loyaltyOwnerId);
   }
   async create(): Promise<Voucher> { throw new Error('Voucher creation is outside T1'); }
   async decrementQuantity(voucherId: UUID): Promise<boolean> { const r = await this.db.query('UPDATE vouchers SET quantity=quantity-1,updated_at=now() WHERE voucher_id=$1 AND quantity>0 RETURNING voucher_id', [voucherId]); return r.rowCount === 1; }

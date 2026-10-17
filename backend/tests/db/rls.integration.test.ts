@@ -12,6 +12,7 @@ const expectedTables = [
   'moderation_records', 'admin_logs',
   'admin_notification_campaigns', 'admin_notification_campaign_recipients',
   'chat_conversations', 'chat_messages',
+  'shop_mall_requests',
 ];
 
 const runRemoteDbTests = parseRunRemoteDbTests(process.env);

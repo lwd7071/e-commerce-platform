@@ -273,14 +273,40 @@ const mockCatalogRepository: ICatalogRepository = {
       };
     }
 
+    const getTier = (
+      shopId: string,
+      defaultTier?: "STANDARD" | "MALL" | "PREFERRED"
+    ): "STANDARD" | "MALL" | "PREFERRED" => {
+      if (typeof window !== "undefined") {
+        try {
+          const override =
+            window.sessionStorage?.getItem(`mock_mall_tier_${shopId}`) ||
+            window.localStorage?.getItem(`mock_mall_tier_${shopId}`);
+          if (override === "MALL" || override === "PREFERRED" || override === "STANDARD") {
+            return override;
+          }
+        } catch {
+          // fallback
+        }
+      }
+      const shop = mockAdminShopsStore.find((s) => s.shop_id === shopId);
+      const t = shop?.tier;
+      if (t === "MALL" || t === "PREFERRED" || t === "STANDARD") return t;
+      return defaultTier || "STANDARD";
+    };
+
     const limit = params?.limit ?? 20;
-    const page1Items = items.slice(0, limit);
+    const mappedItems = items.map((p) => ({
+      ...p,
+      shop_tier: getTier(p.shop_id, p.shop_tier),
+    }));
+    const page1Items = mappedItems.slice(0, limit);
     return {
       data: page1Items,
       meta: {
         limit,
-        has_more: items.length > limit,
-        next_cursor: items.length > limit ? "mock_cursor_page_2" : null,
+        has_more: mappedItems.length > limit,
+        next_cursor: mappedItems.length > limit ? "mock_cursor_page_2" : null,
       },
     };
   },

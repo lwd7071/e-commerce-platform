@@ -143,7 +143,10 @@ Quy tắc: Ngắn gọn (1-2 câu), lịch sự.`;
     }
 
     if (permissions.allow_price) {
-      lines.push(`Khoảng giá: ${new Intl.NumberFormat('vi-VN').format(product.min_price)}đ - ${new Intl.NumberFormat('vi-VN').format(product.max_price)}đ`);
+      const minP = product.min_price ?? (product.variants?.length ? Math.min(...product.variants.map((v) => v.price)) : 0);
+      const maxP = product.max_price ?? (product.variants?.length ? Math.max(...product.variants.map((v) => v.price)) : 0);
+      const formatPrice = new Intl.NumberFormat('vi-VN');
+      lines.push(`Khoảng giá: ${formatPrice.format(minP)}đ - ${formatPrice.format(maxP)}đ`);
     } else {
       lines.push('Giá bán: (Seller tắt quyền công khai bảng giá qua bot)');
     }

@@ -13,7 +13,7 @@ export class PostgresVoucherRepository implements IVoucherRepository {
   constructor(private readonly db: IDbClient) {}
 
   async findById(voucherId: UUID): Promise<Voucher | null> {
-    const sql = `SELECT voucher_id, code, voucher_name, scope, shop_id, discount_type, discount_value, max_discount, min_order_value, quantity, start_at, end_at, status, created_at, updated_at FROM vouchers WHERE voucher_id = $1`;
+    const sql = `SELECT * FROM vouchers WHERE voucher_id = $1`;
     const result = await this.db.query(sql, [voucherId]);
     if (!result.rows || result.rows.length === 0) {
       return null;
@@ -22,7 +22,7 @@ export class PostgresVoucherRepository implements IVoucherRepository {
   }
 
   async findByCode(code: string): Promise<Voucher | null> {
-    const sql = `SELECT voucher_id, code, voucher_name, scope, shop_id, discount_type, discount_value, max_discount, min_order_value, quantity, start_at, end_at, status, created_at, updated_at FROM vouchers WHERE code = $1`;
+    const sql = `SELECT * FROM vouchers WHERE code = $1`;
     const result = await this.db.query(sql, [code]);
     if (!result.rows || result.rows.length === 0) {
       return null;
@@ -31,7 +31,7 @@ export class PostgresVoucherRepository implements IVoucherRepository {
   }
 
   async listActive(scope?: 'PLATFORM' | 'SHOP', shopId?: UUID): Promise<Voucher[]> {
-    let sql = `SELECT voucher_id, code, voucher_name, scope, shop_id, discount_type, discount_value, max_discount, min_order_value, quantity, start_at, end_at, status, created_at, updated_at FROM vouchers WHERE status = 'ACTIVE' AND start_at <= now() AND end_at > now() AND quantity > 0`;
+    let sql = `SELECT * FROM vouchers WHERE status = 'ACTIVE' AND start_at <= now() AND end_at > now() AND quantity > 0`;
     const params: unknown[] = [];
     if (scope === 'PLATFORM') {
       sql += ` AND scope = 'PLATFORM'`;
@@ -44,7 +44,7 @@ export class PostgresVoucherRepository implements IVoucherRepository {
     }
     sql += ` ORDER BY created_at DESC`;
     const result = await this.db.query(sql, params);
-    return (result.rows ?? []).map(mapVoucher);
+    return (result.rows ?? []).map(mapVoucher).filter(v => !v.loyaltyOwnerId);
   }
 
   async create(voucher: Voucher): Promise<Voucher> {

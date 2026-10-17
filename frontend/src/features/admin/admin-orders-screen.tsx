@@ -38,6 +38,22 @@ export function AdminOrdersScreen() {
   const [commandReason, setCommandReason] = useState("");
   const [commandBusy, setCommandBusy] = useState(false);
   const [commandError, setCommandError] = useState<string | null>(null);
+  const [refundAmount, setRefundAmount] = useState('');
+  const [refundReference, setRefundReference] = useState('');
+  const [refundReason, setRefundReason] = useState('');
+  const [refundMessage, setRefundMessage] = useState<string | null>(null);
+  const [refundError, setRefundError] = useState<string | null>(null);
+  const recordRefund = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selected || commandBusy) return;
+    setCommandBusy(true); setRefundError(null); setRefundMessage(null);
+    try {
+      await apiClient.post(`/admin/orders/${selected.order_id}/loyalty-refunds`, { eligible_amount: refundAmount, reference: refundReference, reason: refundReason });
+      setRefundMessage('Đã ghi nhận thu hồi điểm. Khoản hoàn đã được đối soát theo mã tham chiếu.');
+      setRefundAmount(''); setRefundReference(''); setRefundReason('');
+    } catch (cause) { setRefundError(cause instanceof Error ? cause.message : 'Không ghi nhận được khoản hoàn.'); }
+    finally { setCommandBusy(false); }
+  };
 
   const load = useCallback(async (cursorToLoad: string | null = null) => {
     setLoading(true); setError(null);
@@ -53,7 +69,7 @@ export function AdminOrdersScreen() {
   useEffect(() => { void Promise.resolve().then(() => load()); }, [load]);
   const filter = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); setNextCursor(null); setQuery({ status, search: search.trim(), from: from ? new Date(from).toISOString() : "", to: to ? new Date(to).toISOString() : "" }); };
 
-  const openDetail = (order: AdminOrder) => { setSelected(order); setCommandStatus(order.status); setCommandReason(""); setCommandError(null); };
+  const openDetail = (order: AdminOrder) => { setSelected(order); setCommandStatus(order.status); setCommandReason(""); setCommandError(null); setRefundAmount(''); setRefundReference(''); setRefundReason(''); setRefundMessage(null); setRefundError(null); };
   const transition = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!selected || !commandReason.trim()) return;
@@ -120,6 +136,16 @@ export function AdminOrdersScreen() {
           {commandError && <p role="alert" className="text-sm text-[var(--danger)]">{commandError}</p>}
           <Button type="submit" disabled={commandBusy || !commandReason.trim()}>{commandBusy ? "Đang lưu…" : "Áp dụng trạng thái"}</Button>
         </form>
+        {selected.status === 'COMPLETED' && <form onSubmit={recordRefund} className="space-y-3 border-t border-[var(--border)] pt-4">
+          <h2 className="font-semibold">Thu hồi DinoPoint sau hoàn tiền</h2>
+          <p className="text-sm text-[var(--subtext)]">Chỉ ghi nhận sau khi tiền đã hoàn thành công. Nhập phần tiền hàng sau giảm giá đã hoàn, không gồm phí vận chuyển. Thao tác này không chuyển tiền; hạng VIP được giữ.</p>
+          <FormField id="loyalty-refund-amount" label="Tiền hàng đủ điều kiện đã hoàn (đ)" required><TextInput id="loyalty-refund-amount" inputMode="decimal" value={refundAmount} onChange={event => setRefundAmount(event.target.value)} required /></FormField>
+          <FormField id="loyalty-refund-reference" label="Mã đối soát khoản hoàn thành công" required><TextInput id="loyalty-refund-reference" value={refundReference} onChange={event => setRefundReference(event.target.value)} minLength={5} maxLength={160} required /></FormField>
+          <FormField id="loyalty-refund-reason" label="Lý do và bằng chứng đối soát" required><TextInput id="loyalty-refund-reason" value={refundReason} onChange={event => setRefundReason(event.target.value)} minLength={5} maxLength={1000} required /></FormField>
+          <Button type="submit" disabled={commandBusy}>Ghi nhận thu hồi điểm</Button>
+          {refundMessage && <p role="status">{refundMessage}</p>}
+          {refundError && <p role="alert" className="text-sm text-[var(--danger)]">{refundError}</p>}
+        </form>}
       </div>}
     </Dialog>
   </main>;

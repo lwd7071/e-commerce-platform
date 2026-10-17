@@ -25,7 +25,8 @@ function CallbackHandler() {
       const supabase = getSupabaseClient();
       if (!supabase) throw new Error("Supabase Auth chưa được cấu hình.");
 
-      let { data: { session }, error } = await supabase.auth.getSession();
+      const { data, error } = await supabase.auth.getSession();
+      let session = data.session;
       if (error) throw error;
 
       // Tránh race condition khi Supabase client đang parse token từ URL hash/query

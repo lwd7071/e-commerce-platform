@@ -15,6 +15,10 @@ vi.mock("@/lib/auth/auth-context", () => ({
   useAuth: vi.fn(),
 }));
 
+vi.mock("@/features/notifications/notification-popover", () => ({
+  NotificationPopover: () => null,
+}));
+
 const mockUseAuth = vi.mocked(useAuth);
 
 beforeEach(() => {
@@ -23,7 +27,7 @@ beforeEach(() => {
     user: { id: "seller-1", email: "seller@test.local", role: "SELLER" },
     logout: vi.fn(),
     isLoading: false,
-  } as any);
+  } as unknown as ReturnType<typeof useAuth>);
 });
 
 describe("AppShell route layout separation", () => {
@@ -51,5 +55,18 @@ describe("AppShell route layout separation", () => {
     expect(screen.getByText("Quản lý đơn hàng")).not.toBeNull();
     // Có thanh điều hướng người bán
     expect(screen.getByLabelText("Thanh điều hướng người bán")).not.toBeNull();
+  });
+
+  it("keeps sellers in the seller layout on the notifications page", () => {
+    currentRoute = "/notifications";
+    render(
+      <AppShell>
+        <div>Thông báo</div>
+      </AppShell>
+    );
+
+    expect(screen.getByText("Thông báo")).not.toBeNull();
+    expect(screen.getByLabelText("Thanh điều hướng người bán")).not.toBeNull();
+    expect(screen.getByLabelText("Dino Kênh người bán")).not.toBeNull();
   });
 });

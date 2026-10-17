@@ -5,9 +5,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NotificationsPageContent } from "@/features/notifications/notifications-screen";
 import { buyerApi } from "@/lib/api/buyer.api";
 
+const authState = vi.hoisted(() => ({ role: "BUYER" as "BUYER" | "SELLER" }));
+
 vi.mock("@/lib/auth/auth-context", () => ({
   useAuth: () => ({
-    user: { id: "user-1", email: "buyer01@dino-demo.test", role: "BUYER" },
+    user: { id: "user-1", email: "user@dino-demo.test", role: authState.role },
     isAuthenticated: true,
   }),
 }));
@@ -26,6 +28,7 @@ vi.mock("@/lib/api/buyer.api", () => ({
 describe("NotificationsPageContent Live Integration (TDD)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    authState.role = "BUYER";
     delete process.env.NEXT_PUBLIC_NOTIFICATIONS_API;
     process.env.NEXT_PUBLIC_USE_MOCK = "false";
   });
@@ -52,6 +55,16 @@ describe("NotificationsPageContent Live Integration (TDD)", () => {
 
     // Phải hiển thị tiêu đề thông báo từ live API
     expect(await screen.findByText("Đơn hàng #DN1010 đã được giao thành công")).not.toBeNull();
+    expect(buyerApi.getNotifications).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows sellers to open the full notification page", async () => {
+    authState.role = "SELLER";
+    vi.mocked(buyerApi.getNotifications).mockResolvedValue([]);
+
+    render(<NotificationsPageContent production={true} />);
+
+    expect(await screen.findByText("Bạn đã xem hết thông báo")).not.toBeNull();
     expect(buyerApi.getNotifications).toHaveBeenCalledTimes(1);
   });
 });

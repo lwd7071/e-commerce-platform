@@ -51,7 +51,7 @@ export function calculateLoyaltyAccrual(input: LoyaltyCalculationInput): Loyalty
   const pointsDelta = Number(pointsDeltaBig);
 
   const newTotalSpentCents = input.oldTotalSpentCents + eligibleCents;
-  const newTier: BuyerTier = newTotalSpentCents >= VIP_THRESHOLD_CENTS ? 'VIP' : 'STANDARD';
+  const newTier: BuyerTier = input.oldTier === 'VIP' || newTotalSpentCents >= VIP_THRESHOLD_CENTS ? 'VIP' : 'STANDARD';
 
   return {
     eligibleCents,

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import pg from 'pg';
-import { loadDatabaseConfig } from '../../db/config.ts';
+import { loadDatabaseConfig, parseRunRemoteDbTests } from '../../db/config.ts';
 import { PgCatalogHttpService } from '../../src/modules/catalog/services/pg-catalog-http.service.ts';
 import { createRequestContext } from '../../src/platform/context/request-context.ts';
 import {
@@ -14,7 +14,7 @@ import {
   applyShippingMigration,
 } from './fixtures/database-fixtures.ts';
 
-describe('Seller Product Images Update (real PostgreSQL)', () => {
+describe.skipIf(!parseRunRemoteDbTests(process.env))('Seller Product Images Update (real PostgreSQL)', () => {
   const schema = `prod_img_${randomUUID().replaceAll('-', '')}`;
   let pool: pg.Pool;
   let catalogService: PgCatalogHttpService;

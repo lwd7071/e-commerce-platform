@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,9 @@ import { Icon } from "@/components/ui/icon";
 import { Dialog } from "@/components/ui/dialog";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
 import { walletApi, type PayosLinkResult } from "@/lib/api/wallet.api";
+import { repositories } from "@/lib/repositories/repository-factory";
+import { getQueryClient } from "@/lib/query/query-client";
+import { queryKeys } from "@/lib/query/query-keys";
 import type { WireOrder } from "./orders.types";
 
 interface OrderCardProps {
@@ -27,10 +30,82 @@ export function OrderCard({
   const [payosDialogOpen, setPayosDialogOpen] = useState(false);
   const [loadingPayos, setLoadingPayos] = useState(false);
   const [payosError, setPayosError] = useState<string | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<"IDLE" | "SUCCESS">("IDLE");
+
+  const queryClient = getQueryClient();
+
+  // Real-time WebSocket payment detection (with resilient fallback polling)
+  useEffect(() => {
+    if (!payosDialogOpen || !order.id || paymentStatus === "SUCCESS") return;
+
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
+    const wsUrl = apiUrl.replace(/^http(s?):/, "ws$1:") + `/payments/ws?orderId=${order.id}`;
+
+    let socket: WebSocket | null = null;
+    let pollInterval: NodeJS.Timeout | null = null;
+    let autoCloseTimer: NodeJS.Timeout | null = null;
+    let isSubscribed = true;
+
+    const onPaymentSuccess = () => {
+      if (!isSubscribed) return;
+      setPaymentStatus("SUCCESS");
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
+
+      autoCloseTimer = setTimeout(() => {
+        if (!isSubscribed) return;
+        setPayosDialogOpen(false);
+        setPaymentStatus("IDLE");
+      }, 2500);
+    };
+
+    // 1. Establish WebSocket for real-time notification
+    try {
+      socket = new WebSocket(wsUrl);
+
+      socket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === "PAYMENT_SUCCESS") {
+            onPaymentSuccess();
+          }
+        } catch {
+          // ignore malformed message
+        }
+      };
+    } catch {
+      // ignore WS connection errors
+    }
+
+    // 2. High-resilience fallback polling (runs every 3s in case socket drops)
+    pollInterval = setInterval(async () => {
+      try {
+        const updated = await repositories.order().getOrderById(order.id);
+        if (updated && updated.status !== "PENDING_CONFIRMATION") {
+          onPaymentSuccess();
+        }
+      } catch {
+        // silent
+      }
+    }, 3000);
+
+    return () => {
+      isSubscribed = false;
+      if (socket) {
+        socket.close();
+      }
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+      if (autoCloseTimer) {
+        clearTimeout(autoCloseTimer);
+      }
+    };
+  }, [payosDialogOpen, order.id, paymentStatus, queryClient]);
 
   const handleOpenPayos = async () => {
     setLoadingPayos(true);
     setPayosError(null);
+    setPaymentStatus("IDLE");
     try {
       const res = await walletApi.createPayosLink(order.id);
       setPayosLink(res);
@@ -138,7 +213,11 @@ export function OrderCard({
         <div className="text-xs text-[var(--subtext)] space-y-0.5">
           <div className="flex items-center gap-2">
             <span>Vận chuyển:</span>
-            <span className="text-[var(--success)] font-semibold">0 ₫ (Miễn phí)</span>
+            <span className="text-[var(--success)] font-semibold">
+              {moneyAdapter.toInteger(order.shipping_fee) > 0
+                ? moneyAdapter.formatVND(order.shipping_fee)
+                : '0 ₫ (Miễn phí)'}
+            </span>
             {moneyAdapter.toInteger(order.discount_amount) > 0 && (
               <>
                 <span>•</span>
@@ -226,7 +305,22 @@ export function OrderCard({
         description={`Mã đơn: #${order.id.slice(0, 8)} • Số tiền: ${moneyAdapter.formatVND(order.total_amount)}`}
       >
         <div className="space-y-4 text-center">
-          {payosLink && (
+          {paymentStatus === "SUCCESS" ? (
+            <div className="py-6 px-4 flex flex-col items-center justify-center text-center space-y-3">
+              <div className="w-16 h-16 rounded-full bg-[var(--success-surface)] text-[var(--success)] flex items-center justify-center animate-bounce shadow-sm">
+                <Icon name="check" className="w-8 h-8" />
+              </div>
+              <h3 className="text-lg font-bold text-[var(--foreground)]">
+                Thanh toán thành công! 🎉
+              </h3>
+              <p className="text-xs text-[var(--subtext)] max-w-xs">
+                Hệ thống sàn đã nhận được tiền từ PayOS. Đơn hàng <strong>#{order.id.slice(0, 8)}</strong> đã được xác nhận thanh toán.
+              </p>
+              <div className="text-xs text-[var(--success)] font-medium pt-2">
+                Đang tự động cập nhật đơn hàng...
+              </div>
+            </div>
+          ) : payosLink && (
             <>
               <div className="flex justify-center p-3 bg-white rounded-2xl border border-[var(--border)] max-w-xs mx-auto shadow-sm">
                 {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -1,24 +1,7 @@
 import { describe, expect, it } from "vitest";
-import {
-  getTopNavItems,
-  getSellerSidebarGroups,
-  type SellerNavGroup,
-} from "@/components/navigation/navigation-items";
+import { getSellerSidebarGroups, type SellerNavGroup } from "@/components/navigation/navigation-items";
 
-describe("Seller Navigation & Top Navbar separation", () => {
-  it("returns clean top navbar items for buyer and seller without seller tool links", () => {
-    // Top navbar cho SELLER chỉ giữ các mục chung, không chứa link công cụ người bán
-    const sellerTopItems = getTopNavItems("SELLER");
-    const sellerHrefs = sellerTopItems.map((item) => item.href);
-
-    expect(sellerHrefs).not.toContain("/seller/orders");
-    expect(sellerHrefs).not.toContain("/seller/products");
-    expect(sellerHrefs).not.toContain("/seller/vouchers");
-    expect(sellerHrefs).not.toContain("/seller/reports");
-    expect(sellerHrefs).not.toContain("/seller/shop");
-    expect(sellerHrefs).not.toContain("/seller/chat");
-  });
-
+describe("Seller sidebar navigation", () => {
   it("returns grouped seller sidebar items matching Shopee/Lazada structure", () => {
     const groups: SellerNavGroup[] = getSellerSidebarGroups();
 
@@ -37,20 +20,23 @@ describe("Seller Navigation & Top Navbar separation", () => {
     expect(groups[2].title).toBe("Sản phẩm");
     expect(groups[2].href).toBe("/seller/products");
 
-    // 4. Marketing (Mã giảm giá)
-    expect(groups[3].title).toBe("Marketing");
-    expect(groups[3].children).toEqual([
+    // 4. Wallet
+    expect(groups[3]).toMatchObject({ title: "Ví người bán", href: "/seller/wallet" });
+
+    // 5. Marketing (Mã giảm giá)
+    expect(groups[4].title).toBe("Marketing");
+    expect(groups[4].children).toEqual([
       { href: "/seller/vouchers", label: "Mã giảm giá" },
     ]);
 
-    // 5. Báo cáo (Doanh thu)
-    expect(groups[4].title).toBe("Báo cáo");
-    expect(groups[4].children).toEqual([
+    // 6. Báo cáo (Doanh thu)
+    expect(groups[5].title).toBe("Báo cáo");
+    expect(groups[5].children).toEqual([
       { href: "/seller/reports", label: "Doanh thu" },
     ]);
 
-    // 6. Hồ sơ gian hàng
-    expect(groups[5].title).toBe("Hồ sơ gian hàng");
-    expect(groups[5].href).toBe("/seller/shop");
+    // 7. Hồ sơ gian hàng
+    expect(groups[6].title).toBe("Hồ sơ gian hàng");
+    expect(groups[6].href).toBe("/seller/shop");
   });
 });

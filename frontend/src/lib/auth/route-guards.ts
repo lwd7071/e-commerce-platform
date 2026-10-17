@@ -22,7 +22,8 @@ export const ROUTE_RULES: RouteRule[] = [
   { pathPrefix: "/cart", requireAuth: true, allowedRoles: ["BUYER"] },
   { pathPrefix: "/checkout", requireAuth: true, allowedRoles: ["BUYER"] },
   { pathPrefix: "/orders", requireAuth: true, allowedRoles: ["BUYER"] },
-  { pathPrefix: "/notifications", requireAuth: true, allowedRoles: ["BUYER"] },
+  // Notifications are generated for both buyers and sellers.
+  { pathPrefix: "/notifications", requireAuth: true, allowedRoles: ["BUYER", "SELLER"] },
 
   // Seller portal
   { pathPrefix: "/seller", requireAuth: true, allowedRoles: ["SELLER", "ADMIN"] },

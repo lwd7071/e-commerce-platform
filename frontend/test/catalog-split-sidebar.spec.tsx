@@ -69,4 +69,29 @@ describe("Catalog Split Sidebar UI (Phương án 2 - Classic Commerce Split)", (
       expect(window.location.search).not.toContain("shop_tier=MALL");
     });
   });
+
+  it("mở và đóng drawer bộ lọc trên mobile khi bấm nút ☰ Bộ lọc", async () => {
+    render(<CatalogListScreen />);
+
+    // Trước khi bấm, modal drawer không hiển thị
+    expect(screen.queryByRole("dialog", { name: /Bộ lọc tìm kiếm trên di động/i })).toBeNull();
+
+    // Bấm nút mở bộ lọc trên mobile (3 gạch ngang)
+    const mobileFilterTrigger = screen.getByRole("button", { name: /Mở bộ lọc tìm kiếm/i });
+    expect(mobileFilterTrigger).toBeTruthy();
+    await userEvent.click(mobileFilterTrigger);
+
+    // Modal drawer xuất hiện
+    const drawer = await screen.findByRole("dialog", { name: /Bộ lọc tìm kiếm trên di động/i });
+    expect(drawer).toBeTruthy();
+
+    // Bấm nút Áp dụng để đóng drawer
+    const applyBtn = screen.getByRole("button", { name: /Áp dụng/i });
+    await userEvent.click(applyBtn);
+
+    // Drawer đã được đóng
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: /Bộ lọc tìm kiếm trên di động/i })).toBeNull();
+    });
+  });
 });

@@ -16,6 +16,11 @@ vi.mock("@/lib/auth/auth-context", () => ({
   useAuth: vi.fn(),
 }));
 
+vi.mock("@/features/notifications/notification-popover", async () => {
+  const { createElement } = await import("react");
+  return { NotificationPopover: () => createElement("button", { type: "button", "aria-label": "Thông báo" }) };
+});
+
 const mockUseAuth = vi.mocked(useAuth);
 
 beforeEach(() => {
@@ -29,7 +34,7 @@ describe("SiteHeader with new role-based UI", () => {
       user: { id: "seller-1", email: "seller@test.local", role: "SELLER" },
       logout: vi.fn(),
       isLoading: false,
-    } as any);
+    } as unknown as ReturnType<typeof useAuth>);
 
     render(<SiteHeader role="SELLER" />);
 
@@ -44,6 +49,8 @@ describe("SiteHeader with new role-based UI", () => {
 
     // Không còn nút Đăng xuất trơ trọi bên ngoài
     expect(screen.queryByRole("button", { name: "Đăng xuất khỏi hệ thống" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Thông báo" })).not.toBeNull();
+    expect(screen.queryByRole("link", { name: "Thông báo" })).toBeNull();
   });
 
   it("renders dedicated seller header when in seller area", () => {
@@ -52,7 +59,7 @@ describe("SiteHeader with new role-based UI", () => {
       user: { id: "seller-1", email: "seller@test.local", role: "SELLER" },
       logout: vi.fn(),
       isLoading: false,
-    } as any);
+    } as unknown as ReturnType<typeof useAuth>);
 
     render(<SiteHeader role="SELLER" isSellerArea={true} />);
 
@@ -62,5 +69,20 @@ describe("SiteHeader with new role-based UI", () => {
 
     // Ẩn thanh tìm kiếm mua sắm của buyer trong header seller
     expect(screen.queryByRole("search")).toBeNull();
+    expect(screen.getByRole("button", { name: "Thông báo" })).not.toBeNull();
+  });
+
+  it("provides the same notification popup trigger for buyers", () => {
+    currentPath = "/";
+    mockUseAuth.mockReturnValue({
+      user: { id: "buyer-1", email: "buyer@test.local", role: "BUYER" },
+      logout: vi.fn(),
+      isLoading: false,
+    } as unknown as ReturnType<typeof useAuth>);
+
+    render(<SiteHeader role="BUYER" />);
+
+    expect(screen.getByRole("button", { name: "Thông báo" })).not.toBeNull();
+    expect(screen.queryByRole("link", { name: "Thông báo" })).toBeNull();
   });
 });

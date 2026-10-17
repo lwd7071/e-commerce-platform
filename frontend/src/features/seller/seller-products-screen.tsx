@@ -15,7 +15,6 @@ import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { FormField, TextInput } from "@/components/ui/form-controls";
 import { Icon } from "@/components/ui/icon";
-import { SellerHeaderNav } from "./seller-header-nav";
 import { getQueryClient } from "@/lib/query/query-client";
 import { queryKeys } from "@/lib/query/query-keys";
 
@@ -257,9 +256,6 @@ export function SellerProductsScreen() {
           <strong>Kênh quản lý sản phẩm gian hàng:</strong> Dữ liệu được máy chủ giới hạn theo gian hàng của bạn; tại đây bạn có thể cập nhật tồn kho và trạng thái sản phẩm.
         </div>
       </div>
-      {/* Sub-navigation tabs across all seller features */}
-      <SellerHeaderNav />
-
       {isLoading ? (
         <div className="space-y-3 surface-card p-6">
           <Skeleton height={28} className="w-1/4" />

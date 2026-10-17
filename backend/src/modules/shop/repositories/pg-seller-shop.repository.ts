@@ -8,7 +8,7 @@ export class PgSellerShopRepository implements ISellerShopRepository {
   async findOwned(context: RequestContext): Promise<SellerShop | null> {
     if (!context.shop_id) return null;
     const result = await this.pool.query(
-      `SELECT shop_id, shop_name, description, pickup_address, pickup_province, pickup_province_code, pickup_ward, pickup_ward_code, pickup_detail_address, contact_phone, status, updated_at
+      `SELECT shop_id, shop_name, description, pickup_address, pickup_province, pickup_province_code, pickup_ward, pickup_ward_code, pickup_detail_address, contact_phone, status, COALESCE(tier, 'STANDARD') as tier, COALESCE(tier_override, false) as tier_override, updated_at
        FROM shops WHERE shop_id = $1 AND owner_id = $2`,
       [context.shop_id, context.user_id],
     );
@@ -35,7 +35,7 @@ export class PgSellerShopRepository implements ISellerShopRepository {
            NULLIF(BTRIM(${pickupAddressValue}), '') IS NOT NULL
            AND NULLIF(BTRIM(${contactPhoneValue}), '') IS NOT NULL
          ))
-       RETURNING shop_id, shop_name, description, pickup_address, pickup_province, pickup_province_code, pickup_ward, pickup_ward_code, pickup_detail_address, contact_phone, status, updated_at`,
+       RETURNING shop_id, shop_name, description, pickup_address, pickup_province, pickup_province_code, pickup_ward, pickup_ward_code, pickup_detail_address, contact_phone, status, COALESCE(tier, 'STANDARD') as tier, COALESCE(tier_override, false) as tier_override, updated_at`,
       values,
     );
     return result.rows[0] ? this.map(result.rows[0]) : null;
@@ -52,7 +52,10 @@ export class PgSellerShopRepository implements ISellerShopRepository {
       pickup_ward_code: row.pickup_ward_code == null ? null : String(row.pickup_ward_code),
       pickup_detail_address: row.pickup_detail_address == null ? null : String(row.pickup_detail_address),
       contact_phone: row.contact_phone == null ? null : String(row.contact_phone),
-      status: row.status as SellerShop['status'], updated_at: new Date(row.updated_at as Date | string).toISOString(),
+      status: row.status as SellerShop['status'],
+      tier: (row.tier as SellerShop['tier']) ?? 'STANDARD',
+      tier_override: Boolean(row.tier_override),
+      updated_at: new Date(row.updated_at as Date | string).toISOString(),
     };
   }
 }

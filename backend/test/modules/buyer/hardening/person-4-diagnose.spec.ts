@@ -92,7 +92,7 @@ describe('/diagnose Person 4 - Seller Order Transitions', () => {
 
     await assert.rejects(
       async () => lifecycle.transitionOrder(orderId, sellerActor, { to: 'COMPLETED' }),
-      (err: unknown) => err instanceof OrderDomainError && err.code === 'RESOURCE_FORBIDDEN'
+      (err: unknown) => err instanceof OrderDomainError && err.code === 'SELLER_CANNOT_COMPLETE_ORDER'
     );
   });
 

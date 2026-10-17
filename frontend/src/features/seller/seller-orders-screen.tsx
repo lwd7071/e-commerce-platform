@@ -13,7 +13,6 @@ import { useToast } from "@/components/ui/toast";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
 import { repositories } from "@/lib/repositories/repository-factory";
 import type { WireOrder } from "@/lib/api/order.api";
-import { SellerHeaderNav } from "@/features/seller/seller-header-nav";
 
 type SellerFilterTab = "ALL" | OrderStatus;
 
@@ -241,9 +240,6 @@ export function SellerOrdersScreen() {
             </Link>
           </div>
         </header>
-
-        {/* Sub-navigation tabs across all seller features */}
-        <SellerHeaderNav />
 
         {/* Quick Queue Stats Banner */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

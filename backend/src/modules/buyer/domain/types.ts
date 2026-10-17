@@ -55,6 +55,7 @@ export type VoucherDiscountType = 'PERCENT' | 'FIXED';
 export type VoucherStatus = 'ACTIVE' | 'INACTIVE';
 
 export interface Voucher {
+  loyaltyOwnerId?: UUID | null;
   voucherId: UUID; // PK
   code: string; // VARCHAR(50) UNIQUE NOT NULL (RB-LB06)
   voucherName: string; // VARCHAR(150) NOT NULL
