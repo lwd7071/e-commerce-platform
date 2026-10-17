@@ -3,6 +3,8 @@ import path from "node:path";
 import { loadEnvConfig } from "@next/env";
 
 loadEnvConfig(path.resolve(__dirname, ".."));
+loadEnvConfig(path.resolve(__dirname, "../backend"));
+loadEnvConfig(__dirname);
 
 export default defineConfig({
   testDir: "./e2e",
@@ -15,13 +17,13 @@ export default defineConfig({
   timeout: 120_000,
   expect: { timeout: 10_000 },
   use: {
-    baseURL: "http://127.0.0.1:3000",
+    baseURL: "http://localhost:3000",
     trace: "retain-on-failure",
   },
   webServer: {
-    command: "npx next dev --hostname 127.0.0.1 --port 3000",
+    command: "npx next dev --port 3000",
     cwd: __dirname,
-    url: "http://127.0.0.1:3000",
+    url: "http://localhost:3000",
     reuseExistingServer: true,
     timeout: 120_000,
   },

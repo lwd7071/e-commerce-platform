@@ -1,5 +1,6 @@
 import { features } from "../config/features";
 import { apiClient } from "../api/client";
+import { AppError } from "../api/app-error";
 import { catalogApi, type WireCatalogProductItem, type WireCatalogProductDetail } from "../api/catalog.api";
 import { buyerApi } from "../api/buyer.api";
 import { orderApi, type WireOrder } from "../api/order.api";
@@ -8,6 +9,8 @@ import { adminApi } from "../api/admin.api";
 import { mediaApi, uploadMedia } from "../api/media.api";
 import { sellerReportApi } from "../api/seller-report.api";
 import { chatApi } from "../api/chat.api";
+import { cartRepository } from "@/features/cart/cart.repository";
+import type { CartItem } from "@/features/cart/cart.types";
 import type {
   ICatalogRepository,
   IBuyerRepository,
@@ -177,39 +180,91 @@ const dynamicMockDetails: Record<string, WireCatalogProductDetail> = {
         status: "ACTIVE",
       },
     ],
+    image_url: "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=800",
+    images: [
+      { image_id: "img-1", image_url: "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=800", sort_order: 0 },
+    ],
   },
 };
 
+function syncMockCatalogStores() {
+  if (typeof window === "undefined") return;
+  try {
+    const rawProds = window.sessionStorage.getItem("dino_mock_products") || window.localStorage.getItem("dino_mock_products");
+    if (rawProds) {
+      const parsed = JSON.parse(rawProds);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        dynamicMockProducts.length = 0;
+        dynamicMockProducts.push(...parsed);
+      }
+    }
+    const rawDetails = window.sessionStorage.getItem("dino_mock_details") || window.localStorage.getItem("dino_mock_details");
+    if (rawDetails) {
+      const parsed = JSON.parse(rawDetails);
+      if (parsed && typeof parsed === "object") {
+        Object.assign(dynamicMockDetails, parsed);
+      }
+    }
+  } catch {}
+}
+
+function persistMockCatalogStores() {
+  if (typeof window === "undefined") return;
+  try {
+    const prodsStr = JSON.stringify(dynamicMockProducts);
+    const detailsStr = JSON.stringify(dynamicMockDetails);
+    window.sessionStorage.setItem("dino_mock_products", prodsStr);
+    window.localStorage.setItem("dino_mock_products", prodsStr);
+    window.sessionStorage.setItem("dino_mock_details", detailsStr);
+    window.localStorage.setItem("dino_mock_details", detailsStr);
+  } catch {}
+}
+
 const mockCatalogRepository: ICatalogRepository = {
-  getProducts: async () => [...dynamicMockProducts],
+  getProducts: async () => {
+    syncMockCatalogStores();
+    return dynamicMockProducts.filter((p) => (p.status || "ACTIVE") === "ACTIVE");
+  },
   getProductsPaginated: async (params) => {
+    syncMockCatalogStores();
+    let items = dynamicMockProducts.filter((p) => (p.status || "ACTIVE") === "ACTIVE");
+    if (params?.search) {
+      const q = params.search.toLowerCase().trim();
+      items = items.filter((p) => p.product_name.toLowerCase().includes(q));
+    }
+    if (params?.category_id) {
+      items = items.filter((p) => p.category_id === params.category_id);
+    }
+    if (params?.shop_tier) {
+      items = items.filter((p) => p.shop_tier === params.shop_tier);
+    }
+    if (params?.min_price) {
+      const min = Number(params.min_price);
+      if (!isNaN(min)) {
+        items = items.filter((p) => Number(p.max_price ?? p.min_price) >= min);
+      }
+    }
+    if (params?.max_price) {
+      const max = Number(params.max_price);
+      if (!isNaN(max)) {
+        items = items.filter((p) => Number(p.min_price ?? p.max_price) <= max);
+      }
+    }
+    if (params?.sort) {
+      if (params.sort === "price_asc") {
+        items.sort((a, b) => Number(a.min_price) - Number(b.min_price));
+      } else if (params.sort === "price_desc") {
+        items.sort((a, b) => Number(b.max_price) - Number(a.max_price));
+      } else if (params.sort === "created_at_desc") {
+        items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      }
+    }
+
     const isPage2 = params?.cursor === "mock_cursor_page_2";
     if (isPage2) {
+      const page2Items = items.slice(2);
       return {
-        data: [
-          {
-            product_id: "00000000-0000-0000-0000-000000000103",
-            product_name: "Áo Sơ Mi Linen Form Rộng Cao Cấp",
-            shop_id: "00000000-0000-0000-0000-000000000002",
-            category_id: "00000000-0000-0000-0000-000000000011",
-            min_price: "289000.00",
-            max_price: "320000.00",
-            total_stock: 75,
-            image_url: "https://images.unsplash.com/photo-1598033129183-c4f50c736f10?w=800",
-            created_at: new Date().toISOString(),
-          },
-          {
-            product_id: "00000000-0000-0000-0000-000000000104",
-            product_name: "Bàn Phím Cơ Không Dây 3 Chế Độ RGB",
-            shop_id: "00000000-0000-0000-0000-000000000003",
-            category_id: "00000000-0000-0000-0000-000000000012",
-            min_price: "850000.00",
-            max_price: "1250000.00",
-            total_stock: 30,
-            image_url: "https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=800",
-            created_at: new Date().toISOString(),
-          },
-        ],
+        data: page2Items,
         meta: {
           limit: 2,
           has_more: false,
@@ -218,55 +273,47 @@ const mockCatalogRepository: ICatalogRepository = {
       };
     }
 
+    const limit = params?.limit ?? 20;
+    const page1Items = items.slice(0, limit);
     return {
-      data: [
-        {
-          product_id: "00000000-0000-0000-0000-000000000101",
-          product_name: "Serum Dưỡng Trắng & Cấp Ẩm Chuyên Sâu",
-          shop_id: "00000000-0000-0000-0000-000000000001",
-          category_id: "00000000-0000-0000-0000-000000000010",
-          min_price: "280000.00",
-          max_price: "350000.00",
-          total_stock: 50,
-          image_url: "https://images.unsplash.com/photo-1620916566398-39f1143ab7be?w=800",
-          created_at: new Date().toISOString(),
-        },
-        {
-          product_id: "00000000-0000-0000-0000-000000000102",
-          product_name: "Kem Chống Nắng Phổ Rộng SPF 50+ PA++++",
-          shop_id: "00000000-0000-0000-0000-000000000001",
-          category_id: "00000000-0000-0000-0000-000000000010",
-          min_price: "320000.00",
-          max_price: "320000.00",
-          total_stock: 120,
-          image_url: "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=800",
-          created_at: new Date().toISOString(),
-        },
-      ],
+      data: page1Items,
       meta: {
-        limit: 2,
-        has_more: true,
-        next_cursor: "mock_cursor_page_2",
+        limit,
+        has_more: items.length > limit,
+        next_cursor: items.length > limit ? "mock_cursor_page_2" : null,
       },
     };
   },
   getProductById: async (id) => {
+    syncMockCatalogStores();
     if (dynamicMockDetails[id]) {
-      return dynamicMockDetails[id];
+      const d = dynamicMockDetails[id];
+      if (!d.image_url && (!d.images || d.images.length === 0)) {
+        const found = dynamicMockProducts.find((p) => p.product_id === id);
+        const img = found?.image_url || "https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=800";
+        d.image_url = img;
+        d.images = [{ image_id: `img-${id}`, image_url: img, sort_order: 0 }];
+      }
+      return d;
     }
     const foundProd = dynamicMockProducts.find((p) => p.product_id === id);
+    const imgUrl = foundProd?.image_url || "https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=800";
     return {
       product_id: id,
       shop_id: foundProd?.shop_id || "00000000-0000-0000-0000-000000000001",
       category_id: foundProd?.category_id || "00000000-0000-0000-0000-000000000010",
       product_name: foundProd?.product_name || "Serum Dưỡng Trắng & Cấp Ẩm Chuyên Sâu",
       description: "Chiết xuất thiên nhiên dưỡng da sáng hồng rạng rỡ, cấp ẩm sâu 72 giờ và phục hồi hàng rào bảo vệ da.",
-      status: "ACTIVE",
+      status: foundProd?.status || "ACTIVE",
+      image_url: imgUrl,
+      images: [
+        { image_id: `img-${id}-0`, image_url: imgUrl, sort_order: 0 },
+      ],
       variants: [
         {
           variant_id: `var-${id}-1`,
-          variant_name: "Dung tích",
-          variant_value: "Chai 30ml",
+          variant_name: "Phân loại",
+          variant_value: "Tiêu chuẩn",
           sku: `SKU-${id.slice(-4)}-1`,
           price: foundProd?.min_price || "280000.00",
           stock_quantity: foundProd?.total_stock || 35,
@@ -278,10 +325,20 @@ const mockCatalogRepository: ICatalogRepository = {
   getSellerProductById: async (id) => mockCatalogRepository.getProductById(id),
   updateSellerProduct: async (id, input) => {
     const current = await mockCatalogRepository.getProductById(id);
+    const updatedImages = input.images
+      ? (input.images as any[]).map((img) => ({
+          image_id: img.image_id || img.media_id,
+          image_url: img.image_url,
+          sort_order: img.sort_order,
+        }))
+      : current.images;
+    const updatedImageUrl = (updatedImages && updatedImages[0]?.image_url) || current.image_url;
+
     const updated = {
       ...current,
       ...input,
-      images: input.images ? input.images.map((img) => ({ image_id: img.image_id || img.media_id, image_url: img.image_url, sort_order: img.sort_order })) : current.images,
+      image_url: updatedImageUrl,
+      images: updatedImages,
       variants: input.variants ? input.variants.map((change) => {
         const existing = change.variant_id && current.variants.find((variant) => variant.variant_id === change.variant_id);
         return existing
@@ -290,9 +347,37 @@ const mockCatalogRepository: ICatalogRepository = {
       }) : current.variants,
     };
     dynamicMockDetails[id] = updated;
+    persistMockCatalogStores();
     return updated;
   },
   createProduct: async (data) => {
+    syncMockCatalogStores();
+    // Check for SKU conflict across existing products in this shop
+    const existingSkus = new Set<string>();
+    for (const detail of Object.values(dynamicMockDetails)) {
+      if (detail.variants) {
+        for (const v of detail.variants) {
+          if (v.sku) existingSkus.add(v.sku.toLowerCase().trim());
+        }
+      }
+    }
+    for (const p of dynamicMockProducts) {
+      if (!dynamicMockDetails[p.product_id]) {
+        existingSkus.add(`sku-${p.product_id.slice(-4)}-1`.toLowerCase());
+      }
+    }
+
+    for (const v of data.variants) {
+      const trimmed = v.sku.trim();
+      if (existingSkus.has(trimmed.toLowerCase())) {
+        throw new AppError({
+          status: 409,
+          code: "SKU_CONFLICT",
+          message: `Mã SKU '${trimmed}' đã tồn tại trong gian hàng của bạn. Vui lòng chọn SKU khác.`,
+        });
+      }
+    }
+
     const newId = crypto.randomUUID();
     const prices = data.variants.map((v) => Number(v.price) || 0);
     const minP = Math.min(...prices).toFixed(2);
@@ -307,6 +392,12 @@ const mockCatalogRepository: ICatalogRepository = {
       product_name: data.product_name,
       description: data.description ?? null,
       status: "ACTIVE",
+      image_url: imgUrl,
+      images: data.images?.map((img, idx) => ({
+        image_id: img.media_id || `img-${idx}`,
+        image_url: img.image_url,
+        sort_order: img.sort_order ?? idx,
+      })) || [{ image_id: `img-${newId}-0`, image_url: imgUrl, sort_order: 0 }],
       variants: data.variants.map((v) => ({
         variant_id: crypto.randomUUID(),
         variant_name: v.variant_name,
@@ -331,6 +422,7 @@ const mockCatalogRepository: ICatalogRepository = {
       created_at: new Date().toISOString(),
     });
 
+    persistMockCatalogStores();
     return detail;
   },
   updateStock: async (variantId, quantity) => {
@@ -347,9 +439,11 @@ const mockCatalogRepository: ICatalogRepository = {
         break;
       }
     }
+    persistMockCatalogStores();
     return { variant_id: variantId, quantity, success: true };
   },
   getSellerProducts: async (params?: { limit?: number; cursor?: string; search?: string; status?: string }) => {
+    syncMockCatalogStores();
     // Isolate products strictly belonging to the seller's shop (shop_id: ...0001)
     let list = dynamicMockProducts.filter((p) => p.shop_id === "00000000-0000-0000-0000-000000000001");
     if (params?.search) {
@@ -370,10 +464,15 @@ const mockCatalogRepository: ICatalogRepository = {
     };
   },
   updateProductStatus: async (productId: string, status: "ACTIVE" | "INACTIVE") => {
+    syncMockCatalogStores();
     const p = dynamicMockProducts.find((item) => item.product_id === productId);
     if (p) {
-      (p as { status?: string }).status = status;
+      p.status = status;
     }
+    if (dynamicMockDetails[productId]) {
+      dynamicMockDetails[productId].status = status;
+    }
+    persistMockCatalogStores();
     return { product_id: productId, status };
   },
 };
@@ -417,17 +516,91 @@ const mockBuyerRepository: IBuyerRepository = {
     detailAddress: data.detailAddress,
     isDefault: data.isDefault ?? false,
   }),
-  getCart: async () => ({
-    cart_id: "cart_01",
-    buyer_id: "user_dev",
-    items: [{ cart_item_id: "ci_01", variant_id: "var_01", quantity: 2, is_selected: true }],
-  }),
-  addToCart: async (variantId, quantity) => ({
-    cart_item_id: `ci_${Date.now()}`,
-    variant_id: variantId,
-    quantity,
-    is_selected: false,
-  }),
+  getCart: async () => {
+    const items = await cartRepository.getCart();
+    return {
+      cart_id: "cart_01",
+      buyer_id: "user_dev",
+      items: items.map((i) => ({
+        cart_item_id: i.id,
+        variant_id: i.variantId,
+        quantity: i.quantity,
+        is_selected: i.isSelected,
+      })),
+    };
+  },
+  addToCart: async (variantId, quantity) => {
+    syncMockCatalogStores();
+    // Look up product & variant
+    let foundVar: any = undefined;
+    let foundProd: WireCatalogProductItem | undefined;
+
+    for (const detail of Object.values(dynamicMockDetails)) {
+      const v = detail.variants?.find((item) => item.variant_id === variantId);
+      if (v) {
+        foundVar = v;
+        foundProd = dynamicMockProducts.find((p) => p.product_id === detail.product_id);
+        break;
+      }
+    }
+    if (!foundVar) {
+      for (const prod of dynamicMockProducts) {
+        if (prod.product_id === variantId || variantId.includes(prod.product_id.slice(-4))) {
+          foundProd = prod;
+          break;
+        }
+      }
+    }
+
+    const cartItemId = `ci_${Date.now()}`;
+    const cartItem: CartItem = {
+      id: cartItemId,
+      variantId,
+      productId: foundProd?.product_id || "prod_custom",
+      productName: foundProd?.product_name || "Sản phẩm vừa thêm",
+      variantName: foundVar ? (foundVar.variant_value ? `${foundVar.variant_name} / ${foundVar.variant_value}` : foundVar.variant_name) : "Tiêu chuẩn",
+      price: foundVar?.price || foundProd?.min_price || "100000.00",
+      originalPrice: null,
+      quantity,
+      stock: foundVar?.stock_quantity ?? foundProd?.total_stock ?? 99,
+      shopId: foundProd?.shop_id || "00000000-0000-0000-0000-000000000001",
+      shopName: "Gian hàng chính hãng",
+      imageUrl: foundProd?.image_url || null,
+      isSelected: true,
+      isAvailable: true,
+      productStatus: "ACTIVE",
+      variantStatus: "ACTIVE",
+      shopStatus: "ACTIVE",
+    };
+
+    if (cartRepository.addItem) {
+      await cartRepository.addItem(cartItem);
+    }
+    return {
+      cart_item_id: cartItemId,
+      variant_id: variantId,
+      quantity,
+      is_selected: true,
+    };
+  },
+  updateCartItem: async (itemId, patch) => {
+    await cartRepository.updateItem(itemId, {
+      quantity: patch.quantity,
+      is_selected: patch.is_selected ?? patch.isSelected,
+    });
+    return {
+      cart_item_id: itemId,
+      variant_id: "var_updated",
+      quantity: patch.quantity || 1,
+      is_selected: patch.is_selected ?? patch.isSelected ?? true,
+    };
+  },
+  removeCartItem: async (itemId) => {
+    await cartRepository.removeItem(itemId);
+  },
+  removeSelectedCartItems: async () => {
+    await cartRepository.removeSelected();
+  },
 };
 
 const inMemoryMockOrders: WireOrder[] = [
@@ -766,10 +939,11 @@ import {
 
 export { mockAdminUsersStore, mockAdminShopsStore, mockAdminReviewsStore };
 
-const mockReviewsStore: WireReview[] = [
+const initialMockReviewsStore: WireReview[] = [
   {
     review_id: "rev_01",
     order_item_id: "item_01",
+    product_id: "00000000-0000-0000-0000-000000000101",
     rating: 5,
     comment: "Sản phẩm chất lượng vượt mong đợi, đóng gói rất cẩn thận!",
     media_urls: ["https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400"],
@@ -777,17 +951,51 @@ const mockReviewsStore: WireReview[] = [
   },
 ];
 
+let mockReviewsStore: WireReview[] = [...initialMockReviewsStore];
+
+function syncMockReviewsStore() {
+  if (typeof window === "undefined") return;
+  try {
+    const raw =
+      window.sessionStorage.getItem("dino_mock_reviews") ||
+      window.localStorage.getItem("dino_mock_reviews");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        mockReviewsStore = parsed.map((item) => {
+          if (item.review_id === "rev_01" && !item.product_id) {
+            return { ...item, product_id: "00000000-0000-0000-0000-000000000101" };
+          }
+          return item;
+        });
+      }
+    }
+  } catch {}
+}
+
+function persistMockReviewsStore() {
+  if (typeof window === "undefined") return;
+  try {
+    const str = JSON.stringify(mockReviewsStore);
+    window.sessionStorage.setItem("dino_mock_reviews", str);
+    window.localStorage.setItem("dino_mock_reviews", str);
+  } catch {}
+}
+
 const mockReviewRepository: IReviewRepository = {
   createReview: async (payload: CreateReviewPayload) => {
+    syncMockReviewsStore();
     const review: WireReview = {
       review_id: `rev_${Date.now()}`,
       order_item_id: payload.order_item_id,
+      product_id: payload.product_id,
       rating: payload.rating,
       comment: payload.comment,
       media_urls: payload.media_urls || [],
       created_at: new Date().toISOString(),
     };
     mockReviewsStore.push(review);
+    persistMockReviewsStore();
     mockAdminReviewsStore.unshift({
       id: review.review_id,
       productId: payload.product_id || "prod_mod_01",
@@ -800,11 +1008,14 @@ const mockReviewRepository: IReviewRepository = {
     });
     return review;
   },
-  getReviewsByProduct: async () => {
+  getReviewsByProduct: async (productId: string) => {
+    syncMockReviewsStore();
     const hiddenIds = new Set(
       mockAdminReviewsStore.filter((r) => r.status === "HIDDEN").map((r) => r.id)
     );
-    return mockReviewsStore.filter((r) => !hiddenIds.has(r.review_id));
+    return mockReviewsStore.filter(
+      (r) => !hiddenIds.has(r.review_id) && (!productId || r.product_id === productId)
+    );
   },
 };
 
@@ -1016,15 +1227,69 @@ const mockMediaRepository: IMediaRepository = {
 };
 
 const apiChatRepository: IChatRepository = {
-  createOrGetConversation: (shopId, productId) => chatApi.createOrGetConversation(shopId, productId),
-  getConversations: () => chatApi.getConversations(),
-  getConversation: (id) => chatApi.getConversation(id),
-  getMessages: (id, limit, cursor) => chatApi.getMessages(id, limit, cursor),
-  sendMessage: (id, payload) => chatApi.sendMessage(id, payload),
-  requestHandoff: (id) => chatApi.requestHandoff(id),
-  updatePermissions: (id, permissions) => chatApi.updatePermissions(id, permissions),
-  getShopPresence: (shopId) => chatApi.getShopPresence(shopId),
-  setShopPresence: (shopId, isOnline) => chatApi.setShopPresence(shopId, isOnline),
+  createOrGetConversation: async (shopId, productId) => {
+    try {
+      return await chatApi.createOrGetConversation(shopId, productId);
+    } catch {
+      return mockChatRepository.createOrGetConversation(shopId, productId);
+    }
+  },
+  getConversations: async () => {
+    try {
+      return await chatApi.getConversations();
+    } catch {
+      return mockChatRepository.getConversations();
+    }
+  },
+  getConversation: async (id) => {
+    try {
+      return await chatApi.getConversation(id);
+    } catch {
+      return mockChatRepository.getConversation(id);
+    }
+  },
+  getMessages: async (id, limit, cursor) => {
+    try {
+      return await chatApi.getMessages(id, limit, cursor);
+    } catch {
+      return mockChatRepository.getMessages(id, limit, cursor);
+    }
+  },
+  sendMessage: async (id, payload) => {
+    try {
+      return await chatApi.sendMessage(id, payload);
+    } catch {
+      return mockChatRepository.sendMessage(id, payload);
+    }
+  },
+  requestHandoff: async (id) => {
+    try {
+      return await chatApi.requestHandoff(id);
+    } catch {
+      return mockChatRepository.requestHandoff(id);
+    }
+  },
+  updatePermissions: async (id, permissions) => {
+    try {
+      return await chatApi.updatePermissions(id, permissions);
+    } catch {
+      return mockChatRepository.updatePermissions(id, permissions);
+    }
+  },
+  getShopPresence: async (shopId) => {
+    try {
+      return await chatApi.getShopPresence(shopId);
+    } catch {
+      return mockChatRepository.getShopPresence ? mockChatRepository.getShopPresence(shopId) : { shop_id: shopId, is_online: true };
+    }
+  },
+  setShopPresence: async (shopId, isOnline) => {
+    try {
+      return await chatApi.setShopPresence(shopId, isOnline);
+    } catch {
+      return mockChatRepository.setShopPresence ? mockChatRepository.setShopPresence(shopId, isOnline) : { shop_id: shopId, is_online: isOnline };
+    }
+  },
 };
 
 const mockConversationsStore: import('../api/chat.api').WireChatConversation[] = [
@@ -1059,10 +1324,65 @@ const mockMessagesStore: Record<string, import('../api/chat.api').WireChatMessag
   ],
 };
 
+async function fetchAiBotResponse(content: string, productId?: string | null): Promise<{ content: string; suggestHandoff: boolean }> {
+  let productContext: Record<string, unknown> | null = null;
+  if (productId) {
+    const detail = (dynamicMockDetails as Record<string, any>)[productId];
+    if (detail) {
+      productContext = {
+        product_id: detail.product_id,
+        product_name: detail.product_name,
+        shop_name: detail.shop_name || "Dino Official Store",
+        min_price: detail.min_price,
+        max_price: detail.max_price,
+        total_stock: detail.variants ? detail.variants.reduce((sum: number, v: any) => sum + (v.stock_quantity || 0), 0) : detail.total_stock,
+        description: detail.description,
+        variants: detail.variants,
+      };
+    } else {
+      const p = dynamicMockProducts.find((item) => item.product_id === productId);
+      if (p) {
+        productContext = {
+          product_id: p.product_id,
+          product_name: p.product_name,
+          shop_name: "Dino Official Store",
+          min_price: p.min_price,
+          max_price: p.max_price,
+          total_stock: p.total_stock,
+        };
+      }
+    }
+  }
+
+  try {
+    const res = await fetch("/api/chat/groq", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question: content, product: productContext }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.content) {
+        return {
+          content: data.content,
+          suggestHandoff: Boolean(data.suggestHandoff),
+        };
+      }
+    }
+  } catch {}
+
+  const pName = (productContext?.product_name as string) || "sản phẩm";
+  return {
+    content: `Dạ em chào bạn! Em là Trợ lý AI của Shop hỗ trợ thông tin sản phẩm **${pName}**. Em có thể giải đáp nhanh cho bạn về số lượng tồn kho, giá bán các phân loại hoặc chất liệu sản phẩm. Bạn cần em hỗ trợ gì ạ?`,
+    suggestHandoff: false,
+  };
+}
+
 const mockChatRepository: IChatRepository = {
   createOrGetConversation: async (shopId, productId) => {
     let conv = mockConversationsStore.find((c) => c.shop_id === shopId);
     if (!conv) {
+      const productDetail = productId ? (dynamicMockDetails as Record<string, any>)[productId] : null;
       conv = {
         conversation_id: `conv_${Date.now()}`,
         buyer_id: 'buyer-demo',
@@ -1073,7 +1393,8 @@ const mockChatRepository: IChatRepository = {
         last_message_at: new Date().toISOString(),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        shop_name: 'Gian hàng đối tác',
+        shop_name: productDetail?.shop_name || 'Dino Official Store',
+        product_name: productDetail?.product_name || 'Áo Sơ Mi Linen Form Rộng Cao Cấp',
       };
       mockConversationsStore.unshift(conv);
       mockMessagesStore[conv.conversation_id] = [
@@ -1083,7 +1404,7 @@ const mockChatRepository: IChatRepository = {
           sender_id: null,
           sender_role: 'BOT',
           message_type: 'TEXT',
-          content: 'Dạ em chào bạn! Em là trợ lý tự động của Shop. Em có thể giải đáp tồn kho, giá bán hoặc chất liệu sản phẩm ạ!',
+          content: 'Dạ em chào bạn! Em là trợ lý tự động của Shop. Em có thể giải đáp thông tin tồn kho, giá bán và chất liệu sản phẩm ạ!',
           metadata: { is_automated: true },
           is_read: true,
           created_at: new Date().toISOString(),
@@ -1129,14 +1450,17 @@ const mockChatRepository: IChatRepository = {
     }
 
     if (conv && conv.mode === 'BOT_ASSISTANT') {
+      const prodId = payload.product_id || conv.current_product_id;
+      const aiReply = await fetchAiBotResponse(payload.content, prodId);
+
       const botMsg: import('../api/chat.api').WireChatMessage = {
         message_id: `msg_b_${Date.now()}`,
         conversation_id: id,
         sender_id: null,
         sender_role: 'BOT',
         message_type: 'TEXT',
-        content: `Dạ em đã ghi nhận câu hỏi của bạn về "${payload.content}". Sản phẩm hiện còn hàng trong kho với đầy đủ phân loại ạ! Bạn có thể bấm "Chat với Người Bán" nếu cần Shop tư vấn sâu hơn nhé!`,
-        metadata: { is_automated: true, can_handoff: true, suggest_handoff: true },
+        content: aiReply.content,
+        metadata: { is_automated: true, can_handoff: true, suggest_handoff: aiReply.suggestHandoff },
         is_read: true,
         created_at: new Date(Date.now() + 500).toISOString(),
       };

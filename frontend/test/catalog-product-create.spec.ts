@@ -186,4 +186,39 @@ describe("Seller Product Creation & Stock Update (POST /products & PATCH /produc
     expect(res.variant_id).toBe("var-123");
     expect(res.stock_quantity).toBe(80);
   });
+
+  it("throws 409 SKU_CONFLICT when creating a product with an SKU that already exists in the shop", async () => {
+    // 1. Create first product with SKU-UNIQUE-101
+    await mockCatalogRepository.createProduct!({
+      category_id: "00000000-0000-0000-0000-000000000010",
+      product_name: "Sản phẩm A",
+      variants: [
+        {
+          variant_name: "Tiêu chuẩn",
+          sku: "SKU-PROD-01",
+          price: "100000.00",
+          stock_quantity: 10,
+        },
+      ],
+    });
+
+    // 2. Attempt to create second product with the same SKU-PROD-01
+    await expect(
+      mockCatalogRepository.createProduct!({
+        category_id: "00000000-0000-0000-0000-000000000010",
+        product_name: "Sản phẩm B",
+        variants: [
+          {
+            variant_name: "Tiêu chuẩn",
+            sku: "SKU-PROD-01",
+            price: "200000.00",
+            stock_quantity: 5,
+          },
+        ],
+      })
+    ).rejects.toMatchObject({
+      status: 409,
+      code: "SKU_CONFLICT",
+    });
+  });
 });

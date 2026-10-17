@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/auth-context";
@@ -20,6 +21,30 @@ export function SiteHeader({ role = null, isSellerArea = false }: SiteHeaderProp
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
+
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Sync input value with current URL query 'search' or 'q'
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      const q = sp.get("search") || sp.get("q") || "";
+      setSearchQuery(q);
+    }
+  }, [pathname]);
+
+  const handleSearchSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const trimmed = searchQuery.trim();
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("catalog-search-submit", { detail: trimmed }));
+    }
+    if (trimmed) {
+      router.push(`/products?search=${encodeURIComponent(trimmed)}`);
+    } else {
+      router.push("/products");
+    }
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -77,9 +102,17 @@ export function SiteHeader({ role = null, isSellerArea = false }: SiteHeaderProp
         <Link className="brand-lockup" href="/" aria-label="Dino - trang chủ">
           <span>Dino</span>
         </Link>
-        <form className="header-search" action="/products" role="search">
+        <form className="header-search" onSubmit={handleSearchSubmit} action="/products" role="search">
           <Icon name="search" className="header-search__icon" />
-          <input className="form-control" type="search" name="q" placeholder="Tìm sản phẩm..." aria-label="Tìm sản phẩm" />
+          <input
+            className="form-control"
+            type="search"
+            name="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Tìm sản phẩm..."
+            aria-label="Tìm sản phẩm"
+          />
         </form>
         <nav className="primary-nav desktop-nav" aria-label="Điều hướng chính">
           {getTopNavItems(role).map((item) => (

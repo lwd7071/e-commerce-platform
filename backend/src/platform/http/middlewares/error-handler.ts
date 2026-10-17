@@ -199,7 +199,8 @@ export const errorHandlerMiddleware: ErrorRequestHandler = (
       code === 'PAYMENT_STATE_INVALID' ||
       code === 'PAYMENT_ALREADY_COMPLETED' ||
       code === 'IDEMPOTENCY_KEY_REUSED' ||
-      code === 'REQUEST_IN_PROGRESS'
+      code === 'REQUEST_IN_PROGRESS' ||
+      code === 'SKU_CONFLICT'
     ) {
       httpStatus = 409;
     } else if (code === 'DEPENDENCY_UNAVAILABLE') {

@@ -9,6 +9,7 @@ let currentPath = "/";
 vi.mock("next/navigation", () => ({
   usePathname: () => currentPath,
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock("@/lib/auth/auth-context", () => ({

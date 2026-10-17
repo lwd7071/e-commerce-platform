@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
@@ -44,6 +44,12 @@ function InnerProductDetailScreen({ productId }: Props) {
   const [quantity, setQuantity] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
+
+  useEffect(() => {
+    setSelectedImage(null);
+    setSelectedVariantId(null);
+    setQuantity(1);
+  }, [productId]);
 
   const {
     data: product,
@@ -111,9 +117,13 @@ function InnerProductDetailScreen({ productId }: Props) {
     setIsSubmitting(true);
     try {
       await repositories.buyer().addToCart(selectedVariant.variant_id, quantity);
-      if (user?.id) {
-        await getQueryClient().invalidateQueries({ queryKey: queryKeys.cart.items(user.id) });
-      }
+      try {
+        if (user?.id) {
+          await getQueryClient().invalidateQueries({ queryKey: queryKeys.cart.items(user.id) });
+        } else {
+          await getQueryClient().invalidateQueries({ queryKey: queryKeys.cart.all });
+        }
+      } catch {}
       showToast(
         `Đã thêm ${quantity} sản phẩm vào giỏ hàng thành công!`,
         "success",
@@ -223,15 +233,32 @@ function InnerProductDetailScreen({ productId }: Props) {
       ? Math.round((reviews.reduce((acc, r) => acc + r.rating, 0) / reviewCount) * 10) / 10
       : 0;
 
-  const primaryImage = product.image_url?.trim();
-  const productImages =
-    product.images && product.images.length > 0
-      ? product.images.map((img) => img.image_url)
-      : primaryImage
-      ? [primaryImage]
-      : [];
+  const primaryImage = typeof product.image_url === "string" ? product.image_url.trim() : null;
+  const productImages: string[] = (() => {
+    if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+      const list = product.images
+        .map((img: any) => {
+          if (typeof img === "string") return img.trim();
+          if (img && typeof img === "object") {
+            const u = img.image_url || img.url;
+            if (typeof u === "string") return u.trim();
+          }
+          return "";
+        })
+        .filter(Boolean);
+      if (list.length > 0) return list;
+    }
+    if (primaryImage) {
+      return [primaryImage];
+    }
+    return [];
+  })();
 
-  const currentDisplayImage = selectedImage || productImages[0] || null;
+  const currentDisplayImage =
+    (selectedImage && productImages.includes(selectedImage) ? selectedImage : null) ||
+    productImages[0] ||
+    primaryImage ||
+    null;
 
   return (
     <div className="space-y-6">

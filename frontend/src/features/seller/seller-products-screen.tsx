@@ -16,6 +16,8 @@ import { Button } from "@/components/ui/button";
 import { FormField, TextInput } from "@/components/ui/form-controls";
 import { Icon } from "@/components/ui/icon";
 import { SellerHeaderNav } from "./seller-header-nav";
+import { getQueryClient } from "@/lib/query/query-client";
+import { queryKeys } from "@/lib/query/query-keys";
 
 export function SellerProductsScreen() {
   const router = useRouter();
@@ -182,6 +184,10 @@ export function SellerProductsScreen() {
       if (repositories.catalog().updateProductStatus) {
         await repositories.catalog().updateProductStatus!(item.product_id, nextStatus);
       }
+      try {
+        const queryClient = getQueryClient();
+        await queryClient.invalidateQueries({ queryKey: queryKeys.catalog.all });
+      } catch {}
       setProducts((prev) =>
         prev.map((p) =>
           p.product_id === item.product_id ? { ...p, status: nextStatus } : p

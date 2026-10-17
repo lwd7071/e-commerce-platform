@@ -57,6 +57,10 @@ export class GroqChatClient {
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
+      if (typeof process !== 'undefined' && process.env) {
+        process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+      }
+
       const response = await fetch(`${this.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
         method: 'POST',
         headers: {

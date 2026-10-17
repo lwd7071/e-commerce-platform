@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useTransition } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { repositories } from "@/lib/repositories/repository-factory";
 import { categoryAdapter, type CategoryItem } from "@/lib/adapters/category.adapter";
 import type { WireCatalogProductItem, GetProductsParams } from "@/lib/api/catalog.api";
@@ -15,8 +15,8 @@ import {
 } from "./catalog-query-engine";
 
 type SortOption = "created_at_desc" | "price_asc" | "price_desc";
-const PRICE_SLIDER_MAX = 100_000_000;
-const PRICE_SLIDER_STEP = 100_000;
+const PRICE_SLIDER_MAX = 5_000_000;
+const PRICE_SLIDER_STEP = 50_000;
 const vndFormatter = new Intl.NumberFormat("vi-VN");
 
 type Props = {
@@ -46,6 +46,7 @@ export function CatalogListScreen({
   initialShopTier = "",
 }: Props) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const [products, setProducts] = useState<WireCatalogProductItem[]>([]);
   const [categories, setCategories] = useState<CategoryItem[]>([]);
@@ -53,7 +54,9 @@ export function CatalogListScreen({
   const [error, setError] = useState<string | null>(null);
 
   // Search is submitted from the shared site header and provided in the URL.
-  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
+  const [debouncedSearch, setDebouncedSearch] = useState(() => {
+    return searchParams.get("search") ?? searchParams.get("q") ?? initialSearch;
+  });
 
   // Filters state
   const [selectedCategory, setSelectedCategory] = useState(initialCategoryId);
@@ -73,6 +76,46 @@ export function CatalogListScreen({
     minPriceValue,
     Math.min(PRICE_SLIDER_MAX, maxPrice ? Number(maxPrice) || 0 : PRICE_SLIDER_MAX),
   );
+
+  useEffect(() => {
+    const q = searchParams.get("search") ?? searchParams.get("q") ?? initialSearch;
+    setDebouncedSearch(q);
+  }, [searchParams, initialSearch]);
+
+  useEffect(() => {
+    const handleCustomSearch = (e: Event) => {
+      const detail = (e as CustomEvent<string>).detail;
+      setDebouncedSearch(typeof detail === "string" ? detail : "");
+    };
+    window.addEventListener("catalog-search-submit", handleCustomSearch);
+    return () => window.removeEventListener("catalog-search-submit", handleCustomSearch);
+  }, []);
+
+  useEffect(() => {
+    setSelectedCategory(initialCategoryId);
+  }, [initialCategoryId]);
+
+  useEffect(() => {
+    if (initialSort) setSort(initialSort);
+  }, [initialSort]);
+
+  useEffect(() => {
+    if (initialMinPrice !== undefined) {
+      setMinPrice(initialMinPrice);
+      setAppliedMinPrice(initialMinPrice);
+    }
+  }, [initialMinPrice]);
+
+  useEffect(() => {
+    if (initialMaxPrice !== undefined) {
+      setMaxPrice(initialMaxPrice);
+      setAppliedMaxPrice(initialMaxPrice);
+    }
+  }, [initialMaxPrice]);
+
+  useEffect(() => {
+    if (initialShopTier !== undefined) setSelectedTier(initialShopTier);
+  }, [initialShopTier]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -167,6 +210,18 @@ export function CatalogListScreen({
     });
   }, [debouncedSearch, selectedCategory, selectedTier, sort, appliedMinPrice, appliedMaxPrice, pathname]);
 
+  const handleApplyPrice = () => {
+    setAppliedMinPrice(minPrice);
+    setAppliedMaxPrice(maxPrice);
+  };
+
+  const handleClearPrice = () => {
+    setMinPrice("");
+    setMaxPrice("");
+    setAppliedMinPrice("");
+    setAppliedMaxPrice("");
+  };
+
   const handleResetFilters = () => {
     setDebouncedSearch("");
     setSelectedCategory("");
@@ -174,6 +229,8 @@ export function CatalogListScreen({
     setSort("created_at_desc");
     setMinPrice("");
     setMaxPrice("");
+    setAppliedMinPrice("");
+    setAppliedMaxPrice("");
 
     if (typeof window !== "undefined") {
       window.history.replaceState(null, "", pathname);
@@ -224,7 +281,6 @@ export function CatalogListScreen({
             Hàng chính hãng, giá ưu đãi và giao hàng nhanh toàn quốc
           </p>
         </div>
-
       </div>
 
       {/* Main 2-Column Commerce Layout (Phương án 2: Classic Commerce Split) */}
@@ -396,8 +452,12 @@ export function CatalogListScreen({
                       setMinPrice(value);
                       if (value && maxPrice && Number(value) > Number(maxPrice)) setMaxPrice(value);
                     }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") handleApplyPrice();
+                    }}
                     className="form-control min-h-[44px] h-11 px-2.5 text-xs"
                     aria-label="Giá thấp nhất"
+                    placeholder="0"
                   />
                 </label>
                 <label className="field-stack text-xs">
@@ -411,20 +471,35 @@ export function CatalogListScreen({
                       setMaxPrice(value);
                       if (value && minPrice && Number(value) < Number(minPrice)) setMinPrice(value);
                     }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") handleApplyPrice();
+                    }}
                     className="form-control min-h-[44px] h-11 px-2.5 text-xs"
                     aria-label="Giá cao nhất"
+                    placeholder="Tối đa"
                   />
                 </label>
               </div>
-              {(minPrice || maxPrice) && (
-              <button
-                type="button"
-                onClick={() => { setMinPrice(""); setMaxPrice(""); }}
-                className="text-[11px] text-[var(--primary-active)] hover:underline block pt-1"
-              >
-                Xóa khoảng giá
-              </button>
-            )}
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleApplyPrice}
+                  className="button button--primary flex-1 min-h-[36px] h-9 text-xs font-semibold py-1 px-3"
+                  aria-label="Áp dụng khoảng giá"
+                >
+                  Áp dụng
+                </button>
+                {(minPrice || maxPrice) && (
+                  <button
+                    type="button"
+                    onClick={handleClearPrice}
+                    className="button button--secondary min-h-[36px] h-9 text-xs font-medium py-1 px-2.5"
+                    aria-label="Xóa khoảng giá"
+                  >
+                    Xóa
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </aside>

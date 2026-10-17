@@ -86,6 +86,117 @@ export const DEV_CATEGORY_FIXTURES: CategoryItem[] = [
   },
 ];
 
+const CATEGORIES_STORAGE_KEY = "dino_categories_v1";
+
+let memoryCategories: CategoryItem[] = DEV_CATEGORY_FIXTURES.map((c) => ({ ...c }));
+
+export function getStoredCategories(): CategoryItem[] {
+  if (typeof window === "undefined") {
+    return memoryCategories;
+  }
+  try {
+    const raw = window.sessionStorage.getItem(CATEGORIES_STORAGE_KEY) || window.localStorage.getItem(CATEGORIES_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch {}
+  saveStoredCategories(memoryCategories);
+  return memoryCategories;
+}
+
+export function saveStoredCategories(categories: CategoryItem[]): void {
+  memoryCategories = categories;
+  if (typeof window === "undefined") return;
+  try {
+    const serialized = JSON.stringify(categories);
+    window.sessionStorage.setItem(CATEGORIES_STORAGE_KEY, serialized);
+    window.localStorage.setItem(CATEGORIES_STORAGE_KEY, serialized);
+  } catch {}
+}
+
+const CUSTOM_CATEGORIES_KEY = "dino_custom_categories_v1";
+let memoryCustomCategories: CategoryItem[] = [];
+
+export function getCustomStoredCategories(): CategoryItem[] {
+  if (typeof window === "undefined") {
+    return memoryCustomCategories;
+  }
+  try {
+    const raw = window.sessionStorage.getItem(CUSTOM_CATEGORIES_KEY) || window.localStorage.getItem(CUSTOM_CATEGORIES_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {}
+  return memoryCustomCategories;
+}
+
+export function saveCustomStoredCategories(categories: CategoryItem[]): void {
+  memoryCustomCategories = categories;
+  if (typeof window === "undefined") return;
+  try {
+    const serialized = JSON.stringify(categories);
+    window.sessionStorage.setItem(CUSTOM_CATEGORIES_KEY, serialized);
+    window.localStorage.setItem(CUSTOM_CATEGORIES_KEY, serialized);
+  } catch {}
+}
+
+export function addStoredCategory(newCat: CategoryItem): CategoryItem {
+  const list = getStoredCategories();
+  const existingIndex = list.findIndex((c) => c.id === newCat.id);
+  if (existingIndex >= 0) {
+    list[existingIndex] = { ...list[existingIndex], ...newCat };
+  } else {
+    list.push(newCat);
+  }
+  saveStoredCategories(list);
+
+  const custom = getCustomStoredCategories();
+  const customIdx = custom.findIndex((c) => c.id === newCat.id);
+  if (customIdx >= 0) {
+    custom[customIdx] = { ...custom[customIdx], ...newCat };
+  } else {
+    custom.push(newCat);
+  }
+  saveCustomStoredCategories(custom);
+
+  return newCat;
+}
+
+export function updateStoredCategory(id: string, patch: Partial<CategoryItem>): CategoryItem {
+  const list = getStoredCategories();
+  const found = list.find((c) => c.id === id);
+  if (!found) throw new Error("Không tìm thấy danh mục.");
+  Object.assign(found, patch);
+  saveStoredCategories(list);
+  return found;
+}
+
+export function toggleStoredCategoryStatus(id: string): CategoryItem {
+  const list = getStoredCategories();
+  const found = list.find((c) => c.id === id);
+  if (!found) {
+    return { id, parentId: null, name: id, description: null, status: "INACTIVE" };
+  }
+
+  const nextStatus: "ACTIVE" | "INACTIVE" = found.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+  found.status = nextStatus;
+
+  // RB-KN04: Khi một danh mục gốc bị Quản trị viên tạm ẩn, toàn bộ các danh mục con thuộc danh mục đó sẽ tự động được ẩn đồng bộ
+  if (found.parentId === null && nextStatus === "INACTIVE") {
+    list.forEach((child) => {
+      if (child.parentId === id) {
+        child.status = "INACTIVE";
+      }
+    });
+  }
+  saveStoredCategories(list);
+  return { ...found };
+}
+
 export class CategoryAdapterImpl implements ICategoryAdapter {
   private mockFixtures: CategoryItem[];
   private forceMock: boolean | null;
@@ -106,22 +217,30 @@ export class CategoryAdapterImpl implements ICategoryAdapter {
   async getCategories(): Promise<CategoryItem[]> {
     if (!this.isMockMode()) {
       const wireCategories = await catalogApi.getCategories();
-      this.liveCategories = wireCategories.map(category => ({
+      this.liveCategories = wireCategories.map((category) => ({
         id: category.category_id,
         parentId: category.parent_category_id,
         name: category.category_name,
         description: category.description,
         status: "ACTIVE",
       }));
-      return this.liveCategories.map(category => ({ ...category }));
+      const custom = getCustomStoredCategories().filter((c) => c.status === "ACTIVE");
+      const merged = [...this.liveCategories];
+      custom.forEach((c) => {
+        if (!merged.some((m) => m.id === c.id || m.name.toLowerCase() === c.name.toLowerCase())) {
+          merged.push(c);
+        }
+      });
+      return merged.map((category) => ({ ...category }));
     }
 
-    // In mock mode, return active mock categories
-    return this.mockFixtures.filter((cat) => cat.status === "ACTIVE");
+    // In mock mode, return active stored categories
+    return getStoredCategories().filter((cat) => cat.status === "ACTIVE");
   }
 
   async getCategoryTree(): Promise<CategoryTreeNode[]> {
-    const active = await this.getCategories();
+    const all = getStoredCategories();
+    const active = all.filter((cat) => cat.status === "ACTIVE");
     const rootNodes = active.filter((cat) => !cat.parentId);
 
     return rootNodes.map((root) => {
@@ -135,10 +254,11 @@ export class CategoryAdapterImpl implements ICategoryAdapter {
 
   async getCategoryById(id: string): Promise<CategoryItem | null> {
     if (!this.isMockMode()) {
-      const categories = this.liveCategories ?? await this.getCategories();
-      return categories.find(category => category.id === id) ?? null;
+      const categories = this.liveCategories ?? (await this.getCategories());
+      return categories.find((category) => category.id === id) ?? null;
     }
-    const found = this.mockFixtures.find((c) => c.id === id);
+    const all = getStoredCategories();
+    const found = all.find((c) => c.id === id);
     return found ? { ...found } : null;
   }
 
@@ -150,3 +270,4 @@ export class CategoryAdapterImpl implements ICategoryAdapter {
 }
 
 export const categoryAdapter = new CategoryAdapterImpl();
+
