@@ -168,10 +168,10 @@ export function SellerProductCreateScreen() {
       const trimmedSku = v.sku.trim();
       if (!trimmedSku) {
         newErrors.push({ fieldId: `variant-sku-${v.id}`, message: `Biến thể #${idx + 1}: Vui lòng nhập mã SKU` });
-      } else if (skuSet.has(trimmedSku)) {
+      } else if (skuSet.has(trimmedSku.toLowerCase())) {
         newErrors.push({ fieldId: `variant-sku-${v.id}`, message: `Biến thể #${idx + 1}: Mã SKU '${trimmedSku}' bị trùng lặp` });
       } else {
-        skuSet.add(trimmedSku);
+        skuSet.add(trimmedSku.toLowerCase());
       }
 
       const numPrice = Number(v.price.trim());
@@ -229,20 +229,34 @@ export function SellerProductCreateScreen() {
       showToast("Sản phẩm đã được tạo thành công!", "success", "Tạo sản phẩm");
       router.push("/seller/products");
     } catch (err: unknown) {
-      if (err instanceof AppError) {
-        if (err.status === 409) {
-          showToast(err.message || "Mã SKU này đã tồn tại trong gian hàng của bạn. Vui lòng chọn SKU khác.", "error", "Xung đột SKU");
-          return;
-        }
-        if (err.status === 403) {
-          showToast("Chỉ tài khoản Người bán mới có quyền tạo sản phẩm.", "error", "Truy cập bị từ chối");
-          return;
-        }
-        showToast(err.message, "error");
+      const isAppErr = err instanceof AppError;
+      const status = isAppErr ? err.status : (err as any)?.status;
+      const code = isAppErr ? err.code : (err as any)?.code;
+      const rawMessage = err instanceof Error ? err.message : String(err);
+
+      if (status === 409 || code === "SKU_CONFLICT" || /SKU.*(already exists|tồn tại)/i.test(rawMessage)) {
+        const conflictMessage = rawMessage.includes("tồn tại")
+          ? rawMessage
+          : "Mã SKU này đã tồn tại trong gian hàng của bạn. Vui lòng chọn SKU khác.";
+        const match = rawMessage.match(/SKU '([^']+)'/i) || rawMessage.match(/mã SKU '([^']+)'/i);
+        const conflictSku = match ? match[1].toLowerCase() : null;
+
+        const conflictErrors = variants
+          .filter((v) => !conflictSku || v.sku.trim().toLowerCase() === conflictSku)
+          .map((v) => ({
+            fieldId: `variant-sku-${v.id}`,
+            message: conflictMessage,
+          }));
+
+        setErrors(conflictErrors.length > 0 ? conflictErrors : [{ fieldId: `variant-sku-${variants[0]?.id || "var-1"}`, message: conflictMessage }]);
+        showToast(conflictMessage, "error", "Xung đột SKU");
         return;
       }
-      const msg = err instanceof Error ? err.message : "Tạo sản phẩm thất bại. Vui lòng thử lại.";
-      showToast(msg, "error");
+      if (status === 403) {
+        showToast("Chỉ tài khoản Người bán mới có quyền tạo sản phẩm.", "error", "Truy cập bị từ chối");
+        return;
+      }
+      showToast(rawMessage || "Tạo sản phẩm thất bại. Vui lòng thử lại.", "error");
     } finally {
       setIsSubmitting(false);
     }

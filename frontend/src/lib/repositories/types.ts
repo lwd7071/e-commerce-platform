@@ -71,6 +71,7 @@ export interface CreateReviewPayload {
 export interface WireReview {
   review_id: string;
   order_item_id: string;
+  product_id?: string;
   rating: number;
   comment: string;
   media_urls?: string[];

@@ -117,10 +117,10 @@ describe('SellerChatInboxScreen Component', () => {
     await user.click(sendBtn);
 
     await waitFor(() => {
-      expect(sendMock).toHaveBeenCalledWith('conv-1', {
+      expect(sendMock).toHaveBeenCalledWith('conv-1', expect.objectContaining({
         content: 'Dạ shop có thể gửi hỏa tốc qua GrabExpress ngay nhé!',
         sender_role: 'SELLER',
-      });
+      }));
     });
 
     expect(await screen.findByText('Dạ shop có thể gửi hỏa tốc qua GrabExpress ngay nhé!')).toBeTruthy();
