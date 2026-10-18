@@ -67,6 +67,4 @@ export interface GroundedProductContext {
   max_price?: number;
   variants: GroundedProductVariant[];
   image_url?: string | null;
-  min_price?: number;
-  max_price?: number;
 }

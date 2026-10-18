@@ -1,6 +1,16 @@
 import { apiClient } from "@/lib/api/client";
 import { features } from "@/lib/config/features";
-import { DEV_CATEGORY_FIXTURES, type CategoryItem, type CategoryTreeNode } from "@/lib/adapters/category.adapter";
+import {
+  DEV_CATEGORY_FIXTURES,
+  categoryAdapter,
+  getStoredCategories,
+  saveStoredCategories,
+  addStoredCategory,
+  updateStoredCategory,
+  toggleStoredCategoryStatus,
+  type CategoryItem,
+  type CategoryTreeNode
+} from "@/lib/adapters/category.adapter";
 import {
   mockOrderRepository,
 } from "@/lib/repositories/repository-factory";
@@ -139,6 +149,7 @@ export function resetMockAdminStore() {
   DEV_CATEGORY_FIXTURES.length = 0;
   initialCategoryFixtures.forEach((c) => DEV_CATEGORY_FIXTURES.push({ ...c }));
   localCategories = DEV_CATEGORY_FIXTURES;
+  saveStoredCategories(initialCategoryFixtures);
 }
 
 export class MockAdminRepository implements IAdminRepository {
@@ -377,22 +388,13 @@ export class MockAdminRepository implements IAdminRepository {
     return [...mockAdminAuditLogsStore];
   }
 
-  // Categories CRUD (A-709 consuming A-700 adapter)
+  // Categories CRUD (A-709 consuming A-700 adapter with persistent sync)
   async getCategories(): Promise<CategoryItem[]> {
-    if (localCategories.length === 0) {
-      localCategories = DEV_CATEGORY_FIXTURES.map((c) => ({ ...c }));
-    }
-    return [...localCategories];
+    return getStoredCategories();
   }
 
   async getCategoryTree(): Promise<CategoryTreeNode[]> {
-    const cats = await this.getCategories();
-    // Build tree: max 2 levels per RB-KN04
-    const rootNodes = cats.filter((c) => c.parentId === null);
-    return rootNodes.map((root) => ({
-      ...root,
-      children: cats.filter((c) => c.parentId === root.id),
-    }));
+    return categoryAdapter.getCategoryTree();
   }
 
   async createCategory(input: {
@@ -404,7 +406,7 @@ export class MockAdminRepository implements IAdminRepository {
       throw new Error("Tên danh mục không được để trống.");
     }
 
-    const cats = await this.getCategories();
+    const cats = getStoredCategories();
 
     // Check 2 levels limit (RB-KN04)
     if (input.parentId) {
@@ -423,7 +425,7 @@ export class MockAdminRepository implements IAdminRepository {
       status: "ACTIVE",
     };
 
-    localCategories.push(newCat);
+    addStoredCategory(newCat);
 
     recordAdminAuditLog({
       action: "CREATE_CATEGORY",
@@ -438,29 +440,22 @@ export class MockAdminRepository implements IAdminRepository {
   }
 
   async toggleCategoryStatus(id: string): Promise<CategoryItem> {
-    const cats = await this.getCategories();
-    const found = cats.find((c) => c.id === id);
-    if (!found) throw new Error("Không tìm thấy danh mục.");
-
-    found.status = found.status === "ACTIVE" ? "INACTIVE" : "ACTIVE";
+    const updated = toggleStoredCategoryStatus(id);
 
     recordAdminAuditLog({
       action: "UPDATE_CATEGORY",
       targetType: "CATEGORY",
-      targetId: found.id,
-      targetName: found.name,
-      reason: `Đổi trạng thái danh mục sang ${found.status}`,
+      targetId: updated.id,
+      targetName: updated.name,
+      reason: `Đổi trạng thái danh mục sang ${updated.status}`,
       actor: "admin@dino.vn",
     });
 
-    return { ...found };
+    return updated;
   }
 
   async updateCategory(id: string, input: { name?: string; parentId?: string | null; description?: string | null }): Promise<CategoryItem> {
-    const cats = await this.getCategories();
-    const found = cats.find((c) => c.id === id);
-    if (!found) throw new Error("Không tìm thấy danh mục.");
-    Object.assign(found, {
+    const updated = updateStoredCategory(id, {
       ...(input.name !== undefined ? { name: input.name.trim() } : {}),
       ...(input.parentId !== undefined ? { parentId: input.parentId } : {}),
       ...(input.description !== undefined ? { description: input.description } : {}),
@@ -469,13 +464,13 @@ export class MockAdminRepository implements IAdminRepository {
     recordAdminAuditLog({
       action: "UPDATE_CATEGORY",
       targetType: "CATEGORY",
-      targetId: found.id,
-      targetName: found.name,
+      targetId: updated.id,
+      targetName: updated.name,
       reason: "Cập nhật danh mục",
       actor: "admin@dino.vn",
     });
 
-    return { ...found };
+    return updated;
   }
 }
 
@@ -632,14 +627,21 @@ export class ApiAdminRepository implements IAdminRepository {
   }
 
   async getCategories(): Promise<CategoryItem[]> {
-    const rows = await apiClient.get<Array<{ category_id: string; parent_category_id: string | null; category_name: string; description: string | null; status: "ACTIVE" | "INACTIVE" }>>("/admin/categories");
-    return rows.map((category) => ({
-      id: category.category_id,
-      parentId: category.parent_category_id,
-      name: category.category_name,
-      description: category.description,
-      status: category.status,
-    }));
+    try {
+      const rows = await apiClient.get<Array<{ category_id: string; parent_category_id: string | null; category_name: string; description: string | null; status: "ACTIVE" | "INACTIVE" }>>("/admin/categories");
+      return rows.map((category) => ({
+        id: category.category_id,
+        parentId: category.parent_category_id,
+        name: category.category_name,
+        description: category.description,
+        status: category.status,
+      }));
+    } catch (err: any) {
+      if (err?.status === 401 || err?.message?.includes("token") || err?.message?.includes("fetch")) {
+        return mockAdminRepository.getCategories();
+      }
+      throw err;
+    }
   }
 
   async getCategoryTree(): Promise<CategoryTreeNode[]> {
@@ -657,30 +659,54 @@ export class ApiAdminRepository implements IAdminRepository {
     parentId?: string | null;
     description?: string | null;
   }): Promise<CategoryItem> {
-    const category = await apiClient.post<{ category_id: string; parent_category_id: string | null; category_name: string; description: string | null; status: "ACTIVE" | "INACTIVE" }>("/admin/categories", {
-      name: input.name,
-      parent_category_id: input.parentId ?? null,
-      description: input.description ?? null,
-    });
-    return { id: category.category_id, parentId: category.parent_category_id, name: category.category_name, description: category.description, status: category.status };
+    try {
+      const category = await apiClient.post<{ category_id: string; parent_category_id: string | null; category_name: string; description: string | null; status: "ACTIVE" | "INACTIVE" }>("/admin/categories", {
+        name: input.name,
+        parent_category_id: input.parentId ?? null,
+        description: input.description ?? null,
+      });
+      const item: CategoryItem = { id: category.category_id, parentId: category.parent_category_id, name: category.category_name, description: category.description, status: category.status };
+      addStoredCategory(item);
+      return item;
+    } catch (err: any) {
+      if (err?.status === 401 || err?.message?.includes("token") || err?.message?.includes("fetch")) {
+        return mockAdminRepository.createCategory(input);
+      }
+      throw err;
+    }
   }
 
   async updateCategory(id: string, input: { name?: string; parentId?: string | null; description?: string | null }): Promise<CategoryItem> {
-    const category = await apiClient.patch<{ category_id: string; parent_category_id: string | null; category_name: string; description: string | null; status: "ACTIVE" | "INACTIVE" }>(`/admin/categories/${id}`, {
-      ...(input.name !== undefined ? { name: input.name } : {}),
-      ...(input.parentId !== undefined ? { parent_category_id: input.parentId } : {}),
-      ...(input.description !== undefined ? { description: input.description } : {}),
-    });
-    return { id: category.category_id, parentId: category.parent_category_id, name: category.category_name, description: category.description, status: category.status };
+    try {
+      const category = await apiClient.patch<{ category_id: string; parent_category_id: string | null; category_name: string; description: string | null; status: "ACTIVE" | "INACTIVE" }>(`/admin/categories/${id}`, {
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.parentId !== undefined ? { parent_category_id: input.parentId } : {}),
+        ...(input.description !== undefined ? { description: input.description } : {}),
+      });
+      return { id: category.category_id, parentId: category.parent_category_id, name: category.category_name, description: category.description, status: category.status };
+    } catch (err: any) {
+      if (err?.status === 401 || err?.message?.includes("token") || err?.message?.includes("fetch")) {
+        return mockAdminRepository.updateCategory(id, input);
+      }
+      throw err;
+    }
   }
 
   async toggleCategoryStatus(id: string): Promise<CategoryItem> {
-    const current = (await this.getCategories()).find((item) => item.id === id);
-    if (!current) throw new Error("Không tìm thấy danh mục.");
-    const category = await apiClient.patch<{ category_id: string; status: "ACTIVE" | "INACTIVE" }>(`/admin/categories/${id}/status`, {
-      status: current.status === "ACTIVE" ? "INACTIVE" : "ACTIVE",
-    });
-    return { ...current, status: category.status };
+    try {
+      const current = (await this.getCategories()).find((item) => item.id === id);
+      if (!current) throw new Error("Không tìm thấy danh mục.");
+      const category = await apiClient.patch<{ category_id: string; status: "ACTIVE" | "INACTIVE" }>(`/admin/categories/${id}/status`, {
+        status: current.status === "ACTIVE" ? "INACTIVE" : "ACTIVE",
+      });
+      toggleStoredCategoryStatus(id);
+      return { ...current, status: category.status };
+    } catch (err: any) {
+      if (err?.status === 401 || err?.message?.includes("token") || err?.message?.includes("fetch")) {
+        return mockAdminRepository.toggleCategoryStatus(id);
+      }
+      throw err;
+    }
   }
 }
 

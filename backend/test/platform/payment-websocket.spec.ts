@@ -40,7 +40,7 @@ describe('PaymentWebSocketManager Real-Time Notification', () => {
     const testOrderId = 'ord-test-realtime-123';
     const client = new WebSocket(`ws://127.0.0.1:${port}/api/v1/payments/ws?orderId=${testOrderId}`);
 
-    const receivedMessages: any[] = [];
+    const receivedMessages: Array<{ type?: string; [key: string]: unknown }> = [];
 
     await new Promise<void>((resolve, reject) => {
       client.on('message', (data) => {

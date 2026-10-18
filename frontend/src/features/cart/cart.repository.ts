@@ -8,6 +8,7 @@ export interface ICartRepository {
   updateItem(cartItemId: string, patch: { quantity?: number; is_selected?: boolean }): Promise<void>;
   removeItem(cartItemId: string): Promise<void>;
   removeSelected(): Promise<void>;
+  addItem?(item: CartItem): Promise<void>;
 }
 
 // Initial fixture data for development and mock mode
@@ -79,7 +80,7 @@ export class MockCartRepository implements ICartRepository {
       return [...INITIAL_MOCK_ITEMS];
     }
     try {
-      const data = sessionStorage.getItem(STORAGE_KEY);
+      const data = sessionStorage.getItem(STORAGE_KEY) || localStorage.getItem(STORAGE_KEY);
       if (data) {
         return JSON.parse(data);
       }
@@ -94,6 +95,7 @@ export class MockCartRepository implements ICartRepository {
     if (typeof window !== "undefined") {
       try {
         sessionStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
       } catch {
         // Fallback
       }
@@ -102,6 +104,18 @@ export class MockCartRepository implements ICartRepository {
 
   async getCart(): Promise<CartItem[]> {
     return this.getStoredItems();
+  }
+
+  async addItem(newItem: CartItem): Promise<void> {
+    const items = this.getStoredItems();
+    const existing = items.find((i) => i.variantId === newItem.variantId);
+    if (existing) {
+      existing.quantity = Math.min(existing.stock, existing.quantity + newItem.quantity);
+      existing.isSelected = true;
+    } else {
+      items.unshift(newItem);
+    }
+    this.saveStoredItems(items);
   }
 
   async updateItem(cartItemId: string, patch: { quantity?: number; is_selected?: boolean }): Promise<void> {
@@ -133,6 +147,12 @@ export class MockCartRepository implements ICartRepository {
 }
 
 export class ApiCartRepository implements ICartRepository {
+  async addItem(newItem: CartItem): Promise<void> {
+    await buyerApi.addToCart({
+      variant_id: newItem.variantId,
+      quantity: newItem.quantity,
+    });
+  }
   async getCart(): Promise<CartItem[]> {
     const res = await apiClient.get<{
       cart_id: string | null;
@@ -197,6 +217,6 @@ export class ApiCartRepository implements ICartRepository {
   }
 }
 
-export const cartRepository: ICartRepository = features.domains.cartMock()
+export const cartRepository: ICartRepository = (features.domains?.cartMock ? features.domains.cartMock() : features.useMock())
   ? new MockCartRepository()
   : new ApiCartRepository();

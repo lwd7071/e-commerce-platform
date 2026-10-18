@@ -6,3 +6,4 @@ const backendRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 const rootEnvPath = path.resolve(backendRoot, '../.env');
 
 dotenv.config({ path: rootEnvPath });
+dotenv.config({ path: path.resolve(backendRoot, '.env') });
