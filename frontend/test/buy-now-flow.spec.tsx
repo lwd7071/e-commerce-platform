@@ -60,6 +60,7 @@ const mockProduct = {
   category_name: "Thời trang",
   shop_id: "shop-1",
   shop_name: "Dino Shop",
+  shop_tier: "PREFERRED" as const,
   status: "ACTIVE" as const,
   image_url: "https://example.com/img.jpg",
   created_at: new Date().toISOString(),
@@ -123,6 +124,14 @@ describe("Buy Now Flow on Product Detail Screen", () => {
 
     expect(await screen.findByRole("button", { name: /Thêm Vào Giỏ Hàng/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /Mua Ngay/i })).toBeTruthy();
+  });
+
+  it("shows the shop name as a link to its storefront", async () => {
+    renderWithClient(<ProductDetailScreen productId="prod-1" />);
+
+    const shopLink = await screen.findByRole("link", { name: "Dino Shop" });
+    expect(shopLink.getAttribute("href")).toBe("/shops/shop-1");
+    expect(screen.getByText("Yêu thích")).toBeTruthy();
   });
 
   it("khi bấm 'Mua ngay' sẽ chọn độc quyền sản phẩm vừa mua (is_selected = true) và chuyển hướng sang /checkout", async () => {

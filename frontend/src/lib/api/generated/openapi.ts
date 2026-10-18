@@ -713,6 +713,7 @@ export interface paths {
                     sort?: "price_asc" | "price_desc" | "created_at_desc";
                     limit?: number;
                     cursor?: string;
+                    shop_id?: string;
                 };
                 header?: never;
                 path?: never;
@@ -849,6 +850,53 @@ export interface paths {
                     };
                 };
                 /** @description Product not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorEnvelope"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/shops/{shop_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get public storefront identity for an active shop */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    shop_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Public shop identity */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PublicShopSuccessEnvelope"];
+                    };
+                };
+                /** @description Shop not found or inactive */
                 404: {
                     headers: {
                         [name: string]: unknown;
@@ -7617,6 +7665,17 @@ export interface components {
         SuccessEnvelope: {
             data: Record<string, never>;
             /** @example req_01J8Y7... */
+            request_id: string;
+        };
+        PublicShopDTO: {
+            /** Format: uuid */
+            shop_id: string;
+            shop_name: string;
+            /** @enum {string} */
+            shop_tier: "STANDARD" | "PREFERRED" | "MALL";
+        };
+        PublicShopSuccessEnvelope: {
+            data: components["schemas"]["PublicShopDTO"];
             request_id: string;
         };
         PaginatedEnvelope: {

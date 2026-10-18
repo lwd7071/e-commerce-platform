@@ -11,6 +11,7 @@ export interface CatalogHttpApplication {
   listCategories?(): Promise<unknown[]>;
   listProducts(input: Record<string, unknown>): Promise<{ items: unknown[]; next_cursor: string | null; has_more: boolean; limit: number }>;
   getProduct(productId: string): Promise<unknown>;
+  getPublicShop?(shopId: string): Promise<unknown>;
   createProduct(context: RequestContext, input: Record<string, unknown>): Promise<unknown>;
   updateVariantStock(context: RequestContext, variantId: string, input: Record<string, unknown>): Promise<unknown>;
   listSellerProducts?(context: RequestContext, input: Record<string, unknown>): Promise<unknown>;
@@ -104,7 +105,7 @@ export function createCatalogRouter(application?: CatalogHttpApplication, auth?:
     res.json(buildSuccessEnvelope(await application.listCategories(), requestId(req)));
   }));
   router.get('/products', asyncRoute(async (req, res) => {
-    const allowed = ['category_id', 'search', 'min_price', 'max_price', 'sort', 'limit', 'cursor', 'shop_tier'];
+    const allowed = ['category_id', 'search', 'min_price', 'max_price', 'sort', 'limit', 'cursor', 'shop_tier', 'shop_id'];
     const input = req.query as Record<string, unknown>;
     rejectUnknown(input, allowed);
     const result = await implementation(application?.listProducts, application)(input);
@@ -113,6 +114,10 @@ export function createCatalogRouter(application?: CatalogHttpApplication, auth?:
       has_more: result.has_more,
       limit: result.limit,
     }, requestId(req)));
+  }));
+  router.get('/shops/:shop_id', asyncRoute(async (req, res) => {
+    const result = await implementation(application?.getPublicShop, application)(req.params.shop_id);
+    res.json(buildSuccessEnvelope(result, requestId(req)));
   }));
   router.get('/products/:product_id', asyncRoute(async (req, res) => {
     const result = await implementation(application?.getProduct, application)(req.params.product_id);

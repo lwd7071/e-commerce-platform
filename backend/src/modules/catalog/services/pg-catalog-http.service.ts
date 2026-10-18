@@ -58,10 +58,14 @@ export class PgCatalogHttpService {
         throw new ValidationError('shop_tier must be STANDARD, PREFERRED, or MALL');
       }
     }
+    if (input.shop_id !== undefined && (typeof input.shop_id !== 'string' || !input.shop_id.trim())) {
+      throw new ValidationError('shop_id must be a non-empty string');
+    }
     const result = await this.products.queryPublic({
       categoryId: input.category_id as string | undefined,
       search: input.search as string | undefined,
       shopTier: input.shop_tier as string | undefined,
+      shopId: input.shop_id as string | undefined,
       minPrice: parseMoney(input.min_price),
       maxPrice: parseMoney(input.max_price),
       sortBy:
@@ -96,6 +100,7 @@ export class PgCatalogHttpService {
          p.product_id, p.shop_id, p.category_id, p.product_name, p.description, p.status,
          p.weight_grams,
          s.status AS shop_status,
+         s.shop_name,
          COALESCE(s.tier, 'STANDARD') AS shop_tier,
          c.status AS category_status
        FROM products p
@@ -128,6 +133,7 @@ export class PgCatalogHttpService {
     return {
       product_id: row.product_id,
       shop_id: row.shop_id,
+      shop_name: row.shop_name,
       category_id: row.category_id,
       product_name: row.product_name,
       description: row.description,
@@ -150,6 +156,17 @@ export class PgCatalogHttpService {
       })),
       image_url: imagesRes.rows[0]?.image_url ?? null,
     };
+  }
+
+  async getPublicShop(shopId: string): Promise<unknown> {
+    const result = await this.pool.query(
+      `SELECT shop_id, shop_name, COALESCE(tier, 'STANDARD') AS shop_tier
+       FROM shops WHERE shop_id = $1 AND status = 'ACTIVE'`,
+      [shopId],
+    );
+    const shop = result.rows[0];
+    if (!shop) throw new ResourceNotFoundError(`Shop ${shopId} not found`);
+    return { shop_id: shop.shop_id, shop_name: shop.shop_name, shop_tier: shop.shop_tier };
   }
 
   async createProduct(

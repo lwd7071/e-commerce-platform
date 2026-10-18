@@ -9,6 +9,8 @@ RUN npm ci
 COPY .env /app/.env
 COPY .env /app/../.env
 COPY frontend/ ./
+# The frontend build type-checks E2E helpers that share this backend safety check.
+COPY backend/db/seed/e2e-seed-safety.ts /backend/db/seed/e2e-seed-safety.ts
 
 ARG NEXT_PUBLIC_API_URL=https://api.dinoshopping.io.vn/api/v1
 ARG NEXT_PUBLIC_SITE_URL=https://dinoshopping.io.vn

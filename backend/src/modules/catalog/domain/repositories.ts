@@ -26,6 +26,7 @@ export interface PublicProductFilter {
   offset?: number;
   cursor?: string;
   shopTier?: string;
+  shopId?: UUID;
 }
 
 export interface PublicProductSummary {

@@ -3,6 +3,7 @@ import type {
   WireCatalogProductDetail,
   GetProductsParams,
   CreateProductInput,
+  WirePublicShop,
 } from "../api/catalog.api";
 import type { PaginatedEnvelope } from "../api/types";
 import type {
@@ -20,6 +21,7 @@ export interface ICatalogRepository {
   getProducts(params?: GetProductsParams): Promise<WireCatalogProductItem[]>;
   getProductsPaginated(params?: GetProductsParams): Promise<PaginatedEnvelope<WireCatalogProductItem>>;
   getProductById(id: string): Promise<WireCatalogProductDetail>;
+  getPublicShop(id: string): Promise<WirePublicShop>;
   getSellerProductById?(id: string): Promise<WireCatalogProductDetail>;
   updateSellerProduct?(id: string, input: Partial<Pick<WireCatalogProductDetail, "product_name" | "description" | "weight_grams" | "category_id">> & {
     variants?: Array<{ variant_id?: string; variant_name: string; variant_value?: string | null; sku: string; price: string }>;

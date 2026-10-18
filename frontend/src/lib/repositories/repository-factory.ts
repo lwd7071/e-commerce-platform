@@ -1,6 +1,6 @@
 import { features } from "../config/features";
 import { apiClient } from "../api/client";
-import { catalogApi, type WireCatalogProductItem, type WireCatalogProductDetail } from "../api/catalog.api";
+import { catalogApi, type WireCatalogProductItem, type WireCatalogProductDetail, type WirePublicShop } from "../api/catalog.api";
 import { buyerApi } from "../api/buyer.api";
 import { orderApi, type WireOrder } from "../api/order.api";
 import { voucherApi } from "../api/voucher.api";
@@ -30,6 +30,7 @@ const apiCatalogRepository: ICatalogRepository = {
   getProducts: (params) => catalogApi.getProducts(params),
   getProductsPaginated: (params) => catalogApi.getProductsPaginated(params),
   getProductById: (id) => catalogApi.getProductById(id),
+  getPublicShop: (id) => catalogApi.getPublicShop(id),
   getSellerProductById: (id) => catalogApi.getSellerProductById(id),
   updateSellerProduct: (id, input) => catalogApi.updateSellerProduct(id, input),
   createProduct: (data) => catalogApi.createProduct(data),
@@ -149,10 +150,16 @@ const initialMockProducts: WireCatalogProductItem[] = [
 ];
 
 const dynamicMockProducts: WireCatalogProductItem[] = [...initialMockProducts];
+const mockShops: Record<string, WirePublicShop> = {
+  "00000000-0000-0000-0000-000000000001": { shop_id: "00000000-0000-0000-0000-000000000001", shop_name: "Dino Beauty Official", shop_tier: "MALL" },
+  "00000000-0000-0000-0000-000000000002": { shop_id: "00000000-0000-0000-0000-000000000002", shop_name: "Dino Fashion Store", shop_tier: "PREFERRED" },
+  "00000000-0000-0000-0000-000000000003": { shop_id: "00000000-0000-0000-0000-000000000003", shop_name: "Dino Tech Store", shop_tier: "STANDARD" },
+};
 const dynamicMockDetails: Record<string, WireCatalogProductDetail> = {
   "00000000-0000-0000-0000-000000000101": {
     product_id: "00000000-0000-0000-0000-000000000101",
     shop_id: "00000000-0000-0000-0000-000000000001",
+    shop_name: mockShops["00000000-0000-0000-0000-000000000001"].shop_name,
     category_id: "00000000-0000-0000-0000-000000000010",
     product_name: "Serum Dưỡng Trắng & Cấp Ẩm Chuyên Sâu",
     description: "Chiết xuất thiên nhiên dưỡng da sáng hồng rạng rỡ, cấp ẩm sâu 72 giờ và phục hồi hàng rào bảo vệ da.",
@@ -183,6 +190,10 @@ const dynamicMockDetails: Record<string, WireCatalogProductDetail> = {
 const mockCatalogRepository: ICatalogRepository = {
   getProducts: async () => [...dynamicMockProducts],
   getProductsPaginated: async (params) => {
+    if (params?.shop_id) {
+      const items = dynamicMockProducts.filter(product => product.shop_id === params.shop_id);
+      return { data: items, meta: { limit: params.limit ?? 20, has_more: false, next_cursor: null } };
+    }
     const isPage2 = params?.cursor === "mock_cursor_page_2";
     if (isPage2) {
       return {
@@ -282,6 +293,7 @@ const mockCatalogRepository: ICatalogRepository = {
     return {
       product_id: id,
       shop_id: foundProd?.shop_id || "00000000-0000-0000-0000-000000000001",
+      shop_name: mockShops[foundProd?.shop_id || "00000000-0000-0000-0000-000000000001"]?.shop_name,
       category_id: foundProd?.category_id || "00000000-0000-0000-0000-000000000010",
       product_name: foundProd?.product_name || "Serum Dưỡng Trắng & Cấp Ẩm Chuyên Sâu",
       description: "Chiết xuất thiên nhiên dưỡng da sáng hồng rạng rỡ, cấp ẩm sâu 72 giờ và phục hồi hàng rào bảo vệ da.",
@@ -298,6 +310,11 @@ const mockCatalogRepository: ICatalogRepository = {
         },
       ],
     };
+  },
+  getPublicShop: async (id) => {
+    const shop = mockShops[id];
+    if (!shop) throw new Error("Không tìm thấy gian hàng.");
+    return shop;
   },
   getSellerProductById: async (id) => mockCatalogRepository.getProductById(id),
   updateSellerProduct: async (id, input) => {
@@ -327,6 +344,7 @@ const mockCatalogRepository: ICatalogRepository = {
     const detail: WireCatalogProductDetail = {
       product_id: newId,
       shop_id: "00000000-0000-0000-0000-000000000001",
+      shop_name: mockShops["00000000-0000-0000-0000-000000000001"].shop_name,
       category_id: data.category_id,
       product_name: data.product_name,
       description: data.description ?? null,

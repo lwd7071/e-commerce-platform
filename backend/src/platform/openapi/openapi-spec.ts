@@ -89,6 +89,23 @@ export function generateOpenApiSpec(): OpenApiSpec {
             request_id: { type: 'string', example: 'req_01J8Y7...' },
           },
         },
+        PublicShopDTO: {
+          type: 'object',
+          required: ['shop_id', 'shop_name', 'shop_tier'],
+          properties: {
+            shop_id: { type: 'string', format: 'uuid' },
+            shop_name: { type: 'string' },
+            shop_tier: { type: 'string', enum: ['STANDARD', 'PREFERRED', 'MALL'] },
+          },
+        },
+        PublicShopSuccessEnvelope: {
+          type: 'object',
+          required: ['data', 'request_id'],
+          properties: {
+            data: { $ref: '#/components/schemas/PublicShopDTO' },
+            request_id: { type: 'string' },
+          },
+        },
         PaginatedEnvelope: {
           type: 'object',
           required: ['data', 'meta', 'request_id'],
@@ -333,7 +350,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
         get: {
           summary: 'List public products',
           parameters: [
-            ...['category_id', 'search', 'min_price', 'max_price', 'sort', 'limit', 'cursor'].map(name => ({
+            ...['category_id', 'search', 'min_price', 'max_price', 'sort', 'limit', 'cursor', 'shop_id'].map(name => ({
               name, in: 'query', required: false,
               schema: name === 'limit' ? { type: 'integer', minimum: 1, maximum: 100 }
                 : name === 'sort' ? { type: 'string', enum: ['price_asc', 'price_desc', 'created_at_desc'] }
@@ -362,6 +379,16 @@ export function generateOpenApiSpec(): OpenApiSpec {
           summary: 'Get public product detail',
           parameters: [{ name: 'product_id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
           responses: { '200': successResponse('Product detail'), '404': errorResponse('Product not found') },
+        },
+      },
+      '/shops/{shop_id}': {
+        get: {
+          summary: 'Get public storefront identity for an active shop',
+          parameters: [{ name: 'shop_id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+          responses: {
+            '200': successResponse('Public shop identity', '#/components/schemas/PublicShopSuccessEnvelope'),
+            '404': errorResponse('Shop not found or inactive'),
+          },
         },
       },
       '/products/{product_id}/reviews': {

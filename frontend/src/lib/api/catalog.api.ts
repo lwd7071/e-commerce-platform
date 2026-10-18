@@ -47,6 +47,7 @@ export interface WireProductVariant {
 export interface WireCatalogProductDetail {
   product_id: string;
   shop_id: string;
+  shop_name?: string;
   category_id: string;
   product_name: string;
   description: string | null;
@@ -71,6 +72,13 @@ export interface GetProductsParams {
   limit?: number;
   cursor?: string;
   shop_tier?: "STANDARD" | "PREFERRED" | "MALL";
+  shop_id?: string;
+}
+
+export interface WirePublicShop {
+  shop_id: string;
+  shop_name: string;
+  shop_tier: "STANDARD" | "PREFERRED" | "MALL";
 }
 
 /**
@@ -112,6 +120,9 @@ export const catalogApi = {
   getProductById: (id: string) => {
     return apiClient.get<WireCatalogProductDetail>(`/products/${id}`, { skipAuth: true });
   },
+
+  getPublicShop: (id: string) =>
+    apiClient.get<WirePublicShop>(`/shops/${id}`, { skipAuth: true }),
 
   createProduct: (body: CreateProductInput) => {
     return apiClient.post<WireCatalogProductDetail>("/products", body);

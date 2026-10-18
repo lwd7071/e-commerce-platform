@@ -409,6 +409,11 @@ export class PgProductRepository implements IProductRepository {
       whereConditions.push(`s.tier = $${params.length}`);
     }
 
+    if (filter.shopId) {
+      params.push(filter.shopId);
+      whereConditions.push(`p.shop_id = $${params.length}`);
+    }
+
     const havingConditions: string[] = [];
     if (filter.minPrice !== undefined) {
       params.push(filter.minPrice);

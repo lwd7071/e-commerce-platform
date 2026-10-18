@@ -312,6 +312,10 @@ function InnerProductDetailScreen({ productId }: Props) {
                   {product.shop_tier && product.shop_tier !== "STANDARD" && (
                     <TierBadge tier={product.shop_tier} />
                   )}
+                  {product.shop_name && <Link
+                    href={`/shops/${product.shop_id}`}
+                    className="inline-flex min-h-8 items-center rounded-lg px-2.5 text-sm font-semibold text-[var(--foreground)] transition-colors hover:bg-[var(--primary-surface)] hover:text-[var(--primary-active)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--primary-active)]"
+                  >{product.shop_name}</Link>}
                 </div>
                 <h1 className="mt-2 text-2xl md:text-3xl font-bold tracking-tight text-[var(--foreground)]">
                   {product.product_name}

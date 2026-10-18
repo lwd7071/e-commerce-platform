@@ -167,6 +167,12 @@ describe('Catalog Domain Repositories (Node native spec)', () => {
       const res = await productRepo.queryPublic({});
       assert.equal(res.total, 1);
       assert.equal(res.items[0].productId, 'p-act');
+
+      const scoped = await productRepo.queryPublic({ shopId: 's-active' });
+      assert.equal(scoped.total, 1);
+      assert.equal(scoped.items[0].productId, 'p-act');
+      const otherShop = await productRepo.queryPublic({ shopId: 'not-a-shop' });
+      assert.equal(otherShop.total, 0);
     });
   });
 });

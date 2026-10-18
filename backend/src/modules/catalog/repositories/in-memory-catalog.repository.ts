@@ -172,6 +172,7 @@ export class InMemoryProductRepository implements IProductRepository {
       // Filter: shopTier
       const shopTier = shop.tier ?? 'STANDARD';
       if (filter.shopTier && shopTier !== filter.shopTier) continue;
+      if (filter.shopId && p.shopId !== filter.shopId) continue;
 
       // Visibility Rule 3: Category must be ACTIVE
       const category = await this.categoryRepo.findById(p.categoryId);

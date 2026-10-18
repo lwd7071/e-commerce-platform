@@ -16,17 +16,22 @@ const buyerAuth: RequestHandler = (req, _res, next) => {
 
 describe('T1 HTTP route contracts', () => {
   it('keeps products public and uses cursor envelope', async () => {
+    let receivedShopId: unknown;
     const app = createApp({
       catalog: {
-        async listProducts() { return { items: [{ product_id: 'p1' }], next_cursor: null, has_more: false, limit: 20 }; },
+        async listProducts(input) { receivedShopId = input.shop_id; return { items: [{ product_id: 'p1' }], next_cursor: null, has_more: false, limit: 20 }; },
         async getProduct() { return { product_id: 'p1' }; },
+        async getPublicShop() { return { shop_id: 'shop-1', shop_name: 'Dino Shop', shop_tier: 'PREFERRED' }; },
         async createProduct() { return {}; },
         async updateVariantStock() { return {}; },
       },
     });
-    const response = await request(app).get('/api/v1/products?limit=20').expect(200);
+    const response = await request(app).get('/api/v1/products?limit=20&shop_id=shop-1').expect(200);
     assert.deepStrictEqual(response.body.data, [{ product_id: 'p1' }]);
     assert.deepStrictEqual(response.body.meta, { next_cursor: null, has_more: false, limit: 20 });
+    assert.equal(receivedShopId, 'shop-1');
+    const shop = await request(app).get('/api/v1/shops/shop-1').expect(200);
+    assert.deepStrictEqual(shop.body.data, { shop_id: 'shop-1', shop_name: 'Dino Shop', shop_tier: 'PREFERRED' });
   });
 
   it('rejects unknown query fields before invoking Catalog', async () => {
