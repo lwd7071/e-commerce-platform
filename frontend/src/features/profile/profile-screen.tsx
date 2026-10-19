@@ -247,6 +247,11 @@ function ProfileReadyScreen({
           <div>
             <h2 className="section-title" id="profile-info-title">Thông tin cơ bản</h2>
             <p className="section-subtitle">Chỉnh sửa tên hiển thị và thông tin liên hệ của bạn.</p>
+            {profile.role === "SELLER" && (
+              <Link className="button button--secondary mt-3 min-h-[44px]" href="/seller/shop">
+                Quản lý hồ sơ gian hàng
+              </Link>
+            )}
           </div>
 
           <form onSubmit={handleSaveProfile} className="space-y-4">

@@ -10,6 +10,7 @@ import { Skeleton, ErrorState, EmptyState } from "@/components/ui/data-states";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
 import { useAuth } from "@/lib/auth/auth-context";
 import { repositories } from "@/lib/repositories/repository-factory";
+import { sellerShopApi, type SellerShopProfile } from "@/lib/api/seller-shop.api";
 import type { SellerKPIStats } from "@/features/admin/admin.types";
 import type { WireOrder } from "@/lib/api/order.api";
 import type { WireCatalogProductItem } from "@/lib/api/catalog.api";
@@ -17,6 +18,7 @@ import type { WireCatalogProductItem } from "@/lib/api/catalog.api";
 export function SellerDashboardScreen() {
   const { user } = useAuth();
   const isShopPending = user?.role === "SELLER" && user?.shopStatus === "PENDING";
+  const [shopProfile, setShopProfile] = useState<SellerShopProfile | null>(null);
   const [kpi, setKpi] = useState<SellerKPIStats | null>(null);
   const [recentOrders, setRecentOrders] = useState<WireOrder[]>([]);
   const [lowStockProducts, setLowStockProducts] = useState<WireCatalogProductItem[]>([]);
@@ -27,14 +29,16 @@ export function SellerDashboardScreen() {
     setIsLoading(true);
     setError(null);
     try {
-      const [kpiData, ordersData, catalogData] = await Promise.all([
+      const [kpiData, ordersData, catalogData, shopProfileData] = await Promise.all([
         repositories.seller().getKpi(),
         repositories.order().getOrders(),
         repositories.catalog().getSellerProducts({ limit: 50 }),
+        isShopPending ? sellerShopApi.get().catch(() => null) : Promise.resolve(null),
       ]);
 
       setKpi(kpiData);
       setRecentOrders(ordersData);
+      setShopProfile(shopProfileData);
 
       // Low stock criteria: total_stock <= 20
       const lowStock = catalogData
@@ -48,7 +52,7 @@ export function SellerDashboardScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isShopPending]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => { void fetchDashboardData(); }, 0);
@@ -58,6 +62,10 @@ export function SellerDashboardScreen() {
   const pendingOrders = recentOrders.filter(
     (o) => o.status === "PENDING_CONFIRMATION" || o.status === "CONFIRMED" || o.status === "PREPARING"
   );
+  const missingShopFields = [
+    !shopProfile?.pickup_address?.trim() && "địa chỉ lấy hàng",
+    !shopProfile?.contact_phone?.trim() && "số điện thoại liên hệ",
+  ].filter((field): field is string => Boolean(field));
 
   return (
     <ProtectedPage allowedRoles={["SELLER", "ADMIN"]}>
@@ -115,6 +123,13 @@ export function SellerDashboardScreen() {
             <Icon name="info" />
             <div>
               <strong>Gian hàng đang chờ duyệt:</strong> Gian hàng của bạn đang ở trạng thái chờ Admin duyệt. Bạn chưa thể tạo sản phẩm hoặc thay đổi tồn kho cho đến khi được kích hoạt.
+              {shopProfile && missingShopFields.length > 0 && (
+                <p className="mt-2">
+                  Để Admin duyệt, vui lòng bổ sung {missingShopFields.join(" và ")} trong hồ sơ gian hàng.
+                  {" "}
+                  <Link className="font-semibold underline underline-offset-2" href="/seller/shop">Bổ sung thông tin</Link>
+                </p>
+              )}
             </div>
           </div>
         )}

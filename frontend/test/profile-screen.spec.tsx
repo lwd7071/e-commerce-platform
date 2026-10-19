@@ -61,6 +61,28 @@ describe("ProfileScreen request state UI", () => {
     expect((screen.getByLabelText("Số điện thoại") as HTMLInputElement).value).toBe("0900000000");
   });
 
+  it("lets sellers open their shop profile from basic account information", () => {
+    render(
+      <ToastProvider>
+        <ProfileScreen
+          state={{
+            ...ready,
+            profile: { ...ready.profile, role: "SELLER" },
+          }}
+          onRetry={vi.fn()}
+        />
+      </ToastProvider>
+    );
+
+    expect(screen.getByRole("link", { name: "Quản lý hồ sơ gian hàng" }).getAttribute("href")).toBe("/seller/shop");
+  });
+
+  it("does not show the shop profile link to buyers", () => {
+    render(<ToastProvider><ProfileScreen state={ready} onRetry={vi.fn()} /></ToastProvider>);
+
+    expect(screen.queryByRole("link", { name: "Quản lý hồ sơ gian hàng" })).toBeNull();
+  });
+
   it("uploads an avatar through media_id and renders the server URL", async () => {
     const user = userEvent.setup();
     render(<ToastProvider><ProfileScreen state={ready} onRetry={vi.fn()} /></ToastProvider>);
