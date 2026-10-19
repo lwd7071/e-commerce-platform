@@ -315,6 +315,13 @@ export function AdminDashboardScreen() {
         <nav aria-label="Phân hệ chức năng quản trị" className="surface-card p-2.5 mb-6 rounded-xl border border-[var(--border)]">
           <div className="flex flex-wrap items-center gap-2">
             <Link
+              href="/admin/shops"
+              className="button button--secondary text-xs py-1.5 px-3 flex items-center gap-1.5"
+            >
+              <Icon name="home" className="w-3.5 h-3.5" />
+              <span>Quản lý gian hàng & Mall (A-708)</span>
+            </Link>
+            <Link
               href="/admin/categories"
               className="button button--secondary text-xs py-1.5 px-3 flex items-center gap-1.5"
             >
@@ -322,11 +329,11 @@ export function AdminDashboardScreen() {
               <span>Quản lý danh mục (A-709)</span>
             </Link>
             <Link
-              href="/admin/finance"
+              href="/admin/orders"
               className="button button--secondary text-xs py-1.5 px-3 flex items-center gap-1.5 font-medium text-[var(--primary-active)]"
             >
               <Icon name="bag" className="w-3.5 h-3.5" />
-              <span>Dòng tiền & Ký quỹ</span>
+              <span>Đơn hàng & Ký quỹ</span>
             </Link>
             <Link href="/admin/reviews" className="button button--secondary text-xs py-1.5 px-3 flex items-center gap-1.5">
               <Icon name="star" className="w-3.5 h-3.5" />
@@ -339,10 +346,6 @@ export function AdminDashboardScreen() {
             <Link href="/admin/campaigns" className="button button--secondary text-xs py-1.5 px-3 flex items-center gap-1.5">
               <Icon name="bell" className="w-3.5 h-3.5" />
               <span>Chiến dịch thông báo</span>
-            </Link>
-            <Link href="/admin/orders" className="button button--secondary text-xs py-1.5 px-3 flex items-center gap-1.5">
-              <Icon name="bag" className="w-3.5 h-3.5" />
-              <span>Đơn hàng</span>
             </Link>
             <Link href="/admin/reports" className="button button--secondary text-xs py-1.5 px-3 flex items-center gap-1.5">
               <Icon name="info" className="w-3.5 h-3.5" />

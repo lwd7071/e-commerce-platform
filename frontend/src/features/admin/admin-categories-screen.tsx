@@ -192,25 +192,6 @@ export function AdminCategoriesScreen() {
           </Button>
         </header>
 
-        {/* Navigation Tabs for Admin Portal */}
-        <nav aria-label="Điều hướng quản trị" className="border-b border-[var(--border)]">
-          <div className="flex gap-6 text-sm font-semibold">
-            <Link
-              href="/admin/shops"
-              className="pb-3 border-b-2 border-transparent text-[var(--subtext)] hover:text-[var(--foreground)]"
-            >
-              Duyệt gian hàng (Shop)
-            </Link>
-            <Link
-              href="/admin/categories"
-              className="pb-3 border-b-2 border-[var(--primary-active)] text-[var(--primary-active)]"
-              aria-current="page"
-            >
-              Quản lý danh mục
-            </Link>
-          </div>
-        </nav>
-
         {/* Notice on GAP-05 / A-700 Adapter Integration */}
         <div className="notice notice--info" role="status">
           <Icon name="info" />

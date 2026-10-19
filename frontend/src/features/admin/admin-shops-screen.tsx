@@ -414,12 +414,6 @@ export function AdminShopsScreen() {
               </span>
             )}
           </button>
-          <Link
-            href="/admin/categories"
-            className="pb-3 border-b-2 border-transparent text-[var(--subtext)] hover:text-[var(--foreground)]"
-          >
-            Quản lý danh mục
-          </Link>
         </div>
       </nav>
 
