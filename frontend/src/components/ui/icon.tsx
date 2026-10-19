@@ -2,6 +2,7 @@ import type { ReactNode, SVGProps } from "react";
 
 export type IconName =
   | "bag"
+  | "arrow-left"
   | "bell"
   | "camera"
   | "chat"
@@ -23,6 +24,7 @@ export type IconName =
 type Props = SVGProps<SVGSVGElement> & { name: IconName };
 
 const paths: Record<IconName, ReactNode> = {
+  "arrow-left": <><path d="M19 12H5" /><path d="m12 19-7-7 7-7" /></>,
   bag: <><path d="M5 8h14l1 12H4L5 8Z" /><path d="M9 8a3 3 0 0 1 6 0" /></>,
   bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M10 21h4" /></>,
   camera: <><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" /><circle cx="12" cy="13" r="3" /></>,

@@ -443,7 +443,7 @@ export function AdminDashboardScreen() {
               <span className="text-xs text-[var(--subtext)] font-semibold uppercase tracking-wider block">
                 Tiền Ký quỹ đang giữ (Escrow)
               </span>
-              <strong className="text-2xl font-bold text-amber-600 mt-1 block tabular-nums">
+              <strong className="text-2xl font-bold text-amber-700 mt-1 block tabular-nums">
                 {moneyAdapter.formatVND(financeOverview?.total_escrow_holding || "0")}
               </strong>
               <span className="text-[11px] text-[var(--subtext)] block mt-0.5">
@@ -542,7 +542,7 @@ export function AdminDashboardScreen() {
             {activeTab === "users" && (
               <div className="surface-card overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-sm">
+                  <table className="mobile-card-table w-full text-left border-collapse text-sm">
                     <thead>
                       <tr className="border-b border-[var(--border)] bg-[var(--card-muted)] text-xs text-[var(--subtext)] font-semibold uppercase tracking-wider">
                         <th className="py-3 px-4">Tài khoản / Họ tên</th>
@@ -566,7 +566,7 @@ export function AdminDashboardScreen() {
 
                           return (
                             <tr key={u.id} className="hover:bg-[var(--card-muted)]/50 transition-colors">
-                              <td className="py-3 px-4">
+                              <td data-label="Tài khoản" className="py-3 px-4">
                                 <strong className="font-semibold text-xs text-[var(--foreground)] block">
                                   {u.fullName}
                                 </strong>
@@ -574,10 +574,10 @@ export function AdminDashboardScreen() {
                                   ID: {u.id}
                                 </span>
                               </td>
-                              <td className="py-3 px-4 text-xs text-[var(--foreground)] font-mono">
+                              <td data-label="Email" className="py-3 px-4 text-xs text-[var(--foreground)] font-mono">
                                 {u.email}
                               </td>
-                              <td className="py-3 px-4 text-center">
+                              <td data-label="Vai trò" className="py-3 px-4 text-center">
                                 <span
                                   className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase ${
                                     u.role === "ADMIN"
@@ -590,7 +590,7 @@ export function AdminDashboardScreen() {
                                   {u.role}
                                 </span>
                               </td>
-                              <td className="py-3 px-4 text-center">
+                              <td data-label="Trạng thái" className="py-3 px-4 text-center">
                                 <span
                                   className={`text-xs font-semibold px-2 py-0.5 rounded-md inline-block ${
                                     isLocked
@@ -606,7 +606,7 @@ export function AdminDashboardScreen() {
                                   </span>
                                 )}
                               </td>
-                              <td className="py-3 px-4 text-right">
+                              <td data-label="Thao tác" className="py-3 px-4 text-right">
                                 {isAdmin ? (
                                   <span className="text-xs text-[var(--subtext)] italic">
                                     Không thể thao tác
@@ -647,7 +647,7 @@ export function AdminDashboardScreen() {
             {activeTab === "shops" && (
               <div className="surface-card overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-sm">
+                  <table className="mobile-card-table w-full text-left border-collapse text-sm">
                     <thead>
                       <tr className="border-b border-[var(--border)] bg-[var(--card-muted)] text-xs text-[var(--subtext)] font-semibold uppercase tracking-wider">
                         <th className="py-3 px-4">Tên Gian Hàng</th>
@@ -670,7 +670,7 @@ export function AdminDashboardScreen() {
                           const isPending = s.status === "PENDING";
                           return (
                             <tr key={s.id} className="hover:bg-[var(--card-muted)]/50 transition-colors">
-                              <td className="py-3 px-4">
+                              <td data-label="Gian hàng" className="py-3 px-4">
                                 <strong className="font-semibold text-xs text-[var(--foreground)] block">
                                   {s.name}
                                 </strong>
@@ -678,13 +678,13 @@ export function AdminDashboardScreen() {
                                   ID: {s.id.slice(0, 8)}...
                                 </span>
                               </td>
-                              <td className="py-3 px-4 text-xs text-[var(--foreground)] font-mono">
+                              <td data-label="Chủ sở hữu" className="py-3 px-4 text-xs text-[var(--foreground)] font-mono">
                                 {s.ownerEmail}
                               </td>
-                              <td className="py-3 px-4 text-center font-bold text-xs tabular-nums">
+                              <td data-label="Số sản phẩm" className="py-3 px-4 text-center font-bold text-xs tabular-nums">
                                 {s.productCount}
                               </td>
-                              <td className="py-3 px-4 text-center">
+                              <td data-label="Trạng thái" className="py-3 px-4 text-center">
                                 <span
                                   className={`text-xs font-semibold px-2 py-0.5 rounded-md inline-block ${
                                     isLocked
@@ -695,7 +695,7 @@ export function AdminDashboardScreen() {
                                   {isLocked ? "Đã khóa" : isPending ? "Chờ duyệt" : "Hoạt động"}
                                 </span>
                               </td>
-                              <td className="py-3 px-4 text-right">
+                              <td data-label="Thao tác" className="py-3 px-4 text-right">
                                 {isPending ? (
                                   <div className="flex items-center justify-end gap-2">
                                     <Button
@@ -750,7 +750,7 @@ export function AdminDashboardScreen() {
             {activeTab === "products" && (
               <div className="surface-card overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-sm">
+                  <table className="mobile-card-table w-full text-left border-collapse text-sm">
                     <thead>
                       <tr className="border-b border-[var(--border)] bg-[var(--card-muted)] text-xs text-[var(--subtext)] font-semibold uppercase tracking-wider">
                         <th className="py-3 px-4">Tên Sản Phẩm</th>
@@ -772,7 +772,7 @@ export function AdminDashboardScreen() {
                           const isHidden = p.status === "HIDDEN";
                           return (
                             <tr key={p.id} className="hover:bg-[var(--card-muted)]/50 transition-colors">
-                              <td className="py-3 px-4">
+                              <td data-label="Sản phẩm" className="py-3 px-4">
                                 <strong className="font-semibold text-xs text-[var(--foreground)] block">
                                   {p.name}
                                 </strong>
@@ -780,13 +780,13 @@ export function AdminDashboardScreen() {
                                   ID: {p.id}
                                 </span>
                               </td>
-                              <td className="py-3 px-4 text-xs text-[var(--subtext)]">
+                              <td data-label="Gian hàng" className="py-3 px-4 text-xs text-[var(--subtext)]">
                                 {p.shopName}
                               </td>
-                              <td className="py-3 px-4 text-right font-bold text-xs tabular-nums text-[var(--foreground)]">
+                              <td data-label="Giá bán" className="py-3 px-4 text-right font-bold text-xs tabular-nums text-[var(--foreground)]">
                                 {moneyAdapter.formatVND(p.price)}
                               </td>
-                              <td className="py-3 px-4 text-center">
+                              <td data-label="Trạng thái" className="py-3 px-4 text-center">
                                 <span
                                   className={`text-xs font-semibold px-2 py-0.5 rounded-md inline-block ${
                                     isHidden
@@ -797,7 +797,7 @@ export function AdminDashboardScreen() {
                                   {p.status === "HIDDEN" ? "Đã ẩn" : p.status === "ACTIVE" ? "Đang hiển thị" : p.status === "DRAFT" ? "Bản nháp" : "Ngừng bán"}
                                 </span>
                               </td>
-                              <td className="py-3 px-4 text-right">
+                              <td data-label="Kiểm duyệt" className="py-3 px-4 text-right">
                                 <Button
                                   variant={isHidden ? "secondary" : "danger"}
                                   className="text-xs py-1 px-3"
@@ -821,7 +821,7 @@ export function AdminDashboardScreen() {
             {activeTab === "logs" && (
               <div className="surface-card overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse text-sm">
+                  <table className="mobile-card-table w-full text-left border-collapse text-sm">
                     <thead>
                       <tr className="border-b border-[var(--border)] bg-[var(--card-muted)] text-xs text-[var(--subtext)] font-semibold uppercase tracking-wider">
                         <th className="py-3 px-4">Thời gian</th>
@@ -841,21 +841,21 @@ export function AdminDashboardScreen() {
                       ) : (
                         logs.map((log) => (
                           <tr key={log.id} className="hover:bg-[var(--card-muted)]/50 transition-colors">
-                            <td className="py-3 px-4 text-xs text-[var(--subtext)] whitespace-nowrap">
+                            <td data-label="Thời gian" className="py-3 px-4 text-xs text-[var(--subtext)] whitespace-nowrap">
                               {new Date(log.createdAt).toLocaleString("vi-VN")}
                             </td>
-                            <td className="py-3 px-4">
+                            <td data-label="Hành động" className="py-3 px-4">
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[var(--primary-surface)] text-[var(--primary-active)] uppercase tracking-wide">
                                 {log.action}
                               </span>
                             </td>
-                            <td className="py-3 px-4 text-xs font-medium text-[var(--foreground)]">
+                            <td data-label="Đối tượng" className="py-3 px-4 text-xs font-medium text-[var(--foreground)]">
                               {log.targetName || log.targetId}
                             </td>
-                            <td className="py-3 px-4 text-xs text-[var(--foreground)] max-w-sm">
+                            <td data-label="Lý do ghi nhận" className="py-3 px-4 text-xs text-[var(--foreground)] max-w-sm">
                               {log.reason}
                             </td>
-                            <td className="py-3 px-4 text-right text-xs text-[var(--subtext)] font-mono">
+                            <td data-label="Người thực hiện" className="py-3 px-4 text-right text-xs text-[var(--subtext)] font-mono">
                               {log.actor}
                             </td>
                           </tr>

@@ -59,6 +59,26 @@ export function getTopNavItems(role: AppRole): NavItem[] {
   ];
 }
 
+export function getMobileDockItems(role: AppRole): NavItem[] {
+  if (role === "BUYER") return [items[0], items[5], items[6], items[7]];
+  if (role === "SELLER") return [items[0], items[3], items[4], items[7]];
+  if (role === "ADMIN") return [items[1], items[2], items[7]];
+  return [items[0], { href: "/login", label: "Đăng nhập", icon: "user", roles: [null] }];
+}
+
+export const adminNavigationItems: Array<{ href: string; label: string }> = [
+  { href: "/admin", label: "Tổng quan" },
+  { href: "/admin/shops", label: "Gian hàng & Mall" },
+  { href: "/admin/categories", label: "Danh mục" },
+  { href: "/admin/orders", label: "Đơn hàng" },
+  { href: "/admin/finance", label: "Tài chính & Ví sàn" },
+  { href: "/admin/reviews", label: "Đánh giá" },
+  { href: "/admin/vouchers", label: "Voucher" },
+  { href: "/admin/campaigns", label: "Chiến dịch" },
+  { href: "/admin/reports", label: "Báo cáo" },
+  { href: "/admin/audit-logs", label: "Nhật ký quản trị" },
+];
+
 // Cấu trúc Sidebar chuẩn cho khu vực Người bán (Seller Center)
 export function getSellerSidebarGroups(): SellerNavGroup[] {
   return [

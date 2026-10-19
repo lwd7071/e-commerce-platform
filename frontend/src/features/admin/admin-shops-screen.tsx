@@ -557,7 +557,7 @@ export function AdminShopsScreen() {
       ) : (
         <div className="surface-card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-sm">
+            <table className="mobile-card-table w-full text-left border-collapse text-sm">
               <thead>
                 <tr className="border-b border-[var(--border)] bg-[var(--card-muted)] text-xs font-bold text-[var(--subtext)]">
                   <th className="py-3.5 px-4">Gian hàng</th>
@@ -577,37 +577,37 @@ export function AdminShopsScreen() {
 
                   return (
                     <tr key={shop.shop_id} className="hover:bg-[var(--card-muted)]/50 transition-colors">
-                      <td className="py-3.5 px-4">
-                        <div className="font-semibold text-[var(--foreground)]">{shop.shop_name}</div>
+                      <td data-label="Gian hàng" className="py-3.5 px-4">
+                        <div className="font-semibold [overflow-wrap:anywhere] text-[var(--foreground)]">{shop.shop_name}</div>
                         {shop.description && (
                           <div className="text-xs text-[var(--subtext)] line-clamp-1">{shop.description}</div>
                         )}
                         <div className="text-xs text-[var(--subtext)] font-mono mt-0.5">ID: {shop.shop_id}</div>
                       </td>
-                      <td className="py-3.5 px-4">
-                        <div className="font-medium text-[var(--foreground)]">
+                      <td data-label="Chủ sở hữu" className="py-3.5 px-4">
+                        <div className="font-medium [overflow-wrap:anywhere] text-[var(--foreground)]">
                           {shop.owner_name || "Chưa cập nhật tên"}
                         </div>
                         <div className="text-xs text-[var(--subtext)] font-mono">
                           {shop.owner_email || shop.owner_id}
                         </div>
                       </td>
-                      <td className="py-3.5 px-4 text-xs text-[var(--subtext)]">
+                      <td data-label="Liên hệ & địa chỉ" className="py-3.5 px-4 text-xs text-[var(--subtext)]">
                         <div>ĐT: <span className="font-mono text-[var(--foreground)]">{shop.contact_phone || "Chưa có"}</span></div>
                         <div className="line-clamp-1 max-w-xs">{shop.pickup_address || "Chưa cập nhật địa chỉ"}</div>
                       </td>
-                      <td className="py-3.5 px-4 text-center">
+                      <td data-label="Phân hạng" className="py-3.5 px-4 text-center">
                         {renderTierBadge(shop.tier)}
                       </td>
-                      <td className="py-3.5 px-4 text-center">
+                      <td data-label="Sản phẩm" className="py-3.5 px-4 text-center">
                         <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[var(--card-muted)] text-[var(--foreground)]">
                           {shop.product_count} SP
                         </span>
                       </td>
-                      <td className="py-3.5 px-4 text-center">
+                      <td data-label="Trạng thái" className="py-3.5 px-4 text-center">
                         {renderStatusBadge(shop.status)}
                       </td>
-                      <td className="py-3.5 px-4 text-right">
+                      <td data-label="Thao tác" className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           <Button
                             variant="secondary"
@@ -726,7 +726,7 @@ export function AdminShopsScreen() {
             />
           ) : (
             <div className="overflow-x-auto rounded-xl border border-[var(--border)] bg-[var(--card)]">
-              <table className="w-full text-left text-sm">
+              <table className="mobile-card-table w-full text-left text-sm">
                 <thead className="bg-[var(--card-muted)] text-xs text-[var(--subtext)] uppercase border-b border-[var(--border)]">
                   <tr>
                     <th className="px-4 py-3">Mã Shop / Seller</th>
@@ -740,7 +740,7 @@ export function AdminShopsScreen() {
                 <tbody className="divide-y divide-[var(--border)]">
                   {mallRequests.map((req, index) => (
                     <tr key={req.request_id || req.id || String(index)} className="hover:bg-[var(--card-hover)]">
-                      <td className="px-4 py-3">
+                      <td data-label="Mã Shop / Seller" className="px-4 py-3">
                         <div className="font-mono text-xs font-semibold text-[var(--foreground)]">
                           {(req as { shop_name?: string }).shop_name
                             ? `${(req as { shop_name?: string }).shop_name} (${req.shop_id})`
@@ -748,7 +748,7 @@ export function AdminShopsScreen() {
                         </div>
                         <div className="font-mono text-[10px] text-[var(--subtext)]">Seller: {req.seller_id}</div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td data-label="Hồ sơ xác thực" className="px-4 py-3">
                         <a
                           href={req.document_url}
                           target="_blank"
@@ -759,14 +759,14 @@ export function AdminShopsScreen() {
                           📄 Xem tài liệu
                         </a>
                       </td>
-                      <td className="px-4 py-3 text-xs">
+                      <td data-label="Liên hệ & ghi chú" className="px-4 py-3 text-xs">
                         <div className="text-[var(--subtext)] italic truncate max-w-[200px]" title={req.reason}>{req.reason}</div>
                         {req.admin_note && <div className="text-xs text-amber-600 dark:text-amber-400 mt-1">Ghi chú duyệt: {req.admin_note}</div>}
                       </td>
-                      <td className="px-4 py-3 text-xs text-[var(--subtext)] font-mono">
+                      <td data-label="Ngày gửi" className="px-4 py-3 text-xs text-[var(--subtext)] font-mono">
                         {new Date(req.created_at).toLocaleDateString("vi-VN")}
                       </td>
-                      <td className="px-4 py-3">
+                      <td data-label="Trạng thái" className="px-4 py-3">
                         {req.status === "PENDING" ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">
                             ⏳ Chờ duyệt
@@ -785,7 +785,7 @@ export function AdminShopsScreen() {
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td data-label="Thao tác" className="px-4 py-3 text-right">
                         {req.status === "PENDING" && (
                           <div className="flex items-center justify-end gap-2">
                             <Button

@@ -69,7 +69,7 @@ export function SellerChatInboxScreen() {
         .getConversations()
         .then((data) => {
           setConversations(data);
-          if (data.length > 0) {
+          if (data.length > 0 && (typeof window === "undefined" || !window.matchMedia || window.matchMedia("(min-width: 768px)").matches)) {
             setSelectedConv((current) => {
               if (!current) {
                 selectConversation(data[0]);
@@ -242,9 +242,9 @@ export function SellerChatInboxScreen() {
       </div>
 
       {/* Main Container */}
-      <div className="flex flex-col md:flex-row h-[680px] rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-lg overflow-hidden">
+      <div className="seller-chat-layout flex flex-col md:flex-row h-[680px] rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-lg overflow-hidden">
         {/* Left Pane: Conversations List */}
-        <div className="w-full md:w-80 border-r border-[var(--border)] flex flex-col bg-[var(--card-muted)]">
+        <div className={`seller-chat-conversations w-full md:w-80 border-r border-[var(--border)] flex flex-col bg-[var(--card-muted)] ${selectedConv ? "seller-chat-conversations--hidden" : ""}`}>
           <div className="p-3 border-b border-[var(--border)]">
             <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--subtext)]">
               Danh Sách Hội Thoại ({conversations.length})
@@ -334,11 +334,12 @@ export function SellerChatInboxScreen() {
         </div>
 
         {/* Right Pane: Active Chat Conversation */}
-        <div className="flex-1 flex flex-col bg-[var(--background)]">
+        <div className={`seller-chat-thread min-w-0 flex-1 flex flex-col bg-[var(--background)] ${selectedConv ? "seller-chat-thread--visible" : "seller-chat-thread--hidden"}`}>
           {selectedConv ? (
             <>
               {/* Active Conversation Header */}
               <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--card)] px-4 py-3">
+                <button type="button" className="seller-chat-back" onClick={() => setSelectedConv(null)} aria-label="Quay lại danh sách hội thoại"><Icon name="arrow-left" className="h-4 w-4" />Hội thoại</button>
                 <div className="flex items-center gap-3">
                   <div>
                     <h3 className="text-sm font-bold text-[var(--foreground)]">

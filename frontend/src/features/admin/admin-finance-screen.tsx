@@ -196,7 +196,7 @@ export function AdminFinanceScreen() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
+              <table className="mobile-card-table w-full text-left text-sm">
                 <thead className="bg-[var(--card-muted)] border-b border-[var(--border)] text-xs font-semibold text-[var(--subtext)] uppercase tracking-wider">
                   <tr>
                     <th className="px-5 py-3.5">Mã yêu cầu</th>
@@ -211,23 +211,23 @@ export function AdminFinanceScreen() {
                 <tbody className="divide-y divide-[var(--border)]">
                   {withdrawals.map((req) => (
                     <tr key={req.request_id} className="hover:bg-[var(--card-muted)]/50 transition-colors">
-                      <td className="px-5 py-4 font-mono text-xs text-[var(--foreground)]">
+                      <td data-label="Mã yêu cầu" className="px-5 py-4 font-mono text-xs text-[var(--foreground)]">
                         #{req.request_id.slice(0, 8)}
                       </td>
-                      <td className="px-5 py-4 font-mono text-xs text-[var(--subtext)]">
+                      <td data-label="Gian hàng" className="px-5 py-4 font-mono text-xs text-[var(--subtext)]">
                         Shop #{req.shop_id.slice(0, 8)}
                       </td>
-                      <td className="px-5 py-4 whitespace-nowrap font-bold text-[var(--foreground)]">
+                      <td data-label="Số tiền yêu cầu" className="px-5 py-4 whitespace-nowrap font-bold text-[var(--foreground)]">
                         {moneyAdapter.formatVND(req.amount)}
                       </td>
-                      <td className="px-5 py-4 whitespace-nowrap text-xs text-[var(--subtext)]">
+                      <td data-label="Tài khoản nhận tiền" className="px-5 py-4 whitespace-nowrap text-xs text-[var(--subtext)]">
                         <div><strong className="text-[var(--foreground)]">{req.bank_name}</strong> - {req.bank_account_number}</div>
                         <div className="uppercase font-medium text-[11px]">{req.bank_account_holder}</div>
                       </td>
-                      <td className="px-5 py-4 whitespace-nowrap text-xs text-[var(--subtext)]">
+                      <td data-label="Ngày yêu cầu" className="px-5 py-4 whitespace-nowrap text-xs text-[var(--subtext)]">
                         {new Date(req.created_at).toLocaleString("vi-VN")}
                       </td>
-                      <td className="px-5 py-4 whitespace-nowrap">
+                      <td data-label="Trạng thái" className="px-5 py-4 whitespace-nowrap">
                         {req.status === "PENDING" && (
                           <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-[var(--warning-surface)] text-[var(--warning)]">
                             Chờ duyệt
@@ -244,7 +244,7 @@ export function AdminFinanceScreen() {
                           </span>
                         )}
                       </td>
-                      <td className="px-5 py-4 text-right whitespace-nowrap">
+                      <td data-label="Hành động" className="px-5 py-4 text-right whitespace-nowrap">
                         {req.status === "PENDING" ? (
                           <div className="flex justify-end gap-2">
                             <Button

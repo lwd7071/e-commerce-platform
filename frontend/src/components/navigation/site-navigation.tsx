@@ -7,21 +7,23 @@ import { useAuth } from "@/lib/auth/auth-context";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
 import { voucherApi, type PublicPlatformVoucher } from "@/lib/api/voucher.api";
 import { Icon } from "../ui/icon";
-import { getTopNavItems, type AppRole } from "./navigation-items";
+import { getMobileDockItems, getTopNavItems, type AppRole } from "./navigation-items";
 import { UserDropdown } from "./user-dropdown";
 import { NotificationPopover } from "@/features/notifications/notification-popover";
 import { apiNotificationRepository, demoNotificationRepository } from "@/features/notifications/notification-repository";
 
 function isCurrent(pathname: string, href: string) {
-  return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
+  return href === "/" || href === "/seller" || href === "/admin" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 }
 
 type SiteHeaderProps = {
   role?: AppRole;
   isSellerArea?: boolean;
+  isAdminArea?: boolean;
+  onMobileMenuOpen?: () => void;
 };
 
-export function SiteHeader({ role = null, isSellerArea = false }: SiteHeaderProps) {
+export function SiteHeader({ role = null, isSellerArea = false, isAdminArea = false, onMobileMenuOpen }: SiteHeaderProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
@@ -94,6 +96,9 @@ export function SiteHeader({ role = null, isSellerArea = false }: SiteHeaderProp
       <header className="site-header site-header--seller">
         <div className="site-header__inner">
           <div className="flex items-center gap-3">
+            <button type="button" className="role-menu-trigger" aria-label="Menu người bán" onClick={onMobileMenuOpen}>
+              <Icon name="grid" className="h-5 w-5" /><span>Menu</span>
+            </button>
             <Link className="brand-lockup flex items-center gap-2" href="/seller" aria-label="Dino Kênh người bán">
               <span className="font-bold text-xl tracking-tight">Dino</span>
               <span className="px-2 py-0.5 text-xs font-semibold rounded-md bg-[var(--primary-surface)] text-[var(--primary-active)] border border-[var(--primary-border)]">
@@ -122,7 +127,7 @@ export function SiteHeader({ role = null, isSellerArea = false }: SiteHeaderProp
 
   // Header thông thường cho Người mua / Khách
   return (
-    <header className={`site-header${pathname === "/" ? " site-header--home" : ""}`}>
+      <header className={`site-header${pathname === "/" ? " site-header--home" : ""}${isAdminArea ? " site-header--admin" : ""}`}>
         {pathname === "/" && (
           <div className="site-header__announcement">
             {publicVouchers.length ? <div
@@ -147,6 +152,7 @@ export function SiteHeader({ role = null, isSellerArea = false }: SiteHeaderProp
           </div>
         )}
       <div className="site-header__inner">
+        {isAdminArea && <button type="button" className="role-menu-trigger" aria-label="Menu quản trị" onClick={onMobileMenuOpen}><Icon name="grid" className="h-5 w-5" /><span>Quản trị</span></button>}
         <Link className="brand-lockup" href="/" aria-label="Dino - trang chủ">
           <span>Dino</span>
         </Link>
@@ -186,9 +192,9 @@ export function SiteHeader({ role = null, isSellerArea = false }: SiteHeaderProp
 
 export function MobileDock({ role = null }: { role?: AppRole }) {
   const pathname = usePathname();
-  const visible = getTopNavItems(role);
+  const visible = getMobileDockItems(role);
   return (
-    <nav className="mobile-dock" aria-label="Điều hướng nhanh">
+    <nav className="mobile-dock" aria-label="Điều hướng nhanh" style={{ gridTemplateColumns: `repeat(${visible.length}, minmax(0, 1fr))` }}>
       {visible.map((item) => (
         <Link className="mobile-dock__link" href={item.href} key={item.href} aria-current={isCurrent(pathname, item.href) ? "page" : undefined}>
           <Icon name={item.icon} /><span>{item.label}</span>

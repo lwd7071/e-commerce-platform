@@ -99,14 +99,14 @@ export function AdminReviewsScreen() {
         : error ? <ErrorState title="Không tải được đánh giá" description={error} onRetry={() => void load()} />
           : visibleReviews.length === 0 ? <EmptyState icon="info" title="Không có đánh giá phù hợp" description="Thử đổi bộ lọc hoặc từ khóa tìm kiếm." />
             : <section className="surface-card overflow-x-auto" aria-label="Danh sách đánh giá">
-              <table className="w-full min-w-[700px] text-sm text-left">
+              <table className="mobile-card-table w-full min-w-[700px] text-sm text-left">
                 <thead><tr className="border-b border-[var(--border)] bg-[var(--card-muted)] text-xs text-[var(--subtext)]"><th className="p-3">Sản phẩm</th><th className="p-3">Đánh giá</th><th className="p-3">Nội dung</th><th className="p-3">Trạng thái</th><th className="p-3 text-right">Thao tác</th></tr></thead>
                 <tbody className="divide-y divide-[var(--border)]">{visibleReviews.map((review) => <tr key={review.id}>
-                  <td className="p-3 font-medium">{review.productName}<span className="block text-[11px] text-[var(--subtext)]">{review.createdAt.slice(0, 10)}</span></td>
-                  <td className="p-3">{review.rating} / 5</td>
-                  <td className="p-3 max-w-md whitespace-normal">{review.content || "(Không có nội dung)"}</td>
-                  <td className="p-3">{review.status === "VISIBLE" ? "Đang hiển thị" : "Đã ẩn"}</td>
-                  <td className="p-3 text-right"><Button variant={review.status === "VISIBLE" ? "danger" : "secondary"} onClick={() => { setTarget(review); setReason(""); setFormError(null); }}>{review.status === "VISIBLE" ? "Ẩn đánh giá" : "Khôi phục"}</Button></td>
+                  <td data-label="Sản phẩm" className="p-3 font-medium">{review.productName}<span className="block text-[11px] text-[var(--subtext)]">{review.createdAt.slice(0, 10)}</span></td>
+                  <td data-label="Đánh giá" className="p-3">{review.rating} / 5</td>
+                  <td data-label="Nội dung" className="p-3 max-w-md whitespace-normal">{review.content || "(Không có nội dung)"}</td>
+                  <td data-label="Trạng thái" className="p-3">{review.status === "VISIBLE" ? "Đang hiển thị" : "Đã ẩn"}</td>
+                  <td data-label="Thao tác" className="p-3 text-right"><Button variant={review.status === "VISIBLE" ? "danger" : "secondary"} onClick={() => { setTarget(review); setReason(""); setFormError(null); }}>{review.status === "VISIBLE" ? "Ẩn đánh giá" : "Khôi phục"}</Button></td>
                 </tr>)}</tbody>
               </table>
             </section>}

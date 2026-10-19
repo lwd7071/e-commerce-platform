@@ -263,7 +263,7 @@ export function AdminScreen() {
       ) : (
         <div className="surface-card overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-sm">
+            <table className="mobile-card-table w-full text-left border-collapse text-sm">
               <thead>
                 <tr className="border-b border-[var(--border)] bg-[var(--card-muted)] text-xs font-bold text-[var(--subtext)]">
                   <th className="py-3.5 px-4">Người dùng</th>
@@ -280,19 +280,19 @@ export function AdminScreen() {
 
                   return (
                     <tr key={u.id} className="hover:bg-[var(--card-muted)]/50 transition-colors">
-                      <td className="py-3.5 px-4">
-                        <div className="font-semibold text-[var(--foreground)]">{u.full_name}</div>
+                      <td data-label="Người dùng" className="py-3.5 px-4">
+                        <div className="font-semibold [overflow-wrap:anywhere] text-[var(--foreground)]">{u.full_name}</div>
                         <div className="text-xs text-[var(--subtext)] font-mono">ID: {u.id}</div>
                       </td>
-                      <td className="py-3.5 px-4 text-[var(--foreground)] font-mono text-xs">
+                      <td data-label="Email" className="py-3.5 px-4 [overflow-wrap:anywhere] text-[var(--foreground)] font-mono text-xs">
                         {u.email}
                       </td>
-                      <td className="py-3.5 px-4 text-center">
+                      <td data-label="Vai trò" className="py-3.5 px-4 text-center">
                         <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-bold border border-[var(--border)] bg-[var(--card)] text-[var(--foreground)]">
                           {u.role}
                         </span>
                       </td>
-                      <td className="py-3.5 px-4 text-center">
+                      <td data-label="Trạng thái" className="py-3.5 px-4 text-center">
                         <span
                           className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold border ${
                             isLocked
@@ -303,7 +303,7 @@ export function AdminScreen() {
                           {isLocked ? "Bị khóa" : "Hoạt động"}
                         </span>
                       </td>
-                      <td className="py-3.5 px-4 text-center">
+                      <td data-label="Thao tác" className="py-3.5 px-4 text-center">
                         <div className="flex items-center justify-center gap-1.5">
                           <Button
                             variant="secondary"
@@ -378,11 +378,11 @@ export function AdminScreen() {
             <div className="grid grid-cols-2 gap-3 p-3 bg-[var(--card-muted)] rounded-lg text-xs">
               <div>
                 <span className="text-[var(--subtext)] block">Họ và tên:</span>
-                <strong className="text-[var(--foreground)]">{detailUser.full_name}</strong>
+                <strong className="[overflow-wrap:anywhere] text-[var(--foreground)]">{detailUser.full_name}</strong>
               </div>
               <div>
                 <span className="text-[var(--subtext)] block">Email:</span>
-                <strong className="text-[var(--foreground)] font-mono">{detailUser.email}</strong>
+                <strong className="[overflow-wrap:anywhere] text-[var(--foreground)] font-mono">{detailUser.email}</strong>
               </div>
               <div>
                 <span className="text-[var(--subtext)] block">Vai trò:</span>
