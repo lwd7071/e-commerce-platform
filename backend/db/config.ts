@@ -59,8 +59,10 @@ export const loadDatabaseConfig = (env: NodeJS.ProcessEnv): DatabaseConfig => {
   const databaseUrl = parseUrl('DATABASE_URL', required(env, 'DATABASE_URL'), ['postgres', 'postgresql']);
   const directUrl = parseUrl('DIRECT_URL', required(env, 'DIRECT_URL'), ['postgres', 'postgresql']);
   const projectRef = supabaseUrl.hostname.split('.')[0];
-  const databaseUsers = [databaseUrl.username, directUrl.username];
-  if (!databaseUsers.every((username) => username.endsWith(`.${projectRef}`))) {
+  const targetsProject = (url: URL): boolean =>
+    (url.hostname === `db.${projectRef}.supabase.co` && url.username === 'postgres') ||
+    url.username === `postgres.${projectRef}`;
+  if (![databaseUrl, directUrl].every(targetsProject)) {
     throw new Error('DATABASE_URL and DIRECT_URL must target the SUPABASE_URL project');
   }
   return {

@@ -14,8 +14,8 @@ COPY backend/db/seed/e2e-seed-safety.ts /backend/db/seed/e2e-seed-safety.ts
 
 ARG NEXT_PUBLIC_API_URL=https://api.dinoshopping.io.vn/api/v1
 ARG NEXT_PUBLIC_SITE_URL=https://dinoshopping.io.vn
-ARG NEXT_PUBLIC_SUPABASE_URL=https://putywqmxtjttfdezlswf.supabase.co
-ARG NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_ZXw4cszWPlXI7v_jWHQdjg_QkGXa7mt
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
 ARG NEXT_PUBLIC_USE_MOCK=false
 
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
