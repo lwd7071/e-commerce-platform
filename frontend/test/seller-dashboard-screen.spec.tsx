@@ -83,4 +83,18 @@ describe("SellerDashboardScreen shop profile reminder", () => {
     expect(screen.queryByTestId("shop-pending-banner")).toBeNull();
     expect(screen.queryByRole("link", { name: "Bổ sung thông tin" })).toBeNull();
   });
+
+  it("shows the average rating with one decimal place", async () => {
+    mockGetKpi.mockResolvedValueOnce({
+      shopId: "shop-1", shopName: "Dino Store", totalRevenue: "0", completedOrdersCount: 0,
+      pendingOrdersCount: 0, activeProductsCount: 0, averageRating: 3.6666666667,
+    });
+    mockUser.current = { role: "SELLER", shopStatus: "ACTIVE" };
+
+    render(<SellerDashboardScreen />);
+
+    expect(await screen.findByText("3.7")).toBeTruthy();
+    expect(screen.getByText("/ 5.0 sao")).toBeTruthy();
+    expect(screen.queryByText(/3\.666/)).toBeNull();
+  });
 });

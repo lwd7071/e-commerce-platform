@@ -147,7 +147,7 @@ export class ShopTierEvaluationService {
 
     const stats = {
       completedOrders,
-      averageRating: Math.round(averageRating * 100) / 100,
+      averageRating: Math.round(averageRating * 10) / 10,
       visibleReviewsCount,
     };
 

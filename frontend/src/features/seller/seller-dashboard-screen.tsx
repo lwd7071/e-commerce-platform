@@ -249,7 +249,7 @@ export function SellerDashboardScreen() {
               </div>
 
               {/* Card 4: Store Quality & Active Products */}
-              <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+              <div className="min-w-0 bg-[var(--card)] border border-[var(--border)] rounded-2xl p-5 shadow-sm flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-[var(--subtext)] uppercase tracking-wider">
@@ -259,9 +259,9 @@ export function SellerDashboardScreen() {
                       <Icon name="star" className="w-4 h-4 text-amber-500 fill-amber-500" />
                     </div>
                   </div>
-                  <div className="text-2xl sm:text-3xl font-black text-[var(--foreground)] mt-2 flex items-baseline gap-2">
-                    <span>{kpi.averageRating}</span>
-                    <span className="text-xs font-medium text-[var(--subtext)]">/ 5.0 sao</span>
+                  <div className="min-w-0 text-2xl sm:text-3xl font-black text-[var(--foreground)] mt-2 flex items-baseline gap-2">
+                    <span className="shrink-0">{kpi.averageRating.toFixed(1)}</span>
+                    <span className="shrink-0 text-xs font-medium text-[var(--subtext)]">/ 5.0 sao</span>
                   </div>
                 </div>
                 <div className="mt-4 pt-3 border-t border-[var(--border)] flex items-center justify-between text-xs text-[var(--subtext)]">

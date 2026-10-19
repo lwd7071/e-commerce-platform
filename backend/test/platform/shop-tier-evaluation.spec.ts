@@ -201,6 +201,38 @@ describe('Đợt C: ShopTierEvaluationService & Automated PREFERRED Evaluation',
     assert.equal(result.stats.averageRating, 5);
   });
 
+  it('keeps full precision for tier eligibility when the displayed rating rounds up to 4.5', async () => {
+    const mockOrders: MockOrderRow[] = Array.from({ length: 25 }, (_, i) => ({
+      order_id: `ord-${i}`,
+      shop_id: 'shop-rating-boundary',
+      status: 'COMPLETED',
+    }));
+    const mockReviews: MockReviewRow[] = [
+      ...Array.from({ length: 87 }, (_, i) => ({
+        review_id: `rev-five-${i}`, product_id: 'prod-1', rating: 5, status: 'VISIBLE' as const,
+      })),
+      { review_id: 'rev-two', product_id: 'prod-1', rating: 2, status: 'VISIBLE' },
+      ...Array.from({ length: 12 }, (_, i) => ({
+        review_id: `rev-one-${i}`, product_id: 'prod-1', rating: 1, status: 'VISIBLE' as const,
+      })),
+    ];
+    const { pool, shops } = createMockDb(
+      [{
+        shop_id: 'shop-rating-boundary', shop_name: 'Boundary Store', tier: 'STANDARD',
+        tier_override: false, tier_override_reason: null, status: 'ACTIVE',
+      }],
+      mockOrders,
+      mockReviews,
+    );
+
+    const result = await new ShopTierEvaluationService(pool).evaluateShop(pool, 'shop-rating-boundary', criteria);
+
+    assert.ok(result);
+    assert.equal(result.stats.averageRating, 4.5);
+    assert.equal(result.status, 'UNCHANGED');
+    assert.equal(shops[0].tier, 'STANDARD');
+  });
+
   it('TEST-C4: Demotes PREFERRED shop to STANDARD when completed orders or rating drop below threshold', async () => {
     const mockOrders: MockOrderRow[] = Array.from({ length: 5 }, (_, i) => ({
       order_id: `ord-${i}`,

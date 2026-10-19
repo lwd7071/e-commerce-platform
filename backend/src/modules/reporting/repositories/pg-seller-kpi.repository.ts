@@ -20,7 +20,7 @@ export class PgSellerKpiRepository implements ISellerKpiRepository {
     return {
       shopId: String(row.shop_id), shopName: String(row.shop_name), totalRevenue: String(row.total_revenue),
       completedOrdersCount: Number(row.completed_orders_count), pendingOrdersCount: Number(row.pending_orders_count),
-      activeProductsCount: Number(row.active_products_count), averageRating: Number(row.average_rating),
+      activeProductsCount: Number(row.active_products_count), averageRating: Number(Number(row.average_rating).toFixed(1)),
     };
   }
 }

@@ -206,7 +206,7 @@ describe('Review and Notification Runtime Wiring (C-201, C-202, C-203, C-301, C-
       buyerId: BUYER_ID,
       productId: 'prod-test-1',
       orderItemId: 'oi-1',
-      rating: 4,
+      rating: 3,
       content: 'Chất lượng vải tốt',
       status: 'VISIBLE',
       createdAt: new Date().toISOString(),
@@ -217,8 +217,19 @@ describe('Review and Notification Runtime Wiring (C-201, C-202, C-203, C-301, C-
       buyerId: BUYER_ID,
       productId: 'prod-test-1',
       orderItemId: 'oi-2',
-      rating: 5,
+      rating: 4,
       content: 'Giao hàng nhanh',
+      status: 'VISIBLE',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    reviewRepo.reviews.push({
+      reviewId: 'rev-3',
+      buyerId: BUYER_ID,
+      productId: 'prod-test-1',
+      orderItemId: 'oi-3',
+      rating: 4,
+      content: 'Sản phẩm dùng ổn',
       status: 'VISIBLE',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -233,9 +244,9 @@ describe('Review and Notification Runtime Wiring (C-201, C-202, C-203, C-301, C-
       .get('/api/v1/products/prod-test-1/reviews')
       .expect(200);
 
-    assert.strictEqual(res.body.data.length, 2);
-    assert.strictEqual(res.body.rating_summary.count, 2);
-    assert.strictEqual(res.body.rating_summary.average, '4.5');
+    assert.strictEqual(res.body.data.length, 3);
+    assert.strictEqual(res.body.rating_summary.count, 3);
+    assert.strictEqual(res.body.rating_summary.average, '3.7');
   });
 
   it('createRuntimeApp wires singleton eventPort and returns valid runtime', async (t) => {
