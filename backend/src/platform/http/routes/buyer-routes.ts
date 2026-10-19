@@ -20,6 +20,7 @@ export interface BuyerServices {
   addressService?: AddressService;
   cartService?: CartService;
   voucherService?: VoucherService;
+  publicVoucherService?: Pick<VoucherService, 'listPublicPlatformVouchers'>;
   reviewService?: ReviewService;
   notificationService?: NotificationService;
   profileService?: ProfileService;
@@ -111,6 +112,7 @@ export function createBuyerDomainRouter(
   const addressService = services?.addressService;
   const cartService = services?.cartService;
   const voucherService = services?.voucherService;
+  const publicVoucherService = services?.publicVoucherService;
   const reviewService = services?.reviewService;
   const notificationService = services?.notificationService;
   const profileService = services?.profileService;
@@ -304,6 +306,10 @@ export function createBuyerDomainRouter(
 
   router.get('/vouchers', ...guards(auth, 'BUYER'), handleListVouchers);
   router.get('/vouchers/applicable', ...guards(auth, 'BUYER'), handleListVouchers);
+  router.get('/vouchers/public', asyncRoute(async (req, res) => {
+    const data = publicVoucherService ? await publicVoucherService.listPublicPlatformVouchers() : [];
+    res.json(buildSuccessEnvelope(data, requestId(req)));
+  }));
 
   const handleEvaluateVoucher = asyncRoute(async (req, res) => {
     const ctx = context(req);

@@ -2499,6 +2499,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/vouchers/public": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List public platform vouchers
+         * @description Return currently active, available platform vouchers with only the fields needed for public promotion display.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Public platform vouchers */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PublicPlatformVoucherListSuccessEnvelope"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/vouchers/applicable": {
         parameters: {
             query?: never;
@@ -7676,6 +7715,25 @@ export interface components {
         };
         PublicShopSuccessEnvelope: {
             data: components["schemas"]["PublicShopDTO"];
+            request_id: string;
+        };
+        PublicPlatformVoucherDTO: {
+            /** Format: uuid */
+            voucherId: string;
+            code: string;
+            voucherName: string;
+            /** @enum {string} */
+            discountType: "PERCENT" | "FIXED";
+            discountValue: string;
+            maxDiscount: string | null;
+            minOrderValue: string;
+            /** Format: date-time */
+            startAt: string;
+            /** Format: date-time */
+            endAt: string;
+        };
+        PublicPlatformVoucherListSuccessEnvelope: {
+            data: components["schemas"]["PublicPlatformVoucherDTO"][];
             request_id: string;
         };
         PaginatedEnvelope: {

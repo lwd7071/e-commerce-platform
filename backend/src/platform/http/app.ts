@@ -36,8 +36,10 @@ import { PostgresReviewRepository } from '../../modules/buyer/infrastructure/pos
 import { PostgresNotificationRepository } from '../../modules/buyer/infrastructure/postgres-notification.repository.ts';
 import { ReviewService } from '../../modules/buyer/services/review.service.ts';
 import { NotificationService } from '../../modules/buyer/services/notification.service.ts';
+import { VoucherService } from '../../modules/buyer/services/voucher.service.ts';
 import { InMemoryTransactionEventPort } from '../../modules/buyer/ports/buyer-event.port.ts';
 import { PgBuyerHttpService } from '../../modules/buyer/services/pg-buyer-http.service.ts';
+import { PostgresVoucherRepository } from '../../modules/buyer/infrastructure/postgres-voucher.repository.ts';
 import { createSellerShopRouter } from './routes/seller-shop-routes.ts';
 import { SellerShopService } from '../../modules/shop/services/seller-shop.service.ts';
 import { ShopTierEvaluationService } from '../../modules/shop/services/shop-tier-evaluation.service.ts';
@@ -306,6 +308,7 @@ export function createRuntimeApp(
       chatService: new PgChatService(pool),
       buyerServices: {
         legacyHttpApplication: new PgBuyerHttpService(pool),
+        publicVoucherService: new VoucherService(new PostgresVoucherRepository(pool)),
         addressService: new AddressService(new PostgresAddressRepository(pool)),
         profileService: new ProfileService(new PostgresUserProfileRepository(pool)),
         loyaltyService,

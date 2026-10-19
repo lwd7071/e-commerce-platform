@@ -106,6 +106,29 @@ export function generateOpenApiSpec(): OpenApiSpec {
             request_id: { type: 'string' },
           },
         },
+        PublicPlatformVoucherDTO: {
+          type: 'object',
+          required: ['voucherId', 'code', 'voucherName', 'discountType', 'discountValue', 'maxDiscount', 'minOrderValue', 'startAt', 'endAt'],
+          properties: {
+            voucherId: { type: 'string', format: 'uuid' },
+            code: { type: 'string' },
+            voucherName: { type: 'string' },
+            discountType: { type: 'string', enum: ['PERCENT', 'FIXED'] },
+            discountValue: { type: 'string' },
+            maxDiscount: { type: ['string', 'null'] },
+            minOrderValue: { type: 'string' },
+            startAt: { type: 'string', format: 'date-time' },
+            endAt: { type: 'string', format: 'date-time' },
+          },
+        },
+        PublicPlatformVoucherListSuccessEnvelope: {
+          type: 'object',
+          required: ['data', 'request_id'],
+          properties: {
+            data: { type: 'array', items: { $ref: '#/components/schemas/PublicPlatformVoucherDTO' } },
+            request_id: { type: 'string' },
+          },
+        },
         PaginatedEnvelope: {
           type: 'object',
           required: ['data', 'meta', 'request_id'],
@@ -1100,6 +1123,13 @@ export function generateOpenApiSpec(): OpenApiSpec {
               },
             },
           },
+        },
+      },
+      '/vouchers/public': {
+        get: {
+          summary: 'List public platform vouchers',
+          description: 'Return currently active, available platform vouchers with only the fields needed for public promotion display.',
+          responses: { '200': successResponse('Public platform vouchers', '#/components/schemas/PublicPlatformVoucherListSuccessEnvelope') },
         },
       },
       '/vouchers/applicable': {

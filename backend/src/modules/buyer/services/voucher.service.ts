@@ -1,5 +1,5 @@
 import type { IVoucherRepository } from '../domain/repositories';
-import type { Voucher, VoucherScope, UUID, DecimalString } from '../domain/types';
+import type { PublicPlatformVoucher, Voucher, VoucherScope, UUID, DecimalString } from '../domain/types';
 import { ResourceNotFoundError } from '../domain/errors';
 import { evaluateVoucher } from '../domain/voucher';
 
@@ -40,6 +40,14 @@ export class VoucherService {
       if (isNaN(start) || isNaN(end)) return false;
       return currentTime >= start && currentTime <= end;
     });
+  }
+
+  async listPublicPlatformVouchers(nowStr?: string): Promise<PublicPlatformVoucher[]> {
+    return (await this.listActiveVouchers('PLATFORM', undefined, nowStr))
+      .filter(voucher => voucher.scope === 'PLATFORM' && voucher.shopId === null && !voucher.loyaltyOwnerId && voucher.quantity > 0)
+      .map(({ voucherId, code, voucherName, discountType, discountValue, maxDiscount, minOrderValue, startAt, endAt }) => ({
+        voucherId, code, voucherName, discountType, discountValue, maxDiscount, minOrderValue, startAt, endAt,
+      }));
   }
 
   async getVoucherByCode(code: string): Promise<Voucher> {

@@ -243,6 +243,52 @@ svg {
   font-weight: 650;
 }
 
+.site-header__announcement-content {
+  display: flex;
+  width: min(100%, 1200px);
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 5px 12px;
+}
+
+.site-header__announcement-message {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px 14px;
+  animation: announcement-enter 220ms ease-out;
+}
+
+.site-header__announcement-scope { color: #ffc4dc; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.site-header__announcement-message b { color: #ffc4dc; }
+.site-header__announcement-link { color: #fff; text-decoration: underline; text-underline-offset: 2px; }
+.site-header__announcement-link:focus-visible,
+.site-header__announcement-controls button:focus-visible { outline: 2px solid #ffc4dc; outline-offset: 2px; }
+
+.site-header__announcement-controls { display: flex; flex: 0 0 auto; align-items: center; gap: 2px; }
+.site-header__announcement-controls button {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  font-size: 17px;
+  line-height: 1;
+}
+.site-header__announcement-controls button:hover { background: rgb(255 255 255 / 14%); }
+
+@keyframes announcement-enter {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .site-header--home .site-header__inner { min-height: 68px; }
 .site-header--home .brand-lockup,
 .site-header--home .primary-nav__link,
@@ -482,6 +528,8 @@ svg {
 }
 
 .voucher-ticket:hover { transform: translateY(-2px); border-color: var(--component-border); }
+.voucher-ticket--shop-link { color: inherit; text-decoration: none; }
+.voucher-ticket--shop-link:focus-visible { outline: 3px solid var(--primary-active); outline-offset: 3px; }
 
 .voucher-ticket--featured {
   border-color: var(--primary-active);
@@ -1690,7 +1738,11 @@ button[aria-pressed="true"] {
   }
 
   .site-main--home { width: calc(100% - 28px); padding: 20px 0 calc(104px + env(safe-area-inset-bottom)); }
-  .site-header__announcement { min-height: 34px; padding-inline: 12px; font-size: 10px; text-align: center; }
+  .site-header__announcement { min-height: 34px; padding-inline: 8px; font-size: 10px; text-align: center; }
+  .site-header__announcement-content { gap: 4px; padding: 5px 2px; }
+  .site-header__announcement-message { gap: 4px 8px; font-size: 10px; }
+  .site-header__announcement-controls { gap: 0; }
+  .site-header__announcement-controls button { width: 22px; height: 24px; }
   .site-header--home .site-header__inner { min-height: 62px; }
   .site-header--home .header-actions .button { min-height: 38px; padding-inline: 12px; }
 

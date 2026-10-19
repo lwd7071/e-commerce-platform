@@ -168,27 +168,33 @@ export function HomeMarketplaceContent() {
             <ErrorState title="Chưa tải được ưu đãi" description="Vui lòng thử tải lại danh sách voucher." onRetry={() => { setVouchersLoading(true); setVouchersError(false); void loadVouchers(); }} />
           ) : vouchers.length ? (
             <div className="voucher-grid">
-              {vouchers.map((voucher, index) => (
-                <article key={voucher.voucherId} className={`voucher-ticket${index === 0 ? " voucher-ticket--featured" : ""}`}>
-                  <div className="voucher-ticket__amount" aria-hidden="true">
-                    {voucher.discountType === "PERCENT" ? `${Number(voucher.discountValue)}%` : moneyAdapter.formatVND(voucher.discountValue)}
-                  </div>
-                  <div className="voucher-ticket__details">
-                    <p className="voucher-ticket__scope">
-                      {voucher.scope === "PLATFORM" ? "Ưu đãi toàn sàn" : "Ưu đãi gian hàng"}
-                    </p>
-                    <h3>{voucher.voucherName}</h3>
-                    <p className="voucher-ticket__discount">{formatDiscount(voucher)}</p>
-                    <p className="voucher-ticket__minimum">
-                      Đơn từ {moneyAdapter.formatVND(voucher.minOrderValue)}
-                    </p>
-                  </div>
-                  <div className="voucher-ticket__code">
-                    <span>Mã</span>
-                    <strong>{voucher.code}</strong>
-                  </div>
-                </article>
-              ))}
+              {vouchers.map((voucher, index) => {
+                  const ticket = <>
+                    <div className="voucher-ticket__amount" aria-hidden="true">
+                      {voucher.discountType === "PERCENT" ? `${Number(voucher.discountValue)}%` : moneyAdapter.formatVND(voucher.discountValue)}
+                    </div>
+                    <div className="voucher-ticket__details">
+                      <p className="voucher-ticket__scope">
+                        {voucher.scope === "PLATFORM" ? "Ưu đãi toàn sàn" : "Ưu đãi gian hàng"}
+                      </p>
+                      <h3>{voucher.voucherName}</h3>
+                      <p className="voucher-ticket__discount">{formatDiscount(voucher)}</p>
+                      <p className="voucher-ticket__minimum">
+                        Đơn từ {moneyAdapter.formatVND(voucher.minOrderValue)}
+                      </p>
+                    </div>
+                    <div className="voucher-ticket__code">
+                      <span>Mã</span>
+                      <strong>{voucher.code}</strong>
+                    </div>
+                  </>;
+                  const className = `voucher-ticket${index === 0 ? " voucher-ticket--featured" : ""}`;
+                  return voucher.scope === "SHOP" && voucher.shopId
+                    ? <Link key={voucher.voucherId} href={`/shops/${encodeURIComponent(voucher.shopId)}`} className={`${className} voucher-ticket--shop-link`} aria-label={`${voucher.voucherName}. ${formatDiscount(voucher)}. Mã ${voucher.code}. Mở gian hàng`}>
+                        {ticket}
+                      </Link>
+                    : <article key={voucher.voucherId} className={className}>{ticket}</article>;
+              })}
             </div>
           ) : (
             <EmptyState title="Chưa có voucher áp dụng" description="Ưu đãi mới sẽ xuất hiện tại đây." icon="info" />

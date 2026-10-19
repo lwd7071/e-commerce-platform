@@ -73,6 +73,10 @@ export interface Voucher {
   updatedAt: ISOTimestamp;
 }
 
+export type PublicPlatformVoucher = Pick<Voucher,
+  'voucherId' | 'code' | 'voucherName' | 'discountType' | 'discountValue' | 'maxDiscount' | 'minOrderValue' | 'startAt' | 'endAt'
+>;
+
 // Table 17: VoucherUsage
 export interface VoucherUsage {
   usageId: UUID; // PK

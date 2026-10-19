@@ -21,6 +21,10 @@ export interface WireVoucher {
   updatedAt?: string;
 }
 
+export type PublicPlatformVoucher = Pick<WireVoucher,
+  'voucherId' | 'code' | 'voucherName' | 'discountType' | 'discountValue' | 'maxDiscount' | 'minOrderValue' | 'startAt' | 'endAt'
+>;
+
 /**
  * Discriminated union matching VoucherPortService runtime evaluate result.
  */
@@ -38,6 +42,9 @@ export interface EvaluateVoucherPayload {
 export const voucherApi = {
   getVouchers: (params?: { scope?: "PLATFORM" | "SHOP"; shop_id?: string; now?: string }) =>
     apiClient.get<WireVoucher[]>("/vouchers/applicable", { params }),
+
+  getPublicPlatformVouchers: () =>
+    apiClient.get<PublicPlatformVoucher[]>("/vouchers/public", { skipAuth: true }),
 
   evaluateVoucher: (data: EvaluateVoucherPayload) =>
     apiClient.post<EvaluateVoucherResult>("/vouchers/evaluate", data),
