@@ -1085,7 +1085,22 @@ const apiReviewRepository: IReviewRepository = {
     };
   },
   getReviewsByProduct: async (productId: string) => {
-    return apiClient.get<WireReview[]>(`/products/${productId}/reviews`);
+    const reviews = await apiClient.get<Array<{
+      review_id: string;
+      order_item_id: string;
+      product_id: string;
+      rating: number;
+      content: string | null;
+      created_at: string;
+    }>>(`/products/${productId}/reviews`);
+    return reviews.map(review => ({
+      review_id: review.review_id,
+      order_item_id: review.order_item_id,
+      product_id: review.product_id,
+      rating: review.rating,
+      comment: review.content ?? "",
+      created_at: review.created_at,
+    }));
   },
 };
 

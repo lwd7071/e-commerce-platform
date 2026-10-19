@@ -49,4 +49,18 @@ describe("live review API", () => {
     });
     post.mockRestore();
   });
+
+  it("maps backend review content to the comment rendered on product pages", async () => {
+    const get = vi.spyOn(apiClient, "get").mockResolvedValueOnce([{
+      reviewId: "review-3", review_id: "review-3", orderItemId: "item-3", order_item_id: "item-3",
+      productId: "product-3", product_id: "product-3", buyerId: "buyer-3", rating: 5,
+      content: "Giao hàng nhanh, sản phẩm đúng mô tả", status: "VISIBLE",
+      createdAt: "2026-10-01T00:00:00.000Z", created_at: "2026-10-01T00:00:00.000Z",
+    }] as never);
+
+    const reviews = await liveReview.getReviewsByProduct("product-3");
+
+    expect(reviews[0].comment).toBe("Giao hàng nhanh, sản phẩm đúng mô tả");
+    get.mockRestore();
+  });
 });
