@@ -66,26 +66,24 @@ describe('Home vouchers and announcement', () => {
     expect(screen.queryByRole('link', { name: /GLOBAL50/i })).toBeNull();
   });
 
-  it('shows public platform voucher details to guests and rotates them with a pause control', async () => {
+  it('shows public platform vouchers in a continuous, pausable ticker to guests', async () => {
     mockUseAuth.mockReturnValue({ user: null, isLoading: false, logout: vi.fn() } as never);
     vi.useFakeTimers();
     window.matchMedia = vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() });
     render(<SiteHeader />);
 
     await act(async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); });
-    expect(screen.getByText('GLOBAL50')).toBeTruthy();
-    expect(screen.getByText(/Đơn từ 300\.000/)).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Xem voucher' }).getAttribute('href')).toBe('/#uu-dai');
+    expect(screen.getAllByText('GLOBAL50')).toHaveLength(2);
+    expect(screen.getAllByText('GLOBAL20')).toHaveLength(2);
+    expect(screen.getAllByText(/Đơn từ 300\.000/)).toHaveLength(2);
+    expect(screen.getAllByRole('link', { name: 'Xem voucher' })[0].getAttribute('href')).toBe('/#uu-dai');
     expect(screen.queryByText('SHOP50')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Tạm dừng luân phiên ưu đãi' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Tạm dừng chạy ưu đãi' })).toBeTruthy();
+    expect(document.querySelector('.site-header__announcement-track')).toBeTruthy();
+    expect(document.querySelectorAll('.site-header__announcement-group[aria-hidden="true"] a')).toHaveLength(0);
 
-    await act(async () => { vi.advanceTimersByTime(5000); });
-    expect(screen.getByText('GLOBAL20')).toBeTruthy();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Tạm dừng luân phiên ưu đãi' }));
-    expect(screen.getByRole('button', { name: 'Tiếp tục luân phiên ưu đãi' })).toBeTruthy();
-    await act(async () => { vi.advanceTimersByTime(15000); });
-    expect(screen.getByText('GLOBAL20')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Tạm dừng chạy ưu đãi' }));
+    expect(screen.getByRole('button', { name: 'Tiếp tục chạy ưu đãi' })).toBeTruthy();
   });
 
   it('pauses while the announcement is hovered or keyboard-focused', async () => {
@@ -97,18 +95,15 @@ describe('Home vouchers and announcement', () => {
     await act(async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); });
     const announcement = container.querySelector('.site-header__announcement-content')!;
     fireEvent.mouseEnter(announcement);
-    await act(async () => { vi.advanceTimersByTime(5000); });
-    expect(screen.getByText('GLOBAL50')).toBeTruthy();
+    expect(announcement.classList.contains('site-header__announcement-content--paused')).toBe(true);
     fireEvent.mouseLeave(announcement);
-    await act(async () => { vi.advanceTimersByTime(5000); });
-    expect(screen.getByText('GLOBAL20')).toBeTruthy();
+    expect(announcement.classList.contains('site-header__announcement-content--paused')).toBe(false);
 
-    fireEvent.focus(screen.getByRole('button', { name: 'Voucher tiếp theo' }));
-    await act(async () => { vi.advanceTimersByTime(5000); });
-    expect(screen.getByText('GLOBAL20')).toBeTruthy();
+    fireEvent.focus(screen.getByRole('button', { name: 'Tạm dừng chạy ưu đãi' }));
+    expect(announcement.classList.contains('site-header__announcement-content--paused')).toBe(true);
   });
 
-  it('does not auto-rotate when reduced motion is requested', async () => {
+  it('keeps all vouchers visible when reduced motion is requested', async () => {
     mockUseAuth.mockReturnValue({ user: null, isLoading: false, logout: vi.fn() } as never);
     (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(async (input: RequestInfo | URL) => {
       const url = String(input);
@@ -118,13 +113,11 @@ describe('Home vouchers and announcement', () => {
       ]);
       throw new Error(`Unexpected request: ${url}`);
     });
-    vi.useFakeTimers();
     window.matchMedia = vi.fn().mockReturnValue({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() });
     render(<SiteHeader />);
 
     await act(async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); });
-    expect(screen.getByText('GLOBAL50')).toBeTruthy();
-    await act(async () => { vi.advanceTimersByTime(15000); });
-    expect(screen.getByText('GLOBAL50')).toBeTruthy();
+    expect(screen.getAllByText('GLOBAL50')).toHaveLength(2);
+    expect(screen.getAllByText('GLOBAL20')).toHaveLength(2);
   });
 });

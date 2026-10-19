@@ -33,7 +33,6 @@ export function SiteHeader({ role = null, isSellerArea = false }: SiteHeaderProp
 
   const [searchQuery, setSearchQuery] = useState("");
   const [publicVouchers, setPublicVouchers] = useState<PublicPlatformVoucher[]>([]);
-  const [voucherIndex, setVoucherIndex] = useState(0);
   const [voucherPaused, setVoucherPaused] = useState(false);
   const [voucherHovered, setVoucherHovered] = useState(false);
   const [voucherFocused, setVoucherFocused] = useState(false);
@@ -48,16 +47,6 @@ export function SiteHeader({ role = null, isSellerArea = false }: SiteHeaderProp
     });
     return () => { active = false; };
   }, [pathname, isSellerArea]);
-
-  useEffect(() => {
-    if (publicVouchers.length < 2 || voucherPaused || voucherHovered || voucherFocused) return;
-    const timer = window.setInterval(() => {
-      if (!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
-        setVoucherIndex(index => (index + 1) % publicVouchers.length);
-      }
-    }, 5000);
-    return () => window.clearInterval(timer);
-  }, [publicVouchers.length, voucherPaused, voucherHovered, voucherFocused]);
 
   // Sync input value with current URL query 'search' or 'q'
   useEffect(() => {
@@ -86,13 +75,18 @@ export function SiteHeader({ role = null, isSellerArea = false }: SiteHeaderProp
     router.push("/login");
   };
 
-  const activeVoucher = publicVouchers[voucherIndex % Math.max(publicVouchers.length, 1)];
-  const voucherDiscount = activeVoucher
-    ? activeVoucher.discountType === "PERCENT"
-      ? `Giảm ${Number(activeVoucher.discountValue)}%${activeVoucher.maxDiscount ? ` tối đa ${moneyAdapter.formatVND(activeVoucher.maxDiscount)}` : ""}`
-      : `Giảm ${moneyAdapter.formatVND(activeVoucher.discountValue)}`
-    : "";
-  const moveVoucher = (direction: number) => setVoucherIndex(index => (index + direction + publicVouchers.length) % publicVouchers.length);
+  const renderVoucher = (voucher: PublicPlatformVoucher, duplicate = false) => {
+    const discount = voucher.discountType === "PERCENT"
+      ? `Giảm ${Number(voucher.discountValue)}%${voucher.maxDiscount ? ` tối đa ${moneyAdapter.formatVND(voucher.maxDiscount)}` : ""}`
+      : `Giảm ${moneyAdapter.formatVND(voucher.discountValue)}`;
+    return <span className="site-header__announcement-voucher" key={voucher.voucherId}>
+      <span className="site-header__announcement-scope">Ưu đãi toàn sàn</span>
+      <strong>{discount}</strong>
+      <span>Mã <b>{voucher.code}</b></span>
+      <span>Đơn từ {moneyAdapter.formatVND(voucher.minOrderValue)}</span>
+      {duplicate ? <span className="site-header__announcement-link">Xem voucher</span> : <Link href="/#uu-dai" className="site-header__announcement-link">Xem voucher</Link>}
+    </span>;
+  };
 
   // Header dành riêng cho Kênh Người Bán (Seller Center)
   if (isSellerArea) {
@@ -131,8 +125,8 @@ export function SiteHeader({ role = null, isSellerArea = false }: SiteHeaderProp
     <header className={`site-header${pathname === "/" ? " site-header--home" : ""}`}>
         {pathname === "/" && (
           <div className="site-header__announcement">
-            {activeVoucher ? <div
-              className="site-header__announcement-content"
+            {publicVouchers.length ? <div
+              className={`site-header__announcement-content${voucherPaused || voucherHovered || voucherFocused ? " site-header__announcement-content--paused" : ""}`}
               onMouseEnter={() => setVoucherHovered(true)}
               onMouseLeave={() => setVoucherHovered(false)}
               onFocusCapture={() => setVoucherFocused(true)}
@@ -140,17 +134,14 @@ export function SiteHeader({ role = null, isSellerArea = false }: SiteHeaderProp
                 if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setVoucherFocused(false);
               }}
             >
-              <div key={activeVoucher.voucherId} className="site-header__announcement-message" aria-live="off">
-                <span className="site-header__announcement-scope">Ưu đãi toàn sàn</span>
-                <strong>{voucherDiscount}</strong>
-                <span>Mã <b>{activeVoucher.code}</b></span>
-                <span>Đơn từ {moneyAdapter.formatVND(activeVoucher.minOrderValue)}</span>
-                <Link href="/#uu-dai" className="site-header__announcement-link">Xem voucher</Link>
+              <div className="site-header__announcement-viewport">
+                <div className={`site-header__announcement-track${publicVouchers.length > 1 ? " site-header__announcement-track--moving" : ""}`}>
+                  <div className="site-header__announcement-group" aria-live="off">{publicVouchers.map(voucher => renderVoucher(voucher))}</div>
+                  <div className="site-header__announcement-group" aria-hidden="true">{publicVouchers.map(voucher => renderVoucher(voucher, true))}</div>
+                </div>
               </div>
               {publicVouchers.length > 1 && <div className="site-header__announcement-controls">
-                <button type="button" aria-label="Voucher trước" onClick={() => moveVoucher(-1)}>‹</button>
-                <button type="button" aria-label={voucherPaused ? "Tiếp tục luân phiên ưu đãi" : "Tạm dừng luân phiên ưu đãi"} aria-pressed={voucherPaused} onClick={() => setVoucherPaused(value => !value)}>{voucherPaused ? "▶" : "Ⅱ"}</button>
-                <button type="button" aria-label="Voucher tiếp theo" onClick={() => moveVoucher(1)}>›</button>
+                <button type="button" aria-label={voucherPaused ? "Tiếp tục chạy ưu đãi" : "Tạm dừng chạy ưu đãi"} aria-pressed={voucherPaused} onClick={() => setVoucherPaused(value => !value)}>{voucherPaused ? "▶" : "Ⅱ"}</button>
               </div>}
             </div> : <span>Khám phá món hay từ các gian hàng đang hoạt động</span>}
           </div>
