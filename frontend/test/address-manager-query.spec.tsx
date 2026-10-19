@@ -10,7 +10,7 @@ import type { AuthContextType } from "@/lib/auth/types";
 import { buyerApi, type WireAddress } from "@/lib/api/buyer.api";
 
 vi.mock("@/lib/auth/auth-context", () => ({ useAuth: vi.fn() }));
-vi.mock("@/lib/api/buyer.api", () => ({ buyerApi: { getAddresses: vi.fn() } }));
+vi.mock("@/lib/api/buyer.api", () => ({ buyerApi: { getAddresses: vi.fn(), createAddress: vi.fn(), updateAddress: vi.fn() } }));
 const mockUseAuth = vi.mocked(useAuth);
 
 const authValue = (id: string, email: string): AuthContextType => ({
@@ -99,7 +99,7 @@ describe("Address manager loading layout", () => {
 
     const form = screen.getByRole("button", { name: "Hủy" }).closest("form");
     expect(form).toBeTruthy();
-    const detailInput = within(form!).getByLabelText("Địa chỉ chi tiết") as HTMLInputElement;
+    const detailInput = within(form!).getByRole("textbox", { name: /Địa chỉ chi tiết/ }) as HTMLInputElement;
     expect(detailInput.value).toBe("Ấp An Thịnh");
     expect(within(form!).queryByLabelText("Thôn/ấp/tổ dân phố")).toBeNull();
 
@@ -107,6 +107,24 @@ describe("Address manager loading layout", () => {
     const ward = within(form!).getByRole("combobox", { name: "Phường/xã" });
     expect(province.compareDocumentPosition(ward) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(ward.compareDocumentPosition(detailInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(detailInput.parentElement?.className).toContain("sm:col-span-2");
+    expect(detailInput.parentElement?.parentElement?.className).toContain("sm:col-span-2");
+  });
+
+  it("shows invalid recipient data inline and does not submit it", async () => {
+    const user = userEvent.setup();
+    render(<QueryProvider><AddressManager /></QueryProvider>);
+    await user.click(screen.getByRole("button", { name: "Thêm địa chỉ" }));
+    const recipient = screen.getByRole("textbox", { name: /Người nhận/ });
+    await user.type(recipient, "A".repeat(101));
+    expect(await screen.findByText("Tên người nhận tối đa 100 ký tự.")).toBeTruthy();
+    expect(recipient.getAttribute("aria-invalid")).toBe("true");
+
+    await user.clear(recipient);
+    await user.type(recipient, "Nguyễn Văn A");
+    const phone = screen.getByRole("textbox", { name: /Số điện thoại/ });
+    await user.type(phone, "09123456789");
+    expect(await screen.findByText("Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0.")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Lưu địa chỉ" }));
+    expect(buyerApi.createAddress).not.toHaveBeenCalled();
   });
 });

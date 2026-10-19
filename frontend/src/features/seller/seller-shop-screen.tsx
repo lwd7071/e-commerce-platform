@@ -17,6 +17,7 @@ export function SellerShopScreen() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [shopFieldErrors, setShopFieldErrors] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Mall Request Form State
@@ -88,6 +89,14 @@ export function SellerShopScreen() {
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const errors = {
+      shop_name: (form.shop_name?.trim().length ?? 0) < 2 ? "Tên shop phải có ít nhất 2 ký tự." : (form.shop_name?.trim().length ?? 0) > 150 ? "Tên shop tối đa 150 ký tự." : "",
+      description: (form.description?.length ?? 0) > 1000 ? "Mô tả shop tối đa 1.000 ký tự." : "",
+      pickup_address: (form.pickup_address?.trim().length ?? 0) > 255 ? "Địa chỉ shop tối đa 255 ký tự." : "",
+      contact_phone: !/^0\d{9}$/.test(form.contact_phone?.trim() ?? "") ? "Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0." : "",
+    };
+    setShopFieldErrors(errors);
+    if (Object.values(errors).some(Boolean)) return;
     if (!form.pickup_province_code || !form.pickup_ward_code) {
       setError('Vui lòng chọn tỉnh/thành phố và phường/xã từ danh sách gợi ý.');
       return;
@@ -113,11 +122,11 @@ export function SellerShopScreen() {
     setMallError(null);
     setMallNotice(null);
     try {
-      if (!mallDocUrl.trim() || !/^https?:\/\/.+/i.test(mallDocUrl.trim())) {
-        throw new Error('Đường dẫn hồ sơ chứng minh thương hiệu (document_url) không hợp lệ (phải bắt đầu bằng http:// hoặc https://).');
+      if (!/^https:\/\/.+/i.test(mallDocUrl.trim()) || mallDocUrl.trim().length > 2000) {
+        throw new Error('Đường dẫn hồ sơ phải là HTTPS và tối đa 2.000 ký tự.');
       }
-      if (!mallReason.trim() || mallReason.trim().length < 10) {
-        throw new Error('Lý do nâng hạng phải có ít nhất 10 ký tự.');
+      if (!mallReason.trim() || mallReason.trim().length < 10 || mallReason.trim().length > 500) {
+        throw new Error('Lý do nâng hạng phải có từ 10 đến 500 ký tự.');
       }
       const created = await sellerShopApi.submitMallRequest({
         document_url: mallDocUrl.trim(),
@@ -271,6 +280,7 @@ export function SellerShopScreen() {
                   id="mall-doc-url"
                   type="url"
                   required
+                  maxLength={2000}
                   placeholder="https://drive.google.com/..."
                   value={mallDocUrl}
                   onChange={(e) => setMallDocUrl(e.target.value)}
@@ -280,6 +290,8 @@ export function SellerShopScreen() {
               <FormField id="mall-reason" label="Lý do & Giới thiệu năng lực thương hiệu" required helpText="Mô tả tóm tắt giấy phép ủy quyền, cam kết hàng chính hãng (tối thiểu 10 ký tự).">
                 <TextInput
                   id="mall-reason"
+                  minLength={10}
+                  maxLength={500}
                   required
                   placeholder="Ví dụ: Đại lý phân phối chính hãng ủy quyền chính thức từ thương hiệu..."
                   value={mallReason}
@@ -339,11 +351,11 @@ export function SellerShopScreen() {
       </section>
 
       <form onSubmit={(event) => void save(event)} className="space-y-5 rounded-xl border border-[var(--border)] bg-[var(--card)] p-5 sm:p-7">
-        <FormField id="shop-name" label="Tên gian hàng" required><TextInput id="shop-name" required minLength={2} maxLength={150} value={form.shop_name ?? ''} onChange={(event) => setForm({ ...form, shop_name: event.target.value })} disabled={!canEdit || saving} /></FormField>
-        <FormField id="shop-description" label="Mô tả"><TextArea id="shop-description" rows={4} value={form.description ?? ''} onChange={(event) => setForm({ ...form, description: event.target.value })} disabled={!canEdit || saving} /></FormField>
-        <FormField id="pickup-address" label="Địa chỉ shop" required helpText="Dùng làm địa chỉ lấy hàng cho các đơn thuộc gian hàng này."><TextInput id="pickup-address" required maxLength={255} autoComplete="street-address" value={form.pickup_address ?? ''} onChange={(event) => setForm({ ...form, pickup_address: event.target.value })} disabled={!canEdit || saving} /></FormField>
+        <FormField id="shop-name" label="Tên gian hàng" required error={shopFieldErrors.shop_name}><TextInput id="shop-name" required value={form.shop_name ?? ''} onBlur={() => setShopFieldErrors(prev => ({ ...prev, shop_name: (form.shop_name?.trim().length ?? 0) < 2 ? "Tên shop phải có ít nhất 2 ký tự." : "" }))} onChange={(event) => { const value = event.target.value; setForm({ ...form, shop_name: value }); setShopFieldErrors(prev => ({ ...prev, shop_name: value.trim().length > 150 ? "Tên shop tối đa 150 ký tự." : "" })); }} disabled={!canEdit || saving} /></FormField>
+        <FormField id="shop-description" label="Mô tả" error={shopFieldErrors.description}><TextArea id="shop-description" rows={4} value={form.description ?? ''} onChange={(event) => { const value = event.target.value; setForm({ ...form, description: value }); setShopFieldErrors(prev => ({ ...prev, description: value.length > 1000 ? "Mô tả shop tối đa 1.000 ký tự." : "" })); }} disabled={!canEdit || saving} /><p className="field-help text-right" aria-live="polite">{form.description?.length ?? 0}/1.000 ký tự</p></FormField>
+        <FormField id="pickup-address" label="Địa chỉ shop" required helpText="Dùng làm địa chỉ lấy hàng cho các đơn thuộc gian hàng này." error={shopFieldErrors.pickup_address}><TextInput id="pickup-address" required autoComplete="street-address" value={form.pickup_address ?? ''} onChange={(event) => { const value = event.target.value; setForm({ ...form, pickup_address: value }); setShopFieldErrors(prev => ({ ...prev, pickup_address: value.trim().length > 255 ? "Địa chỉ shop tối đa 255 ký tự." : "" })); }} disabled={!canEdit || saving} /></FormField>
         <AdministrativeAddressFields provinceCode={form.pickup_province_code ?? ''} provinceName={form.pickup_province ?? ''} wardCode={form.pickup_ward_code ?? ''} wardName={form.pickup_ward ?? ''} onProvinceChange={(code, name) => setForm(prev => ({ ...prev, pickup_province_code: code, pickup_province: name, pickup_ward_code: '', pickup_ward: '' }))} onWardChange={(code, name) => setForm(prev => ({ ...prev, pickup_ward_code: code, pickup_ward: name }))} />
-        <FormField id="contact-phone" label="Số điện thoại liên hệ" required><TextInput id="contact-phone" required maxLength={20} type="tel" autoComplete="tel" value={form.contact_phone ?? ''} onChange={(event) => setForm({ ...form, contact_phone: event.target.value })} disabled={!canEdit || saving} /></FormField>
+        <FormField id="contact-phone" label="Số điện thoại liên hệ" required error={shopFieldErrors.contact_phone}><TextInput id="contact-phone" required type="tel" inputMode="numeric" autoComplete="tel" value={form.contact_phone ?? ''} onBlur={() => setShopFieldErrors(prev => ({ ...prev, contact_phone: /^0\d{9}$/.test(form.contact_phone?.trim() ?? "") ? "" : "Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0." }))} onChange={(event) => { const value = event.target.value; setForm({ ...form, contact_phone: value }); setShopFieldErrors(prev => ({ ...prev, contact_phone: value && (!/^0?\d*$/.test(value) || value.length > 10) ? "Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0." : "" })); }} disabled={!canEdit || saving} /></FormField>
         {canEdit && <div className="flex justify-end"><Button type="submit" disabled={saving}>{saving ? 'Đang lưu…' : 'Lưu hồ sơ'}</Button></div>}
       </form>
     </main>

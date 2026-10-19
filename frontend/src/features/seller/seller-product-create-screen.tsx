@@ -150,9 +150,10 @@ export function SellerProductCreateScreen() {
     }
     const newErrors: Array<{ fieldId: string; message: string }> = [];
 
-    if (!productName.trim()) {
-      newErrors.push({ fieldId: "product-name", message: "Vui lòng nhập tên sản phẩm" });
+    if (productName.trim().length < 2 || productName.trim().length > 200) {
+      newErrors.push({ fieldId: "product-name", message: "Tên sản phẩm phải có từ 2 đến 200 ký tự." });
     }
+    if (description.length > 5000) newErrors.push({ fieldId: "product-description", message: "Mô tả sản phẩm tối đa 5.000 ký tự." });
 
     if (!categoryId.trim()) {
       newErrors.push({ fieldId: "product-category", message: "Vui lòng chọn danh mục hợp lệ" });
@@ -310,7 +311,8 @@ export function SellerProductCreateScreen() {
               id="product-name"
               placeholder="VD: Kem Chống Nắng Phổ Rộng SPF 50+..."
               value={productName}
-              onChange={(e) => setProductName(e.target.value)}
+              onBlur={() => setErrors((current) => current.filter((item) => item.fieldId !== "product-name").concat(productName.trim().length < 2 ? [{ fieldId: "product-name", message: "Tên sản phẩm phải có ít nhất 2 ký tự." }] : []))}
+              onChange={(e) => { const value = e.target.value; setProductName(value); setErrors((current) => current.filter((item) => item.fieldId !== "product-name").concat(value.trim().length > 200 ? [{ fieldId: "product-name", message: "Tên sản phẩm tối đa 200 ký tự." }] : [])); }}
               required
             />
           </FormField>
@@ -359,6 +361,8 @@ export function SellerProductCreateScreen() {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
+            <p className={`text-xs text-right ${description.length > 5000 ? "text-[var(--danger)]" : "text-[var(--subtext)]"}`} aria-live="polite">{description.length}/5.000 ký tự</p>
+            {errors.find((error) => error.fieldId === "product-description") && <p className="field-error" role="alert">{errors.find((error) => error.fieldId === "product-description")?.message}</p>}
           </FormField>
           <FormField id="product-weight-grams" label="Khối lượng đóng gói (gram)" helpText="Dùng để ước tính phí vận chuyển. Mặc định 200g; hãy nhập khối lượng thực tế.">
             <TextInput id="product-weight-grams" type="number" min={1} step={1} required value={weightGrams} onChange={(event) => setWeightGrams(event.target.value)} />

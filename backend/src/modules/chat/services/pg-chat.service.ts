@@ -125,6 +125,7 @@ export class PgChatService {
     if (!content || content.trim().length === 0) {
       throw new ValidationFailedError('Message content cannot be empty');
     }
+    if (content.trim().length > 2000) throw new ValidationFailedError('Message content must not exceed 2000 characters', { field: 'content' });
 
     const conversation = await this.repo.findConversationById(conversationId);
     if (!conversation) {

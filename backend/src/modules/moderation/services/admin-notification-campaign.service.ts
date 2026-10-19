@@ -29,10 +29,11 @@ export class AdminNotificationCampaignService {
     if (input.audience_role !== 'BUYER' && input.audience_role !== 'SELLER') throw new ValidationFailedError('Audience must be BUYER or SELLER');
     const title = typeof input.title === 'string' ? input.title.trim() : '';
     const content = typeof input.content === 'string' ? input.content.trim() : '';
-    if (!title || title.length > 200 || !content) throw new ValidationFailedError('Campaign title and content are required');
+    if (!title || title.length > 200 || !content || content.length > 2000) throw new ValidationFailedError('Campaign title must be 1 to 200 characters and content 1 to 2000 characters');
     const idempotencyKey = input.idempotency_key.trim();
     if (!idempotencyKey || idempotencyKey.length > 100) throw new ValidationFailedError('Idempotency-Key must contain 1 to 100 characters');
     if (typeof input.reason !== 'string' || !input.reason.trim()) throw new ReasonRequiredError();
+    if (input.reason.trim().length > 500) throw new ValidationFailedError('Campaign reason must not exceed 500 characters', { field: 'reason' });
     const audience = input.audience_role;
     const reason = input.reason.trim();
     const fingerprint = createHash('sha256').update(JSON.stringify([audience, title, content, reason])).digest('hex');

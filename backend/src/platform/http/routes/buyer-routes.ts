@@ -135,11 +135,11 @@ export function createBuyerDomainRouter(
     const input = req.body as Record<string, unknown>;
     const unknown = Object.keys(input ?? {}).find(key => !['full_name', 'phone'].includes(key));
     if (unknown) throw new ValidationFailedError(`Unknown field: ${unknown}`, { field: unknown });
-    if (input.full_name !== undefined && (typeof input.full_name !== 'string' || input.full_name.trim().length < 2 || input.full_name.trim().length > 150)) {
-      throw new ValidationFailedError('Full name must contain 2 to 150 characters', { field: 'full_name' });
+    if (input.full_name !== undefined && (typeof input.full_name !== 'string' || input.full_name.trim().length < 2 || input.full_name.trim().length > 100)) {
+      throw new ValidationFailedError('Full name must contain 2 to 100 characters', { field: 'full_name' });
     }
-    if (input.phone !== undefined && input.phone !== null && (typeof input.phone !== 'string' || !/^(?:0\d{9,10}|\+84\d{9,10})$/.test(input.phone.trim()))) {
-      throw new ValidationFailedError('Phone number is invalid', { field: 'phone' });
+    if (input.phone !== undefined && input.phone !== null && (typeof input.phone !== 'string' || !/^0\d{9}$/.test(input.phone.trim()))) {
+      throw new ValidationFailedError('Phone number must contain 10 digits and start with 0', { field: 'phone' });
     }
     const profile = await profileService.updateProfile(context(req).user_id, input);
     res.json(buildSuccessEnvelope({

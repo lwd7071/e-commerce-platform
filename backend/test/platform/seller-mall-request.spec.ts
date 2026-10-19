@@ -237,6 +237,17 @@ function createSellerCtx() {
 }
 
 describe('Seller Mall Request Domain & Atomic Service Tests', () => {
+  it('requires HTTPS evidence URLs and caps Mall request reasons at 500 characters', async () => {
+    const { pool, targetLookup, auditPort } = createMockPool();
+    const service = new ShopMallRequestService(pool, new PgShopMallRequestRepository(pool), targetLookup, auditPort);
+    await assert.rejects(service.submitRequest(createSellerCtx(), {
+      reason: 'Đăng ký đại lý chính hãng ủy quyền', document_url: 'http://example.com/evidence.pdf',
+    }), ValidationFailedError);
+    await assert.rejects(service.submitRequest(createSellerCtx(), {
+      reason: 'A'.repeat(501), document_url: 'https://example.com/evidence.pdf',
+    }), ValidationFailedError);
+  });
+
   it('completes submit, cancel, reject and approve without borrowing another pool connection', async () => {
     const { pool, targetLookup, auditPort } = createMockPool('STANDARD');
     // A transaction may own the last available connection. Pool-level reads would wait forever.

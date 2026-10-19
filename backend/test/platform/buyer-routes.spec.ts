@@ -395,6 +395,13 @@ describe('Buyer Domain Routes Integration (/api/v1/...) [Mốc T2]', () => {
       assert.ok(res.body.error.message.includes('Số điện thoại không hợp lệ'));
     });
 
+    it('POST /api/v1/addresses rejects recipient names over 100 characters and 11 digit phones', async () => {
+      const app = createApp({ auth: buyerAuth, buyerServices: createMockBuyerServices() });
+      const base = { recipient_name: 'Nguyen C', phone: '0988888888', province: 'Da Nang', ward: 'Thach Thang', detail_address: '10 Quang Trung' };
+      await request(app).post('/api/v1/addresses').send({ ...base, recipient_name: 'A'.repeat(101) }).expect(422);
+      await request(app).post('/api/v1/addresses').send({ ...base, phone: '09888888889' }).expect(422);
+    });
+
     it('PATCH /api/v1/addresses/:id/default: sets default address', async () => {
       const app = createApp({ auth: buyerAuth, buyerServices: createMockBuyerServices() });
       const res = await request(app)

@@ -6,6 +6,13 @@ import { ResourceNotFoundError } from '../../../src/modules/catalog/domain/error
 import { PgProductRepository } from '../../../src/modules/catalog/repositories/pg-catalog.repository.ts';
 
 describe('Public shop storefront API', () => {
+  it('rejects oversized search terms and inverted price ranges before querying', async () => {
+    const pool = { query: async () => { throw new Error('query should not run'); } } as unknown as Pool;
+    const service = new PgCatalogHttpService(pool);
+    await assert.rejects(() => service.listProducts({ search: 'x'.repeat(101) }));
+    await assert.rejects(() => service.listProducts({ min_price: '20', max_price: '10' }));
+  });
+
   it('returns only public identity fields for an active shop', async () => {
     const calls: Array<{ sql: string; values: unknown[] }> = [];
     const pool = {

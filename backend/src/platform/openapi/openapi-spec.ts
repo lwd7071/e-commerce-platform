@@ -265,7 +265,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
         post: {
           summary: 'Complete initial onboarding for Buyer or Seller',
           security: [{ BearerAuth: [] }],
-          requestBody: jsonRequest({ type: 'object', required: ['full_name', 'requested_role', 'shop_name'], additionalProperties: false, properties: { full_name: { type: 'string', minLength: 2, maxLength: 150 }, requested_role: { type: 'string', enum: ['BUYER', 'SELLER'] }, shop_name: { type: ['string', 'null'], minLength: 2, maxLength: 150 } } }),
+          requestBody: jsonRequest({ type: 'object', required: ['full_name', 'requested_role', 'shop_name'], additionalProperties: false, properties: { full_name: { type: 'string', minLength: 2, maxLength: 100 }, requested_role: { type: 'string', enum: ['BUYER', 'SELLER'] }, shop_name: { type: ['string', 'null'], minLength: 2, maxLength: 150 } } }),
           responses: {
             '200': successResponse('Onboarding completed'),
             '401': errorResponse('Authentication required'),
@@ -298,7 +298,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
             type: 'object',
             additionalProperties: false,
             properties: {
-              full_name: { type: 'string', minLength: 2, maxLength: 150 },
+              full_name: { type: 'string', minLength: 2, maxLength: 100 },
               phone: { type: ['string', 'null'] },
             },
           }),
@@ -380,6 +380,8 @@ export function generateOpenApiSpec(): OpenApiSpec {
               name, in: 'query', required: false,
               schema: name === 'limit' ? { type: 'integer', minimum: 1, maximum: 100 }
                 : name === 'sort' ? { type: 'string', enum: ['price_asc', 'price_desc', 'created_at_desc'] }
+                  : name === 'search' ? { type: 'string', maxLength: 100 }
+                    : name === 'min_price' || name === 'max_price' ? { type: 'string', pattern: '^\\d+(?:\\.\\d{1,2})?$' }
                   : { type: 'string' },
             })),
           ],
@@ -392,9 +394,9 @@ export function generateOpenApiSpec(): OpenApiSpec {
             type: 'object', required: ['category_id', 'product_name', 'variants'],
             additionalProperties: false,
             properties: {
-              product_id: { type: 'string', format: 'uuid' }, category_id: { type: 'string', format: 'uuid' }, product_name: { type: 'string' }, description: { type: ['string', 'null'] },
+              product_id: { type: 'string', format: 'uuid' }, category_id: { type: 'string', format: 'uuid' }, product_name: { type: 'string', minLength: 2, maxLength: 200 }, description: { type: ['string', 'null'], maxLength: 5000 },
               images: { type: 'array', items: { type: 'object', required: ['image_url', 'media_id'], additionalProperties: false, properties: { image_url: { type: 'string', format: 'uri' }, media_id: { type: 'string', format: 'uuid' }, sort_order: { type: 'integer', minimum: 0 } } } },
-              variants: { type: 'array', minItems: 1, items: { type: 'object', required: ['variant_name', 'sku', 'price'], additionalProperties: false, properties: { variant_name: { type: 'string' }, variant_value: { type: ['string', 'null'] }, sku: { type: 'string' }, price: { type: 'string' }, stock_quantity: { type: 'integer', minimum: 0 } } } },
+              variants: { type: 'array', minItems: 1, items: { type: 'object', required: ['variant_name', 'sku', 'price'], additionalProperties: false, properties: { variant_name: { type: 'string', minLength: 1, maxLength: 100 }, variant_value: { type: ['string', 'null'], maxLength: 150 }, sku: { type: 'string', minLength: 1, maxLength: 100 }, price: { type: 'string', pattern: '^\\d+(?:\\.\\d{1,2})?$' }, stock_quantity: { type: 'integer', minimum: 0 } } } },
             },
           }),
           responses: { '201': successResponse('Product created'), '401': errorResponse('Authentication required'), '403': errorResponse('Seller role required'), '422': errorResponse('Invalid product') },
@@ -534,7 +536,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
           security: [{ BearerAuth: [] }],
           requestBody: jsonRequest({
             type: 'object', required: ['recipientName', 'phone', 'detailAddress'], additionalProperties: false,
-            properties: { recipientName: { type: 'string', minLength: 1 }, phone: { type: 'string', minLength: 1 }, detailAddress: { type: 'string', minLength: 1 }, province: { type: 'string' }, province_code: { type: 'string', minLength: 1 }, district: { type: ['string', 'null'] }, ward: { type: 'string' }, ward_code: { type: 'string', minLength: 1 }, isDefault: { type: 'boolean' } },
+            properties: { recipientName: { type: 'string', minLength: 2, maxLength: 100 }, phone: { type: 'string', pattern: '^0[0-9]{9}$' }, detailAddress: { type: 'string', minLength: 1, maxLength: 255 }, province: { type: 'string' }, province_code: { type: 'string', minLength: 1 }, district: { type: ['string', 'null'] }, ward: { type: 'string' }, ward_code: { type: 'string', minLength: 1 }, isDefault: { type: 'boolean' } },
           }),
           responses: {
             '201': {
@@ -574,7 +576,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
               schema: { type: 'string', format: 'uuid' },
             },
           ],
-          requestBody: jsonRequest({ type: 'object', minProperties: 1, additionalProperties: false, properties: { recipientName: { type: 'string', minLength: 2, maxLength: 150 }, phone: { type: 'string' }, province: { type: 'string' }, province_code: { type: 'string' }, district: { type: ['string', 'null'] }, ward: { type: 'string' }, ward_code: { type: 'string' }, detailAddress: { type: 'string' }, isDefault: { type: 'boolean' } } }),
+          requestBody: jsonRequest({ type: 'object', minProperties: 1, additionalProperties: false, properties: { recipientName: { type: 'string', minLength: 2, maxLength: 100 }, phone: { type: 'string', pattern: '^0[0-9]{9}$' }, province: { type: 'string' }, province_code: { type: 'string' }, district: { type: ['string', 'null'] }, ward: { type: 'string' }, ward_code: { type: 'string' }, detailAddress: { type: 'string', minLength: 1, maxLength: 255 }, isDefault: { type: 'boolean' } } }),
           responses: {
             '200': {
               description: 'Address updated',
@@ -1046,7 +1048,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
               schema: { type: 'string', format: 'uuid' },
             },
           ],
-          requestBody: jsonRequest({ type: 'object', required: ['product_id', 'rating'], additionalProperties: false, properties: { product_id: { type: 'string', format: 'uuid' }, rating: { type: 'integer', minimum: 1, maximum: 5 }, content: { type: ['string', 'null'] }, comment: { type: ['string', 'null'] }, images: { type: 'array', items: { type: 'string' } } } }),
+          requestBody: jsonRequest({ type: 'object', required: ['product_id', 'rating'], additionalProperties: false, properties: { product_id: { type: 'string', format: 'uuid' }, rating: { type: 'integer', minimum: 1, maximum: 5 }, content: { type: ['string', 'null'], minLength: 10, maxLength: 500 }, comment: { type: ['string', 'null'], minLength: 10, maxLength: 500 }, images: { type: 'array', items: { type: 'string' } } } }),
           responses: {
             '201': {
               description: 'Review created',
@@ -1079,7 +1081,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
       '/reviews': {
         post: {
           summary: 'Create Order Item Review (alias)', security: [{ BearerAuth: [] }],
-          requestBody: jsonRequest({ type: 'object', required: ['order_item_id', 'product_id', 'rating'], additionalProperties: false, properties: { order_item_id: { type: 'string', format: 'uuid' }, product_id: { type: 'string', format: 'uuid' }, rating: { type: 'integer', minimum: 1, maximum: 5 }, content: { type: ['string', 'null'] }, comment: { type: ['string', 'null'] }, images: { type: 'array', items: { type: 'string' } } } }),
+          requestBody: jsonRequest({ type: 'object', required: ['order_item_id', 'product_id', 'rating'], additionalProperties: false, properties: { order_item_id: { type: 'string', format: 'uuid' }, product_id: { type: 'string', format: 'uuid' }, rating: { type: 'integer', minimum: 1, maximum: 5 }, content: { type: ['string', 'null'], minLength: 10, maxLength: 500 }, comment: { type: ['string', 'null'], minLength: 10, maxLength: 500 }, images: { type: 'array', items: { type: 'string' } } } }),
           responses: { '201': successResponse('Review created'), '501': errorResponse('Review service is not configured') },
         },
       },
@@ -1324,7 +1326,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
         patch: {
           summary: 'Intervene in an order through the state machine', security: [{ BearerAuth: [] }],
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
-          requestBody: jsonRequest({ type: 'object', required: ['to', 'reason'], properties: { to: { type: 'string', enum: ['PENDING_CONFIRMATION', 'CONFIRMED', 'PREPARING', 'SHIPPING', 'COMPLETED', 'DELIVERY_FAILED', 'CANCELLED'] }, reason: { type: 'string', minLength: 1 }, exceptional_cancellation: { type: 'boolean' }, shipment_status: { type: 'string' } } }),
+          requestBody: jsonRequest({ type: 'object', required: ['to', 'reason'], properties: { to: { type: 'string', enum: ['PENDING_CONFIRMATION', 'CONFIRMED', 'PREPARING', 'SHIPPING', 'COMPLETED', 'DELIVERY_FAILED', 'CANCELLED'] }, reason: { type: 'string', minLength: 1, maxLength: 500 }, exceptional_cancellation: { type: 'boolean' }, shipment_status: { type: 'string' } } }),
           responses: { '200': successResponse('Order transitioned'), '403': errorResponse('Admin role required'), '404': errorResponse('Order not found'), '409': errorResponse('Invalid order transition'), '422': errorResponse('Reason required') },
         },
       },
@@ -1347,7 +1349,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
         post: {
           summary: 'Lock user account', security: [{ BearerAuth: [] }],
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
-          requestBody: jsonRequest({ type: 'object', required: ['reason'], additionalProperties: false, properties: { reason: { type: 'string', minLength: 1 } } }),
+          requestBody: jsonRequest({ type: 'object', required: ['reason'], additionalProperties: false, properties: { reason: { type: 'string', minLength: 1, maxLength: 500 } } }),
           responses: { '200': successResponse('User locked'), '403': errorResponse('Admin role required'), '422': errorResponse('Reason required'), '501': errorResponse('Moderation service is not wired') },
         },
       },
@@ -1355,7 +1357,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
         post: {
           summary: 'Unlock user account', security: [{ BearerAuth: [] }],
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
-          requestBody: jsonRequest({ type: 'object', required: ['reason'], additionalProperties: false, properties: { reason: { type: 'string', minLength: 1 } } }),
+          requestBody: jsonRequest({ type: 'object', required: ['reason'], additionalProperties: false, properties: { reason: { type: 'string', minLength: 1, maxLength: 500 } } }),
           responses: { '200': successResponse('User unlocked'), '403': errorResponse('Admin role required'), '422': errorResponse('Reason required'), '501': errorResponse('Moderation service is not wired') },
         },
       },
@@ -1397,7 +1399,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
             type: 'object',
             required: ['note'],
             properties: {
-              note: { type: 'string', minLength: 1, maxLength: 1000 },
+              note: { type: 'string', minLength: 1, maxLength: 500 },
             },
           }),
           responses: {
@@ -1419,7 +1421,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
             type: 'object',
             required: ['reason'],
             properties: {
-              reason: { type: 'string', minLength: 1, maxLength: 1000 },
+              reason: { type: 'string', minLength: 1, maxLength: 500 },
             },
           }),
           responses: {
@@ -1462,7 +1464,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
         patch: {
           summary: 'Update shop tier', security: [{ BearerAuth: [] }],
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
-          requestBody: jsonRequest({ type: 'object', required: ['tier', 'reason'], additionalProperties: false, properties: { tier: { type: 'string', enum: ['STANDARD', 'PREFERRED', 'MALL'] }, reason: { type: 'string', minLength: 1 } } }),
+          requestBody: jsonRequest({ type: 'object', required: ['tier', 'reason'], additionalProperties: false, properties: { tier: { type: 'string', enum: ['STANDARD', 'PREFERRED', 'MALL'] }, reason: { type: 'string', minLength: 1, maxLength: 500 } } }),
           responses: { '200': successResponse('Shop tier updated'), '403': errorResponse('Admin role required'), '404': errorResponse('Shop not found'), '422': errorResponse('Reason required or invalid tier') },
         },
       },
@@ -1485,7 +1487,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
         post: {
           summary: 'Lock shop', security: [{ BearerAuth: [] }],
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
-          requestBody: jsonRequest({ type: 'object', required: ['reason'], additionalProperties: false, properties: { reason: { type: 'string', minLength: 1 } } }),
+          requestBody: jsonRequest({ type: 'object', required: ['reason'], additionalProperties: false, properties: { reason: { type: 'string', minLength: 1, maxLength: 500 } } }),
           responses: { '200': successResponse('Shop locked'), '403': errorResponse('Admin role required'), '404': errorResponse('Shop not found'), '422': errorResponse('Reason required') },
         },
       },
@@ -1512,7 +1514,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
         post: {
           summary: 'Create a PLATFORM voucher', security: [{ BearerAuth: [] }],
           requestBody: jsonRequest({ type: 'object', required: ['code', 'voucher_name', 'discount_type', 'discount_value', 'max_discount', 'min_order_value', 'quantity', 'start_at', 'end_at', 'reason'], additionalProperties: false, properties: {
-            code: { type: 'string', maxLength: 50 }, voucher_name: { type: 'string', maxLength: 150 }, discount_type: { type: 'string', enum: ['PERCENT', 'FIXED'] }, discount_value: { type: 'string' }, max_discount: { type: ['string', 'null'] }, min_order_value: { type: 'string' }, quantity: { type: 'integer', minimum: 0 }, start_at: { type: 'string', format: 'date-time' }, end_at: { type: 'string', format: 'date-time' }, reason: { type: 'string', minLength: 1 },
+            code: { type: 'string', maxLength: 50 }, voucher_name: { type: 'string', maxLength: 150 }, discount_type: { type: 'string', enum: ['PERCENT', 'FIXED'] }, discount_value: { type: 'string' }, max_discount: { type: ['string', 'null'] }, min_order_value: { type: 'string' }, quantity: { type: 'integer', minimum: 0 }, start_at: { type: 'string', format: 'date-time' }, end_at: { type: 'string', format: 'date-time' }, reason: { type: 'string', minLength: 1, maxLength: 500 },
           } }),
           responses: { '201': successResponse('Platform voucher created'), '403': errorResponse('Admin role required'), '422': errorResponse('Invalid voucher or reason') },
         },
@@ -1521,7 +1523,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
         post: {
           summary: 'Create an idempotent Admin notification campaign and snapshot recipients', security: [{ BearerAuth: [] }],
           parameters: [{ name: 'Idempotency-Key', in: 'header', required: true, schema: { type: 'string', minLength: 1, maxLength: 100 } }],
-          requestBody: jsonRequest({ type: 'object', required: ['audience_role', 'title', 'content', 'reason'], properties: { audience_role: { type: 'string', enum: ['BUYER', 'SELLER'] }, title: { type: 'string', maxLength: 200 }, content: { type: 'string' }, reason: { type: 'string', minLength: 1 } } }),
+          requestBody: jsonRequest({ type: 'object', required: ['audience_role', 'title', 'content', 'reason'], properties: { audience_role: { type: 'string', enum: ['BUYER', 'SELLER'] }, title: { type: 'string', minLength: 1, maxLength: 200 }, content: { type: 'string', minLength: 1, maxLength: 2000 }, reason: { type: 'string', minLength: 1, maxLength: 500 } } }),
           responses: { '201': successResponse('Campaign created'), '403': errorResponse('Admin role required'), '409': errorResponse('Idempotency key was reused'), '422': errorResponse('Invalid campaign') },
         },
       },
@@ -1543,7 +1545,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
         patch: {
           summary: 'Update an unused PLATFORM voucher', security: [{ BearerAuth: [] }],
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
-          requestBody: jsonRequest({ type: 'object', required: ['reason'], properties: { code: { type: 'string' }, voucher_name: { type: 'string' }, discount_type: { type: 'string', enum: ['PERCENT', 'FIXED'] }, discount_value: { type: 'string' }, max_discount: { type: ['string', 'null'] }, min_order_value: { type: 'string' }, quantity: { type: 'integer' }, start_at: { type: 'string', format: 'date-time' }, end_at: { type: 'string', format: 'date-time' }, reason: { type: 'string', minLength: 1 } } }),
+          requestBody: jsonRequest({ type: 'object', required: ['reason'], properties: { code: { type: 'string' }, voucher_name: { type: 'string' }, discount_type: { type: 'string', enum: ['PERCENT', 'FIXED'] }, discount_value: { type: 'string' }, max_discount: { type: ['string', 'null'] }, min_order_value: { type: 'string' }, quantity: { type: 'integer' }, start_at: { type: 'string', format: 'date-time' }, end_at: { type: 'string', format: 'date-time' }, reason: { type: 'string', minLength: 1, maxLength: 500 } } }),
           responses: { '200': successResponse('Platform voucher updated'), '403': errorResponse('Admin role required'), '404': errorResponse('Voucher not found'), '409': errorResponse('Voucher already used'), '422': errorResponse('Invalid voucher or reason') },
         },
       },
@@ -1551,7 +1553,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
         patch: {
           summary: 'Activate or deactivate a PLATFORM voucher', security: [{ BearerAuth: [] }],
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
-          requestBody: jsonRequest({ type: 'object', required: ['status', 'reason'], properties: { status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] }, reason: { type: 'string', minLength: 1 } } }),
+          requestBody: jsonRequest({ type: 'object', required: ['status', 'reason'], properties: { status: { type: 'string', enum: ['ACTIVE', 'INACTIVE'] }, reason: { type: 'string', minLength: 1, maxLength: 500 } } }),
           responses: { '200': successResponse('Platform voucher status updated'), '403': errorResponse('Admin role required'), '404': errorResponse('Voucher not found'), '422': errorResponse('Invalid status or reason') },
         },
       },
@@ -1559,7 +1561,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
         patch: {
           summary: 'Hide or restore a product', security: [{ BearerAuth: [] }],
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
-          requestBody: jsonRequest({ type: 'object', required: ['status', 'reason'], additionalProperties: false, properties: { status: { type: 'string', enum: ['ACTIVE', 'HIDDEN'] }, reason: { type: 'string', minLength: 1 } } }),
+          requestBody: jsonRequest({ type: 'object', required: ['status', 'reason'], additionalProperties: false, properties: { status: { type: 'string', enum: ['ACTIVE', 'HIDDEN'] }, reason: { type: 'string', minLength: 1, maxLength: 500 } } }),
           responses: { '200': successResponse('Product moderated'), '403': errorResponse('Admin role required'), '404': errorResponse('Product not found'), '409': errorResponse('Invalid moderation transition'), '422': errorResponse('Reason required') },
         },
       },
@@ -1577,7 +1579,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
         patch: {
           summary: 'Hide or restore a review', security: [{ BearerAuth: [] }],
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
-          requestBody: jsonRequest({ type: 'object', required: ['status', 'reason'], additionalProperties: false, properties: { status: { type: 'string', enum: ['VISIBLE', 'HIDDEN'] }, reason: { type: 'string', minLength: 1 } } }),
+          requestBody: jsonRequest({ type: 'object', required: ['status', 'reason'], additionalProperties: false, properties: { status: { type: 'string', enum: ['VISIBLE', 'HIDDEN'] }, reason: { type: 'string', minLength: 1, maxLength: 500 } } }),
           responses: { '200': successResponse('Review moderated'), '403': errorResponse('Admin role required'), '404': errorResponse('Review not found'), '409': errorResponse('Invalid moderation transition'), '422': errorResponse('Reason required') },
         },
       },
@@ -1603,7 +1605,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
           summary: 'Update editable details and existing variant prices/SKUs for a Seller product', security: [{ BearerAuth: [] }],
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
           requestBody: jsonRequest({ type: 'object', additionalProperties: false, minProperties: 1, properties: {
-            product_name: { type: 'string', minLength: 2, maxLength: 200 }, description: { type: ['string', 'null'] }, category_id: { type: 'string', format: 'uuid' },
+            product_name: { type: 'string', minLength: 2, maxLength: 200 }, description: { type: ['string', 'null'], maxLength: 5000 }, category_id: { type: 'string', format: 'uuid' },
             variants: { type: 'array', minItems: 1, items: { type: 'object', required: ['variant_name', 'sku', 'price'], properties: { variant_id: { type: 'string', format: 'uuid' }, variant_name: { type: 'string', maxLength: 100 }, variant_value: { type: ['string', 'null'], maxLength: 150 }, sku: { type: 'string', maxLength: 100 }, price: { type: 'string' } } } },
             images: { type: 'array', items: { type: 'object', required: ['image_url'], properties: { image_id: { type: 'string', format: 'uuid' }, media_id: { type: 'string', format: 'uuid' }, image_url: { type: 'string' }, sort_order: { type: 'integer', minimum: 0 } } } },
           } }),
@@ -1618,8 +1620,8 @@ export function generateOpenApiSpec(): OpenApiSpec {
         patch: {
           summary: 'Update the authenticated seller shop profile', security: [{ BearerAuth: [] }],
           requestBody: jsonRequest({ type: 'object', minProperties: 1, properties: {
-            shop_name: { type: 'string', minLength: 2, maxLength: 150 }, description: { type: ['string', 'null'] },
-            pickup_address: { type: ['string', 'null'], maxLength: 255 }, contact_phone: { type: ['string', 'null'], maxLength: 20 },
+            shop_name: { type: 'string', minLength: 2, maxLength: 150 }, description: { type: ['string', 'null'], maxLength: 1000 },
+            pickup_address: { type: ['string', 'null'], maxLength: 255 }, contact_phone: { type: ['string', 'null'], pattern: '^0[0-9]{9}$' },
           } }),
           responses: { '200': successResponse('Seller shop profile updated'), '403': errorResponse('Shop profile is read-only'), '404': errorResponse('Seller shop not found'), '422': errorResponse('Invalid shop profile') },
         },
@@ -1649,11 +1651,10 @@ export function generateOpenApiSpec(): OpenApiSpec {
           security: [{ BearerAuth: [] }],
           requestBody: jsonRequest({
             type: 'object',
-            required: ['document_url'],
+            required: ['document_url', 'reason'],
             properties: {
-              document_url: { type: 'string', format: 'uri' },
-              contact_phone: { type: ['string', 'null'], maxLength: 20 },
-              description: { type: ['string', 'null'], maxLength: 1000 },
+              document_url: { type: 'string', format: 'uri', pattern: '^https://', maxLength: 2000 },
+              reason: { type: 'string', minLength: 10, maxLength: 500 },
             },
           }),
           responses: {
@@ -1839,7 +1840,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
         post: {
           summary: 'Send message in chat conversation', security: [{ BearerAuth: [] }],
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
-          requestBody: jsonRequest({ type: 'object', required: ['content'], properties: { content: { type: 'string' }, client_message_id: { type: 'string' }, message_type: { type: 'string', enum: ['TEXT', 'PRODUCT_CARD', 'HANDOFF_REQUEST'] }, metadata: { type: 'object' }, product_id: { type: 'string', format: 'uuid' } } }),
+          requestBody: jsonRequest({ type: 'object', required: ['content'], properties: { content: { type: 'string', minLength: 1, maxLength: 2000 }, client_message_id: { type: 'string' }, message_type: { type: 'string', enum: ['TEXT', 'PRODUCT_CARD', 'HANDOFF_REQUEST'] }, metadata: { type: 'object' }, product_id: { type: 'string', format: 'uuid' } } }),
           responses: { '201': successResponse('Message sent'), '401': errorResponse('Authentication required'), '403': errorResponse('Forbidden'), '404': errorResponse('Conversation not found'), '422': errorResponse('Validation failed') },
         },
       },

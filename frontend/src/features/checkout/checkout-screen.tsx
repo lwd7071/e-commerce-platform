@@ -296,14 +296,14 @@ export function CheckoutScreen() {
   // Add Address validation and submit
   const handleSaveNewAddress = async () => {
     const errors: Record<string, string> = {};
-    if (!newAddrName.trim()) errors.name = "Họ và tên người nhận không được để trống";
-    const phoneRegex = /^(0|\+84)[3|5|7|8|9][0-9]{8}$/;
+    if (newAddrName.trim().length < 2 || newAddrName.trim().length > 100) errors.name = "Tên người nhận phải có từ 2 đến 100 ký tự.";
+    const phoneRegex = /^0\d{9}$/;
     if (!phoneRegex.test(newAddrPhone.trim())) {
       errors.phone = "Số điện thoại không hợp lệ (ví dụ: 0901234567)";
     }
     if (!newAddrProvinceCode) errors.province = "Vui lòng chọn Tỉnh / Thành phố";
     if (!newAddrWardCode) errors.ward = "Vui lòng chọn Phường / Xã";
-    if (!newAddrDetail.trim()) errors.detail = "Vui lòng nhập địa chỉ chi tiết, gồm số nhà, đường và thôn/ấp/tổ dân phố";
+    if (!newAddrDetail.trim() || newAddrDetail.trim().length > 255) errors.detail = "Địa chỉ chi tiết phải có từ 1 đến 255 ký tự.";
 
     if (Object.keys(errors).length > 0) {
       setAddrFormErrors(errors);
@@ -1034,7 +1034,7 @@ export function CheckoutScreen() {
                 id="new-addr-name"
                 placeholder="Ví dụ: Nguyễn Văn A"
                 value={newAddrName}
-                onChange={(e) => setNewAddrName(e.target.value)}
+                onChange={(e) => { const value = e.target.value; setNewAddrName(value); setAddrFormErrors(prev => ({ ...prev, name: value.trim().length > 100 ? "Tên người nhận tối đa 100 ký tự." : "" })); }}
               />
             </FormField>
 
@@ -1048,7 +1048,7 @@ export function CheckoutScreen() {
                 id="new-addr-phone"
                 placeholder="Ví dụ: 0901234567"
                 value={newAddrPhone}
-                onChange={(e) => setNewAddrPhone(e.target.value)}
+                onChange={(e) => { const value = e.target.value; setNewAddrPhone(value); setAddrFormErrors(prev => ({ ...prev, phone: value && (!/^0?\d*$/.test(value) || value.length > 10) ? "Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0." : "" })); }}
               />
             </FormField>
           </div>
@@ -1075,7 +1075,7 @@ export function CheckoutScreen() {
               id="new-addr-detail"
               placeholder="Số nhà, đường, thôn/ấp/tổ dân phố"
               value={newAddrDetail}
-              onChange={(e) => setNewAddrDetail(e.target.value)}
+                onChange={(e) => { const value = e.target.value; setNewAddrDetail(value); setAddrFormErrors(prev => ({ ...prev, detail: value.trim().length > 255 ? "Địa chỉ chi tiết tối đa 255 ký tự." : "" })); }}
             />
           </FormField>
 

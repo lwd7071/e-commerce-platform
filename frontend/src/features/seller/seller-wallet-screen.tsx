@@ -23,6 +23,7 @@ export function SellerWalletScreen() {
   // Modals
   const [bankModalOpen, setBankModalOpen] = useState(false);
   const [bankForm, setBankForm] = useState({ bank_name: "", bank_account_number: "", bank_account_holder: "" });
+  const [bankErrors, setBankErrors] = useState<Record<string, string>>({});
   const [savingBank, setSavingBank] = useState(false);
 
   const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
@@ -62,6 +63,13 @@ export function SellerWalletScreen() {
 
   async function handleSaveBank(e: React.FormEvent) {
     e.preventDefault();
+    const errors = {
+      bank_name: !bankForm.bank_name.trim() || bankForm.bank_name.trim().length > 100 ? "Tên ngân hàng phải có từ 1 đến 100 ký tự." : "",
+      bank_account_number: !/^\d{6,24}$/.test(bankForm.bank_account_number.trim()) ? "Số tài khoản phải gồm 6 đến 24 chữ số." : "",
+      bank_account_holder: !bankForm.bank_account_holder.trim() || bankForm.bank_account_holder.trim().length > 100 ? "Tên chủ tài khoản phải có từ 1 đến 100 ký tự." : "",
+    };
+    setBankErrors(errors);
+    if (Object.values(errors).some(Boolean)) return;
     setSavingBank(true);
     setError(null);
     try {
@@ -352,30 +360,31 @@ export function SellerWalletScreen() {
         description="Thông tin tài khoản để Sàn chuyển khoản mỗi khi bạn thực hiện rút tiền."
       >
         <form onSubmit={handleSaveBank} className="space-y-4">
-          <FormField id="bank_name" label="Tên ngân hàng">
+          <FormField id="bank_name" label="Tên ngân hàng" error={bankErrors.bank_name}>
             <TextInput
               id="bank_name"
               placeholder="Ví dụ: MBBank, Vietcombank, TPBank"
               value={bankForm.bank_name}
-              onChange={(e) => setBankForm({ ...bankForm, bank_name: e.target.value })}
+              onChange={(e) => { const value = e.target.value; setBankForm({ ...bankForm, bank_name: value }); setBankErrors(prev => ({ ...prev, bank_name: value.length > 100 ? "Tên ngân hàng tối đa 100 ký tự." : "" })); }}
               required
             />
           </FormField>
-          <FormField id="bank_account_number" label="Số tài khoản">
+          <FormField id="bank_account_number" label="Số tài khoản" error={bankErrors.bank_account_number}>
             <TextInput
               id="bank_account_number"
               placeholder="Ví dụ: 0987654321"
               value={bankForm.bank_account_number}
-              onChange={(e) => setBankForm({ ...bankForm, bank_account_number: e.target.value })}
+              inputMode="numeric"
+              onChange={(e) => { const value = e.target.value; setBankForm({ ...bankForm, bank_account_number: value }); setBankErrors(prev => ({ ...prev, bank_account_number: value && !/^\d{0,24}$/.test(value) ? "Số tài khoản chỉ gồm chữ số, tối đa 24 số." : "" })); }}
               required
             />
           </FormField>
-          <FormField id="bank_account_holder" label="Tên chủ tài khoản">
+          <FormField id="bank_account_holder" label="Tên chủ tài khoản" error={bankErrors.bank_account_holder}>
             <TextInput
               id="bank_account_holder"
               placeholder="NGUYEN VAN A (Viết hoa không dấu)"
               value={bankForm.bank_account_holder}
-              onChange={(e) => setBankForm({ ...bankForm, bank_account_holder: e.target.value.toUpperCase() })}
+              onChange={(e) => { const value = e.target.value.toUpperCase(); setBankForm({ ...bankForm, bank_account_holder: value }); setBankErrors(prev => ({ ...prev, bank_account_holder: value.length > 100 ? "Tên chủ tài khoản tối đa 100 ký tự." : "" })); }}
               required
             />
           </FormField>

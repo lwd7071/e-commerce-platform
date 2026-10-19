@@ -32,6 +32,8 @@ export function validateReviewInput(input: ReviewInput): ReviewValidationResult 
   ) {
     errors.rating = "Vui lòng chọn số sao từ 1 đến 5 sao";
   }
+  const comment = input.comment?.trim() ?? "";
+  if (comment.length < 10 || comment.length > 500) errors.comment = "Nhận xét phải có từ 10 đến 500 ký tự.";
 
   return {
     valid: Object.keys(errors).length === 0,

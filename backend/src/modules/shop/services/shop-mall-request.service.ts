@@ -37,8 +37,8 @@ export class ShopMallRequestService {
       throw new ValidationFailedError('document_url is required');
     }
     const trimmed = rawUrl.trim();
-    if (trimmed.length < 10 || trimmed.length > 500) {
-      throw new ValidationFailedError('document_url must be between 10 and 500 characters');
+    if (trimmed.length < 10 || trimmed.length > 2000) {
+      throw new ValidationFailedError('document_url must be between 10 and 2000 characters');
     }
     let parsed: URL;
     try {
@@ -46,8 +46,8 @@ export class ShopMallRequestService {
     } catch {
       throw new ValidationFailedError('document_url is not a valid URL');
     }
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-      throw new ValidationFailedError('document_url must use HTTP or HTTPS protocol');
+    if (parsed.protocol !== 'https:') {
+      throw new ValidationFailedError('document_url must use HTTPS protocol');
     }
     if (!parsed.hostname || parsed.hostname.length === 0) {
       throw new ValidationFailedError('document_url must have a valid hostname');
@@ -68,8 +68,8 @@ export class ShopMallRequestService {
     }
 
     const cleanReason = input.reason?.trim();
-    if (!cleanReason || cleanReason.length < 10 || cleanReason.length > 1000) {
-      throw new ValidationFailedError('Reason must be between 10 and 1000 characters');
+    if (!cleanReason || cleanReason.length < 10 || cleanReason.length > 500) {
+      throw new ValidationFailedError('Reason must be between 10 and 500 characters');
     }
 
     const cleanDocUrl = this.validateUrl(input.document_url);

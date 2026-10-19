@@ -57,8 +57,8 @@ export function AdminCampaignsScreen() {
     <form className="surface-card grid gap-4 p-5" onSubmit={submit}>
       <FormField id="campaign-audience" label="Nhóm nhận" required><SelectInput id="campaign-audience" value={draft.audience_role} onChange={event => setDraft({ ...draft, audience_role: event.target.value as Draft["audience_role"] })}><option value="BUYER">Người mua</option><option value="SELLER">Người bán</option></SelectInput></FormField>
       <FormField id="campaign-title" label="Tiêu đề" required><TextInput id="campaign-title" value={draft.title} onChange={event => setDraft({ ...draft, title: event.target.value })} maxLength={200} required /></FormField>
-      <FormField id="campaign-content" label="Nội dung" required><TextArea id="campaign-content" value={draft.content} onChange={event => setDraft({ ...draft, content: event.target.value })} rows={5} required /></FormField>
-      <FormField id="campaign-reason" label="Lý do gửi" required><TextInput id="campaign-reason" value={draft.reason} onChange={event => setDraft({ ...draft, reason: event.target.value })} required /></FormField>
+      <FormField id="campaign-content" label="Nội dung" required><TextArea id="campaign-content" value={draft.content} onChange={event => setDraft({ ...draft, content: event.target.value })} rows={5} maxLength={2000} required /><p className="field-help text-right">{draft.content.length}/2.000 ký tự</p></FormField>
+      <FormField id="campaign-reason" label="Lý do gửi" required><TextInput id="campaign-reason" value={draft.reason} onChange={event => setDraft({ ...draft, reason: event.target.value })} maxLength={500} required /></FormField>
       <div className="flex flex-wrap items-center gap-3"><Button type="submit" disabled={submitting}>{submitting ? "Đang tạo…" : "Tạo và gửi chiến dịch"}</Button><span className="text-xs text-[var(--subtext)]">{previewCount === null ? "Đang tính người nhận…" : `Dự kiến ${previewCount} người nhận trong nhóm này.`}</span></div>
       {error && <p role="alert" className="text-sm text-[var(--danger)]">{error}</p>}
     </form>

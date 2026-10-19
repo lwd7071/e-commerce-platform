@@ -53,6 +53,14 @@ export class PgCatalogHttpService {
       }
       return Number(value);
     };
+    if (input.search !== undefined && (typeof input.search !== 'string' || input.search.trim().length > 100)) {
+      throw new ValidationError('search must contain at most 100 characters');
+    }
+    const minPrice = parseMoney(input.min_price);
+    const maxPrice = parseMoney(input.max_price);
+    if (minPrice !== undefined && maxPrice !== undefined && minPrice > maxPrice) {
+      throw new ValidationError('min_price must not exceed max_price');
+    }
     if (input.shop_tier !== undefined) {
       if (typeof input.shop_tier !== 'string' || !['STANDARD', 'PREFERRED', 'MALL'].includes(input.shop_tier)) {
         throw new ValidationError('shop_tier must be STANDARD, PREFERRED, or MALL');
@@ -66,8 +74,8 @@ export class PgCatalogHttpService {
       search: input.search as string | undefined,
       shopTier: input.shop_tier as string | undefined,
       shopId: input.shop_id as string | undefined,
-      minPrice: parseMoney(input.min_price),
-      maxPrice: parseMoney(input.max_price),
+      minPrice,
+      maxPrice,
       sortBy:
         input.sort === 'price_asc' || input.sort === 'price_desc' || input.sort === 'created_at_desc'
           ? input.sort
@@ -177,6 +185,10 @@ export class PgCatalogHttpService {
     if (!context.shop_id) {
       throw new ForbiddenError('Seller shop is required');
     }
+    const productName = typeof input.product_name === 'string' ? input.product_name.trim() : '';
+    if (productName.length < 2 || productName.length > 200) throw new ValidationError('Product name must contain 2 to 200 characters');
+    const description = input.description == null ? null : String(input.description);
+    if (description !== null && description.length > 5000) throw new ValidationError('Product description must not exceed 5000 characters');
     const rawVariants: unknown[] = Array.isArray(input.variants) ? input.variants : [];
     if (!rawVariants.length) {
       throw new ValidationError('At least one variant is required');
@@ -187,8 +199,10 @@ export class PgCatalogHttpService {
     for (const value of rawVariants) {
       const raw = objectValue(value);
       const sku = String(raw.sku ?? '').trim();
-      if (!sku) {
-        throw new ValidationError('Variant SKU is required');
+      const variantName = String(raw.variant_name ?? '').trim();
+      const variantValue = raw.variant_value == null ? '' : String(raw.variant_value).trim();
+      if (!sku || sku.length > 100 || !variantName || variantName.length > 100 || variantValue.length > 150) {
+        throw new ValidationError('Variant name, value, and SKU exceed their allowed lengths');
       }
       if (payloadSkus.has(sku)) {
         throw new SkuConflictError(`Duplicate SKU '${sku}' in request variants`);
@@ -218,8 +232,8 @@ export class PgCatalogHttpService {
       productId,
       shopId: context.shop_id,
       categoryId: String(input.category_id),
-      productName: String(input.product_name),
-      description: input.description == null ? null : String(input.description),
+      productName,
+      description,
       weightGrams: parseWeightGrams(input.weight_grams),
       status: 'ACTIVE',
       createdAt: now,
@@ -231,8 +245,8 @@ export class PgCatalogHttpService {
       return ({
       variantId: crypto.randomUUID(),
       productId,
-      variantName: String(raw.variant_name),
-      variantValue: raw.variant_value == null ? null : String(raw.variant_value),
+      variantName: String(raw.variant_name).trim(),
+      variantValue: raw.variant_value == null ? null : String(raw.variant_value).trim(),
       sku: String(raw.sku).trim(),
       price: String(raw.price),
       stockQuantity: Number(raw.stock_quantity ?? 0),
@@ -510,6 +524,7 @@ export class PgCatalogHttpService {
     const name = input.product_name === undefined ? undefined : String(input.product_name).trim();
     if (name !== undefined && (name.length < 2 || name.length > 200)) throw new ValidationError('Product name must be between 2 and 200 characters');
     const description = input.description === undefined ? undefined : input.description == null ? null : String(input.description);
+    if (description !== undefined && description !== null && description.length > 5000) throw new ValidationError('Product description must not exceed 5000 characters');
     const categoryId = input.category_id === undefined ? undefined : String(input.category_id);
     const weightGrams = input.weight_grams === undefined ? undefined : parseWeightGrams(input.weight_grams);
     const variantsInput = input.variants;

@@ -25,8 +25,8 @@ const parseInput = (input: unknown): OnboardingInput => {
   const unknown = Object.keys(record).find(key => !['full_name', 'requested_role', 'shop_name'].includes(key));
   if (unknown) throw new ValidationFailedError(`Unknown field: ${unknown}`, { field: unknown });
   const fullName = typeof record.full_name === 'string' ? record.full_name.trim() : '';
-  if (fullName.length < 2 || fullName.length > 150) {
-    throw new ValidationFailedError('Full name must contain 2 to 150 characters', { field: 'full_name' });
+  if (fullName.length < 2 || fullName.length > 100) {
+    throw new ValidationFailedError('Full name must contain 2 to 100 characters', { field: 'full_name' });
   }
   if (record.requested_role !== 'BUYER' && record.requested_role !== 'SELLER') {
     throw new ValidationFailedError('Requested role must be BUYER or SELLER', { field: 'requested_role' });

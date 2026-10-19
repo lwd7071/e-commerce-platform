@@ -34,8 +34,8 @@ export default function RegisterPage() {
       return;
     }
 
-    if (password.length < 8) {
-      setErrorMsg("Mật khẩu phải có độ dài tối thiểu 8 ký tự.");
+    if (password.length < 8 || password.length > 128) {
+      setErrorMsg("Mật khẩu phải có độ dài từ 8 đến 128 ký tự.");
       return;
     }
 
@@ -88,7 +88,7 @@ export default function RegisterPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="reg-full-name" className="block text-xs font-semibold uppercase tracking-wider text-[var(--foreground)] mb-1.5">Họ và tên</label>
-            <input id="reg-full-name" value={fullName} onChange={e => setFullName(e.target.value)} required minLength={2} maxLength={150} className="w-full px-3 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--background)] text-sm" />
+            <input id="reg-full-name" value={fullName} onChange={e => setFullName(e.target.value)} required minLength={2} maxLength={100} className="w-full px-3 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--background)] text-sm" />
           </div>
           {role === "SELLER" && <div>
             <label htmlFor="reg-shop-name" className="block text-xs font-semibold uppercase tracking-wider text-[var(--foreground)] mb-1.5">Tên gian hàng</label>
@@ -138,7 +138,7 @@ export default function RegisterPage() {
               <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--subtext)]" />
               <input
                 id="reg-email"
-                type="email"
+                type="email" maxLength={254}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@example.com"
@@ -164,7 +164,7 @@ export default function RegisterPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                minLength={8}
+                minLength={8} maxLength={128}
                 className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-all"
               />
             </div>
@@ -186,7 +186,7 @@ export default function RegisterPage() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="••••••••"
                 required
-                minLength={8}
+                minLength={8} maxLength={128}
                 className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--background)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary)] transition-all"
               />
             </div>

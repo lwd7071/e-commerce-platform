@@ -53,6 +53,17 @@ describe('Buyer DTO & Validation Tests (api-conventions.md §2: reject unknown f
       assert.deepEqual(validateCreateAddressDTO(valid), valid);
     });
 
+    it('giới hạn tên người nhận 100 ký tự và chỉ nhận điện thoại nội địa 10 số', () => {
+      const validAddress = {
+        recipientName: 'A'.repeat(100), phone: '0912345678', province: 'Hà Nội',
+        ward: 'Ba Đình', detailAddress: 'Số 10',
+      };
+      assert.equal(validateCreateAddressDTO(validAddress).recipientName.length, 100);
+      assert.throws(() => validateCreateAddressDTO({ ...validAddress, recipientName: 'A'.repeat(101) }));
+      assert.throws(() => validateCreateAddressDTO({ ...validAddress, phone: '09123456789' }));
+      assert.throws(() => validateCreateAddressDTO({ ...validAddress, phone: '+84912345678' }));
+    });
+
     it('thiếu trường bắt buộc -> reject VALIDATION_FAILED', () => {
       assert.throws(
         () => validateCreateAddressDTO({ recipientName: 'Trần Thị B', phone: '0912345678' }),
@@ -98,6 +109,13 @@ describe('Buyer DTO & Validation Tests (api-conventions.md §2: reject unknown f
   });
 
   describe('UpdateAddressDTO Validation', () => {
+    it('rejects invalid recipient name length and non-local phone on partial updates', () => {
+      assert.equal(validateUpdateAddressDTO({ recipientName: 'A'.repeat(100) }).recipientName?.length, 100);
+      assert.throws(() => validateUpdateAddressDTO({ recipientName: 'A'.repeat(101) }));
+      assert.throws(() => validateUpdateAddressDTO({ phone: '09123456789' }));
+      assert.throws(() => validateUpdateAddressDTO({ phone: '+84912345678' }));
+    });
+
     it('allows clearing the legacy locality field after moving it into the detail address', () => {
       const parsed = validateUpdateAddressDTO({ district: null, detail_address: 'Số 4, Ấp An Thịnh' });
       assert.equal(parsed.district, null);
@@ -134,9 +152,15 @@ describe('Buyer DTO & Validation Tests (api-conventions.md §2: reject unknown f
   });
 
   describe('CreateReviewDTO Validation', () => {
+    it('requires review content to contain 10 to 500 characters when provided', () => {
+      assert.throws(() => validateCreateReviewDTO({ rating: 5, content: 'ngắn' }));
+      assert.throws(() => validateCreateReviewDTO({ rating: 5, content: 'A'.repeat(501) }));
+      assert.equal(validateCreateReviewDTO({ rating: 5, content: 'A'.repeat(10) }).content?.length, 10);
+    });
+
     it('chấp nhận rating và content hợp lệ', () => {
-      const parsed = validateCreateReviewDTO({ rating: 5, content: 'Tốt', images: ['https://example.com/img.jpg'] });
-      assert.deepEqual(parsed, { rating: 5, content: 'Tốt', images: ['https://example.com/img.jpg'] });
+      const parsed = validateCreateReviewDTO({ rating: 5, content: 'Sản phẩm tốt', images: ['https://example.com/img.jpg'] });
+      assert.deepEqual(parsed, { rating: 5, content: 'Sản phẩm tốt', images: ['https://example.com/img.jpg'] });
     });
 
     it('reject rating ngoài miền 1..5', () => {

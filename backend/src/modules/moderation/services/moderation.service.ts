@@ -61,6 +61,9 @@ export class ModerationService {
 
     const cleanTargetId = cmd.target_id.trim();
     const cleanReason = cmd.reason.trim();
+    if (cleanReason.length > 500) {
+      throw new ValidationFailedError('Reason must not exceed 500 characters', { field: 'reason' });
+    }
 
     // 4. Bước 4 (Database Existence Check, RB-KN20)
     await this.verifyTargetExists(cmd.target_type, cleanTargetId);

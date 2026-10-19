@@ -5,7 +5,7 @@ import { resolveAdministrativeAddress } from '../../shipping/locations.ts';
 // Helper kiểm tra UUID v4 canonical
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 // Helper kiểm tra định dạng số điện thoại Việt Nam (0xxxxxxxxx hoặc +84xxxxxxxxx)
-const PHONE_REGEX = /^(?:0\d{9,10}|\+84\d{9,10})$/;
+const PHONE_REGEX = /^0\d{9}$/;
 
 export function assertValidUUID(value: string, fieldName: string): void {
   if (!value || typeof value !== 'string' || !UUID_REGEX.test(value)) {
@@ -39,8 +39,8 @@ export function validateUpdateProfileDTO(rawDto: unknown): UpdateProfileDTO {
   const rawFullName = dto.fullName ?? dto.full_name;
   let fullName: string | null | undefined;
   if (rawFullName !== undefined && rawFullName !== null) {
-    if (typeof rawFullName !== 'string' || rawFullName.trim().length === 0 || rawFullName.length > 150) {
-      throw new ValidationError('Họ và tên phải có độ dài từ 1 đến 150 ký tự.', { field: 'full_name' });
+    if (typeof rawFullName !== 'string' || rawFullName.trim().length < 2 || rawFullName.trim().length > 100) {
+      throw new ValidationError('Họ và tên phải có độ dài từ 2 đến 100 ký tự.', { field: 'full_name' });
     }
     fullName = rawFullName.trim();
   } else if (rawFullName === null) {
@@ -50,8 +50,8 @@ export function validateUpdateProfileDTO(rawDto: unknown): UpdateProfileDTO {
   const rawPhone = dto.phone;
   let phone: string | null | undefined;
   if (rawPhone !== undefined && rawPhone !== null) {
-    if (typeof rawPhone !== 'string' || rawPhone.length > 20) {
-      throw new ValidationError('Số điện thoại không hợp lệ (tối đa 20 ký tự).', { field: 'phone' });
+    if (typeof rawPhone !== 'string' || !PHONE_REGEX.test(rawPhone.trim())) {
+      throw new ValidationError('Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0.', { field: 'phone' });
     }
     phone = rawPhone;
   } else if (rawPhone === null) {
@@ -132,6 +132,13 @@ export function validateCreateAddressDTO(rawDto: unknown): CreateAddressDTO {
     }
   }
 
+  if (String(recipientName).trim().length < 2 || String(recipientName).trim().length > 100) {
+    throw new ValidationError('Tên người nhận phải có độ dài từ 2 đến 100 ký tự.', { field: 'recipient_name' });
+  }
+  if (String(detailAddress).trim().length > 255) {
+    throw new ValidationError('Địa chỉ chi tiết không được vượt quá 255 ký tự.', { field: 'detail_address' });
+  }
+
   let isDefault: boolean | undefined;
   if (rawIsDefault !== undefined) {
     if (typeof rawIsDefault !== 'boolean') {
@@ -193,8 +200,8 @@ export function validateUpdateAddressDTO(rawDto: unknown): UpdateAddressDTO {
   const rawRecipientName = dto.recipientName ?? dto.recipient_name;
   let recipientName: string | undefined;
   if (rawRecipientName !== undefined) {
-    if (typeof rawRecipientName !== 'string' || rawRecipientName.trim() === '') {
-      throw new ValidationError("Trường 'recipient_name' không được để trống.", { field: 'recipient_name' });
+    if (typeof rawRecipientName !== 'string' || rawRecipientName.trim().length < 2 || rawRecipientName.trim().length > 100) {
+      throw new ValidationError("Tên người nhận phải có độ dài từ 2 đến 100 ký tự.", { field: 'recipient_name' });
     }
     recipientName = rawRecipientName.trim();
   }
@@ -245,6 +252,7 @@ export function validateUpdateAddressDTO(rawDto: unknown): UpdateAddressDTO {
       throw new ValidationError("Trường 'detail_address' không được để trống.", { field: 'detail_address' });
     }
     detailAddress = rawDetailAddress.trim();
+    if (detailAddress.length > 255) throw new ValidationError('Địa chỉ chi tiết không được vượt quá 255 ký tự.', { field: 'detail_address' });
   }
 
   const rawIsDefault = dto.isDefault ?? dto.is_default;
@@ -377,6 +385,9 @@ export function validateCreateReviewDTO(rawDto: unknown): CreateReviewDTO {
       throw new ValidationError('Nội dung đánh giá phải là chuỗi ký tự.', { field: 'content' });
     }
     content = dto.content.trim();
+    if (content.length < 10 || content.length > 500) {
+      throw new ValidationError('Nội dung đánh giá phải có từ 10 đến 500 ký tự.', { field: 'content' });
+    }
   } else if (dto.content === null) {
     content = null;
   }

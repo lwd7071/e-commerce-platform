@@ -439,6 +439,19 @@ describe('Wallet, Escrow, and PayOS Integration Core Tests', () => {
   });
 
   describe('2. Shop Wallet Operations & Bank Info', () => {
+    it('rejects invalid payout account numbers and oversized bank names', async () => {
+      await assert.rejects(
+        async () => shopWalletService.updateBankInfo(sellerContext, {
+          bank_name: 'MBBank', bank_account_number: '123', bank_account_holder: 'NGUYEN VAN A',
+        }),
+      );
+      await assert.rejects(
+        async () => shopWalletService.updateBankInfo(sellerContext, {
+          bank_name: 'B'.repeat(101), bank_account_number: '12345678', bank_account_holder: 'NGUYEN VAN A',
+        }),
+      );
+    });
+
     it('allows active seller to update bank details for payouts', async () => {
       const updated = await shopWalletService.updateBankInfo(sellerContext, {
         bank_name: 'MBBank',
@@ -465,7 +478,7 @@ describe('Wallet, Escrow, and PayOS Integration Core Tests', () => {
     it('rejects withdrawal if amount is less than 50,000 VND', async () => {
       await shopWalletService.updateBankInfo(sellerContext, {
         bank_name: 'MBBank',
-        bank_account_number: '123',
+        bank_account_number: '123456',
         bank_account_holder: 'A',
       });
 
@@ -478,7 +491,7 @@ describe('Wallet, Escrow, and PayOS Integration Core Tests', () => {
     it('rejects withdrawal if amount exceeds available balance', async () => {
       await shopWalletService.updateBankInfo(sellerContext, {
         bank_name: 'MBBank',
-        bank_account_number: '123',
+        bank_account_number: '123456',
         bank_account_holder: 'A',
       });
 
@@ -491,7 +504,7 @@ describe('Wallet, Escrow, and PayOS Integration Core Tests', () => {
     it('moves requested funds to hold_balance when withdrawal is initiated', async () => {
       await shopWalletService.updateBankInfo(sellerContext, {
         bank_name: 'MBBank',
-        bank_account_number: '123',
+        bank_account_number: '123456',
         bank_account_holder: 'A',
       });
       // Settle 200,000 (net 190,000)
@@ -510,7 +523,7 @@ describe('Wallet, Escrow, and PayOS Integration Core Tests', () => {
     beforeEach(async () => {
       await shopWalletService.updateBankInfo(sellerContext, {
         bank_name: 'MBBank',
-        bank_account_number: '123',
+        bank_account_number: '123456',
         bank_account_holder: 'A',
       });
       await escrowService.createEscrow({ order_id: 'ord-1', shop_id: 'shop-100', gross_amount: '200000.00' });

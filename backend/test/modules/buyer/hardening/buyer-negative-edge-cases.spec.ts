@@ -338,7 +338,7 @@ describe('Buyer Domain Negative & Edge-Case Hardening (T3 Quality Gate)', () => 
       });
 
       await assert.rejects(
-        () => reviewService.createReview(buyerId1, orderItemId1, productId1, { rating: 5, content: 'Tốt' }),
+        () => reviewService.createReview(buyerId1, orderItemId1, productId1, { rating: 5, content: 'Đánh giá sản phẩm tốt' }),
         (err: unknown) => err instanceof ReviewNotEligibleError && err.code === 'REVIEW_NOT_ELIGIBLE'
       );
     });
@@ -346,21 +346,21 @@ describe('Buyer Domain Negative & Edge-Case Hardening (T3 Quality Gate)', () => 
     it('[QD14] rejects review khi caller không sở hữu order item', async () => {
       // buyerId2 không có trong mock context
       await assert.rejects(
-        () => reviewService.createReview(buyerId2, orderItemId1, productId1, { rating: 5, content: 'Tốt' }),
+        () => reviewService.createReview(buyerId2, orderItemId1, productId1, { rating: 5, content: 'Đánh giá sản phẩm tốt' }),
         (err: unknown) => err instanceof ReviewNotEligibleError && err.code === 'REVIEW_NOT_ELIGIBLE'
       );
     });
 
     it('[QD15, RB-MG08] rejects review khi rating = 0 (dưới biên 1)', async () => {
       await assert.rejects(
-        () => reviewService.createReview(buyerId1, orderItemId1, productId1, { rating: 0, content: 'Tốt' }),
+        () => reviewService.createReview(buyerId1, orderItemId1, productId1, { rating: 0, content: 'Đánh giá sản phẩm tốt' }),
         (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
     });
 
     it('[QD15, RB-MG08] rejects review khi rating = 6 (vượt biên 5)', async () => {
       await assert.rejects(
-        () => reviewService.createReview(buyerId1, orderItemId1, productId1, { rating: 6, content: 'Tốt' }),
+        () => reviewService.createReview(buyerId1, orderItemId1, productId1, { rating: 6, content: 'Đánh giá sản phẩm tốt' }),
         (err: unknown) => err instanceof ValidationError && err.code === 'VALIDATION_FAILED'
       );
     });
@@ -368,18 +368,18 @@ describe('Buyer Domain Negative & Edge-Case Hardening (T3 Quality Gate)', () => 
     it('[RB-LQH05] rejects review khi productId không khớp với productId của order item', async () => {
       const wrongProductId = '99999999-9999-4999-8999-999999999999';
       await assert.rejects(
-        () => reviewService.createReview(buyerId1, orderItemId1, wrongProductId, { rating: 5, content: 'Tốt' }),
+        () => reviewService.createReview(buyerId1, orderItemId1, wrongProductId, { rating: 5, content: 'Đánh giá sản phẩm tốt' }),
         (err: unknown) => err instanceof ValidationError
       );
     });
 
     it('[RB-LB09] rejects review khi order item đã được đánh giá trước đó (duplicate review)', async () => {
       // Tạo review lần 1
-      await reviewService.createReview(buyerId1, orderItemId1, productId1, { rating: 5, content: 'Lần 1' });
+      await reviewService.createReview(buyerId1, orderItemId1, productId1, { rating: 5, content: 'Đánh giá lần đầu' });
 
       // Cố gắng tạo lần 2 trên cùng orderItemId1
       await assert.rejects(
-        () => reviewService.createReview(buyerId1, orderItemId1, productId1, { rating: 4, content: 'Lần 2' }),
+        () => reviewService.createReview(buyerId1, orderItemId1, productId1, { rating: 4, content: 'Đánh giá lần hai' }),
         (err: unknown) => err instanceof ReviewAlreadyExistsError && err.code === 'REVIEW_ALREADY_EXISTS'
       );
     });

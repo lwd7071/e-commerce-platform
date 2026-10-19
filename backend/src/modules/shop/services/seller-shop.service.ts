@@ -47,6 +47,7 @@ export class SellerShopService {
         update.shop_name = value.trim();
       } else if (key === 'description') {
         if (value !== null && typeof value !== 'string') throw new ValidationFailedError('Description must be a string or null', { field: key });
+        if (typeof value === 'string' && value.trim().length > 1000) throw new ValidationFailedError('Description must not exceed 1000 characters', { field: key });
         update.description = typeof value === 'string' ? value.trim() : null;
       } else if (key === 'pickup_province_code' || key === 'pickup_ward_code') {
         if (typeof value !== 'string' || !value.trim() || value.length > 10) throw new ValidationFailedError(`${key} must be a valid administrative code`, { field: key });
@@ -56,6 +57,7 @@ export class SellerShopService {
         if (value !== null && typeof value !== 'string') throw new ValidationFailedError(`${key} must be a string or null`, { field: key });
         const text = typeof value === 'string' ? value.trim() : null;
         const maxLength = key.startsWith('pickup_') ? 255 : 20;
+        if (text !== null && key === 'contact_phone' && !/^0\d{9}$/.test(text)) throw new ValidationFailedError('Contact phone must contain 10 digits and start with 0', { field: key });
         if (text !== null && text.length > maxLength) throw new ValidationFailedError(`${key} exceeds ${maxLength} characters`, { field: key });
         if (key === 'pickup_address') update.pickup_address = text;
         else if (key === 'pickup_province') update.pickup_province = text;

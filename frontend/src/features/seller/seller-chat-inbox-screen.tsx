@@ -462,13 +462,17 @@ export function SellerChatInboxScreen() {
                   type="text"
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
+                  aria-invalid={inputText.trim().length > 2000}
+                  aria-describedby={inputText.trim().length > 2000 ? "seller-chat-message-error" : "seller-chat-message-count"}
                   placeholder="Nhập tin nhắn phản hồi cho khách hàng..."
                   className="flex-1 rounded-xl border border-[var(--border)] bg-[var(--background)] px-4 py-2 text-xs text-[var(--foreground)] placeholder:text-[var(--subtext)] focus:border-[var(--primary)] focus:outline-none"
                 />
+                <span id="seller-chat-message-count" className="sr-only">{inputText.trim().length}/2000 ký tự</span>
+                {inputText.trim().length > 2000 && <span id="seller-chat-message-error" className="field-error" role="alert">Tin nhắn tối đa 2.000 ký tự.</span>}
                 <Button
                   type="submit"
                   variant="primary"
-                  disabled={!inputText.trim() || isSending}
+                  disabled={!inputText.trim() || inputText.trim().length > 2000 || isSending}
                   className="h-8 px-4 text-xs font-bold shrink-0"
                 >
                   {isSending ? "Đang gửi..." : "Gửi phản hồi"}

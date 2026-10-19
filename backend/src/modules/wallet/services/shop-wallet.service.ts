@@ -29,6 +29,12 @@ export class ShopWalletService {
     if (!bankInfo.bank_name || !bankInfo.bank_account_number || !bankInfo.bank_account_holder) {
       throw new AppError(400, 'INVALID_BANK_INFO', 'Vui lòng điền đầy đủ tên ngân hàng, số tài khoản và tên chủ tài khoản.');
     }
+    const bankName = bankInfo.bank_name.trim();
+    const accountNumber = bankInfo.bank_account_number.trim();
+    const accountHolder = bankInfo.bank_account_holder.trim();
+    if (bankName.length > 100 || accountHolder.length > 100 || !/^\d{6,24}$/.test(accountNumber)) {
+      throw new AppError(422, 'INVALID_BANK_INFO', 'Tên ngân hàng và chủ tài khoản tối đa 100 ký tự; số tài khoản phải gồm 6 đến 24 chữ số.');
+    }
     return this.walletRepo.updateBankInfo(shopId, bankInfo);
   }
 

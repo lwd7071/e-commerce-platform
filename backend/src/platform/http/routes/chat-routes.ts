@@ -130,8 +130,8 @@ export function createChatRouter(
         product_id?: string;
       };
 
-      if (!body.content || typeof body.content !== 'string') {
-        throw new ValidationFailedError('content is required');
+      if (typeof body.content !== 'string' || !body.content.trim() || body.content.trim().length > 2000) {
+        throw new ValidationFailedError('Message must contain 1 to 2000 characters', { field: 'content' });
       }
 
       const result = await service.sendMessage({

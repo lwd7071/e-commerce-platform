@@ -118,6 +118,7 @@ function ProfileReadyScreen({
 
   const [fullName, setFullName] = useState(profile?.fullName || "");
   const [phone, setPhone] = useState(profile?.phone || "");
+  const [profileErrors, setProfileErrors] = useState<{ name?: string; phone?: string }>({});
   const [isSaving, setIsSaving] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(profile.avatarUrl ?? null);
@@ -144,8 +145,12 @@ function ProfileReadyScreen({
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fullName.trim()) {
-      showToast("Vui lòng nhập họ và tên", "error");
+    const errors = {
+      name: fullName.trim().length < 2 || fullName.trim().length > 100 ? "Họ và tên phải có từ 2 đến 100 ký tự." : "",
+      phone: phone.trim() && !/^0\d{9}$/.test(phone.trim()) ? "Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0." : "",
+    };
+    setProfileErrors(errors);
+    if (errors.name || errors.phone) {
       return;
     }
 
@@ -259,10 +264,13 @@ function ProfileReadyScreen({
               <span className="field-label">Họ và tên</span>
               <TextInput
                 id="profile-name"
+                aria-invalid={profileErrors.name ? true : undefined}
+                aria-describedby={profileErrors.name ? "profile-name-error" : undefined}
                 value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
+                onChange={(e) => { setFullName(e.target.value); setProfileErrors(prev => ({ ...prev, name: e.target.value.trim().length > 100 ? "Họ và tên tối đa 100 ký tự." : "" })); }}
                 placeholder="Nhập họ và tên..."
               />
+              {profileErrors.name && <span id="profile-name-error" className="field-error" role="alert">{profileErrors.name}</span>}
             </label>
 
             <div className="profile-form__grid">
@@ -287,10 +295,15 @@ function ProfileReadyScreen({
                 <span className="field-label">Số điện thoại</span>
                 <TextInput
                   id="profile-phone"
+                  type="tel"
+                  inputMode="numeric"
+                  aria-invalid={profileErrors.phone ? true : undefined}
+                  aria-describedby={profileErrors.phone ? "profile-phone-error" : undefined}
                   value={phone}
                   placeholder="Chưa có số điện thoại"
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => { setPhone(e.target.value); setProfileErrors(prev => ({ ...prev, phone: e.target.value && (!/^0?\d*$/.test(e.target.value) || e.target.value.length > 10) ? "Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0." : "" })); }}
                 />
+                {profileErrors.phone && <span id="profile-phone-error" className="field-error" role="alert">{profileErrors.phone}</span>}
               </label>
             </div>
 

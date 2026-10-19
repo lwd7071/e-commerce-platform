@@ -96,7 +96,7 @@ export function SellerProductEditScreen() {
 
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!product || !name.trim() || variants.length === 0 || variants.some((variant) => !variant.variant_name.trim() || !variant.sku.trim() || Number(variant.price) <= 0)) return;
+    if (!product || name.trim().length < 2 || name.trim().length > 200 || description.length > 5000 || weightGrams === "" || !Number.isInteger(Number(weightGrams)) || Number(weightGrams) <= 0 || variants.length === 0 || variants.some((variant) => !variant.variant_name.trim() || variant.variant_name.length > 100 || variant.variant_value.length > 150 || !variant.sku.trim() || variant.sku.length > 100 || Number(variant.price) <= 0)) return;
     setSaving(true);
     try {
       const validImages = images
@@ -142,7 +142,7 @@ export function SellerProductEditScreen() {
       {product.status === "HIDDEN" && <div className="notice notice--warning" role="status">Sản phẩm đang bị Admin ẩn. Bạn có thể sửa thông tin nhưng không thể tự kích hoạt lại.</div>}
       <form className="surface-card space-y-6 p-6" onSubmit={save}>
         <FormField id="seller-product-name" label="Tên sản phẩm" required>
-          <TextInput id="seller-product-name" required minLength={2} maxLength={200} value={name} onChange={(event) => setName(event.target.value)} />
+          <TextInput id="seller-product-name" required minLength={2} value={name} onChange={(event) => setName(event.target.value)} />
         </FormField>
         <FormField id="seller-product-category" label="Danh mục" required>
           <SelectInput id="seller-product-category" required value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
@@ -151,7 +151,8 @@ export function SellerProductEditScreen() {
           </SelectInput>
         </FormField>
         <FormField id="seller-product-description" label="Mô tả">
-          <textarea id="seller-product-description" value={description} onChange={(event) => setDescription(event.target.value)} rows={5} className="form-textarea w-full" />
+          <textarea id="seller-product-description" value={description} onChange={(event) => setDescription(event.target.value)} rows={5} className="form-textarea w-full" aria-describedby="seller-product-description-count" />
+          <p id="seller-product-description-count" className={`text-xs text-right ${description.length > 5000 ? "text-[var(--danger)]" : "text-[var(--subtext)]"}`} aria-live="polite">{description.length}/5.000 ký tự</p>
         </FormField>
         <FormField id="seller-product-weight-grams" label="Khối lượng đóng gói (gram)" helpText="Dùng để ước tính phí vận chuyển.">
           <TextInput id="seller-product-weight-grams" type="number" min={1} step={1} required value={weightGrams} onChange={(event) => setWeightGrams(event.target.value)} />
@@ -225,13 +226,13 @@ export function SellerProductEditScreen() {
           {variants.map((variant, index) => (
             <div key={variant.key} className="grid gap-3 rounded-xl border border-[var(--border)] p-4 sm:grid-cols-2">
               <FormField id={`variant-name-${variant.key}`} label={`Tên phân loại ${index + 1}`} required>
-                <TextInput id={`variant-name-${variant.key}`} required maxLength={100} value={variant.variant_name} onChange={(event) => setVariants((all) => all.map((item) => item.key === variant.key ? { ...item, variant_name: event.target.value } : item))} />
+                <TextInput id={`variant-name-${variant.key}`} required value={variant.variant_name} onChange={(event) => setVariants((all) => all.map((item) => item.key === variant.key ? { ...item, variant_name: event.target.value } : item))} />
               </FormField>
               <FormField id={`variant-value-${variant.key}`} label="Giá trị">
-                <TextInput id={`variant-value-${variant.key}`} maxLength={150} value={variant.variant_value} onChange={(event) => setVariants((all) => all.map((item) => item.key === variant.key ? { ...item, variant_value: event.target.value } : item))} />
+                <TextInput id={`variant-value-${variant.key}`} value={variant.variant_value} onChange={(event) => setVariants((all) => all.map((item) => item.key === variant.key ? { ...item, variant_value: event.target.value } : item))} />
               </FormField>
               <FormField id={`sku-${variant.key}`} label="SKU" required>
-                <TextInput id={`sku-${variant.key}`} required maxLength={100} value={variant.sku} onChange={(event) => setVariants((all) => all.map((item) => item.key === variant.key ? { ...item, sku: event.target.value } : item))} />
+                <TextInput id={`sku-${variant.key}`} required value={variant.sku} onChange={(event) => setVariants((all) => all.map((item) => item.key === variant.key ? { ...item, sku: event.target.value } : item))} />
               </FormField>
               <FormField id={`price-${variant.key}`} label="Giá bán" required>
                 <TextInput id={`price-${variant.key}`} type="number" min="0.01" step="0.01" required value={variant.price} onChange={(event) => setVariants((all) => all.map((item) => item.key === variant.key ? { ...item, price: event.target.value } : item))} />

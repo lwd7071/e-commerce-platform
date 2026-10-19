@@ -30,6 +30,7 @@ export function OrderReviewScreen({ orderId }: OrderReviewScreenProps) {
   // Per-item review state map
   const [ratings, setRatings] = useState<Record<string, number>>({});
   const [comments, setComments] = useState<Record<string, string>>({});
+  const [touchedComments, setTouchedComments] = useState<Record<string, boolean>>({});
   const [mediaUrls, setMediaUrls] = useState<Record<string, string[]>>({});
   const [submittingItems, setSubmittingItems] = useState<Record<string, boolean>>({});
   const [reviewedItems, setReviewedItems] = useState<Record<string, boolean>>({});
@@ -198,15 +199,23 @@ export function OrderReviewScreen({ orderId }: OrderReviewScreenProps) {
                     </div>
 
                     <div>
+                      <div className="mb-1 flex items-center justify-between gap-2">
                       <label
                         htmlFor={`comment-${item.id}`}
                         className="block text-xs font-bold text-[var(--foreground)] mb-1"
                       >
                         Nhận xét chi tiết
                       </label>
+                      <span className="text-xs text-[var(--subtext)]">{(comments[item.id] || "").length}/500</span>
+                      </div>
+                      {touchedComments[item.id] && (comments[item.id] || "").trim().length < 10 && <p id={`comment-error-${item.id}`} className="mb-1 text-xs text-[var(--danger-text)]">Nhận xét cần ít nhất 10 ký tự.</p>}
+                      {(comments[item.id] || "").length > 500 && <p id={`comment-error-${item.id}`} className="mb-1 text-xs text-[var(--danger-text)]">Nhận xét không được vượt quá 500 ký tự.</p>}
                       <TextArea
                         id={`comment-${item.id}`}
                         rows={3}
+                        aria-invalid={(touchedComments[item.id] && (comments[item.id] || "").trim().length < 10) || (comments[item.id] || "").length > 500}
+                        aria-describedby={`comment-error-${item.id}`}
+                        onBlur={() => setTouchedComments((prev) => ({ ...prev, [item.id]: true }))}
                         placeholder="Hãy chia sẻ trải nghiệm thực tế về sản phẩm để giúp cộng đồng mua sắm tốt hơn..."
                         value={comments[item.id] || ""}
                         onChange={(e) =>
