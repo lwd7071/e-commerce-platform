@@ -155,6 +155,9 @@ dbDescribe('Checkout E2E Runtime & Invariants Gate (B-408 / A-206 on real Postgr
     // 2 selected items from Shop 1 and Shop 2
     await createFixtureCartItem(pool, cart.cartId, variant1Id, { quantity: 2, isSelected: true });
     await createFixtureCartItem(pool, cart.cartId, variant2Id, { quantity: 1, isSelected: true });
+    const secondShop1Product = await createFixtureProduct(pool, shop1Id, (await createFixtureCategory(pool)).categoryId, { productName: 'Mu Luoi Trai Dino' });
+    const secondShop1Variant = await createFixtureVariant(pool, secondShop1Product.productId, { stockQuantity: 10 });
+    await createFixtureCartItem(pool, cart.cartId, secondShop1Variant.variantId, { quantity: 1, isSelected: true });
 
     // 1 unselected item that MUST remain after checkout
     const prodUnselected = await createFixtureProduct(pool, shop1Id, (await createFixtureCategory(pool)).categoryId);
@@ -180,6 +183,15 @@ dbDescribe('Checkout E2E Runtime & Invariants Gate (B-408 / A-206 on real Postgr
     const sellerNotifications = await pool.query(`SELECT recipient_id,title,content FROM notifications WHERE recipient_id=ANY($1::uuid[]) AND title='Có đơn hàng mới'`, [[seller1Id, seller2Id]]);
     expect(sellerNotifications.rows).toHaveLength(2);
     expect(sellerNotifications.rows.map((row) => row.recipient_id).sort()).toEqual([seller1Id, seller2Id].sort());
+
+    const buyerNotifications = await pool.query(`SELECT title,content FROM notifications WHERE recipient_id=$1 AND title='Đặt hàng thành công'`, [buyerId]);
+    expect(buyerNotifications.rows).toHaveLength(2);
+    expect(buyerNotifications.rows.map((row) => row.content).join(" ")).toContain('Ao Phong Dino');
+    expect(buyerNotifications.rows.map((row) => row.content).join(" ")).toContain('Sach Hoc React 19');
+    expect(buyerNotifications.rows.map((row) => row.content).join(" ")).toContain('Mu Luoi Trai Dino');
+    for (const order of res.body.data.orders as Array<{ order_id: string }>) {
+      expect(buyerNotifications.rows.map((row) => row.content).join(" ")).toContain(order.order_id);
+    }
 
     // Invariant 2: Cart items check - selected are removed, unselected remains
     const remainingCartItems = await pool.query('SELECT cart_item_id, is_selected FROM cart_items WHERE cart_id = $1', [cart.cartId]);

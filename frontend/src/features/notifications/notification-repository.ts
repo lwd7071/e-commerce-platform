@@ -15,6 +15,13 @@ export type BulkMarkReadResult = {
   requestIds: string[];
 };
 
+export function localizeOrderCreatedNotification(title: string, content: string): { title: string; body: string } {
+  const match = title === "Order created" && content.match(/^Order ([0-9a-f-]{36}) created$/i);
+  return match
+    ? { title: "Đặt hàng thành công", body: `Bạn vừa đặt đơn hàng. Mã đơn: ${match[1]}.` }
+    : { title, body: content };
+}
+
 export async function markNotificationsReadBounded(
   ids: string[],
   markRead: (id: string) => Promise<void>,
@@ -62,13 +69,16 @@ export const demoNotificationRepository: NotificationRepository = {
 export const apiNotificationRepository: NotificationRepository = {
   async list() {
     const notifications = await buyerApi.getNotifications();
-    return notifications.map((notification) => ({
-      id: notification.notificationId,
-      title: notification.title,
-      body: notification.content,
-      createdAt: new Date(notification.createdAt).toLocaleString("vi-VN"),
-      isRead: notification.isRead,
-    }));
+    return notifications.map((notification) => {
+      const { title, body } = localizeOrderCreatedNotification(notification.title, notification.content);
+      return {
+        id: notification.notificationId,
+        title,
+        body,
+        createdAt: new Date(notification.createdAt).toLocaleString("vi-VN"),
+        isRead: notification.isRead,
+      };
+    });
   },
   async markRead(id) {
     await buyerApi.markNotificationRead(id);

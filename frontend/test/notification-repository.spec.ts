@@ -1,5 +1,21 @@
 import { describe, expect, it, vi } from "vitest";
-import { markNotificationsReadBounded } from "../src/features/notifications/notification-repository";
+import { localizeOrderCreatedNotification, markNotificationsReadBounded } from "../src/features/notifications/notification-repository";
+
+describe("localizeOrderCreatedNotification", () => {
+  it("shows legacy order notifications in natural Vietnamese", () => {
+    expect(localizeOrderCreatedNotification("Order created", "Order 7f5d6e47-b0bb-4a3d-9029-8123aeb45a76 created")).toEqual({
+      title: "Đặt hàng thành công",
+      body: "Bạn vừa đặt đơn hàng. Mã đơn: 7f5d6e47-b0bb-4a3d-9029-8123aeb45a76.",
+    });
+  });
+
+  it("leaves other notifications unchanged", () => {
+    expect(localizeOrderCreatedNotification("Thanh toán thành công", "Đơn hàng đã được thanh toán.")).toEqual({
+      title: "Thanh toán thành công",
+      body: "Đơn hàng đã được thanh toán.",
+    });
+  });
+});
 
 describe("markNotificationsReadBounded", () => {
   it("limits work to 20 visible IDs and runs at most four writes at once", async () => {

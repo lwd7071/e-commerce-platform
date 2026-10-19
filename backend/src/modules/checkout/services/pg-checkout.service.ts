@@ -191,7 +191,11 @@ export class PgCheckoutService implements OrderHttpApplication {
       }
       await client.query("INSERT INTO order_status_history (history_id,order_id,old_status,new_status,changed_by) VALUES ($1,$2,NULL,'PENDING_CONFIRMATION',$3)", [crypto.randomUUID(), orderId, context.user_id]);
       await client.query("INSERT INTO payments (payment_id,order_id,method,amount,status) VALUES ($1,$2,$3,$4,'PENDING')", [paymentId, orderId, command.payment_method, totals.total_amount]);
-      await client.query("INSERT INTO notifications (notification_id,recipient_id,type,title,content) VALUES ($1,$2,'ORDER','Order created',$3)", [crypto.randomUUID(), context.user_id, `Order ${orderId} created`]);
+      const productNames = [...new Set(rows.map(row => row.product_name))];
+      await client.query(
+        "INSERT INTO notifications (notification_id,recipient_id,type,title,content) VALUES ($1,$2,'ORDER',$3,$4)",
+        [crypto.randomUUID(), context.user_id, 'Đặt hàng thành công', `Bạn vừa đặt đơn hàng gồm: ${productNames.join(', ')}. Mã đơn: ${orderId}.`],
+      );
       await client.query(
         "INSERT INTO notifications (notification_id,recipient_id,type,title,content) VALUES ($1,$2,'ORDER',$3,$4)",
         [crypto.randomUUID(), rows[0].shop_owner_id, 'Có đơn hàng mới', `Gian hàng nhận được đơn hàng #${orderId}.`],
