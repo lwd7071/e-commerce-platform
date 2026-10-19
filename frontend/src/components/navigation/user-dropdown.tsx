@@ -56,16 +56,16 @@ export function UserDropdown({ user, onLogout }: Props) {
   const displayName = user.fullName || user.email?.split("@")[0] || "Tài khoản";
 
   return (
-    <div className="relative inline-block text-left" ref={containerRef}>
+    <div className="relative inline-block text-left shrink-0" ref={containerRef}>
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className="flex items-center gap-2.5 px-3 py-1.5 rounded-full border border-[var(--border)] bg-[var(--card)] hover:border-[var(--subtext)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] transition-all min-h-[40px] cursor-pointer"
+        className="flex items-center gap-1.5 sm:gap-2.5 px-2 sm:px-3 py-1.5 rounded-full border border-[var(--border)] bg-[var(--card)] hover:border-[var(--subtext)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)] transition-all min-h-[38px] sm:min-h-[40px] cursor-pointer"
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-label="Menu người dùng"
       >
-        <span className="w-7 h-7 rounded-full bg-[var(--primary-surface)] text-[var(--primary-active)] flex items-center justify-center font-bold text-xs uppercase">
+        <span className="w-7 h-7 rounded-full bg-[var(--primary-surface)] text-[var(--primary-active)] flex items-center justify-center font-bold text-xs uppercase shrink-0">
           {displayName.charAt(0)}
         </span>
         <span className="text-sm font-medium text-[var(--foreground)] max-w-[120px] truncate hidden sm:inline">
@@ -78,7 +78,7 @@ export function UserDropdown({ user, onLogout }: Props) {
         <div
           role="menu"
           aria-orientation="vertical"
-          className="absolute right-0 mt-2 w-56 rounded-xl bg-[var(--card)] border border-[var(--border)] shadow-[var(--shadow-card)] py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150"
+          className="absolute right-0 mt-2 w-56 max-w-[calc(100vw-24px)] rounded-xl bg-[var(--card)] border border-[var(--border)] shadow-[var(--shadow-card)] py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150"
         >
           {/* Header user info */}
           <div className="px-3.5 py-2.5 border-b border-[var(--border)]">

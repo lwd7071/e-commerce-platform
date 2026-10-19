@@ -1075,6 +1075,11 @@ button[aria-haspopup="menu"][aria-expanded="true"] {
   margin-inline: auto;
 }
 
+.site-header--seller .site-header__inner {
+  flex-wrap: nowrap !important;
+  width: min(100% - 24px, var(--content-width));
+}
+
 .brand-lockup {
   display: inline-flex;
   min-height: 44px;

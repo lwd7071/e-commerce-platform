@@ -93,8 +93,8 @@ export function SiteHeader({ role = null, isSellerArea = false, onToggleSellerMe
   if (isSellerArea) {
     return (
       <header className="site-header site-header--seller">
-        <div className="site-header__inner">
-          <div className="flex items-center gap-2 sm:gap-3">
+        <div className="site-header__inner flex items-center justify-between !flex-nowrap gap-2 sm:gap-4 w-full">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             {onToggleSellerMenu && (
               <button
                 type="button"
@@ -105,22 +105,23 @@ export function SiteHeader({ role = null, isSellerArea = false, onToggleSellerMe
                 <Icon name="menu" className="w-5 h-5" />
               </button>
             )}
-            <Link className="brand-lockup flex items-center gap-2" href="/seller" aria-label="Dino Kênh người bán">
-              <span className="font-bold text-xl tracking-tight">Dino</span>
-              <span className="px-2 py-0.5 text-xs font-semibold rounded-md bg-[var(--primary-surface)] text-[var(--primary-active)] border border-[var(--primary-border)]">
+            <Link className="brand-lockup flex items-center gap-1.5 sm:gap-2 shrink-0" href="/seller" aria-label="Dino Kênh người bán">
+              <span className="font-bold text-lg sm:text-xl tracking-tight">Dino</span>
+              <span className="px-1.5 sm:px-2 py-0.5 text-[11px] sm:text-xs font-semibold rounded-md bg-[var(--primary-surface)] text-[var(--primary-active)] border border-[var(--primary-border)] whitespace-nowrap">
                 Kênh người bán
               </span>
             </Link>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 ml-auto">
             <Link
               href="/"
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[var(--subtext)] hover:text-[var(--foreground)] hover:bg-[var(--card-muted)] rounded-lg transition-colors min-h-[38px]"
+              className="flex items-center justify-center gap-1.5 px-2 sm:px-3 py-1.5 text-sm font-medium text-[var(--subtext)] hover:text-[var(--foreground)] hover:bg-[var(--card-muted)] rounded-lg transition-colors min-h-[38px]"
               aria-label="Quay lại mua sắm"
+              title="Quay lại mua sắm"
             >
               <Icon name="home" className="w-4 h-4" />
-              <span className="hidden sm:inline">Quay lại mua sắm</span>
+              <span className="hidden md:inline">Quay lại mua sắm</span>
             </Link>
 
             {notifications}
