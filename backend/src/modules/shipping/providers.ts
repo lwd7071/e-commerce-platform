@@ -13,7 +13,7 @@ export interface ShippingQuoteInput {
 export interface ShippingQuote {
   readonly provider: 'mock' | 'ghtk';
   readonly fee: string;
-  readonly deliverable: true;
+  readonly deliverable: boolean;
 }
 
 export interface ShippingFeeProvider {
@@ -80,11 +80,7 @@ export class GhtkFeeProvider implements ShippingFeeProvider {
     if (body.success !== true || typeof body.fee?.fee !== 'number' || !Number.isFinite(body.fee.fee) || body.fee.fee < 0) {
       throw new DependencyUnavailableError('GHTK shipping quote is temporarily unavailable.');
     }
-    if (body.fee.delivery !== true) {
-      throw new AppError(422, 'SHIPPING_UNAVAILABLE', 'GHTK does not deliver to the selected address.');
-    }
-
-    return { provider: 'ghtk', fee: body.fee.fee.toFixed(2), deliverable: true };
+    return { provider: 'ghtk', fee: body.fee.fee.toFixed(2), deliverable: body.fee.delivery === true };
   }
 }
 

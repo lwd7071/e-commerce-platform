@@ -18,7 +18,7 @@ describe('shipping fee providers', () => {
 
     const quote = await provider.quote({
       pickupAddress: '1 Đường A', pickupProvince: 'Thành phố Hà Nội', pickupWard: 'Phường Hoàn Kiếm',
-      deliveryAddress: '2 Đường B', deliveryProvince: 'Thành phố Hồ Chí Minh', deliveryWard: 'Phường Bến Thành',
+      deliveryAddress: '2 Đường B, Ấp An Thịnh', deliveryProvince: 'Thành phố Hồ Chí Minh', deliveryWard: 'Phường Bến Thành',
       weightGrams: 800,
     });
 
@@ -28,6 +28,7 @@ describe('shipping fee providers', () => {
     assert.equal(url.searchParams.get('pick_ward'), 'Phường Hoàn Kiếm');
     assert.equal(url.searchParams.get('province'), 'Thành phố Hồ Chí Minh');
     assert.equal(url.searchParams.get('ward'), 'Phường Bến Thành');
+    assert.equal(url.searchParams.get('address'), '2 Đường B, Ấp An Thịnh');
     assert.equal(url.searchParams.get('weight'), '800');
     assert.equal(url.searchParams.has('district'), false);
     assert.equal(url.pathname.includes('/shipment/order'), false);
@@ -35,16 +36,28 @@ describe('shipping fee providers', () => {
     assert.deepEqual(quote, { provider: 'ghtk', fee: '30400.00', deliverable: true });
   });
 
-  it('rejects locations GHTK says it cannot deliver to', async () => {
+  it('returns a valid quoted fee even when GHTK marks the route as non-deliverable', async () => {
     const provider = new GhtkFeeProvider({
       baseUrl: 'https://services.giaohangtietkiem.vn', token: 'test-secret',
-      fetcher: async () => Response.json({ success: true, fee: { fee: 0, delivery: false } }),
+      fetcher: async () => Response.json({ success: true, fee: { fee: 40700, delivery: false } }),
+    });
+
+    assert.deepEqual(await provider.quote({
+      pickupAddress: 'A', pickupProvince: 'P', pickupWard: 'W', deliveryAddress: 'B',
+      deliveryProvince: 'Q', deliveryWard: 'X', weightGrams: 200,
+    }), { provider: 'ghtk', fee: '40700.00', deliverable: false });
+  });
+
+  it('rejects a missing or invalid GHTK fee even when delivery is false', async () => {
+    const provider = new GhtkFeeProvider({
+      baseUrl: 'https://services.giaohangtietkiem.vn', token: 'test-secret',
+      fetcher: async () => Response.json({ success: true, fee: { fee: null, delivery: false } }),
     });
 
     await assert.rejects(provider.quote({
       pickupAddress: 'A', pickupProvince: 'P', pickupWard: 'W', deliveryAddress: 'B',
       deliveryProvince: 'Q', deliveryWard: 'X', weightGrams: 200,
-    }), { code: 'SHIPPING_UNAVAILABLE' });
+    }), { code: 'DEPENDENCY_UNAVAILABLE' });
   });
 
   it('returns a deterministic mock fee without making a network request', async () => {

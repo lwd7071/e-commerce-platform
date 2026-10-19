@@ -233,6 +233,18 @@ describe('Order & Checkout Domain Routes Integration (/api/v1/...) [Mốc T2]', 
     assert.strictEqual(res.body.error.code, 'IDEMPOTENCY_KEY_REQUIRED');
   });
 
+  it('POST /api/v1/checkout: returns the simulated order when shipping quote is available', async () => {
+    const services = createMockOrderServices();
+    const app = createApp({ auth: buyerAuth, orderServices: services });
+    const res = await request(app)
+      .post('/api/v1/checkout')
+      .set('Idempotency-Key', 'ghtk-reject-test-1234')
+      .send({ address_id: '00000000-0000-4000-8000-000000000005', payment_method: 'COD' })
+      .expect(201);
+    assert.equal(res.body.data.orders.length, 1);
+    assert.equal(res.body.data.orders[0].status, 'PENDING_CONFIRMATION');
+  });
+
   it('POST /api/v1/orders: alias creates order from checkout and returns 201', async () => {
     const services = createMockOrderServices();
     const app = createApp({ auth: buyerAuth, orderServices: services });

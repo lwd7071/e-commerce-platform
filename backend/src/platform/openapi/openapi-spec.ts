@@ -640,7 +640,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
           description: 'Uses the configured mock provider or GHTK fee endpoint only. Does not create a carrier shipment.',
           security: [{ BearerAuth: [] }],
           requestBody: jsonRequest({ type: 'object', required: ['address_id'], additionalProperties: false, properties: { address_id: { type: 'string', format: 'uuid' } } }),
-          responses: { '200': successResponse('Shipping quote by shop'), '422': errorResponse('Invalid or unsupported delivery address'), '503': errorResponse('Shipping fee provider unavailable') },
+          responses: { '200': successResponse('Shipping quote by shop'), '422': errorResponse('Invalid shipping quote inputs'), '503': errorResponse('Shipping fee provider unavailable') },
         },
       },
       '/checkout': {

@@ -1739,7 +1739,7 @@ export interface paths {
                         "application/json": components["schemas"]["SuccessEnvelope"];
                     };
                 };
-                /** @description Invalid or unsupported delivery address */
+                /** @description Invalid shipping quote inputs */
                 422: {
                     headers: {
                         [name: string]: unknown;
