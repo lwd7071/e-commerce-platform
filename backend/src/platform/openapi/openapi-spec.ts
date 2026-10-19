@@ -175,7 +175,7 @@ export function generateOpenApiSpec(): OpenApiSpec {
           },
         },
         OrderReadDTO: {
-          type: 'object', required: ['order_id', 'buyer_id', 'shop_id', 'shop_name', 'status', 'subtotal', 'discount_amount', 'shipping_fee', 'total_amount', 'cancel_reason', 'created_at', 'updated_at', 'items', 'status_history'],
+          type: 'object', required: ['order_id', 'buyer_id', 'shop_id', 'shop_name', 'status', 'subtotal', 'discount_amount', 'shipping_fee', 'total_amount', 'cancel_reason', 'created_at', 'updated_at', 'items', 'status_history', 'payments'],
           properties: {
             order_id: { type: 'string', format: 'uuid' }, buyer_id: { type: 'string', format: 'uuid' }, shop_id: { type: 'string', format: 'uuid' }, shop_name: { type: 'string' },
             status: { type: 'string', enum: ['PENDING_CONFIRMATION', 'CONFIRMED', 'PREPARING', 'SHIPPING', 'COMPLETED', 'CANCELLED', 'DELIVERY_FAILED'] },
@@ -187,6 +187,9 @@ export function generateOpenApiSpec(): OpenApiSpec {
             status_history: { type: 'array', items: { type: 'object', required: ['history_id', 'old_status', 'new_status', 'changed_by', 'reason', 'changed_at'], properties: {
               history_id: { type: 'string', format: 'uuid' }, old_status: { type: ['string', 'null'] }, new_status: { type: 'string' },
               changed_by: { type: ['string', 'null'], format: 'uuid' }, reason: { type: ['string', 'null'] }, changed_at: { type: 'string', format: 'date-time' },
+            } } },
+            payments: { type: 'array', items: { type: 'object', required: ['payment_id', 'transaction_code', 'method', 'amount', 'status', 'created_at', 'paid_at', 'note'], properties: {
+              payment_id: { type: 'string', format: 'uuid' }, transaction_code: { type: ['string', 'null'] }, method: { type: 'string', enum: ['COD', 'ONLINE'] }, amount: { type: 'string' }, status: { type: 'string', enum: ['PENDING', 'SUCCESS', 'FAILED'] }, created_at: { type: 'string', format: 'date-time' }, paid_at: { type: ['string', 'null'], format: 'date-time' }, note: { type: ['string', 'null'] },
             } } },
           },
         },

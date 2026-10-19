@@ -7814,6 +7814,21 @@ export interface components {
                 /** Format: date-time */
                 changed_at: string;
             }[];
+            payments: {
+                /** Format: uuid */
+                payment_id: string;
+                transaction_code: string | null;
+                /** @enum {string} */
+                method: "COD" | "ONLINE";
+                amount: string;
+                /** @enum {string} */
+                status: "PENDING" | "SUCCESS" | "FAILED";
+                /** Format: date-time */
+                created_at: string;
+                /** Format: date-time */
+                paid_at: string | null;
+                note: string | null;
+            }[];
         };
         OrderListSuccessEnvelope: {
             data: components["schemas"]["OrderReadDTO"][];

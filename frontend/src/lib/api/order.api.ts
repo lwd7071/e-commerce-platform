@@ -35,6 +35,7 @@ export interface WireOrder {
   updated_at?: string;
   items: WireOrderItem[];
   status_history?: Array<{ history_id: string; old_status: string | null; new_status: string; changed_by: string | null; reason: string | null; changed_at: string }>;
+  payments?: OrderReadDTO["payments"];
 }
 
 function mapOrder(dto: OrderReadDTO): WireOrder {
@@ -63,6 +64,7 @@ function mapOrder(dto: OrderReadDTO): WireOrder {
       image_url: item.image_url,
     })),
     status_history: dto.status_history,
+    payments: dto.payments,
   };
 }
 

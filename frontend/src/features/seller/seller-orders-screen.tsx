@@ -52,6 +52,25 @@ function OrderTimeline({ order }: { order: WireOrder }) {
   );
 }
 
+function PaymentStatus({ order }: { order: WireOrder }) {
+  const paidOnline = order.payments?.some(payment => payment.method === "ONLINE" && payment.status === "SUCCESS");
+  const latestPayment = order.payments?.[order.payments.length - 1];
+  const label = paidOnline
+    ? "Đã thanh toán online"
+    : latestPayment?.method === "COD"
+      ? "Thanh toán khi nhận hàng"
+      : latestPayment?.status === "PENDING"
+        ? "Chờ thanh toán online"
+        : latestPayment?.status === "FAILED"
+          ? "Thanh toán online thất bại"
+          : null;
+  if (!label) return null;
+
+  return <span className={`mt-1 inline-flex rounded-full px-2 py-1 text-[11px] font-semibold ${paidOnline ? "bg-[var(--success-surface)] text-[var(--success-text)]" : "bg-[var(--warning-surface)] text-[var(--warning-text)]"}`}>
+    {label}
+  </span>;
+}
+
 export function SellerOrdersScreen() {
   const showToast = useToast();
   const [activeTab, setActiveTab] = useState<SellerFilterTab>("ALL");
@@ -71,9 +90,11 @@ export function SellerOrdersScreen() {
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [isSubmittingCancel, setIsSubmittingCancel] = useState(false);
 
-  const fetchOrders = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+  const fetchOrders = useCallback(async (silent = false) => {
+    if (!silent) {
+      setIsLoading(true);
+      setError(null);
+    }
     try {
       const orderRepo = repositories.order();
       const filter = activeTab === "ALL" ? {} : { status: activeTab };
@@ -87,15 +108,21 @@ export function SellerOrdersScreen() {
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Không thể tải danh sách đơn hàng.";
-      setError(msg);
+      if (!silent) setError(msg);
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   }, [activeTab]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => { void fetchOrders(); }, 0);
-    return () => window.clearTimeout(timer);
+    const initialLoad = window.setTimeout(() => { void fetchOrders(); }, 0);
+    const refresh = window.setInterval(() => {
+      if (document.visibilityState === "visible") void fetchOrders(true);
+    }, 15_000);
+    return () => {
+      window.clearTimeout(initialLoad);
+      window.clearInterval(refresh);
+    };
   }, [fetchOrders]);
 
   const loadMoreOrders = async () => {
@@ -405,7 +432,10 @@ export function SellerOrdersScreen() {
                           </td>
 
                           <td className="py-4 px-4 align-top text-center">
-                            <StatusBadge status={order.status} />
+                            <div className="flex flex-col items-center">
+                              <StatusBadge status={order.status} />
+                              <PaymentStatus order={order} />
+                            </div>
                           </td>
 
                           <td className="py-4 px-4 align-top text-right space-x-2">
@@ -518,7 +548,10 @@ export function SellerOrdersScreen() {
                           {order.created_at ? new Date(order.created_at).toLocaleDateString("vi-VN") : ""}
                         </time>
                       </div>
-                      <StatusBadge status={order.status} />
+                      <div className="flex flex-col items-end">
+                        <StatusBadge status={order.status} />
+                        <PaymentStatus order={order} />
+                      </div>
                     </div>
 
                     <OrderTimeline order={order} />
