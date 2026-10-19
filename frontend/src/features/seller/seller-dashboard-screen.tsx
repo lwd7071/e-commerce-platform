@@ -69,7 +69,7 @@ export function SellerDashboardScreen() {
 
   return (
     <ProtectedPage allowedRoles={["SELLER", "ADMIN"]}>
-      <div className="seller-dashboard min-h-screen py-8 px-4 sm:px-6 max-w-7xl mx-auto">
+      <div className="seller-dashboard max-w-7xl mx-auto space-y-6">
         {/* Navigation Breadcrumb & Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-6 border-b border-[var(--border)]">
           <div>

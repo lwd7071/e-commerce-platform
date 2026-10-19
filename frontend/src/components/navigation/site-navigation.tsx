@@ -19,9 +19,10 @@ function isCurrent(pathname: string, href: string) {
 type SiteHeaderProps = {
   role?: AppRole;
   isSellerArea?: boolean;
+  onToggleSellerMenu?: () => void;
 };
 
-export function SiteHeader({ role = null, isSellerArea = false }: SiteHeaderProps) {
+export function SiteHeader({ role = null, isSellerArea = false, onToggleSellerMenu }: SiteHeaderProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
@@ -93,7 +94,17 @@ export function SiteHeader({ role = null, isSellerArea = false }: SiteHeaderProp
     return (
       <header className="site-header site-header--seller">
         <div className="site-header__inner">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            {onToggleSellerMenu && (
+              <button
+                type="button"
+                onClick={onToggleSellerMenu}
+                className="md:hidden flex items-center justify-center p-2 rounded-lg text-[var(--foreground)] hover:bg-[var(--card-muted)] transition-colors min-h-[38px] min-w-[38px]"
+                aria-label="Mở menu người bán"
+              >
+                <Icon name="menu" className="w-5 h-5" />
+              </button>
+            )}
             <Link className="brand-lockup flex items-center gap-2" href="/seller" aria-label="Dino Kênh người bán">
               <span className="font-bold text-xl tracking-tight">Dino</span>
               <span className="px-2 py-0.5 text-xs font-semibold rounded-md bg-[var(--primary-surface)] text-[var(--primary-active)] border border-[var(--primary-border)]">

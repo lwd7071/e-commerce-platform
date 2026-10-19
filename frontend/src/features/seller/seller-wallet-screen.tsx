@@ -228,7 +228,7 @@ export function SellerWalletScreen() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
+              <table className="w-full min-w-[550px] text-left text-sm">
                 <thead className="bg-[var(--card-muted)] border-b border-[var(--border)] text-xs font-semibold text-[var(--subtext)] uppercase tracking-wider">
                   <tr>
                     <th className="px-5 py-3.5">Thời gian</th>
@@ -296,7 +296,7 @@ export function SellerWalletScreen() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
+              <table className="w-full min-w-[600px] text-left text-sm">
                 <thead className="bg-[var(--card-muted)] border-b border-[var(--border)] text-xs font-semibold text-[var(--subtext)] uppercase tracking-wider">
                   <tr>
                     <th className="px-5 py-3.5">Mã yêu cầu</th>

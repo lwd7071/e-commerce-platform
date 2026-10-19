@@ -338,7 +338,7 @@ export function SellerProductsScreen() {
           ) : (
             <div className="surface-card overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-sm">
+                <table className="w-full min-w-[640px] text-left border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-[var(--border)] bg-[var(--card-muted)] text-xs font-bold text-[var(--subtext)]">
                       <th className="py-3.5 px-4">Sản phẩm</th>

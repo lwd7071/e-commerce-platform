@@ -300,15 +300,6 @@ export function AdminDashboardScreen() {
               Giám sát số liệu kinh doanh, kiểm duyệt tài khoản, gian hàng và quản lý danh mục toàn diện.
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Link
-              href="/admin/finance"
-              className="button button--primary text-xs py-2 px-3.5 flex items-center gap-1.5 shadow-sm font-semibold"
-            >
-              <Icon name="bag" className="w-4 h-4" />
-              <span>Tài chính & Ví sàn (A-710)</span>
-            </Link>
-          </div>
         </header>
 
         {/* Admin Navigation Hub Toolbar */}
