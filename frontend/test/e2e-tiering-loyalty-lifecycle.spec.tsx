@@ -23,6 +23,7 @@ vi.mock("@/lib/config/features", () => ({
 import { repositories } from "@/lib/repositories/repository-factory";
 import { ProductCard } from "@/features/catalog/product-card";
 import { ProductDetailScreen } from "@/features/catalog/product-detail-screen";
+import { BuyerChatController } from "@/components/chat/buyer-chat-controller";
 import { CatalogListScreen } from "@/features/catalog/catalog-list-screen";
 import { BuyerLoyaltyCard } from "@/features/profile/loyalty-card";
 import { CartScreen } from "@/features/cart/cart-screen";
@@ -190,9 +191,11 @@ describe("E2E Lifecycle: Tiering & Loyalty (Yêu cầu 3 & 4)", () => {
 
       const { ToastProvider } = await import("@/components/ui/toast");
       render(
-        <ToastProvider>
-          <ProductDetailScreen productId="prod-mall-detail" />
-        </ToastProvider>
+        <BuyerChatController enabled={false}>
+          <ToastProvider>
+            <ProductDetailScreen productId="prod-mall-detail" />
+          </ToastProvider>
+        </BuyerChatController>
       );
 
       await waitFor(() => {
@@ -249,12 +252,14 @@ describe("E2E Lifecycle: Tiering & Loyalty (Yêu cầu 3 & 4)", () => {
 
       const { ToastProvider } = await import("@/components/ui/toast");
       render(
-        <QueryProvider>
-          <ToastProvider>
-            <ProductDetailScreen productId="prod-cart-invalidation" />
-            <CartScreen />
-          </ToastProvider>
-        </QueryProvider>
+        <BuyerChatController enabled={false}>
+          <QueryProvider>
+            <ToastProvider>
+              <ProductDetailScreen productId="prod-cart-invalidation" />
+              <CartScreen />
+            </ToastProvider>
+          </QueryProvider>
+        </BuyerChatController>
       );
 
       await waitFor(() => expect(screen.getByRole("heading", { name: "Giỏ hàng (1 sản phẩm)" })).toBeTruthy());

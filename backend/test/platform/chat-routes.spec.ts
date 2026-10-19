@@ -11,7 +11,8 @@ import type {
   ProductBotPermissions,
 } from '../../src/modules/chat/domain/types.ts';
 import { DEFAULT_BOT_PERMISSIONS } from '../../src/modules/chat/domain/types.ts';
-import type { PgChatService, SendMessageInput } from '../../src/modules/chat/services/pg-chat.service.ts';
+import { PgChatService, type SendMessageInput } from '../../src/modules/chat/services/pg-chat.service.ts';
+import { ForbiddenError } from '../../src/platform/errors/app-error.ts';
 
 const buyerId = '11111111-1111-1111-1111-111111111111';
 const sellerId = '33333333-3333-3333-3333-333333333333';
@@ -212,6 +213,81 @@ describe('Chat HTTP Endpoints Integration', () => {
     const res = await request(app).get('/api/v1/chat/conversations').expect(200);
     assert.equal(res.body.data.length, 1);
     assert.equal(res.body.data[0].conversation_id, conversationId);
+  });
+
+  it('GET /chat/conversations/:id/messages chỉ trả lịch sử khi buyer được service xác nhận quyền truy cập', async () => {
+    const app = createApp({
+      auth: (req, _res, next) => {
+        req.context = createRequestContext({ request_id: 'req-chat-test', user_id: buyerId, role: 'BUYER' });
+        next();
+      },
+      chatService: {
+        listMessages: async (id: string, userId: string, role: string) => {
+          assert.equal(id, conversationId);
+          assert.equal(userId, buyerId);
+          assert.equal(role, 'BUYER');
+          throw new ForbiddenError('FORBIDDEN', 'Access to conversation forbidden');
+        },
+      } as unknown as PgChatService,
+    });
+
+    await request(app)
+      .get(`/api/v1/chat/conversations/${conversationId}/messages`)
+      .expect(403);
+  });
+
+  it('GET /chat/conversations/:id/messages đánh dấu tin của Shop đã đọc trước khi trả lịch sử cho buyer', async () => {
+    const queries: Array<{ text: string; values?: unknown[] }> = [];
+    const pool = {
+      query: async (text: string, values?: unknown[]) => {
+        queries.push({ text, values });
+        if (text.includes('FROM chat_conversations c')) {
+          return { rows: [{
+            conversation_id: conversationId,
+            buyer_id: buyerId,
+            shop_id: shopId,
+            current_product_id: productId,
+            mode: 'BOT_ASSISTANT',
+            bot_permissions: DEFAULT_BOT_PERMISSIONS,
+            last_message_at: '2026-10-02T10:00:00.000Z',
+            created_at: '2026-10-02T10:00:00.000Z',
+            updated_at: '2026-10-02T10:00:00.000Z',
+          }] };
+        }
+        if (text.includes('FROM chat_messages')) {
+          return { rows: [{
+            message_id: 'msg-shop-1',
+            conversation_id: conversationId,
+            client_message_id: null,
+            sender_id: sellerId,
+            sender_role: 'SELLER',
+            message_type: 'TEXT',
+            content: 'Shop còn size M nhé bạn.',
+            metadata: {},
+            is_read: true,
+            created_at: '2026-10-02T10:01:00.000Z',
+          }] };
+        }
+        return { rows: [] };
+      },
+    };
+    const app = createApp({
+      auth: (req, _res, next) => {
+        req.context = createRequestContext({ request_id: 'req-chat-test', user_id: buyerId, role: 'BUYER' });
+        next();
+      },
+      chatService: new PgChatService(pool as never),
+    });
+
+    const res = await request(app)
+      .get(`/api/v1/chat/conversations/${conversationId}/messages`)
+      .expect(200);
+
+    assert.equal(res.body.data[0].content, 'Shop còn size M nhé bạn.');
+    const markReadQuery = queries.find(({ text }) => text.includes('UPDATE chat_messages'));
+    assert.ok(markReadQuery);
+    assert.match(markReadQuery.text, /sender_role <> 'BUYER'/);
+    assert.deepEqual(markReadQuery.values, [conversationId]);
   });
 
   it('POST /chat/conversations/:id/messages gửi tin nhắn và nhận phản hồi từ Bot', async () => {

@@ -1284,69 +1284,15 @@ const mockMediaRepository: IMediaRepository = {
 };
 
 const apiChatRepository: IChatRepository = {
-  createOrGetConversation: async (shopId, productId) => {
-    try {
-      return await chatApi.createOrGetConversation(shopId, productId);
-    } catch {
-      return mockChatRepository.createOrGetConversation(shopId, productId);
-    }
-  },
-  getConversations: async () => {
-    try {
-      return await chatApi.getConversations();
-    } catch {
-      return mockChatRepository.getConversations();
-    }
-  },
-  getConversation: async (id) => {
-    try {
-      return await chatApi.getConversation(id);
-    } catch {
-      return mockChatRepository.getConversation(id);
-    }
-  },
-  getMessages: async (id, limit, cursor) => {
-    try {
-      return await chatApi.getMessages(id, limit, cursor);
-    } catch {
-      return mockChatRepository.getMessages(id, limit, cursor);
-    }
-  },
-  sendMessage: async (id, payload) => {
-    try {
-      return await chatApi.sendMessage(id, payload);
-    } catch {
-      return mockChatRepository.sendMessage(id, payload);
-    }
-  },
-  requestHandoff: async (id) => {
-    try {
-      return await chatApi.requestHandoff(id);
-    } catch {
-      return mockChatRepository.requestHandoff(id);
-    }
-  },
-  updatePermissions: async (id, permissions) => {
-    try {
-      return await chatApi.updatePermissions(id, permissions);
-    } catch {
-      return mockChatRepository.updatePermissions(id, permissions);
-    }
-  },
-  getShopPresence: async (shopId) => {
-    try {
-      return await chatApi.getShopPresence(shopId);
-    } catch {
-      return mockChatRepository.getShopPresence ? mockChatRepository.getShopPresence(shopId) : { shop_id: shopId, is_online: true };
-    }
-  },
-  setShopPresence: async (shopId, isOnline) => {
-    try {
-      return await chatApi.setShopPresence(shopId, isOnline);
-    } catch {
-      return mockChatRepository.setShopPresence ? mockChatRepository.setShopPresence(shopId, isOnline) : { shop_id: shopId, is_online: isOnline };
-    }
-  },
+  createOrGetConversation: (shopId, productId) => chatApi.createOrGetConversation(shopId, productId),
+  getConversations: () => chatApi.getConversations(),
+  getConversation: (id) => chatApi.getConversation(id),
+  getMessages: (id, limit, cursor) => chatApi.getMessages(id, limit, cursor),
+  sendMessage: (id, payload) => chatApi.sendMessage(id, payload),
+  requestHandoff: (id) => chatApi.requestHandoff(id),
+  updatePermissions: (id, permissions) => chatApi.updatePermissions(id, permissions),
+  getShopPresence: (shopId) => chatApi.getShopPresence(shopId),
+  setShopPresence: (shopId, isOnline) => chatApi.setShopPresence(shopId, isOnline),
 };
 
 const mockConversationsStore: import('../api/chat.api').WireChatConversation[] = [

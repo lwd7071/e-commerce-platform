@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth/auth-context";
 import { MobileDock, SiteHeader } from "./site-navigation";
 import { SellerSidebar } from "./seller-sidebar";
+import { BuyerChatController } from "@/components/chat/buyer-chat-controller";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -12,9 +13,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   const role = user?.role ?? null;
   const isAuthRoute = pathname === "/login" || pathname === "/register";
   const isSellerRoute = pathname === "/seller" || pathname.startsWith("/seller/") || (role === "SELLER" && pathname === "/notifications");
+  const isAdminRoute = pathname === "/admin" || pathname.startsWith("/admin/");
+  const isAuthFlowRoute = isAuthRoute || pathname.startsWith("/auth/") || ["/verify-email", "/forgot-password", "/reset-password", "/complete-profile"].includes(pathname);
+  const buyerChatEnabled = Boolean(user?.role === "BUYER" && !isAuthFlowRoute && !isSellerRoute && !isAdminRoute);
 
   return (
-    <>
+    <BuyerChatController key={`${user?.id ?? "anonymous"}:${buyerChatEnabled}`} enabled={buyerChatEnabled}>
       <a className="skip-link" href="#main-content">Bỏ qua điều hướng</a>
       {!isAuthRoute && <SiteHeader role={role} isSellerArea={isSellerRoute} />}
       {isSellerRoute ? (
@@ -30,7 +34,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </main>
       )}
       {!isAuthRoute && !isSellerRoute && <MobileDock role={role} />}
-    </>
+    </BuyerChatController>
   );
 }
 

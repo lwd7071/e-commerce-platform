@@ -22,9 +22,12 @@ interface ChatWidgetProps {
   productContext: ChatProductContext | null;
   isOpen: boolean;
   onClose: () => void;
+  initialConversation?: WireChatConversation | null;
+  onBackToInbox?: () => void;
+  onRead?: () => void;
 }
 
-export function ChatWidget({ productContext, isOpen, onClose }: ChatWidgetProps) {
+export function ChatWidget({ productContext, isOpen, onClose, initialConversation = null, onBackToInbox, onRead }: ChatWidgetProps) {
   const [conversation, setConversation] = useState<WireChatConversation | null>(null);
   const [messages, setMessages] = useState<WireChatMessage[]>([]);
   const [inputText, setInputText] = useState("");
@@ -32,7 +35,13 @@ export function ChatWidget({ productContext, isOpen, onClose }: ChatWidgetProps)
   const [isSending, setIsSending] = useState(false);
   const [isHandoffLoading, setIsHandoffLoading] = useState(false);
   const [isShopOnline, setIsShopOnline] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const onReadRef = useRef(onRead);
+  useEffect(() => {
+    onReadRef.current = onRead;
+  }, [onRead]);
 
   const scrollToBottom = () => {
     if (typeof messagesEndRef.current?.scrollIntoView === "function") {
@@ -41,36 +50,43 @@ export function ChatWidget({ productContext, isOpen, onClose }: ChatWidgetProps)
   };
 
   useEffect(() => {
-    if (!isOpen || !productContext) return;
+    if (!isOpen || (!productContext && !initialConversation)) return;
 
     let ignore = false;
     Promise.resolve().then(() => {
       if (ignore) return;
+      setConversation(null);
+      setMessages([]);
+      setLoadError(false);
       setIsLoading(true);
-      return repositories
-        .chat()
-        .createOrGetConversation(productContext.shopId, productContext.productId)
+      const chat = repositories.chat();
+      const conversationPromise = initialConversation
+        ? Promise.resolve(initialConversation)
+        : chat.createOrGetConversation(productContext!.shopId, productContext!.productId);
+      return conversationPromise
         .then((conv) => {
           if (ignore) return;
           setConversation(conv);
-          return repositories.chat().getMessages(conv.conversation_id);
+          return chat.getMessages(conv.conversation_id);
         })
         .then((msgs) => {
           if (ignore || !msgs) return;
           setMessages(msgs);
           setIsLoading(false);
+          onReadRef.current?.();
         })
         .catch((err) => {
           if (ignore) return;
           console.error("Failed to load chat conversation", err);
           setIsLoading(false);
+          setLoadError(true);
         });
     });
 
     return () => {
       ignore = true;
     };
-  }, [isOpen, productContext]);
+  }, [isOpen, productContext, initialConversation, loadAttempt]);
 
   useEffect(() => {
     scrollToBottom();
@@ -172,11 +188,16 @@ export function ChatWidget({ productContext, isOpen, onClose }: ChatWidgetProps)
     <div
       role="dialog"
       aria-label="Cửa sổ chat với Shop"
-      className="fixed bottom-4 right-4 z-50 flex h-[580px] w-[390px] max-w-[calc(100vw-32px)] flex-col rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-5 duration-200"
+      className="buyer-chat-panel fixed bottom-[calc(154px+env(safe-area-inset-bottom))] right-3 z-[60] flex h-[min(580px,calc(100dvh-170px-env(safe-area-inset-bottom)))] w-[390px] max-w-[calc(100vw-24px)] flex-col rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-5 duration-200 md:bottom-24 md:right-4 md:h-[580px]"
     >
       {/* Header */}
       <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--primary)] px-4 py-3 text-white">
         <div className="flex items-center gap-2.5">
+          {onBackToInbox && (
+            <button type="button" onClick={onBackToInbox} className="rounded-lg px-2 py-1 text-[11px] font-semibold text-white hover:bg-white/20">
+              Quay lại hộp thư
+            </button>
+          )}
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white font-bold">
             <Icon name="chat" className="h-5 w-5" />
           </div>
@@ -276,6 +297,11 @@ export function ChatWidget({ productContext, isOpen, onClose }: ChatWidgetProps)
         {isLoading ? (
           <div className="flex h-full items-center justify-center text-xs text-[var(--subtext)]">
             Đang kết nối phiên chat...
+          </div>
+        ) : loadError ? (
+          <div role="alert" className="flex h-full flex-col items-center justify-center gap-3 text-center text-xs text-[var(--subtext)]">
+            <p>Chưa tải được tin nhắn. Vui lòng thử lại.</p>
+            <button type="button" onClick={() => setLoadAttempt((attempt) => attempt + 1)} className="rounded-lg border border-[var(--border)] px-3 py-2 font-semibold text-[var(--primary)]">Thử lại</button>
           </div>
         ) : messages.length === 0 ? (
           <div className="space-y-4 py-4 text-center">
@@ -386,6 +412,8 @@ export function ChatWidget({ productContext, isOpen, onClose }: ChatWidgetProps)
           type="text"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
+          aria-invalid={inputText.trim().length > 2000}
+          aria-describedby={inputText.trim().length > 2000 ? "chat-message-error" : "chat-message-count"}
           placeholder={
             conversation?.mode === "LIVE_AGENT"
               ? "Nhắn tin trực tiếp với Shop..."
@@ -393,10 +421,12 @@ export function ChatWidget({ productContext, isOpen, onClose }: ChatWidgetProps)
           }
           className="flex-1 rounded-xl border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-xs text-[var(--foreground)] placeholder:text-[var(--subtext)] focus:border-[var(--primary)] focus:outline-none"
         />
+        <span id="chat-message-count" className="sr-only">{inputText.trim().length}/2000 ký tự</span>
+        {inputText.trim().length > 2000 && <span id="chat-message-error" className="field-error" role="alert">Tin nhắn tối đa 2.000 ký tự.</span>}
         <Button
           type="submit"
           variant="primary"
-          disabled={!inputText.trim() || isSending}
+          disabled={!inputText.trim() || inputText.trim().length > 2000 || isSending}
           className="h-8 px-3 text-xs font-bold shrink-0"
         >
           {isSending ? "..." : "Gửi"}

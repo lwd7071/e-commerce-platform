@@ -69,4 +69,21 @@ describe("AppShell route layout separation", () => {
     expect(screen.getByLabelText("Thanh điều hướng người bán")).not.toBeNull();
     expect(screen.getByLabelText("Dino Kênh người bán")).not.toBeNull();
   });
+
+  it("shows the floating chat only for buyers on shopping routes", () => {
+    currentRoute = "/products";
+    mockUseAuth.mockReturnValue({
+      user: { id: "buyer-1", email: "buyer@test.local", role: "BUYER" },
+      logout: vi.fn(),
+      isLoading: false,
+    } as unknown as ReturnType<typeof useAuth>);
+
+    const { unmount } = render(<AppShell><div>Sản phẩm</div></AppShell>);
+    expect(screen.getByRole("button", { name: "Mở hộp thư chat" })).not.toBeNull();
+    unmount();
+
+    currentRoute = "/admin/orders";
+    render(<AppShell><div>Quản trị</div></AppShell>);
+    expect(screen.queryByRole("button", { name: "Mở hộp thư chat" })).toBeNull();
+  });
 });

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ProductDetailScreen } from "@/features/catalog/product-detail-screen";
+import { BuyerChatController } from "@/components/chat/buyer-chat-controller";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
@@ -99,7 +100,11 @@ function renderWithClient(ui: ReactNode) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+  return render(
+    <BuyerChatController enabled={false}>
+      <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>
+    </BuyerChatController>
+  );
 }
 
 describe("Buy Now Flow on Product Detail Screen", () => {

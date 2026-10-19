@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, type MouseEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
@@ -16,7 +16,7 @@ import { useToast } from "@/components/ui/toast";
 import { Skeleton, EmptyState, ErrorState } from "@/components/ui/data-states";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import { ChatWidget } from "@/components/chat/chat-widget";
+import { useBuyerChat } from "@/components/chat/buyer-chat-controller";
 import { QueryProvider } from "@/lib/query/query-provider";
 
 import { TierBadge } from "@/components/ui/tier-badge";
@@ -43,7 +43,7 @@ function InnerProductDetailScreen({ productId }: Props) {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isChatOpen, setIsChatOpen] = useState(false);
+  const buyerChat = useBuyerChat();
 
   useEffect(() => {
     setSelectedImage(null);
@@ -485,13 +485,21 @@ function InnerProductDetailScreen({ productId }: Props) {
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => {
+                onClick={(event: MouseEvent<HTMLButtonElement>) => {
                   if (!user) {
                     showToast("Vui lòng đăng nhập để chat với Shop", "info");
                     router.push(`/login?returnTo=${encodeURIComponent(pathname)}`);
                     return;
                   }
-                  setIsChatOpen(true);
+                  if (!product) return;
+                  buyerChat.openProduct({
+                    productId: product.product_id,
+                    shopId: product.shop_id,
+                    productName: product.product_name,
+                    price: selectedVariant?.price ?? product.variants?.[0]?.price,
+                    imageUrl: product.image_url ?? selectedImage,
+                    totalStock: product.variants?.reduce((sum, v) => sum + (v.stock_quantity || 0), 0),
+                  }, event.currentTarget);
                 }}
                 leadingIcon={<Icon name="chat" className="w-5 h-5 shrink-0 text-[var(--primary)]" />}
                 className="h-12 px-6 text-sm font-semibold border-2 border-[var(--primary)] text-[var(--primary)] hover:bg-[var(--primary-subtle)] active:scale-[0.99] transition-all whitespace-nowrap"
@@ -581,22 +589,6 @@ function InnerProductDetailScreen({ productId }: Props) {
         </div>
       </div>
 
-      <ChatWidget
-        isOpen={isChatOpen}
-        onClose={() => setIsChatOpen(false)}
-        productContext={
-          product
-            ? {
-                productId: product.product_id,
-                shopId: product.shop_id,
-                productName: product.product_name,
-                price: selectedVariant?.price ?? product.variants?.[0]?.price,
-                imageUrl: product.image_url ?? selectedImage,
-                totalStock: product.variants?.reduce((sum, v) => sum + (v.stock_quantity || 0), 0),
-              }
-            : null
-        }
-      />
     </div>
   );
 }
