@@ -1,0 +1,47 @@
+=== ACTORS IN USE CASES & DESCRIPTIONS ===
+L116: [116] CHƯƠNG 3. CÁC TÁC NHÂN VÀ CHỨC NĂNG CỦA PHẦN MỀM75
+L117: [117] 3.1. NHẬN DIỆN TÁC NHÂN VÀ CHỨC NĂNG75
+L118: [118] 3.2. MÔ TẢ CHI TIẾT TỪNG TÁC NHÂN75
+L325: [325] Hình 9.1. Giao diện Đăng nhập hệ thống đa vai trò (/login)204
+L399: [399] Bảng 3.1. Danh sách tác nhân và chức năng chính66
+L400: [400] Bảng 3.2. Mô tả vai trò của các tác nhân66
+L564: [564] Người dùng đăng ký bằng email qua Supabase Auth, chọn vai trò Seller và tạo gian hàng PENDING; Admin duyệt trước khi gian hàng hoạt động.
+L612: [612] Quyền quản lý dữ liệu cần được giới hạn theo vai trò và gian hàng.
+L1682: [1682] Mã người dùng | Họ tên | Email | Vai trò | Trạng thái | Ngày tạo
+L2307: [2307] CHƯƠNG 3. CÁC TÁC NHÂN VÀ CHỨC NĂNG CỦA PHẦN MỀM
+L2309: [2309] 3.1. NHẬN DIỆN TÁC NHÂN VÀ CHỨC NĂNG
+L2310: [2310] Bảng 3.1. Danh sách tác nhân và chức năng chính
+L2311: [2311] Tác nhân
+L2321: [2321] 3.2. MÔ TẢ CHI TIẾT TỪNG TÁC NHÂN
+L2322: [2322] Bảng 3.2. Mô tả vai trò của các tác nhân
+L2323: [2323] Tên tác nhân
+L2545: [2545] Tác nhân
+L2562: [2562] Tác nhân
+L2572: [2572] 4. Backend xác minh JWT, trạng thái tài khoản và vai trò từ app_users; frontend điều hướng theo quyền.
+L2579: [2579] Tác nhân
+L2586: [2586] 1. Tác nhân nhập từ khóa hoặc chọn bộ lọc.
+L2589: [2589] 4. Tác nhân chọn một sản phẩm để xem chi tiết nếu cần.
+L2596: [2596] Tác nhân
+L2613: [2613] Tác nhân
+L2632: [2632] Tác nhân
+L2649: [2649] Tác nhân
+L2668: [2668] Tác nhân
+L2685: [2685] Tác nhân
+L2692: [2692] 1. Tác nhân mở chi tiết đơn.
+L2703: [2703] Tác nhân
+L2721: [2721] Tác nhân
+L2739: [2739] Tác nhân
+L2757: [2757] Tác nhân
+L2776: [2776] Tác nhân
+L2793: [2793] Tác nhân
+L2876: [2876] Vai trò hệ thống
+L3576: [3576] Tác nhân thay đổi
+L4476: [4476] Vai trò phía người gửi
+L5016: [5016] - User 1:N Order với vai trò Buyer.
+L5630: [5630] Vai trò người dùng chỉ gồm BUYER, SELLER hoặc ADMIN.
+L6343: [6343] Tác nhân chính
+L6521: [6521] Cập nhật vai trò đăng ký và hiển thị tên Shop; không có mã số thuế trong form này.
+L7313: [7313] Đăng nhập đa vai trò (/login)
+L7329: [7329] Ghi nhận đầy đủ thông tin: Actor, Hành động, Đối tượng, Thời gian; tự động ẩn (redact) thông tin nhạy cảm.
+L7332: [7332] Hình 9.1. Giao diện Đăng nhập hệ thống đa vai trò (/login)
+L7658: [7658] Vai trò trong hệ thống

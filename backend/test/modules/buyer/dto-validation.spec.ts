@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   validateUpdateProfileDTO,
   validateCreateAddressDTO,
+  validateUpdateAddressDTO,
   validateAddToCartDTO,
   validateUpdateCartItemDTO,
   validateCreateReviewDTO,
@@ -93,6 +94,14 @@ describe('Buyer DTO & Validation Tests (api-conventions.md §2: reject unknown f
         }),
         (err: unknown) => typeof err === 'object' && err !== null && 'code' in err && err.code === 'VALIDATION_FAILED'
       );
+    });
+  });
+
+  describe('UpdateAddressDTO Validation', () => {
+    it('allows clearing the legacy locality field after moving it into the detail address', () => {
+      const parsed = validateUpdateAddressDTO({ district: null, detail_address: 'Số 4, Ấp An Thịnh' });
+      assert.equal(parsed.district, null);
+      assert.equal(parsed.detailAddress, 'Số 4, Ấp An Thịnh');
     });
   });
 

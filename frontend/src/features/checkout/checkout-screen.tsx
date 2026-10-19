@@ -29,6 +29,17 @@ import { classifyCheckoutError } from "./checkout-error-classifier";
 import { walletApi, type PayosLinkResult } from "@/lib/api/wallet.api";
 import { AdministrativeAddressFields } from "@/components/forms/administrative-address-fields";
 
+function joinAddressParts(...values: Array<string | null | undefined>) {
+  const seen = new Set<string>();
+  return values.flatMap(value => (value ?? "").split(",")).map(part => part.trim()).filter(part => {
+    if (!part) return false;
+    const key = part.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/gi, "d").toLocaleLowerCase("vi");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).join(", ");
+}
+
 export function CheckoutPageContent() {
   return (
     <ProtectedPage allowedRoles={["BUYER"]}>
@@ -61,7 +72,6 @@ export function CheckoutScreen() {
   const [newAddrProvinceCode, setNewAddrProvinceCode] = useState("");
   const [newAddrWard, setNewAddrWard] = useState("");
   const [newAddrWardCode, setNewAddrWardCode] = useState("");
-  const [newAddrDistrict, setNewAddrDistrict] = useState("");
   const [newAddrDetail, setNewAddrDetail] = useState("");
   const [newAddrDefault, setNewAddrDefault] = useState(false);
   const [addrFormErrors, setAddrFormErrors] = useState<Record<string, string>>({});
@@ -293,7 +303,7 @@ export function CheckoutScreen() {
     }
     if (!newAddrProvinceCode) errors.province = "Vui lòng chọn Tỉnh / Thành phố";
     if (!newAddrWardCode) errors.ward = "Vui lòng chọn Phường / Xã";
-    if (!newAddrDetail.trim()) errors.detail = "Vui lòng nhập địa chỉ cụ thể (Số nhà, tên đường)";
+    if (!newAddrDetail.trim()) errors.detail = "Vui lòng nhập địa chỉ chi tiết, gồm số nhà, đường và thôn/ấp/tổ dân phố";
 
     if (Object.keys(errors).length > 0) {
       setAddrFormErrors(errors);
@@ -310,7 +320,6 @@ export function CheckoutScreen() {
       province_code: newAddrProvinceCode,
       ward: newAddrWard.trim(),
       ward_code: newAddrWardCode,
-      district: newAddrDistrict.trim(),
       detail_address: newAddrDetail.trim(),
       is_default: newAddrDefault,
     };
@@ -327,7 +336,6 @@ export function CheckoutScreen() {
       setNewAddrProvinceCode("");
       setNewAddrWard("");
       setNewAddrWardCode("");
-      setNewAddrDistrict("");
       setNewAddrDetail("");
       setNewAddrDefault(false);
     } catch {
@@ -644,10 +652,10 @@ export function CheckoutScreen() {
               )}
             </div>
             <p className="text-[var(--foreground)] mt-1">
-              {currentAddress.detailAddress}
+              {joinAddressParts(currentAddress.detailAddress, currentAddress.district)}
             </p>
             <p className="text-xs text-[var(--subtext)]">
-              {[currentAddress.district, currentAddress.ward, currentAddress.province].filter(Boolean).join(', ')}
+              {[currentAddress.ward, currentAddress.province].filter(Boolean).join(', ')}
             </p>
           </div>
         ) : (
@@ -972,9 +980,9 @@ export function CheckoutScreen() {
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-[var(--foreground)] mt-1">{addr.detailAddress}</p>
+                  <p className="text-xs text-[var(--foreground)] mt-1">{joinAddressParts(addr.detailAddress, addr.district)}</p>
                   <p className="text-[11px] text-[var(--subtext)]">
-                    {[addr.district, addr.ward, addr.province].filter(Boolean).join(', ')}
+                    {[addr.ward, addr.province].filter(Boolean).join(', ')}
                   </p>
                 </div>
               </div>
@@ -1051,23 +1059,21 @@ export function CheckoutScreen() {
               provinceName={newAddrProvince}
               wardCode={newAddrWardCode}
               wardName={newAddrWard}
-              locality={newAddrDistrict}
-              onLocalityChange={setNewAddrDistrict}
-              onProvinceChange={(code, name) => { setNewAddrProvinceCode(code); setNewAddrProvince(name); setNewAddrWardCode(""); setNewAddrWard(""); setNewAddrDistrict(""); }}
-              onWardChange={(code, name) => { setNewAddrWardCode(code); setNewAddrWard(name); setNewAddrDistrict(""); }}
+              onProvinceChange={(code, name) => { setNewAddrProvinceCode(code); setNewAddrProvince(name); setNewAddrWardCode(""); setNewAddrWard(""); }}
+              onWardChange={(code, name) => { setNewAddrWardCode(code); setNewAddrWard(name); }}
             />
             {(addrFormErrors.province || addrFormErrors.ward) && <p className="text-sm text-[var(--danger)]" role="alert">{addrFormErrors.province ?? addrFormErrors.ward}</p>}
           </div>
 
           <FormField
             id="new-addr-detail"
-            label="Địa chỉ cụ thể (Số nhà, đường, tòa nhà)"
+            label="Địa chỉ chi tiết"
             required
             error={addrFormErrors.detail}
           >
             <TextInput
               id="new-addr-detail"
-              placeholder="Ví dụ: 123 Đường Lê Lợi, Căn hộ 402"
+              placeholder="Số nhà, đường, thôn/ấp/tổ dân phố"
               value={newAddrDetail}
               onChange={(e) => setNewAddrDetail(e.target.value)}
             />

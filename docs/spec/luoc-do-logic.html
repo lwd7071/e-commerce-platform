@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>5.1. Lược đồ logic - E-Commerce Platform</title>
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- html2canvas for high-res screenshot -->
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <style>
+    :root {
+      --bg-page: #f8fafc;
+      --bg-card: #ffffff;
+      --card-border: #cbd5e1;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --node-bg: #f5f3ff;
+      --node-border: #8b5cf6;
+      --node-text: #1e1b4b;
+      --node-shadow: 0 4px 6px -1px rgba(139, 92, 246, 0.1), 0 2px 4px -2px rgba(139, 92, 246, 0.1);
+      --node-hover-shadow: 0 10px 15px -3px rgba(139, 92, 246, 0.25);
+      --line-color: #6366f1;
+      --badge-bg: #e0e7ff;
+      --badge-text: #3730a3;
+      --accent-gold: #f59e0b;
+      --accent-blue: #0284c7;
+      --accent-green: #059669;
+    }
+
+    [data-theme="dark"] {
+      --bg-page: #090d16;
+      --bg-card: #0f172a;
+      --card-border: #1e293b;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --node-bg: #1e1b4b;
+      --node-border: #a78bfa;
+      --node-text: #ede9fe;
+      --node-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+      --node-hover-shadow: 0 10px 20px rgba(167, 139, 250, 0.3);
+      --line-color: #818cf8;
+      --badge-bg: #312e81;
+      --badge-text: #c7d2fe;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg-page);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px;
+      transition: background-color 0.3s ease, color 0.3s ease;
+      overflow-x: auto;
+    }
+
+    /* Toolbar & Header */
+    .top-toolbar {
+      width: 100%;
+      max-width: 1440px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding: 12px 20px;
+      background: var(--bg-card);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .title-group h1 {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .title-group p {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .btn-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    button {
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 8px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+      border: 1px solid var(--card-border);
+      background: var(--bg-card);
+      color: var(--text-main);
+    }
+
+    button:hover {
+      background: #f1f5f9;
+      transform: translateY(-1px);
+    }
+
+    [data-theme="dark"] button:hover {
+      background: #1e293b;
+    }
+
+    button.btn-primary {
+      background: #6366f1;
+      border-color: #4f46e5;
+      color: #ffffff;
+      box-shadow: 0 2px 4px rgba(99, 102, 241, 0.3);
+    }
+
+    button.btn-primary:hover {
+      background: #4f46e5;
+    }
+
+    /* Diagram Canvas Container */
+    #capture-area {
+      position: relative;
+      width: 1420px;
+      min-width: 1420px;
+      height: 840px;
+      background: var(--bg-card);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+      padding: 24px 30px;
+      user-select: none;
+      overflow: hidden;
+    }
+
+    .watermark-title {
+      position: absolute;
+      top: 20px;
+      left: 28px;
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text-main);
+      letter-spacing: -0.02em;
+      z-index: 5;
+    }
+
+    .watermark-sub {
+      position: absolute;
+      top: 50px;
+      left: 28px;
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 500;
+      z-index: 5;
+    }
+
+    .convention-pill {
+      position: absolute;
+      top: 20px;
+      right: 28px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #eef2ff;
+      border: 1.5px solid #6366f1;
+      color: #3730a3;
+      padding: 6px 14px;
+      border-radius: 30px;
+      font-size: 12px;
+      font-weight: 700;
+      z-index: 5;
+    }
+
+    [data-theme="dark"] .convention-pill {
+      background: #312e81;
+      border-color: #818cf8;
+      color: #c7d2fe;
+    }
+
+    /* SVG Overlay */
+    #svg-connections {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .rel-line {
+      fill: none;
+      stroke: var(--line-color);
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      opacity: 0.85;
+      transition: stroke-width 0.2s, opacity 0.2s;
+    }
+
+    .rel-line:hover {
+      stroke-width: 3;
+      opacity: 1;
+    }
+
+    /* Entity Nodes */
+    .entity-node {
+      position: absolute;
+      background: var(--node-bg);
+      border: 1.5px solid var(--node-border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      color: var(--node-text);
+      font-size: 13.5px;
+      font-weight: 700;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      box-shadow: var(--node-shadow);
+      z-index: 20;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+      cursor: default;
+    }
+
+    .entity-node:hover {
+      transform: translateY(-2px) scale(1.02);
+      box-shadow: var(--node-hover-shadow);
+      border-color: #6366f1;
+    }
+
+    .entity-node .note-tag {
+      font-size: 11px;
+      font-weight: 500;
+      color: #6366f1;
+      margin-top: 3px;
+      background: rgba(99, 102, 241, 0.12);
+      padding: 2px 7px;
+      border-radius: 6px;
+      white-space: nowrap;
+    }
+
+    [data-theme="dark"] .entity-node .note-tag {
+      color: #a5b4fc;
+      background: rgba(99, 102, 241, 0.25);
+    }
+
+    /* Detailed Fields inside node (Toggleable) */
+    .entity-details {
+      display: none;
+      margin-top: 8px;
+      padding-top: 6px;
+      border-top: 1px dashed var(--node-border);
+      font-size: 10.5px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 500;
+      text-align: left;
+      width: 100%;
+      color: var(--text-muted);
+    }
+
+    body.show-details .entity-details {
+      display: block;
+    }
+
+    body.show-details .entity-node {
+      padding: 8px 12px;
+      height: auto !important;
+    }
+
+    body.show-details #capture-area {
+      height: 1020px;
+    }
+
+    .field-pk {
+      color: #e11d48;
+      font-weight: 700;
+    }
+
+    .field-fk {
+      color: #2563eb;
+      font-weight: 600;
+    }
+
+    /* Node Types / Styling Highlights */
+    .node-hub {
+      border-width: 2.5px;
+      font-size: 15px;
+      background: #ede9fe;
+      border-color: #7c3aed;
+    }
+
+    [data-theme="dark"] .node-hub {
+      background: #2e1065;
+      border-color: #c084fc;
+    }
+
+    .node-order {
+      border-color: #0284c7;
+      background: #f0f9ff;
+    }
+
+    [data-theme="dark"] .node-order {
+      border-color: #38bdf8;
+      background: #082f49;
+    }
+
+    .node-order .note-tag {
+      color: #0284c7;
+      background: rgba(2, 132, 199, 0.12);
+    }
+
+    .node-product {
+      border-color: #059669;
+      background: #ecfdf5;
+    }
+
+    [data-theme="dark"] .node-product {
+      border-color: #34d399;
+      background: #064e3b;
+    }
+
+    .node-product .note-tag {
+      color: #059669;
+      background: rgba(5, 150, 105, 0.12);
+    }
+
+    .node-highlight {
+      border-color: #d97706;
+      background: #fffbeb;
+    }
+
+    [data-theme="dark"] .node-highlight {
+      border-color: #fbbf24;
+      background: #451a03;
+    }
+
+    .node-highlight .note-tag {
+      color: #d97706;
+      background: rgba(217, 119, 6, 0.12);
+    }
+
+    /* Specific Coordinates for Nodes */
+    /* Cột 1: User (Hub) & bảng trực tiếp tham chiếu User */
+    #node-UserProfile      { top: 80px;  left: 170px; width: 140px; height: 44px; }
+    #node-Address          { top: 155px; left: 170px; width: 140px; height: 44px; }
+    #node-User             { top: 400px; left: 35px;  width: 100px; height: 56px; }
+    #node-Notification     { top: 420px; left: 170px; width: 150px; height: 44px; }
+    #node-ModerationRecord { top: 510px; left: 170px; width: 170px; height: 44px; }
+    #node-AdminLog         { top: 600px; left: 170px; width: 150px; height: 44px; }
+    #node-Shop             { top: 700px; left: 170px; width: 130px; height: 46px; }
+
+    /* Cột 2: Cart, Category, Product */
+    #node-Cart             { top: 195px; left: 630px; width: 120px; height: 46px; }
+    #node-CartItem         { top: 195px; left: 860px; width: 130px; height: 46px; }
+    #node-Category         { top: 285px; left: 170px; width: 140px; height: 44px; }
+    #node-Product          { top: 320px; left: 400px; width: 130px; height: 48px; }
+    #node-ProductImage     { top: 100px; left: 610px; width: 150px; height: 44px; }
+    #node-ProductVariant   { top: 310px; left: 610px; width: 230px; height: 56px; }
+
+    /* Cột 3: Order, Payment, Shipment, Voucher */
+    #node-OrderStatusHistory { top: 490px; left: 630px; width: 190px; height: 46px; }
+    #node-Payment            { top: 575px; left: 630px; width: 140px; height: 46px; }
+    #node-Order              { top: 700px; left: 380px; width: 200px; height: 56px; }
+    #node-Shipment           { top: 670px; left: 630px; width: 140px; height: 46px; }
+    #node-VoucherUsage       { top: 760px; left: 630px; width: 160px; height: 46px; }
+    #node-Voucher            { top: 760px; left: 390px; width: 130px; height: 44px; }
+
+    /* Cột 4: OrderItem, Review, ReviewImage */
+    #node-OrderItem          { top: 700px; left: 880px;  width: 200px; height: 56px; }
+    #node-Review             { top: 700px; left: 1140px; width: 120px; height: 48px; }
+    #node-ReviewImage        { top: 700px; left: 1290px; width: 130px; height: 46px; }
+
+    /* Footer Note */
+    .footer-spec-summary {
+      width: 100%;
+      max-width: 1420px;
+      margin-top: 18px;
+      padding: 16px 20px;
+      background: var(--bg-card);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    .footer-spec-summary strong {
+      color: var(--text-main);
+    }
+
+    .badge-rule {
+      display: inline-block;
+      padding: 2px 6px;
+      background: var(--badge-bg);
+      color: var(--badge-text);
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      margin: 0 2px;
+    }
+
+    /* Print Optimization */
+    @media print {
+      body {
+        background: #ffffff !important;
+        padding: 0;
+      }
+      .top-toolbar, .btn-group {
+        display: none !important;
+      }
+      #capture-area {
+        border: none !important;
+        box-shadow: none !important;
+        width: 100% !important;
+        transform: scale(0.95);
+        transform-origin: top left;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Toolbar -->
+  <div class="top-toolbar">
+    <div class="title-group">
+      <h1>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:#6366f1;">
+          <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+          <polyline points="2 17 12 22 22 17"></polyline>
+          <polyline points="2 12 12 17 22 12"></polyline>
+        </svg>
+        5.1. Lược đồ logic hệ thống (22 Thực thể Nghiệp vụ)
+      </h1>
+      <p>Mũi tên chuẩn logic: <strong>Bảng con (chứa FK) ➔ Bảng cha (chứa PK)</strong></p>
+    </div>
+
+    <div class="btn-group">
+      <button onclick="toggleTheme()" id="btn-theme">
+        <span id="theme-icon">🌙</span> Dark Mode
+      </button>
+      <button onclick="toggleDetails()" id="btn-details">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="8" y1="6" x2="21" y2="6"></line>
+          <line x1="8" y1="12" x2="21" y2="12"></line>
+          <line x1="8" y1="18" x2="21" y2="18"></line>
+          <line x1="3" y1="6" x2="3.01" y2="6"></line>
+          <line x1="3" y1="12" x2="3.01" y2="12"></line>
+          <line x1="3" y1="18" x2="3.01" y2="18"></line>
+        </svg>
+        Hiện chi tiết Khóa & Cột
+      </button>
+      <button class="btn-primary" onclick="exportPNG()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+          <circle cx="12" cy="13" r="4"></circle>
+        </svg>
+        Tải ảnh sắc nét (PNG) gửi thầy
+      </button>
+    </div>
+  </div>
+
+  <!-- Sơ đồ Canvas (Dùng để chụp ảnh) -->
+  <div id="capture-area">
+    <div class="watermark-title">5.1. Lược đồ logic</div>
+    <div class="watermark-sub">Kiến trúc cơ sở dữ liệu E-Commerce Multi-Vendor (22 Bảng nghiệp vụ)</div>
+
+    <div class="convention-pill">
+      <span>➔ Quy ước: Mũi tên từ Con (FK) ➔ Cha (PK)</span>
+    </div>
+
+    <!-- SVG chứa các đường liên kết mượt mà có mũi tên HƯỚNG TỪ CON VỀ CHA -->
+    <svg id="svg-connections">
+      <defs>
+        <!-- Arrowhead Marker (chỉ vào bảng Cha) -->
+        <marker id="arrow" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="var(--line-color)" />
+        </marker>
+      </defs>
+
+      <!-- 1. UserProfile (Con) -> User (Cha) [UserID FK] -->
+      <path id="path-UserProfile-User" class="rel-line" marker-end="url(#arrow)" />
+
+      <!-- 2. Address (Con) -> User (Cha) [UserID FK] -->
+      <path id="path-Address-User" class="rel-line" marker-end="url(#arrow)" />
+
+      <!-- 3. Cart (Con) -> User (Cha) [BuyerID FK] -->
+      <path id="path-Cart-User" class="rel-line" marker-end="url(#arrow)" />
+
+      <!-- 4. Notification (Con) -> User (Cha) [RecipientID FK] -->
+      <path id="path-Notification-User" class="rel-line" marker-end="url(#arrow)" />
+
+      <!-- 5. ModerationRecord (Con) -> User (Cha) [AdminID FK] -->
+      <path id="path-ModerationRecord-User" class="rel-line" marker-end="url(#arrow)" />
+
+      <!-- 6. AdminLog (Con) -> User (Cha) [AdminID FK] -->
+      <path id="path-AdminLog-User" class="rel-line" marker-end="url(#arrow)" />
+
+      <!-- 7. Shop (Con) -> User (Cha) [OwnerID FK] -->
+      <path id="path-Shop-User" class="rel-line" marker-end="url(#arrow)" />
+
+      <!-- 8. Order (Con) -> User (Cha) [BuyerID FK] -->
+      <path id="path-Order-User" class="rel-line" marker-end="url(#arrow)" />
+
+      <!-- 9. Order (Con) -> Shop (Cha) [ShopID FK] -->
+      <path id="path-Order-Shop" class="rel-line" marker-end="url(#arrow)" />
+
+      <!-- 10. Product (Con) -> Shop (Cha) [ShopID FK] -->
+      <path id="path-Product-Shop" class="rel-line" marker-end="url(#arrow)" />
+
+      <!-- 11. Product (Con) -> Category (Cha) [CategoryID FK] -->
+      <path id="path-Product-Category" class="rel-line" marker-end="url(#arrow)" />
+
+      <!-- 12. ProductImage (Con) -> Product (Cha) [ProductID FK] -->
+      <path id="path-ProductImage-Product" class="rel-line" marker-end="url(#arrow)" />
+
+      <!-- 13. ProductVariant (Con) -> Product (Cha) [ProductID FK] -->
+      <path id="path-ProductVariant-Product" class="rel-line" marker-end="url(#arrow)" />
+
+      <!-- 14. CartItem (Con) -> Cart (Cha) [CartID FK] -->
+      <path id="path-CartItem-Cart" class="rel-line" marker-end="url(#arrow)" />
+
+      <!-- 15. CartItem (Con) -> ProductVariant (Cha) [VariantID FK] -->
+      <path id="path-CartItem-ProductVariant" class="rel-line" marker-end="url(#arrow)" />
+
+      <!-- 16. OrderItem (Con) -> ProductVariant (Cha) [VariantID FK] -->
+      <path id="path-OrderItem-ProductVariant" class="rel-line" marker-end="url(#arrow)" />
+
+      <!-- 17. OrderItem (Con) -> Order (Cha) [OrderID FK] -->
+      <path id="path-OrderItem-Order" class="rel-line" marker-end="url(#arrow)" />
+
+      <!-- 18. OrderStatusHistory (Con) -> Order (Cha) [OrderID FK] -->
+      <path id="path-OrderStatusHistory-Order" class="rel-line" marker-end="url(#arrow)" />
+
+      <!-- 19. Payment (Con) -> Order (Cha) [OrderID FK] -->
+      <path id="path-Payment-Order" class="rel-line" marker-end="url(#arrow)" />
+
+      <!-- 20. Shipment (Con) -> Order (Cha) [OrderID FK] -->
+      <path id="path-Shipment-Order" class="rel-line" marker-end="url(#arrow)" />
+
+      <!-- 21. VoucherUsage (Con) -> Order (Cha) [OrderID FK] -->
+      <path id="path-VoucherUsage-Order" class="rel-line" marker-end="url(#arrow)" />
+
+      <!-- 22. VoucherUsage (Con) -> Voucher (Cha) [VoucherID FK] -->
+      <path id="path-VoucherUsage-Voucher" class="rel-line" marker-end="url(#arrow)" />
+
+      <!-- 23. Review (Con) -> OrderItem (Cha) [OrderItemID FK] -->
+      <path id="path-Review-OrderItem" class="rel-line" marker-end="url(#arrow)" />
+
+      <!-- 24. ReviewImage (Con) -> Review (Cha) [ReviewID FK] -->
+      <path id="path-ReviewImage-Review" class="rel-line" marker-end="url(#arrow)" />
+    </svg>
+
+    <!-- 22 Entity Boxes (HTML Nodes) -->
+    <!-- Group: User & Identity -->
+    <div id="node-User" class="entity-node node-hub">
+      <span>User</span>
+      <div class="entity-details">
+        <div><span class="field-pk">PK</span> UserID</div>
+        <div>Email, Role, Status</div>
+      </div>
+    </div>
+
+    <div id="node-UserProfile" class="entity-node">
+      <span>UserProfile</span>
+      <div class="entity-details">
+        <div><span class="field-pk">PK/FK</span> UserID</div>
+        <div>FullName, Phone, AvatarURL</div>
+      </div>
+    </div>
+
+    <div id="node-Address" class="entity-node">
+      <span>Address</span>
+      <div class="entity-details">
+        <div><span class="field-pk">PK</span> AddressID</div>
+        <div><span class="field-fk">FK</span> UserID, Province...</div>
+      </div>
+    </div>
+
+    <div id="node-Notification" class="entity-node">
+      <span>Notification</span>
+      <div class="entity-details">
+        <div><span class="field-pk">PK</span> NotificationID</div>
+        <div><span class="field-fk">FK</span> RecipientID, Type</div>
+      </div>
+    </div>
+
+    <div id="node-ModerationRecord" class="entity-node">
+      <span>ModerationRecord</span>
+      <div class="entity-details">
+        <div><span class="field-pk">PK</span> ModerationID</div>
+        <div><span class="field-fk">FK</span> AdminID, TargetType</div>
+      </div>
+    </div>
+
+    <div id="node-AdminLog" class="entity-node">
+      <span>AdminLog</span>
+      <div class="entity-details">
+        <div><span class="field-pk">PK</span> LogID</div>
+        <div><span class="field-fk">FK</span> AdminID, Action</div>
+      </div>
+    </div>
+
+    <div id="node-Shop" class="entity-node">
+      <span>Shop</span>
+      <div class="entity-details">
+        <div><span class="field-pk">PK</span> ShopID</div>
+        <div><span class="field-fk">FK</span> OwnerID, ShopName</div>
+      </div>
+    </div>
+
+    <!-- Group: Catalog & Inventory -->
+    <div id="node-Category" class="entity-node node-product">
+      <span>Category</span>
+      <div class="entity-details">
+        <div><span class="field-pk">PK</span> CategoryID</div>
+        <div><span class="field-fk">FK</span> ParentCategoryID</div>
+      </div>
+    </div>
+
+    <div id="node-Product" class="entity-node node-product">
+      <span>Product</span>
+      <div class="entity-details">
+        <div><span class="field-pk">PK</span> ProductID</div>
+        <div><span class="field-fk">FK</span> ShopID, CategoryID</div>
+      </div>
+    </div>
+
+    <div id="node-ProductImage" class="entity-node node-product">
+      <span>ProductImage</span>
+      <div class="entity-details">
+        <div><span class="field-pk">PK</span> ImageID</div>
+        <div><span class="field-fk">FK</span> ProductID, ImageURL</div>
+      </div>
+    </div>
+
+    <div id="node-ProductVariant" class="entity-node node-product">
+      <span>ProductVariant</span>
+      <span class="note-tag">giá và tồn kho</span>
+      <div class="entity-details">
+        <div><span class="field-pk">PK</span> VariantID</div>
+        <div><span class="field-fk">FK</span> ProductID, SKU</div>
+        <div><strong>Price</strong>, <strong>StockQuantity</strong></div>
+      </div>
+    </div>
+
+    <!-- Group: Cart -->
+    <div id="node-Cart" class="entity-node node-order">
+      <span>Cart</span>
+      <div class="entity-details">
+        <div><span class="field-pk">PK</span> CartID</div>
+        <div><span class="field-fk">FK</span> BuyerID</div>
+      </div>
+    </div>
+
+    <div id="node-CartItem" class="entity-node node-order">
+      <span>CartItem</span>
+      <div class="entity-details">
+        <div><span class="field-pk">PK</span> CartItemID</div>
+        <div><span class="field-fk">FK</span> CartID, VariantID</div>
+      </div>
+    </div>
+
+    <!-- Group: Order & Checkout -->
+    <div id="node-Order" class="entity-node node-order" style="border-width: 2.2px;">
+      <span>Order</span>
+      <span class="note-tag">theo từng Shop</span>
+      <div class="entity-details">
+        <div><span class="field-pk">PK</span> OrderID</div>
+        <div><span class="field-fk">FK</span> BuyerID, ShopID</div>
+        <div>DeliveryAddress snapshot</div>
+        <div>Subtotal, TotalAmount, Status</div>
+      </div>
+    </div>
+
+    <div id="node-OrderStatusHistory" class="entity-node node-order">
+      <span>OrderStatusHistory</span>
+      <div class="entity-details">
+        <div><span class="field-pk">PK</span> HistoryID</div>
+        <div><span class="field-fk">FK</span> OrderID, ChangedBy</div>
+      </div>
+    </div>
+
+    <div id="node-Payment" class="entity-node node-order">
+      <span>Payment</span>
+      <div class="entity-details">
+        <div><span class="field-pk">PK</span> PaymentID</div>
+        <div><span class="field-fk">FK</span> OrderID, Method, Status</div>
+      </div>
+    </div>
+
+    <div id="node-Shipment" class="entity-node node-order">
+      <span>Shipment</span>
+      <div class="entity-details">
+        <div><span class="field-pk">PK</span> ShipmentID</div>
+        <div><span class="field-fk">FK</span> OrderID, TrackingCode</div>
+      </div>
+    </div>
+
+    <div id="node-Voucher" class="entity-node node-highlight">
+      <span>Voucher</span>
+      <div class="entity-details">
+        <div><span class="field-pk">PK</span> VoucherID</div>
+        <div><span class="field-fk">FK</span> ShopID (nullable)</div>
+        <div>Code, DiscountType, Value</div>
+      </div>
+    </div>
+
+    <div id="node-VoucherUsage" class="entity-node node-highlight">
+      <span>VoucherUsage</span>
+      <div class="entity-details">
+        <div><span class="field-pk">PK</span> UsageID</div>
+        <div><span class="field-fk">FK</span> VoucherID, OrderID, BuyerID</div>
+      </div>
+    </div>
+
+    <!-- Group: OrderItem & Review -->
+    <div id="node-OrderItem" class="entity-node node-highlight" style="border-width: 2.2px;">
+      <span>OrderItem</span>
+      <span class="note-tag">snapshot</span>
+      <div class="entity-details">
+        <div><span class="field-pk">PK</span> OrderItemID</div>
+        <div><span class="field-fk">FK</span> OrderID, ProductID, VariantID</div>
+        <div>UnitPrice, ProductNameSnapshot</div>
+      </div>
+    </div>
+
+    <div id="node-Review" class="entity-node node-highlight">
+      <span>Review</span>
+      <div class="entity-details">
+        <div><span class="field-pk">PK</span> ReviewID</div>
+        <div><span class="field-fk">FK</span> OrderItemID (1:1), BuyerID</div>
+      </div>
+    </div>
+
+    <div id="node-ReviewImage" class="entity-node node-highlight">
+      <span>ReviewImage</span>
+      <div class="entity-details">
+        <div><span class="field-pk">PK</span> ReviewImageID</div>
+        <div><span class="field-fk">FK</span> ReviewID, ImageURL</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Bảng ghi chú quy tắc đồ án -->
+  <div class="footer-spec-summary">
+    <strong>Ghi chú thiết kế theo tài liệu đặc tả (docs/spec/schema-freeze-v1.md):</strong>
+    <ul style="margin-left: 20px; margin-top: 8px;">
+      <li><span class="badge-rule">Quy ước mũi tên (FK ➔ PK)</span> Trong lược đồ logic, mũi tên bắt đầu từ <strong>bảng con</strong> (bảng giữ khóa ngoại Foreign Key) và trỏ thẳng vào <strong>bảng cha</strong> (bảng giữ khóa chính Primary Key).</li>
+      <li><span class="badge-rule">ProductVariant</span> Là <strong>nguồn duy nhất</strong> quản lý giá (<code>Price</code>) và tồn kho (<code>StockQuantity</code>). Sản phẩm không phân loại vẫn có 1 default variant.</li>
+      <li><span class="badge-rule">Order theo từng Shop</span> Giỏ hàng đa shop khi checkout sẽ tách thành nhiều đơn riêng, mỗi đơn ứng đúng 1 <code>ShopID</code>. Snapshot địa chỉ người nhận.</li>
+      <li><span class="badge-rule">OrderItem: snapshot</span> Lưu snapshot <code>UnitPrice</code>, <code>ProductNameSnapshot</code> lúc mua để bảo toàn lịch sử giao dịch khi người bán đổi giá.</li>
+      <li><span class="badge-rule">Review ràng buộc 1:1</span> Review tham chiếu duy nhất 1 <code>OrderItemID</code> (UNIQUE), chống spam và bảo đảm chỉ đơn hoàn thành mới được đánh giá.</li>
+    </ul>
+  </div>
+
+  <script>
+    // Hàm tính toán tọa độ nối giữa 2 Box
+    function getBoxAnchor(boxId, anchorType) {
+      const box = document.getElementById(boxId);
+      if (!box) return { x: 0, y: 0 };
+      const left = box.offsetLeft;
+      const top = box.offsetTop;
+      const width = box.offsetWidth;
+      const height = box.offsetHeight;
+
+      switch(anchorType) {
+        case 'top':    return { x: left + width / 2, y: top };
+        case 'bottom': return { x: left + width / 2, y: top + height };
+        case 'left':   return { x: left, y: top + height / 2 };
+        case 'right':  return { x: left + width, y: top + height / 2 };
+        case 'center': return { x: left + width / 2, y: top + height / 2 };
+        default:       return { x: left + width / 2, y: top + height / 2 };
+      }
+    }
+
+    // Vẽ đường cong Bezier mượt mà: từ Con (startBox) -> Cha (endBox)
+    function updateCurve(pathId, startBox, startAnchor, endBox, endAnchor, curvature = 0.5) {
+      const path = document.getElementById(pathId);
+      if (!path) return;
+      const p1 = getBoxAnchor(startBox, startAnchor);
+      const p2 = getBoxAnchor(endBox, endAnchor);
+
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+
+      let cx1, cy1, cx2, cy2;
+
+      if (startAnchor === 'left' && endAnchor === 'right') {
+        cx1 = p1.x + dx * curvature;
+        cy1 = p1.y;
+        cx2 = p2.x - dx * curvature;
+        cy2 = p2.y;
+      } else if (startAnchor === 'right' && endAnchor === 'left') {
+        cx1 = p1.x + dx * curvature;
+        cy1 = p1.y;
+        cx2 = p2.x - dx * curvature;
+        cy2 = p2.y;
+      } else if (startAnchor === 'top' && endAnchor === 'bottom') {
+        cx1 = p1.x;
+        cy1 = p1.y + dy * curvature;
+        cx2 = p2.x;
+        cy2 = p2.y - dy * curvature;
+      } else if (startAnchor === 'bottom' && endAnchor === 'top') {
+        cx1 = p1.x;
+        cy1 = p1.y + dy * curvature;
+        cx2 = p2.x;
+        cy2 = p2.y - dy * curvature;
+      } else {
+        cx1 = p1.x + dx * 0.4;
+        cy1 = p1.y + dy * 0.1;
+        cx2 = p1.x + dx * 0.6;
+        cy2 = p2.y - dy * 0.1;
+      }
+
+      path.setAttribute('d', `M ${p1.x} ${p1.y} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${p2.x} ${p2.y}`);
+    }
+
+    // Cập nhật tất cả các liên kết: CON (chứa FK) ➔ CHA (chứa PK)
+    function renderConnections() {
+      // 1. UserProfile -> User (UserID FK)
+      updateCurve('path-UserProfile-User', 'node-UserProfile', 'left', 'node-User', 'top', 0.6);
+
+      // 2. Address -> User (UserID FK)
+      updateCurve('path-Address-User', 'node-Address', 'left', 'node-User', 'top', 0.5);
+
+      // 3. Cart -> User (BuyerID FK)
+      updateCurve('path-Cart-User', 'node-Cart', 'left', 'node-User', 'top', 0.5);
+
+      // 4. Notification -> User (RecipientID FK)
+      updateCurve('path-Notification-User', 'node-Notification', 'left', 'node-User', 'right', 0.4);
+
+      // 5. ModerationRecord -> User (AdminID FK)
+      updateCurve('path-ModerationRecord-User', 'node-ModerationRecord', 'left', 'node-User', 'right', 0.4);
+
+      // 6. AdminLog -> User (AdminID FK)
+      updateCurve('path-AdminLog-User', 'node-AdminLog', 'left', 'node-User', 'bottom', 0.4);
+
+      // 7. Shop -> User (OwnerID FK)
+      updateCurve('path-Shop-User', 'node-Shop', 'left', 'node-User', 'bottom', 0.5);
+
+      // 8. Order -> User (BuyerID FK)
+      updateCurve('path-Order-User', 'node-Order', 'left', 'node-User', 'bottom', 0.5);
+
+      // 9. Order -> Shop (ShopID FK)
+      updateCurve('path-Order-Shop', 'node-Order', 'left', 'node-Shop', 'right', 0.5);
+
+      // 10. Product -> Shop (ShopID FK)
+      updateCurve('path-Product-Shop', 'node-Product', 'bottom', 'node-Shop', 'top', 0.5);
+
+      // 11. Product -> Category (CategoryID FK)
+      updateCurve('path-Product-Category', 'node-Product', 'left', 'node-Category', 'right', 0.4);
+
+      // 12. ProductImage -> Product (ProductID FK)
+      updateCurve('path-ProductImage-Product', 'node-ProductImage', 'left', 'node-Product', 'top', 0.5);
+
+      // 13. ProductVariant -> Product (ProductID FK)
+      updateCurve('path-ProductVariant-Product', 'node-ProductVariant', 'left', 'node-Product', 'right', 0.4);
+
+      // 14. CartItem -> Cart (CartID FK)
+      updateCurve('path-CartItem-Cart', 'node-CartItem', 'left', 'node-Cart', 'right', 0.4);
+
+      // 15. CartItem -> ProductVariant (VariantID FK)
+      updateCurve('path-CartItem-ProductVariant', 'node-CartItem', 'bottom', 'node-ProductVariant', 'top', 0.5);
+
+      // 16. OrderItem -> ProductVariant (VariantID FK)
+      updateCurve('path-OrderItem-ProductVariant', 'node-OrderItem', 'top', 'node-ProductVariant', 'right', 0.6);
+
+      // 17. OrderItem -> Order (OrderID FK)
+      updateCurve('path-OrderItem-Order', 'node-OrderItem', 'left', 'node-Order', 'right', 0.4);
+
+      // 18. OrderStatusHistory -> Order (OrderID FK)
+      updateCurve('path-OrderStatusHistory-Order', 'node-OrderStatusHistory', 'bottom', 'node-Order', 'top', 0.5);
+
+      // 19. Payment -> Order (OrderID FK)
+      updateCurve('path-Payment-Order', 'node-Payment', 'bottom', 'node-Order', 'top', 0.4);
+
+      // 20. Shipment -> Order (OrderID FK)
+      updateCurve('path-Shipment-Order', 'node-Shipment', 'left', 'node-Order', 'right', 0.4);
+
+      // 21. VoucherUsage -> Order (OrderID FK)
+      updateCurve('path-VoucherUsage-Order', 'node-VoucherUsage', 'left', 'node-Order', 'bottom', 0.5);
+
+      // 22. VoucherUsage -> Voucher (VoucherID FK)
+      updateCurve('path-VoucherUsage-Voucher', 'node-VoucherUsage', 'bottom', 'node-Voucher', 'right', 0.4);
+
+      // 23. Review -> OrderItem (OrderItemID FK)
+      updateCurve('path-Review-OrderItem', 'node-Review', 'left', 'node-OrderItem', 'right', 0.4);
+
+      // 24. ReviewImage -> Review (ReviewID FK)
+      updateCurve('path-ReviewImage-Review', 'node-ReviewImage', 'left', 'node-Review', 'right', 0.4);
+    }
+
+    // Toggle Dark / Light Theme
+    function toggleTheme() {
+      const isDark = document.body.getAttribute('data-theme') === 'dark';
+      document.body.setAttribute('data-theme', isDark ? 'light' : 'dark');
+      document.getElementById('theme-icon').textContent = isDark ? '🌙' : '☀️';
+      document.getElementById('btn-theme').innerHTML = `<span id="theme-icon">${isDark ? '🌙' : '☀️'}</span> ${isDark ? 'Dark Mode' : 'Light Mode'}`;
+      setTimeout(renderConnections, 50);
+    }
+
+    // Toggle Column / Details
+    function toggleDetails() {
+      document.body.classList.toggle('show-details');
+      const isShowing = document.body.classList.contains('show-details');
+      document.getElementById('btn-details').innerHTML = `
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="8" y1="6" x2="21" y2="6"></line>
+          <line x1="8" y1="12" x2="21" y2="12"></line>
+          <line x1="8" y1="18" x2="21" y2="18"></line>
+          <line x1="3" y1="6" x2="3.01" y2="6"></line>
+          <line x1="3" y1="12" x2="3.01" y2="12"></line>
+          <line x1="3" y1="18" x2="3.01" y2="18"></line>
+        </svg>
+        ${isShowing ? 'Ẩn chi tiết Khóa' : 'Hiện chi tiết Khóa & Cột'}
+      `;
+      setTimeout(renderConnections, 50);
+    }
+
+    // Export High-Res PNG
+    function exportPNG() {
+      const captureElem = document.getElementById('capture-area');
+      const btn = event.currentTarget;
+      const originalText = btn.innerHTML;
+      btn.innerHTML = '⏳ Đang tạo ảnh...';
+
+      html2canvas(captureElem, {
+        scale: 2, // 2x retina clarity
+        useCORS: true,
+        backgroundColor: getComputedStyle(document.body).getPropertyValue('--bg-card').trim()
+      }).then(canvas => {
+        const link = document.createElement('a');
+        link.download = '5.1-Luoc-Do-Logic-ECommerce-Platform.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        btn.innerHTML = originalText;
+      }).catch(err => {
+        alert('Lỗi xuất ảnh: ' + err);
+        btn.innerHTML = originalText;
+      });
+    }
+
+    // Init on load & resize
+    window.addEventListener('load', renderConnections);
+    window.addEventListener('resize', renderConnections);
+  </script>
+</body>
+</html>

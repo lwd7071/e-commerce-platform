@@ -27,6 +27,17 @@ type CheckoutRow = {
 
 class ShippingQuoteInputsChangedError extends Error {}
 
+function joinAddressParts(...values: Array<string | null | undefined>): string {
+  const seen = new Set<string>();
+  return values.flatMap(value => (value ?? '').split(',')).map(part => part.trim()).filter(part => {
+    if (!part) return false;
+    const key = part.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd').toLocaleLowerCase('vi');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).join(', ');
+}
+
 export class PgCheckoutService implements OrderHttpApplication {
   private readonly auditRepository: PgAuditRepository;
   private readonly loyaltyService: LoyaltyService;
@@ -46,7 +57,7 @@ export class PgCheckoutService implements OrderHttpApplication {
     if (unknownField) throw new ValidationFailedError(`Unknown field: ${unknownField}`, { field: unknownField });
     if (typeof input.address_id !== 'string') throw new ValidationFailedError('address_id is required.');
     const addressResult = await this.pool.query(
-      'SELECT province,ward,detail_address FROM addresses WHERE address_id=$1 AND user_id=$2',
+      'SELECT province,ward,district,detail_address FROM addresses WHERE address_id=$1 AND user_id=$2',
       [input.address_id, context.user_id],
     );
     const address = addressResult.rows[0];
@@ -74,7 +85,7 @@ export class PgCheckoutService implements OrderHttpApplication {
         pickupAddress: String(shop.pickup_detail_address ?? shop.pickup_address ?? ''),
         pickupProvince: pickupProvince || String(address.province),
         pickupWard: pickupWard || String(address.ward),
-        deliveryAddress: String(address.detail_address),
+        deliveryAddress: joinAddressParts(String(address.detail_address ?? ''), address.district == null ? null : String(address.district)),
         deliveryProvince: String(address.province),
         deliveryWard: String(address.ward),
         weightGrams: Number(shop.weight_grams),
@@ -170,7 +181,7 @@ export class PgCheckoutService implements OrderHttpApplication {
       await client.query(
         `INSERT INTO orders (order_id,buyer_id,shop_id,recipient_name,recipient_phone,province,district,ward,delivery_address,subtotal,discount_amount,shipping_fee,total_amount,status)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'PENDING_CONFIRMATION')`,
-        [orderId, context.user_id, shopId, address.rows[0].recipient_name, address.rows[0].phone, address.rows[0].province, address.rows[0].district, address.rows[0].ward, address.rows[0].detail_address, totals.subtotal, totals.discount_amount, totals.shipping_fee, totals.total_amount]);
+        [orderId, context.user_id, shopId, address.rows[0].recipient_name, address.rows[0].phone, address.rows[0].province, address.rows[0].district, address.rows[0].ward, joinAddressParts(String(address.rows[0].detail_address ?? ''), address.rows[0].district == null ? null : String(address.rows[0].district)), totals.subtotal, totals.discount_amount, totals.shipping_fee, totals.total_amount]);
       for (const row of rows) {
         const inventory = await client.query('UPDATE product_variants SET stock_quantity=stock_quantity-$1,updated_at=now() WHERE variant_id=$2 AND stock_quantity >= $1', [row.quantity, row.variant_id]);
         if (inventory.rowCount !== 1) throw new ConflictError('INVENTORY_INSUFFICIENT', `Insufficient stock for variant ${row.variant_id}.`);

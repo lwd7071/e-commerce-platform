@@ -1,0 +1,212 @@
+=== Admin / Quan tri ===
+  - [\badmin\b]: 36 lần (dòng: 217, 218, 330, 334, 335, 336, 6420, 6426...)
+      Ví dụ dòng 217: [217] 6.2.13. Màn hình Quản trị viên - Bảng điều khiển & Quản lý User/Shop (MH13
+      Ví dụ dòng 218: [218] 6.2.14. Màn hình Quản trị viên - Quản lý danh mục ngành hàng (MH14 - /admi
+  - [\bAdmin\b]: 101 lần (dòng: 82, 105, 106, 107, 108, 109, 327, 378...)
+      Ví dụ dòng 82: [82] Admin cần32
+      Ví dụ dòng 105: [105] 2.1.14. Bộ phận/Nhóm: Admin quản lý người dùng60
+  - [\bADMIN\b]: 5 lần (dòng: 1209, 2563, 2875, 5630, 6451...)
+      Ví dụ dòng 1209: [1209] Báo cáo đánh giá vi phạm (ngoài MVP theo CR-ADMIN-01)
+      Ví dụ dòng 2563: [2563] Khách chưa xác thực với tài khoản dự định đăng nhập BUYER/SELLER/ADMIN.
+  - [Quản trị viên]: 26 lần (dòng: 217, 218, 310, 311, 508, 517, 576, 593...)
+      Ví dụ dòng 217: [217] 6.2.13. Màn hình Quản trị viên - Bảng điều khiển & Quản lý User/Shop (MH13
+      Ví dụ dòng 218: [218] 6.2.14. Màn hình Quản trị viên - Quản lý danh mục ngành hàng (MH14 - /admi
+  - [quản trị viên]: 12 lần (dòng: 483, 484, 501, 582, 602, 603, 617, 2308...)
+      Ví dụ dòng 483: [483] Bảng 6.14. Các đối tượng trong màn hình quản trị viên - Dashboard & quản l
+      Ví dụ dòng 484: [484] Bảng 6.15. Các đối tượng trong màn hình quản trị viên - quản lý danh mục (
+  - [quản trị hệ thống]: 1 lần (dòng: 2540...)
+      Ví dụ dòng 2540: [2540] Các Use Case dưới đây mô tả những luồng nghiệp vụ tiêu biểu và có ảnh hưở
+
+=== Customer / Khach hang ===
+  - [khách hàng]: 19 lần (dòng: 331, 332, 333, 501, 515, 580, 588, 6535...)
+      Ví dụ dòng 331: [331] Hình 9.7. Giao diện Hồ sơ cá nhân của khách hàng (/profile)211
+      Ví dụ dòng 332: [332] Hình 9.8. Giao diện địa chỉ giao nhận và hạng thành viên của khách hàng (/
+  - [Người mua]: 63 lần (dòng: 248, 274, 508, 515, 548, 549, 550, 552...)
+      Ví dụ dòng 248: [248] 9.2.4. Trải nghiệm Người mua & Tương tác (Thành viên 4)210
+      Ví dụ dòng 274: [274] Hình 4.8. Sơ đồ Use Case quản lý đơn hàng của Người mua86
+  - [người mua]: 48 lần (dòng: 65, 96, 354, 493, 501, 503, 580, 581...)
+      Ví dụ dòng 65: [65] 1.1.2. Hiện trạng phía người mua26
+      Ví dụ dòng 96: [96] 2.1.5. Bộ phận/Nhóm: Quản lý đơn hàng của người mua46
+
+=== Seller / Nguoi ban / Shop ===
+  - [\bseller\b]: 39 lần (dòng: 215, 216, 219, 221, 485, 487, 957, 1262...)
+      Ví dụ dòng 215: [215] 6.2.11. Màn hình Kênh Người bán - Dashboard & Xử lý đơn hàng (MH11 - /sell
+      Ví dụ dòng 216: [216] 6.2.12. Màn hình Kênh Người bán - Quản lý & Đăng bán sản phẩm (MH12 - /sel
+  - [\bSeller\b]: 92 lần (dòng: 320, 321, 323, 516, 564, 682, 1138, 1142...)
+      Ví dụ dòng 320: [320] Hình 7.6. Sơ đồ tuần tự Seller tiếp nhận và xử lý đơn193
+      Ví dụ dòng 321: [321] Hình 7.7. Sơ đồ tuần tự Seller bàn giao đơn cho giao hàng194
+  - [\bSELLER\b]: 19 lần (dòng: 228, 229, 231, 642, 682, 2341, 2544, 2552...)
+      Ví dụ dòng 228: [228] 7.6. SELLER TIẾP NHẬN VÀ XỬ LÝ ĐƠN192
+      Ví dụ dòng 229: [229] 7.7. SELLER BÀN GIAO ĐƠN CHO GIAO HÀNG193
+  - [Người bán]: 65 lần (dòng: 81, 102, 123, 215, 216, 219, 221, 247...)
+      Ví dụ dòng 81: [81] Người bán cần32
+      Ví dụ dòng 102: [102] 2.1.11. Bộ phận/Nhóm: Người bán xử lý đơn hàng55
+  - [người bán]: 56 lần (dòng: 67, 101, 104, 366, 376, 404, 481, 482...)
+      Ví dụ dòng 67: [67] 1.1.3. Hiện trạng phía người bán27
+      Ví dụ dòng 101: [101] 2.1.10. Bộ phận/Nhóm: Quản lý sản phẩm của người bán53
+  - [Người Bán]: 2 lần (dòng: 7106, 7397...)
+      Ví dụ dòng 7106: [7106] – Chi tiết màn hình: Khung widget dạng bong bóng tròn màu hồng nổi cố địn
+      Ví dụ dòng 7397: [7397] Thành viên thứ ba đảm nhận việc kiểm thử toàn diện Kênh Người Bán (Seller
+  - [\bshop\b]: 122 lần (dòng: 534, 565, 572, 782, 1254, 1260, 1264, 1269...)
+      Ví dụ dòng 534: [534] Admin quản lý tài khoản, shop, danh mục, sản phẩm, đơn hàng và vi phạm.
+      Ví dụ dòng 565: [565] Người bán cập nhật thông tin shop.
+  - [\bShop\b]: 145 lần (dòng: 217, 424, 483, 516, 528, 642, 682, 771...)
+      Ví dụ dòng 217: [217] 6.2.13. Màn hình Quản trị viên - Bảng điều khiển & Quản lý User/Shop (MH13
+      Ví dụ dòng 424: [424] Bảng 5.4. Mô tả bảng Shop.105
+  - [\bSHOP\b]: 7 lần (dòng: 1276, 1294, 1386, 1614, 1739, 3727, 4010...)
+      Ví dụ dòng 1276: [1276] QLSHOP_BM1 - ĐĂNG KÝ MỞ SHOP
+      Ví dụ dòng 1294: [1294] QLSHOP_BM2 - CẬP NHẬT THÔNG TIN SHOP
+  - [Chủ shop]: 4 lần (dòng: 1745, 1750, 3028, 6883...)
+      Ví dụ dòng 1745: [1745] Chủ shop
+      Ví dụ dòng 1750: [1750] Mã shop | Tên shop | Chủ shop | Số sản phẩm | Trạng thái | Ngày tạo
+  - [chủ shop]: 1 lần (dòng: 1721...)
+      Ví dụ dòng 1721: [1721] Theo tên/chủ shop/trạng thái
+
+=== Shipper / Giao hang ===
+  - [\bshipper\b]: 1 lần (dòng: 538...)
+      Ví dụ dòng 538: [538] Đơn vị vận chuyển thật và định vị shipper thời gian thực.
+  - [Đơn vị vận chuyển]: 3 lần (dòng: 538, 1164, 3678...)
+      Ví dụ dòng 538: [538] Đơn vị vận chuyển thật và định vị shipper thời gian thực.
+      Ví dụ dòng 1164: [1164] Đơn vị vận chuyển
+  - [đơn vị vận chuyển]: 5 lần (dòng: 570, 589, 2470, 6883, 7202...)
+      Ví dụ dòng 570: [570] Người bán bàn giao hàng cho đơn vị vận chuyển mô phỏng.
+      Ví dụ dòng 589: [589] Khi phát sinh đơn hàng mới, người bán cần xem thông tin đơn hàng, kiểm tra
+
+=== User / Nguoi dung ===
+  - [\buser\b]: 6 lần (dòng: 1844, 1864, 4863, 6422, 7236, 7327...)
+      Ví dụ dòng 1844: [1844] Xem danh sách đánh giá để kiểm duyệt (không có luồng user report trong MV
+      Ví dụ dòng 1864: [1864] Mã SP, Tên SP, Shop, Danh mục, Trạng thái; không có số user report trong 
+  - [\bUser\b]: 84 lần (dòng: 217, 421, 483, 2827, 2851, 2852, 2853, 2910...)
+      Ví dụ dòng 217: [217] 6.2.13. Màn hình Quản trị viên - Bảng điều khiển & Quản lý User/Shop (MH13
+      Ví dụ dòng 421: [421] Bảng 5.1. Mô tả bảng User.103
+  - [\bUSER\b]: 1 lần (dòng: 4010...)
+      Ví dụ dòng 4010: [4010] {USER, SHOP, PRODUCT, REVIEW, ORDER, VOUCHER, ...}
+  - [Người dùng]: 14 lần (dòng: 564, 1256, 1873, 2328, 2330, 2554, 2565, 4470...)
+      Ví dụ dòng 564: [564] Người dùng đăng ký bằng email qua Supabase Auth, chọn vai trò Seller và tạ
+      Ví dụ dòng 1256: [1256] Người dùng hợp lệ
+  - [người dùng]: 71 lần (dòng: 105, 284, 326, 378, 379, 504, 513, 521...)
+      Ví dụ dòng 105: [105] 2.1.14. Bộ phận/Nhóm: Admin quản lý người dùng60
+      Ví dụ dòng 284: [284] Hình 4.18. Sơ đồ Use Case quản lý người dùng94
+
+=== Guest / Khach vang lai ===
+  - [\bGuest\b]: 11 lần (dòng: 514, 2116, 2161, 2313, 2325, 2580, 6355, 7623...)
+      Ví dụ dòng 514: [514] Khách (Guest): người chưa đăng nhập.
+      Ví dụ dòng 2116: [2116] Guest, Buyer, Seller, Admin có quyền khác nhau
+  - [khách vãng lai]: 1 lần (dòng: 6489...)
+      Ví dụ dòng 6489: [6489] -Ý nghĩa: Cho phép khách vãng lai tạo tài khoản thành viên mới trong hệ t
+
+=== Manager / Quan ly ===
+  - [Quản lý]: 104 lần (dòng: 94, 96, 100, 101, 142, 211, 216, 217...)
+      Ví dụ dòng 94: [94] 2.1.3. Bộ phận/Nhóm: Quản lý giỏ hàng43
+      Ví dụ dòng 96: [96] 2.1.5. Bộ phận/Nhóm: Quản lý đơn hàng của người mua46
+  - [quản lý]: 149 lần (dòng: 71, 72, 73, 105, 106, 107, 109, 269...)
+      Ví dụ dòng 71: [71] 1.1.4. Hiện trạng quản lý sản phẩm và danh mục28
+      Ví dụ dòng 72: [72] 1.1.5. Hiện trạng quản lý giỏ hàng29
+
+=== Staff / Nhan vien ===
+  - [nhân viên]: 1 lần (dòng: 7123...)
+      Ví dụ dòng 7123: [7123] Nút 'Gặp Shop' (Hand-off) chuyển giao sang nhân viên tư vấn thật
+
+=== Frontend ===
+  - [\bfrontend\b]: 10 lần (dòng: 2572, 6455, 6501, 6831, 7317, 7614, 7623, 7661...)
+      Ví dụ dòng 2572: [2572] 4. Backend xác minh JWT, trạng thái tài khoản và vai trò từ app_users; fr
+      Ví dụ dòng 6455: [6455] – Ý nghĩa: Người dùng có thể đăng nhập bằng email/mật khẩu hoặc tài khoản
+  - [\bFrontend\b]: 4 lần (dòng: 2570, 6513, 7620, 7662...)
+      Ví dụ dòng 2570: [2570] 2. Frontend gọi Supabase Auth.
+      Ví dụ dòng 6513: [6513] Frontend kiểm tra tối thiểu 8 ký tự; không tự mô tả bắt buộc hoa/thường/s
+
+=== Backend ===
+  - [\bbackend\b]: 20 lần (dòng: 2077, 2676, 6455, 6613, 6663, 6801, 6831, 6907...)
+      Ví dụ dòng 2077: [2077] Số lượng đặt mua không vượt tồn kho được backend kiểm tra/khóa trong tran
+      Ví dụ dòng 2676: [2676] 2. Với PayOS, backend tạo liên kết và payment PENDING.
+  - [\bBackend\b]: 10 lần (dòng: 1151, 2290, 2572, 2785, 6725, 7196, 7199, 7202...)
+      Ví dụ dòng 1151: [1151] Backend tính lại phí và kiểm tra thay đổi quote trước tạo đơn
+      Ví dụ dòng 2290: [2290] Backend ghi log các lỗi quan trọng
+
+=== Database / CSDL ===
+  - [\bdatabase\b]: 1 lần (dòng: 7623...)
+      Ví dụ dòng 7623: [7623] Nhóm thực hiện tuần tự theo quy chuẩn kỹ thuật 5 bước: Bước 1 (Cài đặt de
+  - [\bDatabase\b]: 6 lần (dòng: 196, 6233, 6235, 7266, 7621, 7677...)
+      Ví dụ dòng 196: [196] 5.4.7. Phân chia ràng buộc giữa Database và Service148
+      Ví dụ dòng 6233: [6233] 5.4.7. Phân chia ràng buộc giữa Database và Service
+  - [\bCSDL\b]: 137 lần (dòng: 2259, 2295, 5048, 5051, 5054, 5057, 5060, 5063...)
+      Ví dụ dòng 2259: [2259] Validate dữ liệu trước khi ghi CSDL
+      Ví dụ dòng 2295: [2295] Có phương án backup CSDL trong môi trường triển khai
+  - [cơ sở dữ liệu]: 21 lần (dòng: 490, 2808, 7105, 7179, 7181, 7196, 7211, 7248...)
+      Ví dụ dòng 490: [490] Bảng 9.3. Kịch bản kiểm thử phân hệ cơ sở dữ liệu và RLS222
+      Ví dụ dòng 2808: [2808] Để hỗ trợ các hoạt động mua bán và quản lý trên Dino, nhóm xây dựng cơ sở
+  - [Cơ sở dữ liệu]: 4 lần (dòng: 246, 2808, 7337, 7621...)
+      Ví dụ dòng 246: [246] 9.2.2. Cơ sở dữ liệu & Toàn vẹn dữ liệu (Thành viên 2)205
+      Ví dụ dòng 2808: [2808] Để hỗ trợ các hoạt động mua bán và quản lý trên Dino, nhóm xây dựng cơ sở
+
+=== API / Rest API ===
+  - [\bapi\b]: 33 lần (dòng: 6551, 6621, 6633, 6663, 6667, 6693, 6697, 6709...)
+      Ví dụ dòng 6551: [6551] Gọi GET /api/v1/products với search và các bộ lọc có trong contract.
+      Ví dụ dòng 6621: [6621] Buyer gửi POST /api/v1/cart/items với variant_id, quantity; cập nhật cach
+  - [\bAPI\b]: 30 lần (dòng: 600, 648, 1198, 1330, 2247, 2555, 4976, 6455...)
+      Ví dụ dòng 600: [600] Quản lý vận chuyển: Thông tin vận chuyển gồm địa chỉ nhận hàng, người nhận
+      Ví dụ dòng 648: [648] Tài khoản bị khóa không được thực hiện API nghiệp vụ cần xác thực
+  - [REST API]: 1 lần (dòng: 7673...)
+      Ví dụ dòng 7673: [7673] REST API, JWT/RBAC/ownership, service nghiệp vụ; repositories pg và trans
+
+=== Cart / Gio hang ===
+  - [\bcart\b]: 13 lần (dòng: 209, 333, 2301, 6372, 6575, 6621, 6634, 6663...)
+      Ví dụ dòng 209: [209] 6.2.5. Màn hình Giỏ hàng (MH05 - /cart)165
+      Ví dụ dòng 333: [333] Hình 9.9. Giao diện Giỏ hàng mua sắm đa gian hàng của khách hàng (/cart)21
+  - [\bCart\b]: 23 lần (dòng: 429, 2835, 3284, 3285, 3286, 3337, 5015, 5027...)
+      Ví dụ dòng 429: [429] Bảng 5.9. Mô tả bảng Cart.110
+      Ví dụ dòng 2835: [2835] Cart(CartID, BuyerID, CreatedAt, UpdatedAt)
+  - [giỏ hàng]: 53 lần (dòng: 72, 94, 134, 271, 317, 349, 409, 475...)
+      Ví dụ dòng 72: [72] 1.1.5. Hiện trạng quản lý giỏ hàng29
+      Ví dụ dòng 94: [94] 2.1.3. Bộ phận/Nhóm: Quản lý giỏ hàng43
+  - [Giỏ hàng]: 21 lần (dòng: 209, 302, 333, 350, 597, 889, 2179, 2616...)
+      Ví dụ dòng 209: [209] 6.2.5. Màn hình Giỏ hàng (MH05 - /cart)165
+      Ví dụ dòng 302: [302] Hình 6.6. Màn hình Giỏ hàng165
+
+=== Order / Don hang ===
+  - [\border\b]: 12 lần (dòng: 2301, 2678, 6709, 6801, 7196, 7211, 7476, 7526...)
+      Ví dụ dòng 2301: [2301] Ưu tiên auth/​cart/​order
+      Ví dụ dòng 2678: [2678] 4. Payment/order và escrow có ranh giới transaction riêng; cần đối soát k
+  - [\bOrder\b]: 115 lần (dòng: 431, 1040, 2837, 3366, 3367, 3368, 3434, 3440...)
+      Ví dụ dòng 431: [431] Bảng 5.11. Mô tả bảng Order.111
+      Ví dụ dòng 1040: [1040] Order SHIPPING; Shipment SHIPPING/​DELIVERED; đúng ownership, Admin cần r
+  - [đơn hàng]: 150 lần (dòng: 73, 96, 102, 109, 137, 139, 143, 215...)
+      Ví dụ dòng 73: [73] 1.1.6. Hiện trạng quản lý đơn hàng29
+      Ví dụ dòng 96: [96] 2.1.5. Bộ phận/Nhóm: Quản lý đơn hàng của người mua46
+  - [Đơn hàng]: 20 lần (dòng: 559, 561, 598, 2055, 2133, 2671, 2811, 2820...)
+      Ví dụ dòng 559: [559] Đơn hàng chuyển qua các trạng thái vận chuyển.
+      Ví dụ dòng 561: [561] Đơn hàng hoàn thành.
+
+=== Payment / Thanh toan ===
+  - [\bpayment\b]: 10 lần (dòng: 2676, 6266, 6271, 7196, 7211, 7526, 7548, 7603...)
+      Ví dụ dòng 2676: [2676] 2. Với PayOS, backend tạo liên kết và payment PENDING.
+      Ví dụ dòng 6266: [6266] ON payment(order_id)
+  - [\bPayment\b]: 33 lần (dòng: 434, 2678, 2840, 3590, 3591, 3592, 5030, 5086...)
+      Ví dụ dòng 434: [434] Bảng 5.14. Mô tả bảng Payment.115
+      Ví dụ dòng 2678: [2678] 4. Payment/order và escrow có ranh giới transaction riêng; cần đối soát k
+  - [thanh toán]: 109 lần (dòng: 74, 273, 303, 357, 413, 476, 501, 503...)
+      Ví dụ dòng 74: [74] 1.1.7. Hiện trạng thanh toán30
+      Ví dụ dòng 273: [273] Hình 4.7. Sơ đồ Use Case thanh toán85
+  - [Thanh toán]: 27 lần (dòng: 97, 138, 210, 249, 319, 338, 356, 526...)
+      Ví dụ dòng 97: [97] 2.1.6. Bộ phận/Nhóm: Thanh toán48
+      Ví dụ dòng 138: [138] 4.4.8. Use Case Thanh toán105
+
+=== Voucher / Khuyen mai ===
+  - [\bvoucher\b]: 88 lần (dòng: 76, 282, 289, 501, 528, 553, 584, 588...)
+      Ví dụ dòng 76: [76] 1.1.9. Hiện trạng voucher và khuyến mãi31
+      Ví dụ dòng 282: [282] Hình 4.16. Sơ đồ Use Case quản lý voucher và khuyến mãi92
+  - [\bVoucher\b]: 62 lần (dòng: 103, 373, 436, 601, 915, 996, 1505, 1506...)
+      Ví dụ dòng 103: [103] 2.1.12. Bộ phận/Nhóm: Voucher và khuyến mãi — Mã số: QLKM57
+      Ví dụ dòng 373: [373] Bảng 2.34. Bộ phận/nhóm: Voucher và khuyến mãi — Mã số: QLKM48
+  - [mã giảm giá]: 2 lần (dòng: 503, 7626...)
+      Ví dụ dòng 503: [503] Đề tài xây dựng một hệ thống thương mại điện tử hoạt động theo mô hình sàn
+      Ví dụ dòng 7626: [7626]      • Đợt 2 – Mốc T2 (Ngày 02/10/2026 đến ngày 03/10/2026): Kiểm thử tíc
+  - [Mã giảm giá]: 2 lần (dòng: 7079, 7472...)
+      Ví dụ dòng 7079: [7079] tab​Seller​Nav_​Selected​Page​Changed: Chuyển đổi giữa các phân hệ: 'Tổng
+      Ví dụ dòng 7472: [7472] Áp dụng Mã giảm giá Voucher (QD09-QD10)
+  - [khuyến mãi]: 16 lần (dòng: 76, 103, 282, 373, 504, 509, 528, 601...)
+      Ví dụ dòng 76: [76] 1.1.9. Hiện trạng voucher và khuyến mãi31
+      Ví dụ dòng 103: [103] 2.1.12. Bộ phận/Nhóm: Voucher và khuyến mãi — Mã số: QLKM57
+  - [Khuyến mãi]: 1 lần (dòng: 7444...)
+      Ví dụ dòng 7444: [7444] Thành viên thứ tư đảm nhận việc kiểm thử trải nghiệm người mua xuyên suốt
+

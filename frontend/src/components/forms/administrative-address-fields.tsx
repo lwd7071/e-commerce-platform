@@ -10,8 +10,6 @@ interface Props {
   wardName?: string;
   onProvinceChange(code: string, name: string): void;
   onWardChange(code: string, name: string): void;
-  locality?: string;
-  onLocalityChange?(value: string): void;
 }
 
 const inputClass = 'w-full rounded-xl border border-[var(--border)] bg-[var(--background)] p-2.5 text-[var(--foreground)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--primary-active)] disabled:cursor-not-allowed disabled:opacity-60';
@@ -102,7 +100,7 @@ function LocationAutocomplete({
 }
 
 export function AdministrativeAddressFields({
-    provinceCode, provinceName = '', wardCode, wardName = '', onProvinceChange, onWardChange, locality, onLocalityChange,
+    provinceCode, provinceName = '', wardCode, wardName = '', onProvinceChange, onWardChange,
 }: Props) {
   const [provinces, setProvinces] = useState<AdministrativeLocation[]>([]);
   const [wardCatalog, setWardCatalog] = useState<{ provinceCode: string; wards: AdministrativeLocation[] }>({ provinceCode: '', wards: [] });
@@ -127,10 +125,6 @@ export function AdministrativeAddressFields({
   return <div className="grid gap-3 sm:grid-cols-2">
     <LocationAutocomplete label="Tỉnh/thành phố" placeholder="Nhập để tìm tỉnh/thành phố" value={selectedProvinceName} options={provinces} onChange={onProvinceChange} />
     <LocationAutocomplete label="Phường/xã" placeholder={provinceCode ? 'Nhập để tìm phường/xã' : 'Chọn tỉnh/thành trước'} value={selectedWardName} options={wards} disabled={!provinceCode || wards.length === 0} onChange={onWardChange} />
-    {onLocalityChange && <label className="field-stack sm:col-span-2">
-      <span className="field-label">Thôn/ấp/tổ dân phố</span>
-      <input autoComplete="address-line2" placeholder="Ví dụ: Ấp 3, thôn Đông hoặc tổ 12" value={locality ?? ''} onChange={event => onLocalityChange(event.target.value)} className={inputClass} />
-    </label>}
     {error && <p className="text-sm text-[var(--danger)] sm:col-span-2" role="alert">{error}</p>}
   </div>;
 }

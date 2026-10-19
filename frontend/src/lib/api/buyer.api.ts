@@ -24,7 +24,7 @@ export interface CreateAddressPayload {
   recipientName: string;
   phone: string;
   province: string;
-  district?: string;
+  district?: string | null;
   ward: string;
   province_code?: string;
   ward_code?: string;
