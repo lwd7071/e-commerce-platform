@@ -90,31 +90,33 @@ export function SiteHeader({ role = null, isSellerArea = false, isAdminArea = fa
     </span>;
   };
 
-  // Header dành riêng cho Kênh Người Bán (Seller Center)
-  if (isSellerArea) {
+  // Header riêng cho các khu vực vận hành.
+  if (isSellerArea || isAdminArea) {
+    const areaLabel = isSellerArea ? "Kênh người bán" : "Quản trị Dino";
+    const homeHref = isSellerArea ? "/seller" : "/admin";
     return (
-      <header className="site-header site-header--seller">
+      <header className="site-header site-header--seller site-header--admin-portal">
         <div className="site-header__inner">
           <div className="flex items-center gap-3">
-            <button type="button" className="role-menu-trigger" aria-label="Menu người bán" onClick={onMobileMenuOpen}>
+            <button type="button" className="role-menu-trigger" aria-label={`Menu ${areaLabel}`} onClick={onMobileMenuOpen}>
               <Icon name="grid" className="h-5 w-5" /><span>Menu</span>
             </button>
-            <Link className="brand-lockup flex items-center gap-2" href="/seller" aria-label="Dino Kênh người bán">
+            <Link className="brand-lockup flex items-center gap-2" href={homeHref} aria-label={`Dino ${areaLabel}`}>
               <span className="font-bold text-xl tracking-tight">Dino</span>
-              <span className="px-2 py-0.5 text-xs font-semibold rounded-md bg-[var(--primary-surface)] text-[var(--primary-active)] border border-[var(--primary-border)]">
-                Kênh người bán
+              <span className="area-badge px-2 py-0.5 text-xs font-semibold rounded-md bg-[var(--primary-surface)] text-[var(--primary-active)] border border-[var(--primary-border)]">
+                {areaLabel}
               </span>
             </Link>
           </div>
 
           <div className="flex items-center gap-3">
             <Link
-              href="/"
+              href={isSellerArea ? "/" : "/seller"}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-[var(--subtext)] hover:text-[var(--foreground)] hover:bg-[var(--card-muted)] rounded-lg transition-colors min-h-[38px]"
-              aria-label="Quay lại mua sắm"
+              aria-label={isSellerArea ? "Quay lại mua sắm" : "Mở kênh người bán"}
             >
               <Icon name="home" className="w-4 h-4" />
-              <span className="hidden sm:inline">Quay lại mua sắm</span>
+              <span className="hidden sm:inline">{isSellerArea ? "Quay lại mua sắm" : "Kênh người bán"}</span>
             </Link>
 
             {notifications}

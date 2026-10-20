@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth/auth-context";
 import { MobileDock, SiteHeader } from "./site-navigation";
 import { SellerSidebar } from "./seller-sidebar";
+import { AdminSidebar } from "./admin-sidebar";
 import { RoleMobileMenu } from "./role-mobile-menu";
 import { BuyerChatController } from "@/components/chat/buyer-chat-controller";
 import { useCallback, useState } from "react";
@@ -27,9 +28,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       {!isAuthRoute && <SiteHeader role={role} isSellerArea={isSellerRoute} isAdminArea={isAdminRoute} onMobileMenuOpen={() => setMobileMenuOpen(true)} />}
       {isSellerRoute && role === "SELLER" && <RoleMobileMenu role="SELLER" open={mobileMenuOpen} onClose={closeMobileMenu} />}
       {isAdminRoute && role === "ADMIN" && <RoleMobileMenu role="ADMIN" open={mobileMenuOpen} onClose={closeMobileMenu} />}
-      {isSellerRoute ? (
+      {isSellerRoute || (isAdminRoute && role === "ADMIN") ? (
         <div className="seller-layout flex min-h-[calc(100vh-var(--header-height,76px))] min-w-0">
-          <SellerSidebar />
+          {isSellerRoute ? <SellerSidebar /> : <AdminSidebar />}
           <main className="seller-main min-w-0 flex-1 bg-[var(--background)] p-4 md:overflow-y-auto md:p-8" id="main-content" tabIndex={-1}>
             {children}
           </main>
