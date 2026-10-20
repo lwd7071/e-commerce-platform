@@ -1133,10 +1133,14 @@ export const mockAdminRepository: IAdminRepository = {
       list = list.filter((u) => u.email.toLowerCase().includes(q) || u.full_name.toLowerCase().includes(q));
     }
     const limit = params?.limit ?? 20;
+    const page = params?.page ?? 1;
+    const total_items = list.length;
+    const total_pages = Math.max(1, Math.ceil(total_items / limit));
     return {
-      items: list.slice(0, limit),
-      next_cursor: list.length > limit ? "mock_next_cursor" : null,
-      has_more: list.length > limit,
+      items: list.slice((page - 1) * limit, page * limit),
+      next_cursor: null,
+      has_more: page < total_pages,
+      page, page_size: limit, total_items, total_pages,
     };
   },
   lockUser: async (payload) => {
@@ -1211,10 +1215,14 @@ export const mockAdminRepository: IAdminRepository = {
       );
     }
     const limit = params?.limit ?? 20;
+    const page = params?.page ?? 1;
+    const total_items = list.length;
+    const total_pages = Math.max(1, Math.ceil(total_items / limit));
     return {
-      items: list.slice(0, limit),
-      next_cursor: list.length > limit ? "mock_next_shop_cursor" : null,
-      has_more: list.length > limit,
+      items: list.slice((page - 1) * limit, page * limit),
+      next_cursor: null,
+      has_more: page < total_pages,
+      page, page_size: limit, total_items, total_pages,
     };
   },
   approveShop: async (shopId, reason) => {

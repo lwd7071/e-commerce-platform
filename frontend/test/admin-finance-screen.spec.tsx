@@ -9,6 +9,7 @@ vi.mock('@/lib/api/wallet.api', () => ({
   walletApi: {
     getFinanceOverview: vi.fn(),
     getAdminWithdrawals: vi.fn(),
+    getAdminWithdrawalsPage: vi.fn(),
     approveWithdrawal: vi.fn(),
     rejectWithdrawal: vi.fn(),
   },
@@ -65,7 +66,7 @@ describe('AdminFinanceScreen', () => {
 
   it('renders overview metrics and withdrawal list', async () => {
     vi.mocked(walletApi.getFinanceOverview).mockResolvedValueOnce(mockOverview);
-    vi.mocked(walletApi.getAdminWithdrawals).mockResolvedValueOnce(mockWithdrawals);
+    vi.mocked(walletApi.getAdminWithdrawalsPage).mockResolvedValueOnce({ items: mockWithdrawals, page: 1, page_size: 20, total_items: mockWithdrawals.length, total_pages: 1 });
 
     render(<AdminFinanceScreen />);
 
@@ -85,7 +86,7 @@ describe('AdminFinanceScreen', () => {
 
   it('allows admin to approve a withdrawal request', async () => {
     vi.mocked(walletApi.getFinanceOverview).mockResolvedValue(mockOverview);
-    vi.mocked(walletApi.getAdminWithdrawals).mockResolvedValue(mockWithdrawals);
+    vi.mocked(walletApi.getAdminWithdrawalsPage).mockResolvedValue({ items: mockWithdrawals, page: 1, page_size: 20, total_items: mockWithdrawals.length, total_pages: 1 });
     vi.mocked(walletApi.approveWithdrawal).mockResolvedValueOnce({
       request: { ...mockWithdrawals[0], status: 'APPROVED', processed_by: 'admin-1', processed_at: '2026-10-02T12:00:00Z' },
       wallet: {
@@ -137,7 +138,7 @@ describe('AdminFinanceScreen', () => {
 
   it('allows admin to reject a withdrawal request', async () => {
     vi.mocked(walletApi.getFinanceOverview).mockResolvedValue(mockOverview);
-    vi.mocked(walletApi.getAdminWithdrawals).mockResolvedValue(mockWithdrawals);
+    vi.mocked(walletApi.getAdminWithdrawalsPage).mockResolvedValue({ items: mockWithdrawals, page: 1, page_size: 20, total_items: mockWithdrawals.length, total_pages: 1 });
     vi.mocked(walletApi.rejectWithdrawal).mockResolvedValueOnce({
       request: { ...mockWithdrawals[0], status: 'REJECTED', processed_by: 'admin-1', processed_at: '2026-10-02T12:00:00Z' },
       wallet: {

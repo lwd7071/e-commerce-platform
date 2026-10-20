@@ -9,11 +9,14 @@ import { Dialog } from "@/components/ui/dialog";
 import { FormField, TextInput } from "@/components/ui/form-controls";
 import { Skeleton, EmptyState } from "@/components/ui/data-states";
 import { AdminHeaderNav } from "./admin-header-nav";
+import { Pagination, type PageMeta } from "@/components/ui/pagination";
 
 export function AdminFinanceScreen() {
   const [overview, setOverview] = useState<FinanceOverview | null>(null);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [page, setPage] = useState(1);
+  const [pageMeta, setPageMeta] = useState<PageMeta>({ page: 1, page_size: 20, total_items: 0, total_pages: 1 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -31,16 +34,17 @@ export function AdminFinanceScreen() {
       const filter = statusFilter === "ALL" ? undefined : { status: statusFilter };
       const [overviewData, withdrawData] = await Promise.all([
         walletApi.getFinanceOverview(),
-        walletApi.getAdminWithdrawals(filter),
+        walletApi.getAdminWithdrawalsPage({ ...filter, page, page_size: 20 }),
       ]);
       setOverview(overviewData);
-      setWithdrawals(withdrawData);
+      setWithdrawals(withdrawData.items);
+      setPageMeta(withdrawData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể tải báo cáo tài chính sàn.");
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, page]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => { void loadData(); }, 0);
@@ -173,7 +177,7 @@ export function AdminFinanceScreen() {
             {["ALL", "PENDING", "APPROVED", "REJECTED"].map((st) => (
               <button
                 key={st}
-                onClick={() => setStatusFilter(st)}
+                onClick={() => { setPage(1); setStatusFilter(st); }}
                 className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
                   statusFilter === st
                     ? "bg-[var(--primary)] text-white"
@@ -280,6 +284,7 @@ export function AdminFinanceScreen() {
               </table>
             </div>
           )}
+          {withdrawals.length > 0 && <Pagination meta={pageMeta} onPageChange={setPage} disabled={loading} />}
         </div>
       </section>
 

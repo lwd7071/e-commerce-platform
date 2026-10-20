@@ -4,9 +4,11 @@ import { ValidationFailedError } from '../../../platform/errors/app-error.ts';
 export class AdminReadService {
   constructor(private readonly pool: Pool) {}
 
-  async listAuditLogsPage(input: { action?: string; target_type?: string; actor?: string; from?: string; to?: string; limit?: number; cursor?: string } = {}) {
+  async listAuditLogsPage(input: { action?: string; target_type?: string; actor?: string; from?: string; to?: string; limit?: number; cursor?: string; page?: number } = {}) {
     const limit = input.limit ?? 20;
     if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new ValidationFailedError('limit must be from 1 to 100');
+    const page = input.page ?? 1;
+    if (!Number.isInteger(page) || page < 1) throw new ValidationFailedError('page must be a positive integer');
     const validTimestamp = (value: string) => !Number.isNaN(Date.parse(value));
     if ((input.from && !validTimestamp(input.from)) || (input.to && !validTimestamp(input.to)) || (input.from && input.to && input.from > input.to)) {
       throw new ValidationFailedError('from and to must be valid timestamps with from <= to');
@@ -28,21 +30,29 @@ export class AdminReadService {
     }
     if (input.from) { values.push(input.from); where.push(`l.created_at >= $${values.length}::timestamptz`); }
     if (input.to) { values.push(input.to); where.push(`l.created_at <= $${values.length}::timestamptz`); }
+    const countResult = await this.pool.query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total FROM admin_logs l JOIN app_users u ON u.user_id=l.admin_id ${where.length ? `WHERE ${where.join(' AND ')}` : ''}`,
+      [...values],
+    );
+    const total_items = Number(countResult.rows[0]?.total ?? 0);
+    const total_pages = Math.max(1, Math.ceil(total_items / limit));
+    if (page > total_pages) throw new ValidationFailedError('page exceeds total_pages', { field: 'page', total_pages });
     if (cursor) {
       values.push(cursor.created_at); const createdAt = values.length;
       values.push(cursor.log_id); const logId = values.length;
       where.push(`(l.created_at < $${createdAt}::timestamptz OR (l.created_at = $${createdAt}::timestamptz AND l.log_id > $${logId}::uuid))`);
     }
-    values.push(limit + 1);
+    if (input.page === undefined) values.push(limit + 1);
+    else values.push(limit, (page - 1) * limit);
     const result = await this.pool.query<Record<string, unknown>>(
       `SELECT l.log_id,l.action,l.target_type,l.target_id,l.reason,l.created_at,
               l.admin_id,u.email AS actor
          FROM admin_logs l JOIN app_users u ON u.user_id=l.admin_id
          ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-        ORDER BY l.created_at DESC, l.log_id ASC LIMIT $${values.length}`,
+        ORDER BY l.created_at DESC, l.log_id ASC LIMIT $${values.length}${input.page === undefined ? '' : ` OFFSET $${values.length + 1}`}`,
       values,
     );
-    const has_more = result.rows.length > limit;
+    const has_more = input.page === undefined ? result.rows.length > limit : page < total_pages;
     const rows = result.rows.slice(0, limit);
     const last = rows.at(-1);
     const lastCreatedAt = last?.created_at instanceof Date ? last.created_at.toISOString() : String(last?.created_at ?? '');
@@ -53,14 +63,17 @@ export class AdminReadService {
         actor: String(row.actor), createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
       })),
       limit,
+      page, page_size: limit, total_items, total_pages,
       has_more,
       next_cursor: has_more && last ? Buffer.from(JSON.stringify({ created_at: lastCreatedAt, log_id: String(last.log_id) }), 'utf8').toString('base64url') : null,
     };
   }
 
-  async listUsersPage(input: { role?: string; status?: string; search?: string; limit?: number; cursor?: string } = {}) {
+  async listUsersPage(input: { role?: string; status?: string; search?: string; limit?: number; cursor?: string; page?: number } = {}) {
     const limit = input.limit ?? 20;
     if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new ValidationFailedError('limit must be from 1 to 100');
+    const page = input.page ?? 1;
+    if (!Number.isInteger(page) || page < 1) throw new ValidationFailedError('page must be a positive integer');
     const validTimestamp = (value: string) => !Number.isNaN(Date.parse(value));
     let cursor: { created_at: string; user_id: string } | undefined;
     if (input.cursor) {
@@ -77,22 +90,30 @@ export class AdminReadService {
     if (input.role && input.role !== 'ALL') { values.push(input.role); where.push(`u.role = $${values.length}`); }
     if (input.status && input.status !== 'ALL') { values.push(input.status); where.push(`u.status = $${values.length}`); }
     if (input.search?.trim()) { values.push(`%${input.search.trim()}%`); where.push(`(u.email ILIKE $${values.length} OR p.full_name ILIKE $${values.length})`); }
+    const countResult = await this.pool.query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total FROM app_users u LEFT JOIN user_profiles p ON u.user_id=p.user_id ${where.length ? `WHERE ${where.join(' AND ')}` : ''}`,
+      [...values],
+    );
+    const total_items = Number(countResult.rows[0]?.total ?? 0);
+    const total_pages = Math.max(1, Math.ceil(total_items / limit));
+    if (input.page !== undefined && page > total_pages) throw new ValidationFailedError('page exceeds total_pages', { field: 'page', total_pages });
     if (cursor) {
       values.push(cursor.created_at); const createdAt = values.length;
       values.push(cursor.user_id); const userId = values.length;
       where.push(`(u.created_at < $${createdAt}::timestamptz OR (u.created_at = $${createdAt}::timestamptz AND u.user_id > $${userId}::uuid))`);
     }
-    values.push(limit + 1);
+    if (input.page === undefined) values.push(limit + 1);
+    else values.push(limit, (page - 1) * limit);
     const result = await this.pool.query<Record<string, unknown>>(
       `SELECT u.user_id, u.email, COALESCE(p.full_name, split_part(u.email, '@', 1)) AS full_name,
               u.role, u.status, u.created_at, u.updated_at
          FROM app_users u
          LEFT JOIN user_profiles p ON u.user_id = p.user_id
          ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-        ORDER BY u.created_at DESC, u.user_id ASC LIMIT $${values.length}`,
+        ORDER BY u.created_at DESC, u.user_id ASC LIMIT $${values.length}${input.page === undefined ? '' : ` OFFSET $${values.length + 1}`}`,
       values,
     );
-    const has_more = result.rows.length > limit;
+    const has_more = input.page === undefined ? result.rows.length > limit : page < total_pages;
     const rows = result.rows.slice(0, limit);
     const last = rows.at(-1);
     const lastCreatedAt = last?.created_at instanceof Date ? last.created_at.toISOString() : String(last?.created_at ?? '');
@@ -110,14 +131,17 @@ export class AdminReadService {
         updated_at: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
       })),
       limit,
+      page, page_size: limit, total_items, total_pages,
       has_more,
       next_cursor: has_more && last ? Buffer.from(JSON.stringify({ created_at: lastCreatedAt, user_id: String(last.user_id) }), 'utf8').toString('base64url') : null,
     };
   }
 
-  async listShopsPage(input: { status?: string; tier?: string; search?: string; limit?: number; cursor?: string } = {}) {
+  async listShopsPage(input: { status?: string; tier?: string; search?: string; limit?: number; cursor?: string; page?: number } = {}) {
     const limit = input.limit ?? 20;
     if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new ValidationFailedError('limit must be from 1 to 100');
+    const page = input.page ?? 1;
+    if (!Number.isInteger(page) || page < 1) throw new ValidationFailedError('page must be a positive integer');
     const validTimestamp = (value: string) => !Number.isNaN(Date.parse(value));
     let cursor: { created_at: string; shop_id: string } | undefined;
     if (input.cursor) {
@@ -134,12 +158,20 @@ export class AdminReadService {
     if (input.status && input.status !== 'ALL') { values.push(input.status); where.push(`s.status = $${values.length}`); }
     if (input.tier && input.tier !== 'ALL') { values.push(input.tier); where.push(`s.tier = $${values.length}`); }
     if (input.search?.trim()) { values.push(`%${input.search.trim()}%`); where.push(`s.shop_name ILIKE $${values.length}`); }
+    const countResult = await this.pool.query<{ total: string }>(
+      `SELECT COUNT(*)::text AS total FROM shops s ${where.length ? `WHERE ${where.join(' AND ')}` : ''}`,
+      [...values],
+    );
+    const total_items = Number(countResult.rows[0]?.total ?? 0);
+    const total_pages = Math.max(1, Math.ceil(total_items / limit));
+    if (input.page !== undefined && page > total_pages) throw new ValidationFailedError('page exceeds total_pages', { field: 'page', total_pages });
     if (cursor) {
       values.push(cursor.created_at); const createdAt = values.length;
       values.push(cursor.shop_id); const shopId = values.length;
       where.push(`(s.created_at < $${createdAt}::timestamptz OR (s.created_at = $${createdAt}::timestamptz AND s.shop_id > $${shopId}::uuid))`);
     }
-    values.push(limit + 1);
+    if (input.page === undefined) values.push(limit + 1);
+    else values.push(limit, (page - 1) * limit);
     const result = await this.pool.query<Record<string, unknown>>(
       `SELECT s.shop_id, s.shop_name, s.status, COALESCE(s.tier, 'STANDARD') AS tier, s.owner_id, u.email AS owner_email,
               s.contact_phone, s.pickup_address, s.description, s.logo_url, s.created_at, s.updated_at,
@@ -149,10 +181,10 @@ export class AdminReadService {
          LEFT JOIN products pr ON pr.shop_id = s.shop_id
          ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
         GROUP BY s.shop_id, u.email
-        ORDER BY s.created_at DESC, s.shop_id ASC LIMIT $${values.length}`,
+        ORDER BY s.created_at DESC, s.shop_id ASC LIMIT $${values.length}${input.page === undefined ? '' : ` OFFSET $${values.length + 1}`}`,
       values,
     );
-    const has_more = result.rows.length > limit;
+    const has_more = input.page === undefined ? result.rows.length > limit : page < total_pages;
     const rows = result.rows.slice(0, limit);
     const last = rows.at(-1);
     const lastCreatedAt = last?.created_at instanceof Date ? last.created_at.toISOString() : String(last?.created_at ?? '');
@@ -176,6 +208,7 @@ export class AdminReadService {
         updated_at: row.updated_at instanceof Date ? row.updated_at.toISOString() : String(row.updated_at),
       })),
       limit,
+      page, page_size: limit, total_items, total_pages,
       has_more,
       next_cursor: has_more && last ? Buffer.from(JSON.stringify({ created_at: lastCreatedAt, shop_id: String(last.shop_id) }), 'utf8').toString('base64url') : null,
     };

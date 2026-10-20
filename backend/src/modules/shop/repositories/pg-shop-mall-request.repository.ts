@@ -1,4 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
+import { ValidationFailedError } from '../../../platform/errors/app-error.ts';
 import type {
   ShopMallRequest,
   ShopMallRequestListItem,
@@ -173,9 +174,9 @@ export class PgShopMallRequestRepository {
   }
 
   async listForAdmin(
-    filter: { status?: ShopMallRequestStatus; limit: number; cursor?: string }
-  ): Promise<{ items: ShopMallRequestListItem[]; next_cursor: string | null; has_more: boolean }> {
-    const parsedCursor = decodeCursor(filter.cursor);
+    filter: { status?: ShopMallRequestStatus; limit: number; cursor?: string; page?: number }
+  ): Promise<{ items: ShopMallRequestListItem[]; next_cursor: string | null; has_more: boolean; page?: number; page_size?: number; total_items?: number; total_pages?: number }> {
+    const parsedCursor = filter.page === undefined ? decodeCursor(filter.cursor) : null;
     const params: unknown[] = [filter.limit + 1];
     const conditions: string[] = [];
 
@@ -192,6 +193,36 @@ export class PgShopMallRequestRepository {
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    if (filter.page !== undefined) {
+      if (!Number.isInteger(filter.page) || filter.page < 1) throw new ValidationFailedError('page must be a positive integer');
+      const countParams = filter.status ? [filter.status] : [];
+      const countWhere = filter.status ? 'WHERE status = $1' : '';
+      const countResult = await this.pool.query<{ total: string }>(`SELECT COUNT(*)::text AS total FROM shop_mall_requests ${countWhere}`, countParams);
+      const total_items = Number(countResult.rows[0]?.total ?? 0);
+      const total_pages = Math.max(1, Math.ceil(total_items / filter.limit));
+      if (filter.page > total_pages) throw new ValidationFailedError('page exceeds total_pages', { field: 'page', total_pages });
+      const offset = (filter.page - 1) * filter.limit;
+      const dataParams: unknown[] = [];
+      if (filter.status) dataParams.push(filter.status);
+      dataParams.push(filter.limit, offset);
+      const pageResult = await this.pool.query(
+        `SELECT r.request_id, r.shop_id, r.seller_id, r.admin_id, r.reason, r.document_url, r.status,
+                r.admin_note, r.reviewed_at, r.cancelled_at, r.created_at, r.updated_at,
+                s.shop_name, u.email as seller_email
+         FROM shop_mall_requests r
+         LEFT JOIN shops s ON s.shop_id = r.shop_id
+         LEFT JOIN app_users u ON u.user_id = r.seller_id
+         ${filter.status ? 'WHERE r.status = $1' : ''}
+         ORDER BY r.created_at DESC, r.request_id DESC
+         LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}`,
+        dataParams,
+      );
+      return {
+        items: pageResult.rows.map((r) => ({ ...this.map(r), shop_name: r.shop_name ? String(r.shop_name) : undefined, seller_email: r.seller_email ? String(r.seller_email) : undefined })),
+        next_cursor: null, has_more: filter.page < total_pages, page: filter.page, page_size: filter.limit, total_items, total_pages,
+      };
+    }
 
     const result = await this.pool.query(
       `SELECT r.request_id, r.shop_id, r.seller_id, r.admin_id, r.reason, r.document_url, r.status,

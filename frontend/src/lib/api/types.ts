@@ -11,6 +11,10 @@ export interface PaginatedMeta {
   limit: number;
   has_more: boolean;
   next_cursor?: string | null;
+  page?: number;
+  page_size?: number;
+  total_items?: number;
+  total_pages?: number;
 }
 
 export interface PaginatedEnvelope<T> {

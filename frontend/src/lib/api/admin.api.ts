@@ -22,12 +22,16 @@ export const adminApi = {
     return apiClient.get<AdminUserItem>(`/admin/users/${userId}`);
   },
 
-  async getUsersPage(params?: AdminUserParams): Promise<{ items: AdminUserItem[]; next_cursor: string | null; has_more: boolean }> {
+  async getUsersPage(params?: AdminUserParams & { page?: number; page_size?: number; limit?: number }): Promise<{ items: AdminUserItem[]; next_cursor: string | null; has_more: boolean; page: number; page_size: number; total_items: number; total_pages: number }> {
     const envelope = await apiClient.getPaginated<AdminUserItem>("/admin/users", { params });
     return {
       items: envelope.data || [],
       next_cursor: envelope.meta?.next_cursor ?? null,
       has_more: envelope.meta?.has_more ?? false,
+      page: envelope.meta?.page ?? 1,
+      page_size: envelope.meta?.page_size ?? envelope.meta?.limit ?? 20,
+      total_items: envelope.meta?.total_items ?? envelope.data.length,
+      total_pages: envelope.meta?.total_pages ?? 1,
     };
   },
 
@@ -47,12 +51,16 @@ export const adminApi = {
     return apiClient.get<AdminShopItem>(`/admin/shops/${shopId}`);
   },
 
-  async getShopsPage(params?: AdminShopParams): Promise<{ items: AdminShopItem[]; next_cursor: string | null; has_more: boolean }> {
+  async getShopsPage(params?: AdminShopParams & { page?: number; page_size?: number; limit?: number }): Promise<{ items: AdminShopItem[]; next_cursor: string | null; has_more: boolean; page: number; page_size: number; total_items: number; total_pages: number }> {
     const envelope = await apiClient.getPaginated<AdminShopItem>("/admin/shops", { params });
     return {
       items: envelope.data || [],
       next_cursor: envelope.meta?.next_cursor ?? null,
       has_more: envelope.meta?.has_more ?? false,
+      page: envelope.meta?.page ?? 1,
+      page_size: envelope.meta?.page_size ?? envelope.meta?.limit ?? 20,
+      total_items: envelope.meta?.total_items ?? envelope.data.length,
+      total_pages: envelope.meta?.total_pages ?? 1,
     };
   },
 
@@ -74,6 +82,11 @@ export const adminApi = {
 
   async getMallRequests(params?: { status?: string; limit?: number; cursor?: string }): Promise<import('./seller-shop.api').ShopMallRequest[]> {
     return apiClient.get<import('./seller-shop.api').ShopMallRequest[]>("/admin/shops/mall-requests", { params });
+  },
+
+  async getMallRequestsPage(params: { status?: string; page: number; page_size: number }): Promise<{ items: import('./seller-shop.api').ShopMallRequest[]; page: number; page_size: number; total_items: number; total_pages: number }> {
+    const result = await apiClient.getPaginated<import('./seller-shop.api').ShopMallRequest>("/admin/shops/mall-requests", { params });
+    return { items: result.data, page: result.meta.page ?? params.page, page_size: result.meta.page_size ?? params.page_size, total_items: result.meta.total_items ?? result.data.length, total_pages: result.meta.total_pages ?? 1 };
   },
 
   async approveMallRequest(requestId: string, note: string): Promise<import('./seller-shop.api').ShopMallRequest> {

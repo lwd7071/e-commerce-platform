@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import Link from "next/link";
 import { ProtectedPage } from "@/components/navigation/protected-page";
 import { Icon } from "@/components/ui/icon";
 import { Button } from "@/components/ui/button";
@@ -11,8 +10,11 @@ import { Skeleton, ErrorState, EmptyState } from "@/components/ui/data-states";
 import type { CategoryTreeNode, CategoryItem } from "@/lib/adapters/category.adapter";
 import { adminRepository } from "./admin.repository";
 import { AdminHeaderNav } from "./admin-header-nav";
+import { Pagination, type PageMeta } from "@/components/ui/pagination";
 
 export function AdminCategoriesScreen() {
+  const [page, setPage] = useState(1);
+  const categoryPageSize = 20;
   const [tree, setTree] = useState<CategoryTreeNode[]>([]);
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -221,7 +223,7 @@ export function AdminCategoriesScreen() {
           />
         ) : (
           <div className="space-y-4">
-            {tree.map((rootNode) => {
+            {tree.slice((page - 1) * categoryPageSize, page * categoryPageSize).map((rootNode) => {
               const isExpanded = expandedNodes[rootNode.id] ?? true;
               const hasChildren = rootNode.children && rootNode.children.length > 0;
               const isInactive = rootNode.status === "INACTIVE";
@@ -356,6 +358,7 @@ export function AdminCategoriesScreen() {
                 </article>
               );
             })}
+            <Pagination meta={{ page, page_size: categoryPageSize, total_items: tree.length, total_pages: Math.max(1, Math.ceil(tree.length / categoryPageSize)) } satisfies PageMeta} onPageChange={setPage} />
           </div>
         )}
 

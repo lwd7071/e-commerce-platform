@@ -1,5 +1,6 @@
 import { Router, type Request, type Response, type NextFunction, type RequestHandler } from 'express';
 import { buildPaginatedEnvelope, buildSuccessEnvelope } from '../envelope.ts';
+import { numberedPage, parseNumberedPage } from '../numbered-page.ts';
 import { requireRole } from '../middlewares/rbac.ts';
 import { NotFoundError, ReasonRequiredError, UnauthorizedError, ValidationFailedError } from '../../errors/app-error.ts';
 import type { IModerationService, ShopTier } from '../../../modules/moderation/domain/moderation.types.ts';
@@ -80,15 +81,16 @@ export function createAdminRouter(
     if (!orderQueries) throw new NotFoundError('Admin order query handler is not configured');
     const page = await orderQueries.listAdminOrdersPaginated(context(req), {
       status: typeof req.query.status === 'string' ? req.query.status : undefined,
-      limit: typeof req.query.limit === 'string' ? Number(req.query.limit) : undefined,
+      limit: typeof req.query.page_size === 'string' ? Number(req.query.page_size) : typeof req.query.limit === 'string' ? Number(req.query.limit) : undefined,
       cursor: typeof req.query.cursor === 'string' ? req.query.cursor : undefined,
+      page: typeof req.query.page === 'string' ? Number(req.query.page) : undefined,
       search: typeof req.query.search === 'string' ? req.query.search : undefined,
       shop_id: typeof req.query.shop_id === 'string' ? req.query.shop_id : undefined,
       buyer_id: typeof req.query.buyer_id === 'string' ? req.query.buyer_id : undefined,
       from: typeof req.query.from === 'string' ? req.query.from : undefined,
       to: typeof req.query.to === 'string' ? req.query.to : undefined,
     });
-    res.json(buildPaginatedEnvelope(page.items, { next_cursor: page.next_cursor, has_more: page.has_more, limit: page.limit }, requestId(req)));
+    res.json(buildPaginatedEnvelope(page.items, { next_cursor: page.next_cursor, has_more: page.has_more, limit: page.limit, page: page.page, page_size: page.page_size, total_items: page.total_items, total_pages: page.total_pages }, requestId(req)));
   }));
 
   router.get('/admin/orders/:id', ...guards(auth, 'ADMIN'), asyncRoute(async (req, res) => {
@@ -114,14 +116,20 @@ export function createAdminRouter(
       actor: typeof req.query.actor === 'string' ? req.query.actor : undefined,
       from: typeof req.query.from === 'string' ? req.query.from : undefined,
       to: typeof req.query.to === 'string' ? req.query.to : undefined,
-      limit: typeof req.query.limit === 'string' ? Number(req.query.limit) : undefined,
+      limit: typeof req.query.page_size === 'string' ? Number(req.query.page_size) : typeof req.query.limit === 'string' ? Number(req.query.limit) : undefined,
+      page: typeof req.query.page === 'string' ? Number(req.query.page) : undefined,
       cursor: typeof req.query.cursor === 'string' ? req.query.cursor : undefined,
     });
-    res.json(buildPaginatedEnvelope(page.items, { next_cursor: page.next_cursor, has_more: page.has_more, limit: page.limit }, requestId(req)));
+    res.json(buildPaginatedEnvelope(page.items, { next_cursor: page.next_cursor, has_more: page.has_more, limit: page.limit, page: page.page, page_size: page.page_size, total_items: page.total_items, total_pages: page.total_pages }, requestId(req)));
   }));
 
   router.get('/admin/vouchers', ...guards(auth, 'ADMIN'), asyncRoute(async (req, res) => {
     if (!vouchers) throw new NotFoundError('Admin voucher handler is not configured');
+    if (req.query.page !== undefined || req.query.page_size !== undefined) {
+      const { page, pageSize } = parseNumberedPage(req.query as Record<string, unknown>);
+      const result = numberedPage(await vouchers.list(), page, pageSize);
+      return void res.json(buildPaginatedEnvelope(result.items, result, requestId(req)));
+    }
     res.json(buildSuccessEnvelope(await vouchers.list(), requestId(req)));
   }));
 
@@ -168,12 +176,22 @@ export function createAdminRouter(
   router.get('/admin/products', ...guards(auth, 'ADMIN'), asyncRoute(async (req, res) => {
     const service = implementation(moderation?.listModerationProducts, moderation);
     const rows = await service({ status: typeof req.query.status === 'string' ? req.query.status : undefined, search: typeof req.query.search === 'string' ? req.query.search : undefined });
+    if (req.query.page !== undefined || req.query.page_size !== undefined) {
+      const { page, pageSize } = parseNumberedPage(req.query as Record<string, unknown>);
+      const result = numberedPage(rows as unknown[], page, pageSize);
+      return void res.json(buildPaginatedEnvelope(result.items, result, requestId(req)));
+    }
     res.json(buildSuccessEnvelope(rows, requestId(req)));
   }));
 
   router.get('/admin/reviews', ...guards(auth, 'ADMIN'), asyncRoute(async (req, res) => {
     const service = implementation(moderation?.listModerationReviews, moderation);
     const rows = await service({ status: typeof req.query.status === 'string' ? req.query.status : undefined, search: typeof req.query.search === 'string' ? req.query.search : undefined });
+    if (req.query.page !== undefined || req.query.page_size !== undefined) {
+      const { page, pageSize } = parseNumberedPage(req.query as Record<string, unknown>);
+      const result = numberedPage(rows as unknown[], page, pageSize);
+      return void res.json(buildPaginatedEnvelope(result.items, result, requestId(req)));
+    }
     res.json(buildSuccessEnvelope(rows, requestId(req)));
   }));
 
@@ -200,18 +218,19 @@ export function createAdminRouter(
     '/admin/users',
     ...guards(auth, 'ADMIN'),
     asyncRoute(async (req, res) => {
-      const { role, status, search, cursor, limit } = req.query;
+      const { role, status, search, cursor, limit, page: pageQuery, page_size } = req.query;
       const modAny = moderation as Record<string, unknown> | undefined;
-      if (cursor !== undefined || limit !== undefined) {
+      if (cursor !== undefined || limit !== undefined || pageQuery !== undefined || page_size !== undefined) {
         if (reads) {
           const page = await reads.listUsersPage({
             role: typeof role === 'string' ? role : undefined,
             status: typeof status === 'string' ? status : undefined,
             search: typeof search === 'string' ? search : undefined,
             cursor: typeof cursor === 'string' ? cursor : undefined,
-            limit: typeof limit === 'string' ? Number(limit) : undefined,
+            limit: typeof page_size === 'string' ? Number(page_size) : typeof limit === 'string' ? Number(limit) : undefined,
+            page: typeof pageQuery === 'string' ? Number(pageQuery) : undefined,
           });
-          return void res.json(buildPaginatedEnvelope(page.items, { next_cursor: page.next_cursor, has_more: page.has_more, limit: page.limit }, requestId(req)));
+          return void res.json(buildPaginatedEnvelope(page.items, { next_cursor: page.next_cursor, has_more: page.has_more, limit: page.limit, page: page.page, page_size: page.page_size, total_items: page.total_items, total_pages: page.total_pages }, requestId(req)));
         }
         if (typeof modAny?.listUsersPage === 'function') {
           const listUsersPageFn = modAny.listUsersPage as (params: unknown) => Promise<{
@@ -225,7 +244,8 @@ export function createAdminRouter(
             status: typeof status === 'string' ? status : undefined,
             search: typeof search === 'string' ? search : undefined,
             cursor: typeof cursor === 'string' ? cursor : undefined,
-            limit: typeof limit === 'string' ? Number(limit) : undefined,
+            limit: typeof page_size === 'string' ? Number(page_size) : typeof limit === 'string' ? Number(limit) : undefined,
+            page: typeof pageQuery === 'string' ? Number(pageQuery) : undefined,
           });
           return void res.json(buildPaginatedEnvelope(page.items, { next_cursor: page.next_cursor, has_more: page.has_more, limit: page.limit }, requestId(req)));
         }
@@ -314,18 +334,19 @@ export function createAdminRouter(
     '/admin/shops',
     ...guards(auth, 'ADMIN'),
     asyncRoute(async (req, res) => {
-      const { status, search, cursor, limit, tier } = req.query;
+      const { status, search, cursor, limit, tier, page: pageQuery, page_size } = req.query;
       const modAny = moderation as Record<string, unknown> | undefined;
-      if (cursor !== undefined || limit !== undefined) {
+      if (cursor !== undefined || limit !== undefined || pageQuery !== undefined || page_size !== undefined) {
         if (reads) {
           const page = await reads.listShopsPage({
             status: typeof status === 'string' ? status : undefined,
             tier: typeof tier === 'string' ? tier : undefined,
             search: typeof search === 'string' ? search : undefined,
             cursor: typeof cursor === 'string' ? cursor : undefined,
-            limit: typeof limit === 'string' ? Number(limit) : undefined,
+            limit: typeof page_size === 'string' ? Number(page_size) : typeof limit === 'string' ? Number(limit) : undefined,
+            page: typeof pageQuery === 'string' ? Number(pageQuery) : undefined,
           });
-          return void res.json(buildPaginatedEnvelope(page.items, { next_cursor: page.next_cursor, has_more: page.has_more, limit: page.limit }, requestId(req)));
+          return void res.json(buildPaginatedEnvelope(page.items, { next_cursor: page.next_cursor, has_more: page.has_more, limit: page.limit, page: page.page, page_size: page.page_size, total_items: page.total_items, total_pages: page.total_pages }, requestId(req)));
         }
         if (typeof modAny?.listShopsPage === 'function') {
           const listShopsPageFn = modAny.listShopsPage as (params: unknown) => Promise<{
@@ -339,7 +360,8 @@ export function createAdminRouter(
             tier: typeof tier === 'string' ? tier : undefined,
             search: typeof search === 'string' ? search : undefined,
             cursor: typeof cursor === 'string' ? cursor : undefined,
-            limit: typeof limit === 'string' ? Number(limit) : undefined,
+            limit: typeof page_size === 'string' ? Number(page_size) : typeof limit === 'string' ? Number(limit) : undefined,
+            page: typeof pageQuery === 'string' ? Number(pageQuery) : undefined,
           });
           return void res.json(buildPaginatedEnvelope(page.items, { next_cursor: page.next_cursor, has_more: page.has_more, limit: page.limit }, requestId(req)));
         }
@@ -361,10 +383,15 @@ export function createAdminRouter(
     asyncRoute(async (req, res) => {
       if (!mallRequestService) throw new NotFoundError('Shop mall request service is not configured');
       const status = typeof req.query.status === 'string' ? (req.query.status as ShopMallRequestStatus) : undefined;
-      const limit = req.query.limit ? Number(req.query.limit) : 20;
+      const numbered = req.query.page !== undefined || req.query.page_size !== undefined;
+      const page = numbered ? parseNumberedPage(req.query as Record<string, unknown>).page : undefined;
+      const limit = typeof req.query.page_size === 'string' ? Number(req.query.page_size) : req.query.limit ? Number(req.query.limit) : 20;
       const cursor = typeof req.query.cursor === 'string' ? req.query.cursor : undefined;
-      const result = await mallRequestService.listAdminRequests({ status, limit, cursor });
-      res.json(buildPaginatedEnvelope(result.items, { next_cursor: result.next_cursor, has_more: result.has_more, limit }, requestId(req)));
+      const result = await mallRequestService.listAdminRequests({ status, limit, cursor, page });
+      res.json(buildPaginatedEnvelope(result.items, {
+        next_cursor: result.next_cursor, has_more: result.has_more, limit,
+        ...(numbered ? { page: result.page, page_size: result.page_size, total_items: result.total_items, total_pages: result.total_pages } : {}),
+      }, requestId(req)));
     })
   );
 

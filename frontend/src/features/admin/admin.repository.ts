@@ -38,17 +38,19 @@ export interface IAdminRepository {
   getDashboardStats(): Promise<DashboardStats>;
   getUsers(): Promise<UserAccount[]>;
   getUserDetail(userId: string): Promise<UserAccount>;
-  getUsersPage(params?: { status?: string; role?: string; search?: string; cursor?: string; limit?: number }): Promise<{ items: UserAccount[]; next_cursor: string | null; has_more: boolean }>;
+  getUsersPage(params?: { status?: string; role?: string; search?: string; cursor?: string; limit?: number; page?: number }): Promise<{ items: UserAccount[]; next_cursor: string | null; has_more: boolean; page: number; page_size: number; total_items: number; total_pages: number }>;
   lockUser(userId: string, reason: string, actor?: string): Promise<UserAccount>;
   unlockUser(userId: string, actor?: string): Promise<UserAccount>;
   getShops(): Promise<PlatformShop[]>;
   getShopDetail(shopId: string): Promise<PlatformShop & { contactPhone?: string | null; pickupAddress?: string | null; description?: string | null }>;
-  getShopsPage(params?: { status?: string; search?: string; cursor?: string; limit?: number }): Promise<{ items: PlatformShop[]; next_cursor: string | null; has_more: boolean }>;
+  getShopsPage(params?: { status?: string; tier?: string; search?: string; cursor?: string; limit?: number; page?: number }): Promise<{ items: PlatformShop[]; next_cursor: string | null; has_more: boolean; page: number; page_size: number; total_items: number; total_pages: number }>;
   approveShop(shopId: string, reason?: string, actor?: string): Promise<PlatformShop>;
   lockShop(shopId: string, reason: string, actor?: string): Promise<PlatformShop>;
   unlockShop(shopId: string, actor?: string): Promise<PlatformShop>;
   getModerationProducts(): Promise<ModerationProduct[]>;
+  getModerationProductsPage(params: { status?: string; search?: string; page: number; limit: number }): Promise<{ items: ModerationProduct[]; page: number; page_size: number; total_items: number; total_pages: number }>;
   getModerationReviews(): Promise<ModerationReview[]>;
+  getModerationReviewsPage(params: { status?: string; search?: string; page: number; limit: number }): Promise<{ items: ModerationReview[]; page: number; page_size: number; total_items: number; total_pages: number }>;
   moderateReview(reviewId: string, status: "VISIBLE" | "HIDDEN", reason: string): Promise<ModerationReview>;
   moderateProduct(
     productId: string,
@@ -57,6 +59,7 @@ export interface IAdminRepository {
     actor?: string
   ): Promise<ModerationProduct>;
   getAuditLogs(): Promise<AdminAuditLog[]>;
+  getAuditLogsPage(params: { page: number; limit: number }): Promise<{ items: AdminAuditLog[]; page: number; page_size: number; total_items: number; total_pages: number }>;
 
   // Category management (A-709)
   getCategories(): Promise<CategoryItem[]>;
@@ -181,7 +184,7 @@ export class MockAdminRepository implements IAdminRepository {
     return toUserAccount(found);
   }
 
-  async getUsersPage(params?: { status?: string; role?: string; search?: string; cursor?: string; limit?: number }): Promise<{ items: UserAccount[]; next_cursor: string | null; has_more: boolean }> {
+  async getUsersPage(params?: { status?: string; role?: string; search?: string; cursor?: string; limit?: number; page?: number }): Promise<{ items: UserAccount[]; next_cursor: string | null; has_more: boolean; page: number; page_size: number; total_items: number; total_pages: number }> {
     let list = mockAdminUsersStore.map(toUserAccount);
     if (params?.role && params.role !== "ALL") list = list.filter((u) => u.role === params.role);
     if (params?.status && params.status !== "ALL") list = list.filter((u) => u.status === params.status);
@@ -190,10 +193,14 @@ export class MockAdminRepository implements IAdminRepository {
       list = list.filter((u) => u.email.toLowerCase().includes(q) || u.fullName.toLowerCase().includes(q));
     }
     const limit = params?.limit ?? 20;
+    const page = params?.page ?? 1;
+    const total_items = list.length;
+    const total_pages = Math.max(1, Math.ceil(total_items / limit));
     return {
-      items: list.slice(0, limit),
-      next_cursor: list.length > limit ? "mock_next_cursor" : null,
-      has_more: list.length > limit,
+      items: list.slice((page - 1) * limit, page * limit),
+      next_cursor: null,
+      has_more: page < total_pages,
+      page, page_size: limit, total_items, total_pages,
     };
   }
 
@@ -257,7 +264,7 @@ export class MockAdminRepository implements IAdminRepository {
     };
   }
 
-  async getShopsPage(params?: { status?: string; search?: string; cursor?: string; limit?: number }): Promise<{ items: PlatformShop[]; next_cursor: string | null; has_more: boolean }> {
+  async getShopsPage(params?: { status?: string; tier?: string; search?: string; cursor?: string; limit?: number; page?: number }): Promise<{ items: PlatformShop[]; next_cursor: string | null; has_more: boolean; page: number; page_size: number; total_items: number; total_pages: number }> {
     let list = mockAdminShopsStore.map(toPlatformShop);
     if (params?.status && params.status !== "ALL") list = list.filter((s) => s.status === params.status);
     if (params?.search?.trim()) {
@@ -265,10 +272,14 @@ export class MockAdminRepository implements IAdminRepository {
       list = list.filter((s) => s.name.toLowerCase().includes(q) || s.ownerEmail.toLowerCase().includes(q));
     }
     const limit = params?.limit ?? 20;
+    const page = params?.page ?? 1;
+    const total_items = list.length;
+    const total_pages = Math.max(1, Math.ceil(total_items / limit));
     return {
-      items: list.slice(0, limit),
-      next_cursor: list.length > limit ? "mock_next_shop_cursor" : null,
-      has_more: list.length > limit,
+      items: list.slice((page - 1) * limit, page * limit),
+      next_cursor: null,
+      has_more: page < total_pages,
+      page, page_size: limit, total_items, total_pages,
     };
   }
 
@@ -339,8 +350,24 @@ export class MockAdminRepository implements IAdminRepository {
     return [...mockProducts];
   }
 
+  async getModerationProductsPage(params: { status?: string; search?: string; page: number; limit: number }) {
+    const q = params.search?.trim().toLocaleLowerCase("vi");
+    const list = mockProducts.filter(item => (!params.status || params.status === "ALL" || item.status === params.status) && (!q || `${item.name} ${item.shopName}`.toLocaleLowerCase("vi").includes(q)));
+    const total_items = list.length;
+    const total_pages = Math.max(1, Math.ceil(total_items / params.limit));
+    return { items: list.slice((params.page - 1) * params.limit, params.page * params.limit), page: params.page, page_size: params.limit, total_items, total_pages };
+  }
+
   async getModerationReviews(): Promise<ModerationReview[]> {
     return [...mockAdminReviewsStore];
+  }
+
+  async getModerationReviewsPage(params: { status?: string; search?: string; page: number; limit: number }) {
+    const q = params.search?.trim().toLocaleLowerCase("vi");
+    const list = mockAdminReviewsStore.filter(item => (!params.status || params.status === "ALL" || item.status === params.status) && (!q || `${item.productName} ${item.content ?? ""}`.toLocaleLowerCase("vi").includes(q)));
+    const total_items = list.length;
+    const total_pages = Math.max(1, Math.ceil(total_items / params.limit));
+    return { items: list.slice((params.page - 1) * params.limit, params.page * params.limit), page: params.page, page_size: params.limit, total_items, total_pages };
   }
 
   async moderateReview(reviewId: string, status: "VISIBLE" | "HIDDEN", reason: string): Promise<ModerationReview> {
@@ -386,6 +413,12 @@ export class MockAdminRepository implements IAdminRepository {
 
   async getAuditLogs(): Promise<AdminAuditLog[]> {
     return [...mockAdminAuditLogsStore];
+  }
+
+  async getAuditLogsPage(params: { page: number; limit: number }) {
+    const total_items = mockAdminAuditLogsStore.length;
+    const total_pages = Math.max(1, Math.ceil(total_items / params.limit));
+    return { items: mockAdminAuditLogsStore.slice((params.page - 1) * params.limit, params.page * params.limit), page: params.page, page_size: params.limit, total_items, total_pages };
   }
 
   // Categories CRUD (A-709 consuming A-700 adapter with persistent sync)
@@ -497,8 +530,8 @@ export class ApiAdminRepository implements IAdminRepository {
     };
   }
 
-  async getUsersPage(params?: { status?: string; role?: string; search?: string; cursor?: string; limit?: number }): Promise<{ items: UserAccount[]; next_cursor: string | null; has_more: boolean }> {
-    const envelope = await apiClient.getPaginated<{ id: string; email: string; full_name?: string; fullName?: string; role: UserAccount["role"]; status: UserAccount["status"]; created_at: string }>("/admin/users", { params });
+  async getUsersPage(params?: { status?: string; role?: string; search?: string; cursor?: string; limit?: number; page?: number }): Promise<{ items: UserAccount[]; next_cursor: string | null; has_more: boolean; page: number; page_size: number; total_items: number; total_pages: number }> {
+    const envelope = await apiClient.getPaginated<{ id: string; email: string; full_name?: string; fullName?: string; role: UserAccount["role"]; status: UserAccount["status"]; created_at: string }>("/admin/users", { params: { ...params, ...(params?.cursor ? {} : { page_size: params?.limit, page: params?.page ?? 1 }) } });
     return {
       items: (envelope.data || []).map((row) => ({
         id: row.id,
@@ -510,6 +543,10 @@ export class ApiAdminRepository implements IAdminRepository {
       })),
       next_cursor: envelope.meta?.next_cursor ?? null,
       has_more: envelope.meta?.has_more ?? false,
+      page: envelope.meta?.page ?? params?.page ?? 1,
+      page_size: envelope.meta?.page_size ?? params?.limit ?? 20,
+      total_items: envelope.meta?.total_items ?? envelope.data.length,
+      total_pages: envelope.meta?.total_pages ?? 1,
     };
   }
 
@@ -560,8 +597,8 @@ export class ApiAdminRepository implements IAdminRepository {
     };
   }
 
-  async getShopsPage(params?: { status?: string; search?: string; cursor?: string; limit?: number }): Promise<{ items: PlatformShop[]; next_cursor: string | null; has_more: boolean }> {
-    const envelope = await apiClient.getPaginated<{ shop_id?: string; id?: string; shop_name?: string; name?: string; owner_email?: string; ownerEmail?: string; product_count?: number; productCount?: number; status: PlatformShop["status"]; created_at?: string; createdAt?: string }>("/admin/shops", { params });
+  async getShopsPage(params?: { status?: string; tier?: string; search?: string; cursor?: string; limit?: number; page?: number }): Promise<{ items: PlatformShop[]; next_cursor: string | null; has_more: boolean; page: number; page_size: number; total_items: number; total_pages: number }> {
+    const envelope = await apiClient.getPaginated<{ shop_id?: string; id?: string; shop_name?: string; name?: string; owner_email?: string; ownerEmail?: string; product_count?: number; productCount?: number; status: PlatformShop["status"]; created_at?: string; createdAt?: string }>("/admin/shops", { params: { ...params, ...(params?.cursor ? {} : { page_size: params?.limit, page: params?.page ?? 1 }) } });
     return {
       items: (envelope.data || []).map((row) => ({
         id: row.id || row.shop_id || "",
@@ -573,6 +610,10 @@ export class ApiAdminRepository implements IAdminRepository {
       })),
       next_cursor: envelope.meta?.next_cursor ?? null,
       has_more: envelope.meta?.has_more ?? false,
+      page: envelope.meta?.page ?? params?.page ?? 1,
+      page_size: envelope.meta?.page_size ?? params?.limit ?? 20,
+      total_items: envelope.meta?.total_items ?? envelope.data.length,
+      total_pages: envelope.meta?.total_pages ?? 1,
     };
   }
 
@@ -594,10 +635,21 @@ export class ApiAdminRepository implements IAdminRepository {
     return rows.map((row) => ({ id: row.product_id, name: row.product_name, shopName: row.shop_name, price: row.min_price ?? "0.00", status: row.status }));
   }
 
+  async getModerationProductsPage(params: { status?: string; search?: string; page: number; limit: number }) {
+    const result = await apiClient.getPaginated<{ product_id: string; product_name: string; shop_name: string; min_price: string | null; status: ModerationProduct["status"] }>("/admin/products", { params: { status: params.status, search: params.search, page: params.page, page_size: params.limit } });
+    return { items: result.data.map(row => ({ id: row.product_id, name: row.product_name, shopName: row.shop_name, price: row.min_price ?? "0.00", status: row.status })), page: result.meta?.page ?? params.page, page_size: result.meta?.page_size ?? params.limit, total_items: result.meta?.total_items ?? result.data.length, total_pages: result.meta?.total_pages ?? 1 };
+  }
+
   async getModerationReviews(): Promise<ModerationReview[]> {
     const rows = await apiClient.get<Array<{ review_id: string; product_id: string; product_name: string; buyer_id: string; rating: number; content: string | null; status: "VISIBLE" | "HIDDEN"; created_at: string }>>("/admin/reviews");
     this.moderationReviews = rows.map((row) => ({ id: row.review_id, productId: row.product_id, productName: row.product_name, buyerId: row.buyer_id, rating: Number(row.rating), content: row.content, status: row.status, createdAt: row.created_at }));
     return this.moderationReviews;
+  }
+
+  async getModerationReviewsPage(params: { status?: string; search?: string; page: number; limit: number }) {
+    const result = await apiClient.getPaginated<{ review_id: string; product_id: string; product_name: string; buyer_id: string; rating: number; content: string | null; status: ModerationReview["status"]; created_at: string }>("/admin/reviews", { params: { status: params.status, search: params.search, page: params.page, page_size: params.limit } });
+    this.moderationReviews = result.data.map(row => ({ id: row.review_id, productId: row.product_id, productName: row.product_name, buyerId: row.buyer_id, rating: Number(row.rating), content: row.content, status: row.status, createdAt: row.created_at }));
+    return { items: this.moderationReviews, page: result.meta?.page ?? params.page, page_size: result.meta?.page_size ?? params.limit, total_items: result.meta?.total_items ?? result.data.length, total_pages: result.meta?.total_pages ?? 1 };
   }
 
   async moderateReview(reviewId: string, status: "VISIBLE" | "HIDDEN", reason: string): Promise<ModerationReview> {
@@ -624,6 +676,11 @@ export class ApiAdminRepository implements IAdminRepository {
 
   async getAuditLogs(): Promise<AdminAuditLog[]> {
     return apiClient.get<AdminAuditLog[]>("/admin/audit-logs");
+  }
+
+  async getAuditLogsPage(params: { page: number; limit: number }) {
+    const result = await apiClient.getPaginated<AdminAuditLog>("/admin/audit-logs", { params: { page: params.page, page_size: params.limit } });
+    return { items: result.data, page: result.meta?.page ?? params.page, page_size: result.meta?.page_size ?? params.limit, total_items: result.meta?.total_items ?? result.data.length, total_pages: result.meta?.total_pages ?? 1 };
   }
 
   async getCategories(): Promise<CategoryItem[]> {
@@ -752,7 +809,9 @@ export const adminRepository: IAdminRepository = {
     features.domains.adminMock()
       ? mockAdminRepository.getModerationProducts()
       : apiAdminRepository.getModerationProducts(),
+  getModerationProductsPage: (params) => features.domains.adminMock() ? mockAdminRepository.getModerationProductsPage(params) : apiAdminRepository.getModerationProductsPage(params),
   getModerationReviews: () => features.domains.adminMock() ? mockAdminRepository.getModerationReviews() : apiAdminRepository.getModerationReviews(),
+  getModerationReviewsPage: (params) => features.domains.adminMock() ? mockAdminRepository.getModerationReviewsPage(params) : apiAdminRepository.getModerationReviewsPage(params),
   moderateReview: (id, status, reason) => features.domains.adminMock() ? mockAdminRepository.moderateReview(id, status, reason) : apiAdminRepository.moderateReview(id, status, reason),
   moderateProduct: (productId, status, reason, actor) =>
     features.domains.adminMock()
@@ -760,6 +819,7 @@ export const adminRepository: IAdminRepository = {
       : apiAdminRepository.moderateProduct(productId, status, reason, actor),
   getAuditLogs: () =>
     features.domains.adminMock() ? mockAdminRepository.getAuditLogs() : apiAdminRepository.getAuditLogs(),
+  getAuditLogsPage: (params) => features.domains.adminMock() ? mockAdminRepository.getAuditLogsPage(params) : apiAdminRepository.getAuditLogsPage(params),
   getCategories: () =>
     features.domains.adminMock() ? mockAdminRepository.getCategories() : apiAdminRepository.getCategories(),
   getCategoryTree: () =>

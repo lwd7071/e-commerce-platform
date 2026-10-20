@@ -55,19 +55,20 @@ describe('Admin read endpoints', () => {
     const calls: Array<{ sql: string; values: unknown[] }> = [];
     const pool = { query: async (sql: string, values: unknown[] = []) => {
       calls.push({ sql, values });
+      if (/COUNT\(\*\)/.test(sql)) return { rows: [{ total: '2' }] };
       const first = { log_id: '00000000-0000-4000-8000-000000000001', action: 'HIDE_PRODUCT', target_type: 'PRODUCT', target_id: '00000000-0000-4000-8000-000000000002', reason: 'Policy', created_at: new Date('2026-10-01T10:00:00Z'), actor: 'admin@example.test' };
       const second = { ...first, log_id: '00000000-0000-4000-8000-000000000003' };
-      return { rows: calls.length === 1 ? [first, second] : [first] };
+      return { rows: calls.filter(call => !/COUNT\(\*\)/.test(call.sql)).length === 1 ? [first, second] : [first] };
     } } as unknown as Pool;
     const reads = new AdminReadService(pool);
     const page = await reads.listAuditLogsPage({ from: '2026-10-01T00:00:00Z', to: '2026-10-02T00:00:00Z', limit: 1 });
     assert.equal(page.has_more, true);
     assert.equal(page.items.length, 1);
     assert.equal(calls[0]?.values[0], '2026-10-01T00:00:00Z');
-    assert.match(calls[0]?.sql ?? '', /created_at DESC, l\.log_id ASC/);
+    assert.match(calls[1]?.sql ?? '', /created_at DESC, l\.log_id ASC/);
     const cursor = page.next_cursor;
     await reads.listAuditLogsPage({ limit: 1, cursor: cursor ?? undefined });
-    assert.match(calls[1]?.sql ?? '', /l\.created_at < \$\d+::timestamptz/);
+    assert.match(calls[3]?.sql ?? '', /l\.created_at < \$\d+::timestamptz/);
   });
 
   it('rejects malformed audit cursors', async () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ProtectedPage } from "@/components/navigation/protected-page";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -9,11 +9,15 @@ import { EmptyState, ErrorState, Skeleton } from "@/components/ui/data-states";
 import type { ModerationReview } from "./admin.types";
 import { adminRepository } from "./admin.repository";
 import { AdminHeaderNav } from "./admin-header-nav";
+import { Pagination, type PageMeta } from "@/components/ui/pagination";
 
 export function AdminReviewsScreen() {
   const [reviews, setReviews] = useState<ModerationReview[]>([]);
   const [status, setStatus] = useState<"ALL" | "VISIBLE" | "HIDDEN">("ALL");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
+  const [pageMeta, setPageMeta] = useState<PageMeta>({ page: 1, page_size: pageSize, total_items: 0, total_pages: 1 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [target, setTarget] = useState<ModerationReview | null>(null);
@@ -21,35 +25,44 @@ export function AdminReviewsScreen() {
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (pageNumber = page) => {
     setLoading(true);
     setError(null);
     try {
-      setReviews(await adminRepository.getModerationReviews());
+      const result = await adminRepository.getModerationReviewsPage({
+        status: status === "ALL" ? undefined : status,
+        search: search.trim() || undefined,
+        page: pageNumber,
+        limit: pageSize,
+      });
+      setReviews(result.items);
+      setPageMeta({ page: result.page, page_size: result.page_size, total_items: result.total_items, total_pages: result.total_pages });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Không thể tải đánh giá.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, pageSize, search, status]);
 
   useEffect(() => {
     let ignore = false;
-    adminRepository.getModerationReviews().then((result) => {
-      if (!ignore) setReviews(result);
-    }).catch((cause: unknown) => {
-      if (!ignore) setError(cause instanceof Error ? cause.message : "Không thể tải đánh giá.");
-    }).finally(() => {
-      if (!ignore) setLoading(false);
-    });
+    Promise.resolve().then(() => {
+      if (ignore) return null;
+      setLoading(true);
+      setError(null);
+      return adminRepository.getModerationReviewsPage({ status: status === "ALL" ? undefined : status, search: search.trim() || undefined, page, limit: pageSize });
+    })
+      .then((result) => {
+        if (ignore || !result) return;
+        setReviews(result.items);
+        setPageMeta({ page: result.page, page_size: result.page_size, total_items: result.total_items, total_pages: result.total_pages });
+      }).catch((cause: unknown) => {
+        if (!ignore) setError(cause instanceof Error ? cause.message : "Không thể tải đánh giá.");
+      }).finally(() => {
+        if (!ignore) setLoading(false);
+      });
     return () => { ignore = true; };
-  }, []);
-
-  const visibleReviews = useMemo(() => reviews.filter((review) => {
-    const matchesStatus = status === "ALL" || review.status === status;
-    const query = search.trim().toLocaleLowerCase("vi");
-    return matchesStatus && (!query || review.productName.toLocaleLowerCase("vi").includes(query) || (review.content ?? "").toLocaleLowerCase("vi").includes(query));
-  }), [reviews, search, status]);
+  }, [page, pageSize, search, status]);
 
   const submitModeration = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -85,10 +98,10 @@ export function AdminReviewsScreen() {
       <section className="surface-card p-4 sm:p-5 space-y-4" aria-label="Bộ lọc đánh giá">
         <div className="grid grid-cols-1 sm:grid-cols-[1fr_12rem] gap-3">
           <label className="text-xs font-semibold text-[var(--subtext)]">Tìm nội dung hoặc sản phẩm
-            <input className="form-input mt-1 w-full" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nhập từ khóa" />
+            <input className="form-input mt-1 w-full" value={search} onChange={(event) => { setPage(1); setSearch(event.target.value); }} placeholder="Nhập từ khóa" />
           </label>
           <label className="text-xs font-semibold text-[var(--subtext)]">Trạng thái
-            <select className="form-input mt-1 w-full" value={status} onChange={(event) => setStatus(event.target.value as typeof status)}>
+            <select className="form-input mt-1 w-full" value={status} onChange={(event) => { setPage(1); setStatus(event.target.value as typeof status); }}>
               <option value="ALL">Tất cả</option><option value="VISIBLE">Đang hiển thị</option><option value="HIDDEN">Đã ẩn</option>
             </select>
           </label>
@@ -97,18 +110,19 @@ export function AdminReviewsScreen() {
 
       {loading ? <div className="space-y-3" aria-busy="true"><Skeleton height={56} /><Skeleton height={56} /><Skeleton height={56} /></div>
         : error ? <ErrorState title="Không tải được đánh giá" description={error} onRetry={() => void load()} />
-          : visibleReviews.length === 0 ? <EmptyState icon="info" title="Không có đánh giá phù hợp" description="Thử đổi bộ lọc hoặc từ khóa tìm kiếm." />
-            : <section className="surface-card overflow-x-auto" aria-label="Danh sách đánh giá">
+          : reviews.length === 0 ? <EmptyState icon="info" title="Không có đánh giá phù hợp" description="Thử đổi bộ lọc hoặc từ khóa tìm kiếm." />
+            : <section className="surface-card overflow-hidden" aria-label="Danh sách đánh giá"><div className="overflow-x-auto">
               <table className="mobile-card-table w-full min-w-[700px] text-sm text-left">
                 <thead><tr className="border-b border-[var(--border)] bg-[var(--card-muted)] text-xs text-[var(--subtext)]"><th className="p-3">Sản phẩm</th><th className="p-3">Đánh giá</th><th className="p-3">Nội dung</th><th className="p-3">Trạng thái</th><th className="p-3 text-right">Thao tác</th></tr></thead>
-                <tbody className="divide-y divide-[var(--border)]">{visibleReviews.map((review) => <tr key={review.id}>
+                <tbody className="divide-y divide-[var(--border)]">{reviews.map((review) => <tr key={review.id}>
                   <td data-label="Sản phẩm" className="p-3 font-medium">{review.productName}<span className="block text-[11px] text-[var(--subtext)]">{review.createdAt.slice(0, 10)}</span></td>
                   <td data-label="Đánh giá" className="p-3">{review.rating} / 5</td>
                   <td data-label="Nội dung" className="p-3 max-w-md whitespace-normal">{review.content || "(Không có nội dung)"}</td>
                   <td data-label="Trạng thái" className="p-3">{review.status === "VISIBLE" ? "Đang hiển thị" : "Đã ẩn"}</td>
                   <td data-label="Thao tác" className="p-3 text-right"><Button variant={review.status === "VISIBLE" ? "danger" : "secondary"} onClick={() => { setTarget(review); setReason(""); setFormError(null); }}>{review.status === "VISIBLE" ? "Ẩn đánh giá" : "Khôi phục"}</Button></td>
                 </tr>)}</tbody>
-              </table>
+              </table></div>
+              <Pagination meta={pageMeta} onPageChange={setPage} />
             </section>}
 
       <Dialog open={Boolean(target)} onOpenChange={(open) => { if (!open && !submitting) setTarget(null); }} title={target?.status === "VISIBLE" ? "Ẩn đánh giá" : "Khôi phục đánh giá"} description="Lý do được lưu cùng thao tác kiểm duyệt." footer={<div className="flex justify-end gap-2"><Button variant="ghost" disabled={submitting} onClick={() => setTarget(null)}>Hủy</Button><Button variant="primary" loading={submitting} onClick={() => document.getElementById("review-moderation-reason")?.closest("form")?.requestSubmit()}>{target?.status === "VISIBLE" ? "Ẩn đánh giá" : "Khôi phục"}</Button></div>}>

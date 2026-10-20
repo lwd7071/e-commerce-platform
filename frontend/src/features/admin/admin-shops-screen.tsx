@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
-import Link from "next/link";
 import { repositories } from "../../lib/repositories/repository-factory";
 import { type AdminShopItem, type ShopStatus } from "../../lib/repositories/types";
 import { Button } from "../../components/ui/button";
@@ -12,6 +11,7 @@ import { useToast } from "../../components/ui/toast";
 import { AdminHeaderNav } from "./admin-header-nav";
 import { adminApi } from "../../lib/api/admin.api";
 import { type ShopMallRequest } from "../../lib/api/seller-shop.api";
+import { Pagination, type PageMeta } from "@/components/ui/pagination";
 
 export function AdminShopsScreen() {
   const showToast = useToast();
@@ -38,9 +38,8 @@ export function AdminShopsScreen() {
   const [isUpdatingTier, setIsUpdatingTier] = useState(false);
 
   // Pagination
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(false);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [shopPage, setShopPage] = useState(1);
+  const [shopPageMeta, setShopPageMeta] = useState<PageMeta>({ page: 1, page_size: 20, total_items: 0, total_pages: 1 });
 
   // Approve dialog
   const [approveTarget, setApproveTarget] = useState<AdminShopItem | null>(null);
@@ -61,6 +60,8 @@ export function AdminShopsScreen() {
   // Mall Requests State
   const [mallRequests, setMallRequests] = useState<ShopMallRequest[]>([]);
   const [mallStatusFilter, setMallStatusFilter] = useState<string>("ALL");
+  const [mallPage, setMallPage] = useState(1);
+  const [mallPageMeta, setMallPageMeta] = useState<PageMeta>({ page: 1, page_size: 20, total_items: 0, total_pages: 1 });
   const [isLoadingMall, setIsLoadingMall] = useState(false);
   const [pendingMallCount, setPendingMallCount] = useState(0);
 
@@ -73,21 +74,20 @@ export function AdminShopsScreen() {
   const [rejectMallReason, setRejectMallReason] = useState("");
   const [isRejectingMall, setIsRejectingMall] = useState(false);
 
-  const fetchMallRequests = useCallback(async (status = mallStatusFilter) => {
+  const fetchMallRequests = useCallback(async (status = mallStatusFilter, currentPage = mallPage) => {
     setIsLoadingMall(true);
     try {
-      const data = await adminApi.getMallRequests({
-        status: status !== "ALL" ? status : undefined,
-      });
-      setMallRequests(data);
-      const pendingData = await adminApi.getMallRequests({ status: "PENDING" }).catch(() => []);
-      setPendingMallCount(pendingData.length);
+      const page = await adminApi.getMallRequestsPage({ status: status !== "ALL" ? status : undefined, page: currentPage, page_size: 20 });
+      setMallRequests(page.items);
+      setMallPageMeta(page);
+      const pendingPage = await adminApi.getMallRequestsPage({ status: "PENDING", page: 1, page_size: 1 }).catch(() => null);
+      setPendingMallCount(pendingPage?.total_items ?? 0);
     } catch {
       // fallback
     } finally {
       setIsLoadingMall(false);
     }
-  }, [mallStatusFilter]);
+  }, [mallStatusFilter, mallPage]);
 
   const handleConfirmApproveMall = async () => {
     if (!approveMallTarget) return;
@@ -101,7 +101,9 @@ export function AdminShopsScreen() {
       showToast("Đã phê duyệt yêu cầu nâng hạng Dino Mall thành công!", "success");
       setApproveMallTarget(null);
       setApproveMallNote("");
-      await Promise.all([fetchMallRequests(), fetchShops(), fetchCounts()]);
+      setMallPage(1);
+      setShopPage(1);
+      await Promise.all([fetchMallRequests(mallStatusFilter, 1), fetchShops(statusFilter, searchQuery, 1), fetchCounts()]);
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Phê duyệt thất bại", "error");
     } finally {
@@ -121,7 +123,8 @@ export function AdminShopsScreen() {
       showToast("Đã từ chối yêu cầu nâng hạng Dino Mall", "success");
       setRejectMallTarget(null);
       setRejectMallReason("");
-      await fetchMallRequests();
+      setMallPage(1);
+      await fetchMallRequests(mallStatusFilter, 1);
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Từ chối thất bại", "error");
     } finally {
@@ -144,7 +147,7 @@ export function AdminShopsScreen() {
     }
   }, []);
 
-  const fetchShops = useCallback(async (currentStatus = statusFilter, currentSearch = searchQuery) => {
+  const fetchShops = useCallback(async (currentStatus = statusFilter, currentSearch = searchQuery, currentPage = shopPage) => {
     setIsLoading(true);
     setError(null);
     try {
@@ -155,10 +158,10 @@ export function AdminShopsScreen() {
           tier: tierFilter !== "ALL" ? tierFilter : undefined,
           search: currentSearch.trim() || undefined,
           limit: 20,
+          page: currentPage,
         });
         setShops(page.items);
-        setNextCursor(page.next_cursor);
-        setHasMore(page.has_more);
+        setShopPageMeta(page);
       } else {
         const data = await adminRepo.getShops({
           status: currentStatus !== "ALL" ? currentStatus : undefined,
@@ -171,13 +174,13 @@ export function AdminShopsScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [statusFilter, tierFilter, searchQuery]);
+  }, [statusFilter, tierFilter, searchQuery, shopPage]);
 
   useEffect(() => {
     Promise.resolve().then(() => {
       fetchShops(statusFilter, searchQuery);
     });
-  }, [statusFilter, searchQuery, fetchShops]);
+  }, [statusFilter, tierFilter, searchQuery, shopPage, fetchShops]);
 
   useEffect(() => {
     Promise.resolve().then(() => {
@@ -190,30 +193,6 @@ export function AdminShopsScreen() {
       fetchMallRequests(mallStatusFilter);
     });
   }, [mallStatusFilter, fetchMallRequests]);
-
-  const handleLoadMore = async () => {
-    if (!nextCursor || isLoadingMore) return;
-    setIsLoadingMore(true);
-    try {
-      const adminRepo = repositories.admin();
-      if (adminRepo.getShopsPage) {
-        const page = await adminRepo.getShopsPage({
-          status: statusFilter !== "ALL" ? statusFilter : undefined,
-          tier: tierFilter !== "ALL" ? tierFilter : undefined,
-          search: searchQuery.trim() || undefined,
-          cursor: nextCursor,
-          limit: 20,
-        });
-        setShops((prev) => [...prev, ...page.items]);
-        setNextCursor(page.next_cursor);
-        setHasMore(page.has_more);
-      }
-    } catch (err: unknown) {
-      showToast(err instanceof Error ? err.message : "Không thể tải thêm gian hàng", "error");
-    } finally {
-      setIsLoadingMore(false);
-    }
-  };
 
   const handleViewDetail = async (shop: AdminShopItem) => {
     setIsLoadingDetail(true);
@@ -238,7 +217,8 @@ export function AdminShopsScreen() {
       await repositories.admin().approveShop(approveTarget.shop_id, "Shop verified and approved by admin");
       showToast(`Đã duyệt gian hàng ${approveTarget.shop_name} thành công!`, "success");
       setApproveTarget(null);
-      await Promise.all([fetchShops(statusFilter, searchQuery), fetchCounts()]);
+      setShopPage(1);
+      await Promise.all([fetchShops(statusFilter, searchQuery, 1), fetchCounts()]);
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Duyệt gian hàng thất bại", "error");
     } finally {
@@ -262,7 +242,8 @@ export function AdminShopsScreen() {
       showToast(`Đã khóa gian hàng ${lockTarget.shop_name}`, "success");
       setLockTarget(null);
       setLockReason("");
-      await Promise.all([fetchShops(statusFilter, searchQuery), fetchCounts()]);
+      setShopPage(1);
+      await Promise.all([fetchShops(statusFilter, searchQuery, 1), fetchCounts()]);
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Khóa gian hàng thất bại", "error");
     } finally {
@@ -274,7 +255,8 @@ export function AdminShopsScreen() {
     try {
       await repositories.admin().unlockShop(shop.shop_id, "Shop unlocked after compliance review");
       showToast(`Đã mở khóa gian hàng ${shop.shop_name}`, "success");
-      await Promise.all([fetchShops(statusFilter, searchQuery), fetchCounts()]);
+      setShopPage(1);
+      await Promise.all([fetchShops(statusFilter, searchQuery, 1), fetchCounts()]);
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Mở khóa gian hàng thất bại", "error");
     }
@@ -295,7 +277,8 @@ export function AdminShopsScreen() {
       showToast(`Đã cập nhật phân hạng ${tierTarget.shop_name} thành ${newTier}`, "success");
       setTierTarget(null);
       setTierReason("");
-      await fetchShops();
+      setShopPage(1);
+      await fetchShops(statusFilter, searchQuery, 1);
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : "Cập nhật phân hạng thất bại", "error");
     } finally {
@@ -490,7 +473,7 @@ export function AdminShopsScreen() {
               id="admin-search-shops"
               placeholder="Tìm theo tên shop, email chủ shop, ID..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { setShopPage(1); setSearchQuery(e.target.value); }}
             />
           </div>
 
@@ -501,7 +484,7 @@ export function AdminShopsScreen() {
             <select
               id="shop-status-filter"
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => { setShopPage(1); setStatusFilter(e.target.value); }}
               className="rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-xs text-[var(--foreground)]"
             >
               <option value="ALL">Tất cả trạng thái ({counts.total})</option>
@@ -518,7 +501,7 @@ export function AdminShopsScreen() {
             <select
               id="shop-tier-filter"
               value={tierFilter}
-              onChange={(e) => setTierFilter(e.target.value)}
+              onChange={(e) => { setShopPage(1); setTierFilter(e.target.value); }}
               className="rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-xs text-[var(--foreground)]"
             >
               <option value="ALL">Tất cả phân hạng</option>
@@ -667,18 +650,7 @@ export function AdminShopsScreen() {
               </tbody>
             </table>
           </div>
-          {hasMore && (
-            <div className="p-4 border-t border-[var(--border)] flex justify-center bg-[var(--card)]">
-              <Button
-                variant="secondary"
-                onClick={handleLoadMore}
-                disabled={isLoadingMore}
-                className="text-xs px-6 py-2"
-              >
-                {isLoadingMore ? "Đang tải thêm..." : "Tải thêm gian hàng"}
-              </Button>
-            </div>
-          )}
+          <Pagination meta={shopPageMeta} onPageChange={setShopPage} disabled={isLoading} />
         </div>
       )}
         </>
@@ -693,7 +665,7 @@ export function AdminShopsScreen() {
               <select
                 id="mall-status-filter"
                 value={mallStatusFilter}
-                onChange={(e) => setMallStatusFilter(e.target.value)}
+                onChange={(e) => { setMallPage(1); setMallStatusFilter(e.target.value); }}
                 className="rounded-lg border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-xs text-[var(--foreground)]"
               >
                 <option value="ALL">Tất cả yêu cầu</option>
@@ -818,6 +790,7 @@ export function AdminShopsScreen() {
               </table>
             </div>
           )}
+          <Pagination meta={mallPageMeta} onPageChange={setMallPage} disabled={isLoadingMall} />
         </div>
       )}
 

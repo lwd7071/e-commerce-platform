@@ -37,16 +37,42 @@ export class OrderQueryService implements IOrderQueryPort {
     return { items, limit, has_more: hasMore, next_cursor: cursor };
   }
 
-  async listAdminOrdersPaginated(viewer: RequestContext, filter: { status?: string; limit?: number; cursor?: string; search?: string; shop_id?: string; buyer_id?: string; from?: string; to?: string } = {}) {
+  async listAdminOrdersPaginated(viewer: RequestContext, filter: { status?: string; limit?: number; cursor?: string; search?: string; shop_id?: string; buyer_id?: string; from?: string; to?: string; page?: number } = {}) {
     if (viewer.role !== 'ADMIN') throw new ValidationFailedError('Admin role is required');
     const limit = filter.limit === undefined ? 20 : Number(filter.limit);
     if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new ValidationFailedError('limit must be an integer from 1 to 100');
-    const rows = await this.fetchOrderReads(viewer, filter.status, undefined, { limit, cursor: filter.cursor }, filter);
+    const page = filter.page ?? 1;
+    if (!Number.isInteger(page) || page < 1) throw new ValidationFailedError('page must be a positive integer');
+    const total_items = await this.countAdminOrders(filter);
+    const total_pages = Math.max(1, Math.ceil(total_items / limit));
+    if (filter.page !== undefined && page > total_pages) throw new ValidationFailedError('page exceeds total_pages', { field: 'page', total_pages });
+    const rows = await this.fetchOrderReads(viewer, filter.status, undefined, { limit, cursor: filter.page === undefined ? filter.cursor : undefined, offset: filter.page === undefined ? undefined : (page - 1) * limit }, filter);
     const hasMore = rows.length > limit;
     const items = rows.slice(0, limit);
     const last = items.at(-1);
     const cursor = hasMore && last ? Buffer.from(JSON.stringify({ created_at: last.created_at, order_id: last.order_id }), 'utf8').toString('base64url') : null;
-    return { items, limit, has_more: hasMore, next_cursor: cursor };
+    return { items, limit, has_more: filter.page === undefined ? hasMore : page < total_pages, next_cursor: filter.page === undefined ? cursor : null, page, page_size: limit, total_items, total_pages };
+  }
+
+  private async countAdminOrders(filter: { status?: string; search?: string; shop_id?: string; buyer_id?: string; from?: string; to?: string }): Promise<number> {
+    if (!this.pool) throw new DependencyUnavailableError('Order query database is not configured');
+    const statuses = ['PENDING_CONFIRMATION', 'CONFIRMED', 'PREPARING', 'SHIPPING', 'COMPLETED', 'CANCELLED', 'DELIVERY_FAILED'];
+    if (filter.status && !statuses.includes(filter.status)) throw new ValidationFailedError('Invalid order status filter', { field: 'status' });
+    for (const key of ['shop_id', 'buyer_id'] as const) {
+      if (filter[key] && !/^[0-9a-f-]{36}$/i.test(filter[key]!)) throw new ValidationFailedError(`Invalid ${key} filter`);
+    }
+    if ((filter.from && Number.isNaN(Date.parse(filter.from))) || (filter.to && Number.isNaN(Date.parse(filter.to)))) throw new ValidationFailedError('Invalid date filter');
+    if (filter.from && filter.to && Date.parse(filter.from) > Date.parse(filter.to)) throw new ValidationFailedError('from date must be before to date');
+    const values: unknown[] = [];
+    const where: string[] = [];
+    if (filter.status) where.push(`o.status=$${values.push(filter.status)}`);
+    if (filter.shop_id) where.push(`o.shop_id=$${values.push(filter.shop_id)}::uuid`);
+    if (filter.buyer_id) where.push(`o.buyer_id=$${values.push(filter.buyer_id)}::uuid`);
+    if (filter.search?.trim()) where.push(`(o.order_id::text ILIKE $${values.push(`%${filter.search.trim()}%`)} OR s.shop_name ILIKE $${values.length} OR buyer.email ILIKE $${values.length})`);
+    if (filter.from) where.push(`o.created_at >= $${values.push(new Date(filter.from).toISOString())}::timestamptz`);
+    if (filter.to) where.push(`o.created_at <= $${values.push(new Date(filter.to).toISOString())}::timestamptz`);
+    const result = await this.pool.query<{ total: string }>(`SELECT COUNT(*)::text AS total FROM orders o JOIN shops s ON s.shop_id=o.shop_id JOIN app_users buyer ON buyer.user_id=o.buyer_id ${where.length ? `WHERE ${where.join(' AND ')}` : ''}`, values);
+    return Number(result.rows[0]?.total ?? 0);
   }
 
   async getOrderDetail(viewer: RequestContext, orderId: UUID): Promise<OrderReadDTO | null> {
@@ -54,7 +80,7 @@ export class OrderQueryService implements IOrderQueryPort {
     return rows[0] ?? null;
   }
 
-  private async fetchOrderReads(viewer: RequestContext, rawStatus?: string, orderId?: UUID, page?: { limit: number; cursor?: string }, adminFilter?: { search?: string; shop_id?: string; buyer_id?: string; from?: string; to?: string }): Promise<OrderReadDTO[]> {
+  private async fetchOrderReads(viewer: RequestContext, rawStatus?: string, orderId?: UUID, page?: { limit: number; cursor?: string; offset?: number }, adminFilter?: { search?: string; shop_id?: string; buyer_id?: string; from?: string; to?: string }): Promise<OrderReadDTO[]> {
     if (!this.pool) throw new DependencyUnavailableError('Order query database is not configured');
     const statuses: readonly string[] = ['PENDING_CONFIRMATION', 'CONFIRMED', 'PREPARING', 'SHIPPING', 'COMPLETED', 'CANCELLED', 'DELIVERY_FAILED'];
     if (rawStatus !== undefined && !statuses.includes(rawStatus)) {
@@ -112,13 +138,14 @@ export class OrderQueryService implements IOrderQueryPort {
         throw new ValidationFailedError('Invalid order cursor', { field: 'cursor' });
       }
     }
-    if (page) values.push(page.limit + 1);
+    if (page) values.push(page.offset === undefined ? page.limit + 1 : page.limit);
+    if (page?.offset !== undefined) values.push(page.offset);
     const result = await this.pool.query<Record<string, unknown>>(
       `SELECT o.order_id,o.buyer_id,buyer.email AS buyer_email,o.shop_id,s.shop_name,o.status,o.subtotal,o.discount_amount,o.shipping_fee,
               o.total_amount,o.cancel_reason,o.created_at,o.updated_at
          FROM orders o JOIN shops s ON s.shop_id=o.shop_id JOIN app_users buyer ON buyer.user_id=o.buyer_id
        ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
-       ORDER BY o.created_at DESC,o.order_id DESC${page ? ` LIMIT $${values.length}` : ''}`, values,
+       ORDER BY o.created_at DESC,o.order_id DESC${page ? ` LIMIT $${page.offset === undefined ? values.length : values.length - 1}${page.offset === undefined ? '' : ` OFFSET $${values.length}`}` : ''}`, values,
     );
     if (result.rows.length === 0) return [];
     const ids = result.rows.map(row => String(row.order_id));

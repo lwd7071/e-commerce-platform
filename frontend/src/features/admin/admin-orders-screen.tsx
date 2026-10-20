@@ -9,6 +9,7 @@ import { EmptyState, ErrorState, Skeleton } from "@/components/ui/data-states";
 import { FormField, SelectInput, TextInput } from "@/components/ui/form-controls";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
 import { AdminHeaderNav } from "./admin-header-nav";
+import { Pagination, type PageMeta } from "@/components/ui/pagination";
 
 type AdminOrder = {
   order_id: string; buyer_id: string; buyer_email: string; shop_id: string; shop_name: string; status: string;
@@ -18,7 +19,7 @@ type AdminOrder = {
   payments: Array<{ payment_id: string; transaction_code: string | null; method: string; amount: string; status: string; paid_at: string | null }>;
   shipment: { carrier_name: string | null; tracking_code: string | null; status: string; updated_at: string } | null;
 };
-type Page = { data: AdminOrder[]; meta: { next_cursor: string | null; has_more: boolean; limit: number }; request_id: string };
+type Page = { data: AdminOrder[]; meta: { next_cursor: string | null; has_more: boolean; limit: number; page?: number; page_size?: number; total_items?: number; total_pages?: number }; request_id: string };
 
 const statusLabels: Record<string, string> = { PENDING_CONFIRMATION: "Chờ xác nhận", CONFIRMED: "Đã xác nhận", PREPARING: "Đang chuẩn bị", SHIPPING: "Đang giao", COMPLETED: "Hoàn tất", CANCELLED: "Đã hủy", DELIVERY_FAILED: "Giao thất bại" };
 
@@ -30,8 +31,8 @@ export function AdminOrdersScreen() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [query, setQuery] = useState({ status: "", search: "", from: "", to: "" });
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(false);
+  const [pageNumber, setPageNumber] = useState(1);
+  const [pageMeta, setPageMeta] = useState<PageMeta>({ page: 1, page_size: 20, total_items: 0, total_pages: 1 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [commandStatus, setCommandStatus] = useState("");
@@ -55,19 +56,19 @@ export function AdminOrdersScreen() {
     finally { setCommandBusy(false); }
   };
 
-  const load = useCallback(async (cursorToLoad: string | null = null) => {
+  const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
-      const params = { limit: 20, status: query.status || undefined, search: query.search || undefined, from: query.from || undefined, to: query.to || undefined, cursor: cursorToLoad ?? undefined };
+      const params = { page: pageNumber, page_size: 20, status: query.status || undefined, search: query.search || undefined, from: query.from || undefined, to: query.to || undefined };
       const page = await apiClient.getPaginated<AdminOrder>("/admin/orders", { params }) as unknown as Page;
-      setRows(current => cursorToLoad ? [...current, ...page.data] : page.data);
-      setNextCursor(page.meta.next_cursor); setHasMore(page.meta.has_more);
+      setRows(page.data);
+      setPageMeta({ page: page.meta.page ?? pageNumber, page_size: page.meta.page_size ?? 20, total_items: page.meta.total_items ?? page.data.length, total_pages: page.meta.total_pages ?? 1 });
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Không tải được danh sách đơn."); }
     finally { setLoading(false); }
-  }, [query]);
+  }, [query, pageNumber]);
 
   useEffect(() => { void Promise.resolve().then(() => load()); }, [load]);
-  const filter = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); setNextCursor(null); setQuery({ status, search: search.trim(), from: from ? new Date(from).toISOString() : "", to: to ? new Date(to).toISOString() : "" }); };
+  const filter = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); setPageNumber(1); setQuery({ status, search: search.trim(), from: from ? new Date(from).toISOString() : "", to: to ? new Date(to).toISOString() : "" }); };
 
   const openDetail = (order: AdminOrder) => { setSelected(order); setCommandStatus(order.status); setCommandReason(""); setCommandError(null); setRefundAmount(''); setRefundReference(''); setRefundReason(''); setRefundMessage(null); setRefundError(null); };
   const transition = async (event: FormEvent<HTMLFormElement>) => {
@@ -121,7 +122,7 @@ export function AdminOrdersScreen() {
     </form>
     {loading && rows.length === 0 ? <div className="space-y-3"><Skeleton height={42} /><Skeleton height={180} /></div> : error ? <ErrorState description={error} onRetry={() => void load()} /> : rows.length === 0 ? <EmptyState title="Không có đơn hàng phù hợp" description="Thử bỏ bớt bộ lọc hoặc tìm bằng mã đơn." /> :
       <section className="surface-card overflow-hidden" aria-label="Danh sách đơn hàng"><div className="overflow-x-auto"><table className="mobile-card-table w-full min-w-[800px] text-left text-sm"><thead><tr className="border-b border-[var(--border)] bg-[var(--card-muted)] text-xs uppercase text-[var(--subtext)]"><th className="p-3">Mã đơn</th><th className="p-3">Gian hàng</th><th className="p-3">Người mua</th><th className="p-3">Trạng thái</th><th className="p-3">Tổng tiền</th><th className="p-3">Tạo lúc</th><th className="p-3">Chi tiết</th></tr></thead><tbody>{rows.map(order => <tr className="border-b border-[var(--border)]" key={order.order_id}><td data-label="Mã đơn" className="p-3 font-mono text-xs">{order.order_id}</td><td data-label="Gian hàng" className="p-3">{order.shop_name}</td><td data-label="Người mua" className="p-3 font-mono text-xs">{order.buyer_email}</td><td data-label="Trạng thái" className="p-3">{statusLabels[order.status] ?? order.status}</td><td data-label="Tổng tiền" className="p-3 tabular-nums">{moneyAdapter.formatVND(order.total_amount)}</td><td data-label="Tạo lúc" className="p-3 whitespace-nowrap">{new Date(order.created_at).toLocaleString("vi-VN")}</td><td data-label="Chi tiết" className="p-3"><Button variant="secondary" onClick={() => openDetail(order)}>Mở</Button></td></tr>)}</tbody></table></div>
-        {hasMore && <div className="flex justify-center p-4"><Button variant="secondary" disabled={loading || !nextCursor} onClick={() => void load(nextCursor)}>{loading ? "Đang tải…" : "Tải thêm"}</Button></div>}
+        <Pagination meta={pageMeta} onPageChange={setPageNumber} disabled={loading} />
       </section>}
     <Dialog open={Boolean(selected)} onOpenChange={open => { if (!open) setSelected(null); }} title={`Đơn hàng ${selected?.order_id ?? ""}`} description={`${selected?.shop_name ?? ""} · ${statusLabels[selected?.status ?? ""] ?? selected?.status ?? ""}`}>
       {selected && <div className="max-h-[65vh] space-y-5 overflow-y-auto">

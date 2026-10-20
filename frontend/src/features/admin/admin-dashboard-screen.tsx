@@ -11,6 +11,7 @@ import { Skeleton, ErrorState } from "@/components/ui/data-states";
 import { moneyAdapter } from "@/lib/adapters/money.adapter";
 import { walletApi, type FinanceOverview } from "@/lib/api/wallet.api";
 import { adminRepository } from "./admin.repository";
+import { Pagination, type PageMeta } from "@/components/ui/pagination";
 import type {
   UserAccount,
   PlatformShop,
@@ -36,6 +37,10 @@ export function AdminDashboardScreen() {
 
   // Search filter
   const [searchQuery, setSearchQuery] = useState("");
+  const [tablePage, setTablePage] = useState(1);
+  const [reloadList, setReloadList] = useState(0);
+  const dashboardPageSize = 10;
+  const [tablePageMeta, setTablePageMeta] = useState<PageMeta>({ page: 1, page_size: 10, total_items: 0, total_pages: 1 });
 
   // Lock/Unlock User Modal State (A-705)
   const [lockingUser, setLockingUser] = useState<UserAccount | null>(null);
@@ -57,48 +62,15 @@ export function AdminDashboardScreen() {
     setTimeout(() => setToast(null), 3500);
   };
 
-  const fetchData = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [statsData, usersData, shopsData, prodsData, logsData, financeData] = await Promise.all([
-        adminRepository.getDashboardStats(),
-        adminRepository.getUsers(),
-        adminRepository.getShops(),
-        adminRepository.getModerationProducts(),
-        adminRepository.getAuditLogs(),
-        walletApi.getFinanceOverview().catch(() => null),
-      ]);
-      setStats(statsData);
-      setUsers(usersData);
-      setShops(shopsData);
-      setProducts(prodsData);
-      setLogs(logsData);
-      setFinanceOverview(financeData);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Không thể tải dữ liệu quản trị sàn.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
     let ignore = false;
     Promise.all([
       adminRepository.getDashboardStats(),
-      adminRepository.getUsers(),
-      adminRepository.getShops(),
-      adminRepository.getModerationProducts(),
-      adminRepository.getAuditLogs(),
       walletApi.getFinanceOverview().catch(() => null),
     ])
-      .then(([statsData, usersData, shopsData, prodsData, logsData, financeData]) => {
+      .then(([statsData, financeData]) => {
         if (!ignore) {
           setStats(statsData);
-          setUsers(usersData);
-          setShops(shopsData);
-          setProducts(prodsData);
-          setLogs(logsData);
           setFinanceOverview(financeData);
           setLoading(false);
         }
@@ -114,6 +86,34 @@ export function AdminDashboardScreen() {
       ignore = true;
     };
   }, []);
+
+  useEffect(() => {
+    let ignore = false;
+    const params = { page: tablePage, limit: dashboardPageSize, search: searchQuery.trim() || undefined };
+    const loadList = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const result = activeTab === "users" ? await adminRepository.getUsersPage(params)
+          : activeTab === "shops" ? await adminRepository.getShopsPage(params)
+            : activeTab === "products" ? await adminRepository.getModerationProductsPage(params)
+              : await adminRepository.getAuditLogsPage({ page: tablePage, limit: dashboardPageSize });
+        if (ignore) return;
+        const items = result.items;
+        if (activeTab === "users") setUsers(items as UserAccount[]);
+        else if (activeTab === "shops") setShops(items as PlatformShop[]);
+        else if (activeTab === "products") setProducts(items as ModerationProduct[]);
+        else setLogs(items as AdminAuditLog[]);
+        setTablePageMeta(result);
+      } catch (err: unknown) {
+        if (!ignore) setError(err instanceof Error ? err.message : "Không thể tải dữ liệu quản trị sàn.");
+      } finally {
+        if (!ignore) setLoading(false);
+      }
+    };
+    void Promise.resolve().then(loadList);
+    return () => { ignore = true; };
+  }, [activeTab, tablePage, searchQuery, reloadList]);
 
   // Approve Shop State
   const [approvingShopId, setApprovingShopId] = useState<string | null>(null);
@@ -272,7 +272,6 @@ export function AdminDashboardScreen() {
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.shopName.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
   return (
     <ProtectedPage allowedRoles={["ADMIN"]}>
       <div className="admin-page space-y-6 pb-24">
@@ -427,7 +426,7 @@ export function AdminDashboardScreen() {
             <button
               type="button"
               className={`filter-tab ${activeTab === "users" ? "filter-tab--active" : ""}`}
-              onClick={() => setActiveTab("users")}
+              onClick={() => { setTablePage(1); setActiveTab("users"); }}
               aria-pressed={activeTab === "users"}
             >
               Người dùng ({users.length})
@@ -435,7 +434,7 @@ export function AdminDashboardScreen() {
             <button
               type="button"
               className={`filter-tab ${activeTab === "shops" ? "filter-tab--active" : ""}`}
-              onClick={() => setActiveTab("shops")}
+              onClick={() => { setTablePage(1); setActiveTab("shops"); }}
               aria-pressed={activeTab === "shops"}
             >
               Gian hàng ({shops.length})
@@ -443,7 +442,7 @@ export function AdminDashboardScreen() {
             <button
               type="button"
               className={`filter-tab ${activeTab === "products" ? "filter-tab--active" : ""}`}
-              onClick={() => setActiveTab("products")}
+              onClick={() => { setTablePage(1); setActiveTab("products"); }}
               aria-pressed={activeTab === "products"}
             >
               Kiểm duyệt sản phẩm ({products.length})
@@ -451,7 +450,7 @@ export function AdminDashboardScreen() {
             <button
               type="button"
               className={`filter-tab ${activeTab === "logs" ? "filter-tab--active" : ""}`}
-              onClick={() => setActiveTab("logs")}
+              onClick={() => { setTablePage(1); setActiveTab("logs"); }}
               aria-pressed={activeTab === "logs"}
             >
               Nhật ký kiểm duyệt ({logs.length})
@@ -465,7 +464,7 @@ export function AdminDashboardScreen() {
             <TextInput
               id="admin-search-input"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { setTablePage(1); setSearchQuery(e.target.value); }}
               placeholder="Tìm kiếm theo tên, email..."
             />
           </div>
@@ -479,7 +478,7 @@ export function AdminDashboardScreen() {
             <Skeleton height={60} />
           </div>
         ) : error ? (
-          <ErrorState title="Lỗi tải dữ liệu quản trị" description={error} onRetry={fetchData} />
+          <ErrorState title="Lỗi tải dữ liệu quản trị" description={error} onRetry={() => setReloadList((value) => value + 1)} />
         ) : (
           <>
             {/* TAB 1: USERS (A-705) */}
@@ -584,6 +583,7 @@ export function AdminDashboardScreen() {
                     </tbody>
                   </table>
                 </div>
+                <Pagination meta={tablePageMeta} onPageChange={setTablePage} disabled={loading} />
               </div>
             )}
 
@@ -687,6 +687,7 @@ export function AdminDashboardScreen() {
                     </tbody>
                   </table>
                 </div>
+                <Pagination meta={tablePageMeta} onPageChange={setTablePage} disabled={loading} />
               </div>
             )}
 
@@ -758,6 +759,7 @@ export function AdminDashboardScreen() {
                     </tbody>
                   </table>
                 </div>
+                <Pagination meta={tablePageMeta} onPageChange={setTablePage} disabled={loading} />
               </div>
             )}
 
@@ -808,6 +810,7 @@ export function AdminDashboardScreen() {
                     </tbody>
                   </table>
                 </div>
+                <Pagination meta={tablePageMeta} onPageChange={setTablePage} disabled={loading} />
               </div>
             )}
           </>

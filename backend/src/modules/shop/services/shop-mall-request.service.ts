@@ -390,13 +390,14 @@ export class ShopMallRequestService {
   }
 
   public async listAdminRequests(
-    query: ListMallRequestsQuery
-  ): Promise<{ items: ShopMallRequestListItem[]; next_cursor: string | null; has_more: boolean }> {
+    query: ListMallRequestsQuery & { page?: number }
+  ): Promise<{ items: ShopMallRequestListItem[]; next_cursor: string | null; has_more: boolean; page?: number; page_size?: number; total_items?: number; total_pages?: number }> {
     const limit = Math.min(Math.max(query.limit ?? 20, 1), 100);
     return await this.repo.listForAdmin({
       status: query.status,
       limit,
       cursor: query.cursor,
+      page: query.page,
     });
   }
 

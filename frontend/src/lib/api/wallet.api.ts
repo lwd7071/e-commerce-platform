@@ -101,6 +101,11 @@ export const walletApi = {
     return apiClient.get<WithdrawalRequest[]>(`/admin/finance/withdrawals${qs}`);
   },
 
+  async getAdminWithdrawalsPage(params: { status?: string; shop_id?: string; page: number; page_size: number }): Promise<{ items: WithdrawalRequest[]; page: number; page_size: number; total_items: number; total_pages: number }> {
+    const result = await apiClient.getPaginated<WithdrawalRequest>('/admin/finance/withdrawals', { params });
+    return { items: result.data, page: result.meta.page ?? params.page, page_size: result.meta.page_size ?? params.page_size, total_items: result.meta.total_items ?? result.data.length, total_pages: result.meta.total_pages ?? 1 };
+  },
+
   async approveWithdrawal(id: string, note?: string): Promise<{ request: WithdrawalRequest; wallet: ShopWallet; transaction: WalletTransaction }> {
     return apiClient.post<{ request: WithdrawalRequest; wallet: ShopWallet; transaction: WalletTransaction }>(`/admin/finance/withdrawals/${id}/approve`, { note });
   },

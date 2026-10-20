@@ -1,7 +1,8 @@
 import { Router, type Request, type RequestHandler } from 'express';
 import type { RequestContext } from '../../context/request-context.ts';
 import { DependencyUnavailableError, ForbiddenError, UnauthorizedError } from '../../errors/app-error.ts';
-import { buildSuccessEnvelope } from '../envelope.ts';
+import { buildPaginatedEnvelope, buildSuccessEnvelope } from '../envelope.ts';
+import { numberedPage, parseNumberedPage } from '../numbered-page.ts';
 import type { AdminFinanceService } from '../../../modules/wallet/services/admin-finance.service.ts';
 import type { WithdrawalStatus } from '../../../modules/wallet/domain/wallet.types.ts';
 
@@ -33,6 +34,11 @@ export function createAdminFinanceRouter(service?: AdminFinanceService, auth?: R
   router.get('/admin/finance/withdrawals', ...guards, asyncRoute(async (req, res) => {
     const status = req.query.status as WithdrawalStatus | undefined;
     const shop_id = req.query.shop_id ? String(req.query.shop_id) : undefined;
+    if (req.query.page !== undefined || req.query.page_size !== undefined) {
+      const { page, pageSize } = parseNumberedPage(req.query as Record<string, unknown>);
+      const result = numberedPage(await configured().listWithdrawals(adminContext(req), { status, shop_id }), page, pageSize);
+      return void res.json(buildPaginatedEnvelope(result.items, result, requestId(req)));
+    }
     res.json(buildSuccessEnvelope(await configured().listWithdrawals(adminContext(req), { status, shop_id }), requestId(req)));
   }));
 

@@ -7,6 +7,7 @@ import { EmptyState, ErrorState, Skeleton } from "@/components/ui/data-states";
 import { Dialog } from "@/components/ui/dialog";
 import { FormField, SelectInput, TextInput } from "@/components/ui/form-controls";
 import { AdminHeaderNav } from "./admin-header-nav";
+import { Pagination, type PageMeta } from "@/components/ui/pagination";
 
 type Voucher = { voucher_id: string; code: string; voucher_name: string; scope: "PLATFORM" | "SHOP"; shop_id: string | null; discount_type: "PERCENT" | "FIXED"; discount_value: string; max_discount: string | null; min_order_value: string; quantity: number; start_at: string; end_at: string; status: "ACTIVE" | "INACTIVE" };
 type Draft = { code: string; voucher_name: string; discount_type: "PERCENT" | "FIXED"; discount_value: string; max_discount: string; min_order_value: string; quantity: string; start_at: string; end_at: string; reason: string };
@@ -22,14 +23,20 @@ export function AdminVouchersScreen() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [statusTarget, setStatusTarget] = useState<Voucher | null>(null);
   const [reason, setReason] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageMeta, setPageMeta] = useState<PageMeta>({ page: 1, page_size: 20, total_items: 0, total_pages: 1 });
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    try { setVouchers(await apiClient.get<Voucher[]>("/admin/vouchers")); }
+    try {
+      const result = await apiClient.getPaginated<Voucher>("/admin/vouchers", { params: { page, page_size: 20 } });
+      setVouchers(result.data);
+      setPageMeta({ page: result.meta?.page ?? page, page_size: result.meta?.page_size ?? 20, total_items: result.meta?.total_items ?? result.data.length, total_pages: result.meta?.total_pages ?? 1 });
+    }
     catch (cause) { setError(cause instanceof Error ? cause.message : "Không tải được voucher."); }
     finally { setLoading(false); }
-  }, []);
+  }, [page]);
   useEffect(() => { void Promise.resolve().then(() => load()); }, [load]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -85,7 +92,7 @@ export function AdminVouchersScreen() {
         <div className="flex flex-wrap items-center gap-3 sm:col-span-2 lg:col-span-4"><Button type="submit" disabled={submitting}>{submitting ? "Đang lưu…" : editingId ? "Lưu thay đổi" : "Tạo voucher nền tảng"}</Button>{editingId && <Button type="button" variant="secondary" disabled={submitting} onClick={() => { setEditingId(null); setDraft(emptyDraft); }}>Hủy sửa</Button>}{formError && <p role="alert" className="text-sm text-[var(--danger)]">{formError}</p>}</div>
       </form>
       {loading ? <div className="space-y-3"><Skeleton height={44} /><Skeleton height={180} /></div> : error ? <ErrorState description={error} onRetry={() => void load()} /> : vouchers.length === 0 ? <EmptyState title="Chưa có voucher" description="Voucher hiện có sẽ xuất hiện tại đây." /> :
-        <section className="surface-card overflow-hidden" aria-label="Danh sách voucher"><div className="overflow-x-auto"><table className="mobile-card-table w-full min-w-[820px] text-left text-sm"><thead><tr className="border-b border-[var(--border)] bg-[var(--card-muted)] text-xs uppercase text-[var(--subtext)]"><th className="p-3">Mã</th><th className="p-3">Voucher</th><th className="p-3">Phạm vi</th><th className="p-3">Giảm</th><th className="p-3">Lượt còn</th><th className="p-3">Trạng thái</th><th className="p-3">Thao tác</th></tr></thead><tbody>{vouchers.map(v => <tr key={v.voucher_id} className="border-b border-[var(--border)]"><td data-label="Mã" className="p-3 font-mono">{v.code}</td><td data-label="Voucher" className="p-3">{v.voucher_name}</td><td data-label="Phạm vi" className="p-3">{v.scope === "PLATFORM" ? "Toàn sàn" : "Shop"}</td><td data-label="Mức giảm" className="p-3">{v.discount_type === "PERCENT" ? `${v.discount_value}%` : `${v.discount_value} ₫`}</td><td data-label="Lượt còn" className="p-3 tabular-nums">{v.quantity}</td><td data-label="Trạng thái" className="p-3">{v.status === "ACTIVE" ? "Đang bật" : "Đã tắt"}</td><td data-label="Thao tác" className="p-3"><div className="flex gap-2">{v.scope === "PLATFORM" && <><Button variant="secondary" disabled={submitting} onClick={() => { setEditingId(v.voucher_id); setDraft({ code: v.code, voucher_name: v.voucher_name, discount_type: v.discount_type, discount_value: v.discount_value, max_discount: v.max_discount ?? "", min_order_value: v.min_order_value, quantity: String(v.quantity), start_at: toLocalInput(v.start_at), end_at: toLocalInput(v.end_at), reason: "" }); }}>{"Sửa"}</Button><Button variant="secondary" disabled={submitting} onClick={() => { setStatusTarget(v); setReason(""); }}>{v.status === "ACTIVE" ? "Tắt" : "Bật"}</Button></>}</div></td></tr>)}</tbody></table></div></section>}
+        <section className="surface-card overflow-hidden" aria-label="Danh sách voucher"><div className="overflow-x-auto"><table className="mobile-card-table w-full min-w-[820px] text-left text-sm"><thead><tr className="border-b border-[var(--border)] bg-[var(--card-muted)] text-xs uppercase text-[var(--subtext)]"><th className="p-3">Mã</th><th className="p-3">Voucher</th><th className="p-3">Phạm vi</th><th className="p-3">Giảm</th><th className="p-3">Lượt còn</th><th className="p-3">Trạng thái</th><th className="p-3">Thao tác</th></tr></thead><tbody>{vouchers.map(v => <tr key={v.voucher_id} className="border-b border-[var(--border)]"><td data-label="Mã" className="p-3 font-mono">{v.code}</td><td data-label="Voucher" className="p-3">{v.voucher_name}</td><td data-label="Phạm vi" className="p-3">{v.scope === "PLATFORM" ? "Toàn sàn" : "Shop"}</td><td data-label="Mức giảm" className="p-3">{v.discount_type === "PERCENT" ? `${v.discount_value}%` : `${v.discount_value} ₫`}</td><td data-label="Lượt còn" className="p-3 tabular-nums">{v.quantity}</td><td data-label="Trạng thái" className="p-3">{v.status === "ACTIVE" ? "Đang bật" : "Đã tắt"}</td><td data-label="Thao tác" className="p-3"><div className="flex gap-2">{v.scope === "PLATFORM" && <><Button variant="secondary" disabled={submitting} onClick={() => { setEditingId(v.voucher_id); setDraft({ code: v.code, voucher_name: v.voucher_name, discount_type: v.discount_type, discount_value: v.discount_value, max_discount: v.max_discount ?? "", min_order_value: v.min_order_value, quantity: String(v.quantity), start_at: toLocalInput(v.start_at), end_at: toLocalInput(v.end_at), reason: "" }); }}>{"Sửa"}</Button><Button variant="secondary" disabled={submitting} onClick={() => { setStatusTarget(v); setReason(""); }}>{v.status === "ACTIVE" ? "Tắt" : "Bật"}</Button></>}</div></td></tr>)}</tbody></table></div><Pagination meta={pageMeta} onPageChange={setPage} disabled={loading} /></section>}
       <Dialog open={Boolean(statusTarget)} onOpenChange={open => { if (!open) setStatusTarget(null); }} title={statusTarget?.status === "ACTIVE" ? "Tắt voucher" : "Bật voucher"} description="Nhập lý do để lưu cùng nhật ký Admin.">
         <div className="space-y-4"><FormField id="voucher-status-reason" label="Lý do" required><TextInput id="voucher-status-reason" value={reason} onChange={e => setReason(e.target.value)} required autoFocus /></FormField><div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setStatusTarget(null)}>Hủy</Button><Button disabled={!reason.trim() || submitting} onClick={() => void changeStatus()}>{submitting ? "Đang lưu…" : "Xác nhận"}</Button></div></div>
       </Dialog>
