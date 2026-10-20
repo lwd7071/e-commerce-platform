@@ -228,7 +228,7 @@ svg {
 
 .site-header--home {
   border-bottom: 1px solid var(--border);
-  background: rgb(255 255 255 / 97%);
+  background: #fff;
 }
 
 .site-header__announcement {
@@ -1062,7 +1062,7 @@ button[aria-haspopup="menu"][aria-expanded="true"] {
   z-index: 30;
   top: 0;
   border-bottom: 1px solid var(--border);
-  background: rgb(255 255 255 / 97%);
+  background: #fff;
 }
 
 .site-header__inner {
