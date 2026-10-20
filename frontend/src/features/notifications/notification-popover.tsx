@@ -81,7 +81,7 @@ export function NotificationPopover({ production, liveAvailable, repository }: P
   }
 
   return (
-    <div className="relative" ref={containerRef}>
+    <div className="relative max-[767px]:static" ref={containerRef}>
       <button
         type="button"
         onClick={() => setIsOpen((open) => !open)}
@@ -103,7 +103,7 @@ export function NotificationPopover({ production, liveAvailable, repository }: P
           id="notification-popover-panel"
           role="dialog"
           aria-label="Thông báo mới nhất"
-          className="absolute right-0 top-full z-50 mt-2 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow-card)]"
+          className="absolute right-0 top-full z-50 mt-2 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow-card)] max-[767px]:right-4"
         >
           <header className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
             <h2 className="text-sm font-semibold text-[var(--foreground)]">Thông báo</h2>

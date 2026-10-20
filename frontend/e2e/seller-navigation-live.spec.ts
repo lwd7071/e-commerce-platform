@@ -150,6 +150,20 @@ test.describe("Seller Sub-navigation & Header Navbar Live DOM Verification", () 
     await expect(headerNav.getByRole("link", { name: "Thông báo", exact: true })).toBeVisible();
     await expect(headerNav.getByRole("link", { name: "Tài khoản", exact: true })).toBeVisible();
 
+    const desktopViewport = page.viewportSize();
+    for (const width of [393, 320]) {
+      await page.setViewportSize({ width, height: 852 });
+      await page.getByRole("button", { name: /Thông báo/ }).click();
+      const notificationPopover = page.getByRole("dialog", { name: "Thông báo mới nhất" });
+      await expect(notificationPopover).toBeVisible();
+      const bounds = await notificationPopover.boundingBox();
+      expect(bounds, `notification popover is not laid out at ${width}px`).not.toBeNull();
+      expect(bounds!.x, `notification popover starts offscreen at ${width}px`).toBeGreaterThanOrEqual(0);
+      expect(bounds!.x + bounds!.width, `notification popover ends offscreen at ${width}px`).toBeLessThanOrEqual(width);
+      await page.keyboard.press("Escape");
+    }
+    if (desktopViewport) await page.setViewportSize(desktopViewport);
+
     // 3. DOM Inspection: Sub-navigation 8 Tabs on /seller
     const subNav = page.locator('nav[aria-label="Điều hướng kênh người bán"]').first();
     await expect(subNav).toBeVisible();
