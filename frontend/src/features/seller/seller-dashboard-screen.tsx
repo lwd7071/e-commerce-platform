@@ -172,9 +172,6 @@ export function SellerDashboardScreen() {
                     <span className="text-xs font-semibold text-[var(--subtext)] uppercase tracking-wider">
                       Doanh thu thực tế
                     </span>
-                    <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-[var(--success-surface)] text-[var(--success)] border border-[var(--success-border)]">
-                      QD19
-                    </span>
                   </div>
                   <div className="text-2xl sm:text-3xl font-black text-[var(--foreground)] mt-2">
                     {moneyAdapter.formatVND(kpi.totalRevenue)}
@@ -273,21 +270,6 @@ export function SellerDashboardScreen() {
               </div>
             </div>
 
-            {/* Rule QD19 Transparency Banner */}
-            <div className="bg-[var(--card)] border border-[var(--info-border)] rounded-2xl p-4 sm:p-5 flex items-start gap-3.5 bg-gradient-to-r from-[var(--info-surface)]/40 to-transparent">
-              <div className="p-2 rounded-xl bg-[var(--info-surface)] text-[var(--info)] shrink-0">
-                <Icon name="info" className="w-5 h-5" />
-              </div>
-              <div className="text-sm">
-                <h4 className="font-semibold text-[var(--foreground)]">
-                  Chính sách quy chuẩn doanh thu sàn (Quy tắc QD19)
-                </h4>
-                <p className="text-[var(--subtext)] text-xs sm:text-sm mt-0.5 leading-relaxed">
-                  Để đảm bảo tính toàn vẹn và chống thất thoát tài chính, số liệu <strong>Doanh thu thực tế</strong> của gian hàng chỉ được tổng hợp từ các đơn hàng có trạng thái <strong>COMPLETED (Đã hoàn thành)</strong>. Các đơn hàng đang giao, chờ xác nhận hoặc đã hủy sẽ không được tạm tính vào doanh thu.
-                </p>
-              </div>
-            </div>
-
             {/* Split Grid: Action Queue (Orders) & Low Stock Alert */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
               {/* Left Column: Recent Orders Needing Attention (7 cols) */}
@@ -357,6 +339,34 @@ export function SellerDashboardScreen() {
                     </div>
                   )}
                 </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Link
+                    href="/seller/products"
+                    className="min-w-0 bg-[var(--card-muted)] border border-[var(--border)] rounded-xl p-3 flex items-center justify-between gap-3 hover:bg-[var(--card)] transition-colors"
+                  >
+                    <span className="flex min-w-0 items-center gap-2.5">
+                      <span className="p-2 rounded-lg bg-[var(--card)] text-[var(--primary)] shadow-sm">
+                        <Icon name="grid" className="w-4 h-4" />
+                      </span>
+                      <span className="text-sm font-semibold text-[var(--foreground)]">Thêm sản phẩm</span>
+                    </span>
+                    <Icon name="chevron-right" className="w-4 h-4 shrink-0 text-[var(--subtext)]" />
+                  </Link>
+
+                  <Link
+                    href="/seller/wallet"
+                    className="min-w-0 bg-[var(--card-muted)] border border-[var(--border)] rounded-xl p-3 flex items-center justify-between gap-3 hover:bg-[var(--card)] transition-colors"
+                  >
+                    <span className="flex min-w-0 items-center gap-2.5">
+                      <span className="p-2 rounded-lg bg-[var(--card)] text-[var(--success)] shadow-sm">
+                        <Icon name="check" className="w-4 h-4" />
+                      </span>
+                      <span className="text-sm font-semibold text-[var(--foreground)]">Ví người bán & Rút tiền</span>
+                    </span>
+                    <Icon name="chevron-right" className="w-4 h-4 shrink-0 text-[var(--subtext)]" />
+                  </Link>
+                </div>
               </div>
 
               {/* Right Column: Low Stock Inventory (5 cols) */}
@@ -425,41 +435,6 @@ export function SellerDashboardScreen() {
                   )}
                 </div>
 
-                {/* Seller Quick Action Cards */}
-                <div className="bg-[var(--card-muted)] border border-[var(--border)] rounded-2xl p-4 flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-[var(--card)] text-[var(--primary)] shadow-sm">
-                      <Icon name="grid" className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-[var(--foreground)]">Thêm sản phẩm mới</h4>
-                      <p className="text-xs text-[var(--subtext)]">Mở rộng danh mục hàng hóa của bạn</p>
-                    </div>
-                  </div>
-                  <Link href="/seller/products">
-                    <Button variant="primary" className="text-xs py-1.5 px-3">
-                      Tạo ngay
-                    </Button>
-                  </Link>
-                </div>
-
-                {/* Seller Wallet Quick Action */}
-                <div className="bg-[var(--card-muted)] border border-[var(--border)] rounded-2xl p-4 flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-[var(--card)] text-[var(--success)] shadow-sm">
-                      <Icon name="check" className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-[var(--foreground)]">Ví người bán & Rút tiền</h4>
-                      <p className="text-xs text-[var(--subtext)]">Quản lý số dư khả dụng và yêu cầu rút về ngân hàng</p>
-                    </div>
-                  </div>
-                  <Link href="/seller/wallet">
-                    <Button variant="secondary" className="text-xs py-1.5 px-3">
-                      Xem ví
-                    </Button>
-                  </Link>
-                </div>
               </div>
             </div>
           </div>
